@@ -34,6 +34,11 @@ azurefox whoami --output table
 1. Azure CLI credential
 2. Environment/service principal credential
 
+### Web auth (browser-based) via Azure CLI
+
+If you want web-based authentication, run `az login` first (outside AzureFox), then run AzureFox.
+AzureFox does not currently launch its own browser auth flow.
+
 Azure CLI example:
 
 ```bash
@@ -42,7 +47,12 @@ az account set --subscription <subscription-id>
 azurefox inventory --subscription <subscription-id>
 ```
 
-Environment credential example:
+### Non-web auth (no `az login` required)
+
+If you do not want to use web auth, set service principal environment variables and pass CLI flags
+for tenant/subscription targeting.
+
+Environment credential + CLI options example:
 
 ```bash
 export AZURE_TENANT_ID=<tenant-id>
