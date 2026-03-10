@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+branch="$(git rev-parse --abbrev-ref HEAD)"
+
+if [[ "${branch}" == "main" && "${AZUREFOX_ALLOW_MAIN_PUSH:-0}" != "1" ]]; then
+  echo "[guardrail] Direct pushes to main are blocked. Use a feature branch + PR." >&2
+  echo "[guardrail] Override intentionally with AZUREFOX_ALLOW_MAIN_PUSH=1." >&2
+  exit 1
+fi
+
+echo "[guardrail] Running lint..."
+python3 -m ruff check .
+
+echo "[guardrail] Running tests..."
+python3 -m pytest -m "not integration"
+
+echo "[guardrail] pre-push checks passed."

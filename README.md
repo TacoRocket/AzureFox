@@ -2,6 +2,15 @@
 
 AzureFox is a Python CLI for offensive-focused Azure situational awareness.
 
+## Attribution
+
+AzureFox is inspired by [CloudFox](https://github.com/BishopFox/cloudfox), created by Bishop Fox.
+The command model and operator workflow goals in this project are heavily informed by CloudFox's
+approach to cloud situational awareness and attack-path-focused enumeration.
+
+This project is an independent implementation and is not affiliated with or endorsed by Bishop
+Fox.
+
 ## Milestone 1 Commands
 
 - `whoami`
@@ -68,3 +77,7 @@ pytest
 
 CI enforces lint + unit/contract/smoke tests. Integration tests are opt-in.
 
+## License
+
+AzureFox is licensed under the MIT License to match CloudFox's licensing model.
+See [LICENSE](LICENSE).
