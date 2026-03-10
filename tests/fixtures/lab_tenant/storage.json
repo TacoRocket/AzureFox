@@ -1,0 +1,36 @@
+{
+  "storage_assets": [
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.Storage/storageAccounts/stlabpub01",
+      "name": "stlabpub01",
+      "resource_group": "rg-data",
+      "location": "eastus",
+      "public_access": true,
+      "anonymous_access_indicators": [
+        "allow_blob_public_access=true",
+        "network_default_action=Allow"
+      ],
+      "network_default_action": "Allow",
+      "private_endpoint_enabled": false,
+      "container_count": 3,
+      "file_share_count": 1,
+      "queue_count": 2,
+      "table_count": 0
+    },
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.Storage/storageAccounts/stlabpriv01",
+      "name": "stlabpriv01",
+      "resource_group": "rg-data",
+      "location": "eastus",
+      "public_access": false,
+      "anonymous_access_indicators": [],
+      "network_default_action": "Deny",
+      "private_endpoint_enabled": true,
+      "container_count": 2,
+      "file_share_count": 0,
+      "queue_count": 0,
+      "table_count": 1
+    }
+  ],
+  "issues": []
+}

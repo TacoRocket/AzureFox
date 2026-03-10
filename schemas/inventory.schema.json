@@ -1,0 +1,11 @@
+{
+  "model": "InventoryOutput",
+  "top_level_fields": [
+    "metadata",
+    "subscription",
+    "resource_group_count",
+    "resource_count",
+    "top_resource_types",
+    "issues"
+  ]
+}

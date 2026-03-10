@@ -1,0 +1,9 @@
+{
+  "model": "StorageOutput",
+  "top_level_fields": [
+    "metadata",
+    "storage_assets",
+    "findings",
+    "issues"
+  ]
+}

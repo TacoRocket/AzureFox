@@ -1,0 +1,508 @@
+from __future__ import annotations
+
+import json
+from abc import ABC, abstractmethod
+from collections import Counter
+from pathlib import Path
+
+from azurefox.auth.session import build_auth_session, decode_jwt_payload
+from azurefox.clients.factory import build_clients
+from azurefox.config import GlobalOptions
+from azurefox.errors import AzureFoxError, ErrorKind, classify_exception
+from azurefox.models.common import Principal, RoleAssignment, ScopeRef
+
+
+class BaseProvider(ABC):
+    @abstractmethod
+    def whoami(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
+    def inventory(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
+    def rbac(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
+    def managed_identities(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
+    def storage(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
+    def vms(self) -> dict:
+        raise NotImplementedError
+
+
+class FixtureProvider(BaseProvider):
+    def __init__(self, fixture_dir: Path) -> None:
+        self.fixture_dir = fixture_dir
+
+    def _read(self, name: str) -> dict:
+        path = self.fixture_dir / f"{name}.json"
+        if not path.exists():
+            raise AzureFoxError(ErrorKind.UNKNOWN, f"Fixture file not found: {path}")
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def whoami(self) -> dict:
+        return self._read("whoami")
+
+    def inventory(self) -> dict:
+        return self._read("inventory")
+
+    def rbac(self) -> dict:
+        return self._read("rbac")
+
+    def managed_identities(self) -> dict:
+        return self._read("managed_identities")
+
+    def storage(self) -> dict:
+        return self._read("storage")
+
+    def vms(self) -> dict:
+        return self._read("vms")
+
+
+class AzureProvider(BaseProvider):
+    def __init__(self, options: GlobalOptions) -> None:
+        self.options = options
+        self.session = build_auth_session(options.tenant)
+        self.clients = build_clients(self.session, options.subscription)
+        self.subscription = self.clients.subscription
+
+    def whoami(self) -> dict:
+        claims = decode_jwt_payload(self.session.access_token)
+        principal_id = claims.get("oid") or claims.get("appid") or "unknown"
+        principal_type = "servicePrincipal" if claims.get("appid") else "user"
+        scope = f"/subscriptions/{self.clients.subscription_id}"
+
+        return {
+            "tenant_id": claims.get("tid", self.session.tenant_id),
+            "subscription": self.subscription.model_dump(),
+            "principal": Principal(
+                id=principal_id,
+                principal_type=principal_type,
+                display_name=claims.get("name") or claims.get("upn") or claims.get("appid"),
+                tenant_id=claims.get("tid", self.session.tenant_id),
+            ).model_dump(),
+            "effective_scopes": [
+                ScopeRef(
+                    id=scope,
+                    scope_type="subscription",
+                    display_name=self.subscription.display_name,
+                ).model_dump()
+            ],
+            "token_source": self.session.token_source,
+            "issues": [],
+        }
+
+    def inventory(self) -> dict:
+        rg_count = 0
+        resource_count = 0
+        resource_types: Counter[str] = Counter()
+        issues: list[dict] = []
+
+        try:
+            rg_count = sum(1 for _ in self.clients.resource.resource_groups.list())
+        except Exception as exc:
+            issues.append(_issue_from_exception("resource_groups", exc))
+
+        try:
+            for resource in self.clients.resource.resources.list():
+                resource_count += 1
+                resource_type = getattr(resource, "type", "Unknown")
+                resource_types[resource_type] += 1
+        except Exception as exc:
+            issues.append(_issue_from_exception("resources", exc))
+
+        return {
+            "subscription": self.subscription.model_dump(),
+            "resource_group_count": rg_count,
+            "resource_count": resource_count,
+            "top_resource_types": dict(resource_types.most_common(15)),
+            "issues": issues,
+        }
+
+    def rbac(self) -> dict:
+        scope = f"/subscriptions/{self.clients.subscription_id}"
+        issues: list[dict] = []
+        assignments: list[RoleAssignment] = []
+        principals: dict[str, Principal] = {}
+        scopes: dict[str, ScopeRef] = {
+            scope: ScopeRef(
+                id=scope,
+                scope_type="subscription",
+                display_name=self.subscription.display_name,
+            )
+        }
+        role_name_cache: dict[str, str] = {}
+
+        try:
+            iterator = self.clients.authorization.role_assignments.list_for_scope(scope)
+            for assignment in iterator:
+                role_definition_id = getattr(assignment, "role_definition_id", None)
+                role_name = self._resolve_role_name(scope, role_definition_id, role_name_cache)
+                principal_id = getattr(assignment, "principal_id", "unknown")
+                principal_type = getattr(assignment, "principal_type", None)
+                assignment_scope = getattr(assignment, "scope", scope)
+
+                if assignment_scope not in scopes:
+                    scopes[assignment_scope] = ScopeRef(
+                        id=assignment_scope,
+                        scope_type=_scope_type_from_id(assignment_scope),
+                    )
+
+                principals.setdefault(
+                    principal_id,
+                    Principal(id=principal_id, principal_type=principal_type or "unknown"),
+                )
+
+                assignments.append(
+                    RoleAssignment(
+                        id=getattr(assignment, "id", "unknown"),
+                        scope_id=assignment_scope,
+                        principal_id=principal_id,
+                        principal_type=principal_type,
+                        role_definition_id=role_definition_id,
+                        role_name=role_name,
+                    )
+                )
+        except Exception as exc:
+            issues.append(_issue_from_exception("rbac", exc))
+
+        return {
+            "principals": [p.model_dump() for p in principals.values()],
+            "scopes": [s.model_dump() for s in scopes.values()],
+            "role_assignments": [a.model_dump() for a in assignments],
+            "issues": issues,
+        }
+
+    def managed_identities(self) -> dict:
+        issues: list[dict] = []
+        identities: dict[str, dict] = {}
+
+        def ensure_identity(entry_id: str, name: str, identity_type: str) -> dict:
+            if entry_id not in identities:
+                identities[entry_id] = {
+                    "id": entry_id,
+                    "name": name,
+                    "identity_type": identity_type,
+                    "principal_id": None,
+                    "client_id": None,
+                    "attached_to": [],
+                    "scope_ids": [f"/subscriptions/{self.clients.subscription_id}"],
+                }
+            return identities[entry_id]
+
+        try:
+            for vm in self.clients.compute.virtual_machines.list_all():
+                vm_identity = getattr(vm, "identity", None)
+                if vm_identity is None:
+                    continue
+
+                vm_id = getattr(vm, "id", "unknown")
+                if getattr(vm_identity, "principal_id", None):
+                    system_id = f"{vm_id}/identities/system"
+                    item = ensure_identity(
+                        system_id,
+                        f"{getattr(vm, 'name', 'vm')}-system",
+                        "systemAssigned",
+                    )
+                    item["principal_id"] = vm_identity.principal_id
+
+                user_assigned = (
+                    getattr(vm_identity, "user_assigned_identities", None) or {}
+                )
+                for user_id, user_obj in user_assigned.items():
+                    name = user_id.rstrip("/").split("/")[-1]
+                    item = ensure_identity(user_id, name, "userAssigned")
+                    item["client_id"] = getattr(user_obj, "client_id", None)
+                    item["principal_id"] = getattr(user_obj, "principal_id", item["principal_id"])
+                    item["attached_to"].append(vm_id)
+
+                if getattr(vm_identity, "principal_id", None):
+                    identities[f"{vm_id}/identities/system"]["attached_to"].append(vm_id)
+        except Exception as exc:
+            issues.append(_issue_from_exception("managed_identities", exc))
+
+        rbac_data = self.rbac()
+        assignments = [
+            RoleAssignment.model_validate(a)
+            for a in rbac_data.get("role_assignments", [])
+        ]
+        principal_ids = {
+            item.get("principal_id")
+            for item in identities.values()
+            if item.get("principal_id")
+        }
+        identity_assignments = [a for a in assignments if a.principal_id in principal_ids]
+
+        return {
+            "identities": list(identities.values()),
+            "role_assignments": [a.model_dump() for a in identity_assignments],
+            "issues": issues + rbac_data.get("issues", []),
+        }
+
+    def storage(self) -> dict:
+        assets: list[dict] = []
+        issues: list[dict] = []
+
+        try:
+            for account in self.clients.storage.storage_accounts.list():
+                account_id = getattr(account, "id", "unknown")
+                account_name = getattr(account, "name", "unknown")
+                rg_name = _resource_group_from_id(account_id)
+                public_access = bool(getattr(account, "allow_blob_public_access", False))
+
+                network_rule_set = getattr(account, "network_rule_set", None)
+                default_action = getattr(network_rule_set, "default_action", None)
+
+                private_endpoints = getattr(account, "private_endpoint_connections", None) or []
+
+                container_count = self._count_storage_children(
+                    "blob_containers",
+                    rg_name,
+                    account_name,
+                )
+                share_count = self._count_storage_children("file_shares", rg_name, account_name)
+                queue_count = self._count_storage_children("queue", rg_name, account_name)
+                table_count = self._count_storage_children("table", rg_name, account_name)
+
+                indicators = []
+                if public_access:
+                    indicators.append("allow_blob_public_access=true")
+                if default_action and str(default_action).lower() == "allow":
+                    indicators.append("network_default_action=Allow")
+
+                assets.append(
+                    {
+                        "id": account_id,
+                        "name": account_name,
+                        "resource_group": rg_name,
+                        "location": getattr(account, "location", None),
+                        "public_access": public_access,
+                        "anonymous_access_indicators": indicators,
+                        "network_default_action": default_action,
+                        "private_endpoint_enabled": len(private_endpoints) > 0,
+                        "container_count": container_count,
+                        "file_share_count": share_count,
+                        "queue_count": queue_count,
+                        "table_count": table_count,
+                    }
+                )
+        except Exception as exc:
+            issues.append(_issue_from_exception("storage", exc))
+
+        return {"storage_assets": assets, "issues": issues}
+
+    def vms(self) -> dict:
+        vm_assets: list[dict] = []
+        issues: list[dict] = []
+
+        try:
+            for vm in self.clients.compute.virtual_machines.list_all():
+                vm_id = getattr(vm, "id", "unknown")
+                network_profile = getattr(vm, "network_profile", None)
+                interfaces = getattr(network_profile, "network_interfaces", []) or []
+                nic_ids = [n.id for n in interfaces if n and getattr(n, "id", None)]
+
+                private_ips: list[str] = []
+                public_ips: list[str] = []
+                for nic_id in nic_ids:
+                    nic_private, nic_public = self._resolve_nic_ips(nic_id)
+                    private_ips.extend(nic_private)
+                    public_ips.extend(nic_public)
+
+                identity_ids = []
+                vm_identity = getattr(vm, "identity", None)
+                if vm_identity is not None:
+                    if getattr(vm_identity, "principal_id", None):
+                        identity_ids.append(f"{vm_id}/identities/system")
+                    user_assigned = (
+                        getattr(vm_identity, "user_assigned_identities", None) or {}
+                    )
+                    identity_ids.extend(user_assigned.keys())
+
+                vm_assets.append(
+                    {
+                        "id": vm_id,
+                        "name": getattr(vm, "name", "unknown"),
+                        "resource_group": _resource_group_from_id(vm_id),
+                        "location": getattr(vm, "location", None),
+                        "vm_type": "vm",
+                        "power_state": _extract_power_state(vm),
+                        "private_ips": sorted(set(private_ips)),
+                        "public_ips": sorted(set(public_ips)),
+                        "identity_ids": sorted(set(identity_ids)),
+                        "nic_ids": sorted(set(nic_ids)),
+                    }
+                )
+
+            for vmss in self.clients.compute.virtual_machine_scale_sets.list_all():
+                vmss_id = getattr(vmss, "id", "unknown")
+                identity_ids = []
+                vmss_identity = getattr(vmss, "identity", None)
+                if vmss_identity is not None:
+                    if getattr(vmss_identity, "principal_id", None):
+                        identity_ids.append(f"{vmss_id}/identities/system")
+                    user_assigned = (
+                        getattr(vmss_identity, "user_assigned_identities", None) or {}
+                    )
+                    identity_ids.extend(user_assigned.keys())
+
+                vm_assets.append(
+                    {
+                        "id": vmss_id,
+                        "name": getattr(vmss, "name", "unknown"),
+                        "resource_group": _resource_group_from_id(vmss_id),
+                        "location": getattr(vmss, "location", None),
+                        "vm_type": "vmss",
+                        "power_state": None,
+                        "private_ips": [],
+                        "public_ips": [],
+                        "identity_ids": sorted(set(identity_ids)),
+                        "nic_ids": [],
+                    }
+                )
+        except Exception as exc:
+            issues.append(_issue_from_exception("vms", exc))
+
+        return {"vm_assets": vm_assets, "issues": issues}
+
+    def _resolve_role_name(
+        self,
+        scope: str,
+        role_definition_id: str | None,
+        cache: dict[str, str],
+    ) -> str | None:
+        if not role_definition_id:
+            return None
+        if role_definition_id in cache:
+            return cache[role_definition_id]
+
+        role_name = None
+        try:
+            role_key = role_definition_id.rstrip("/").split("/")[-1]
+            role = self.clients.authorization.role_definitions.get(scope, role_key)
+            role_name = getattr(role, "role_name", None)
+        except Exception:
+            role_name = None
+
+        cache[role_definition_id] = role_name or "Unknown"
+        return cache[role_definition_id]
+
+    def _count_storage_children(self, op_name: str, rg_name: str | None, account_name: str) -> int:
+        if not rg_name:
+            return 0
+
+        operation = getattr(self.clients.storage, op_name, None)
+        if operation is None:
+            return 0
+
+        for method_name in ("list", "list_by_storage_account"):
+            method = getattr(operation, method_name, None)
+            if method is None:
+                continue
+            try:
+                if method_name == "list":
+                    return sum(1 for _ in method(rg_name, account_name))
+                return sum(1 for _ in method(account_name))
+            except Exception:
+                return 0
+        return 0
+
+    def _resolve_nic_ips(self, nic_id: str) -> tuple[list[str], list[str]]:
+        rg_name, nic_name = _resource_group_and_name(nic_id)
+        if not rg_name or not nic_name:
+            return [], []
+
+        private_ips: list[str] = []
+        public_ips: list[str] = []
+
+        try:
+            nic = self.clients.network.network_interfaces.get(rg_name, nic_name)
+            for cfg in getattr(nic, "ip_configurations", None) or []:
+                if getattr(cfg, "private_ip_address", None):
+                    private_ips.append(str(cfg.private_ip_address))
+                pub = getattr(cfg, "public_ip_address", None)
+                pub_id = getattr(pub, "id", None)
+                if pub_id:
+                    pub_rg, pub_name = _resource_group_and_name(pub_id)
+                    if pub_rg and pub_name:
+                        pip = self.clients.network.public_ip_addresses.get(pub_rg, pub_name)
+                        ip_addr = getattr(pip, "ip_address", None)
+                        if ip_addr:
+                            public_ips.append(str(ip_addr))
+        except Exception:
+            return private_ips, public_ips
+
+        return private_ips, public_ips
+
+
+def get_provider(options: GlobalOptions) -> BaseProvider:
+    fixture_dir = _fixture_dir_from_env()
+    if fixture_dir is not None:
+        return FixtureProvider(fixture_dir)
+    return AzureProvider(options)
+
+
+def _fixture_dir_from_env() -> Path | None:
+    from os import getenv
+
+    value = getenv("AZUREFOX_FIXTURE_DIR")
+    if not value:
+        return None
+    path = Path(value).expanduser().resolve()
+    return path
+
+
+def _issue_from_exception(area: str, exc: Exception) -> dict:
+    return {
+        "kind": classify_exception(exc).value,
+        "message": f"{area}: {exc}",
+        "context": {"collector": area},
+    }
+
+
+def _resource_group_from_id(resource_id: str) -> str | None:
+    parts = [p for p in resource_id.split("/") if p]
+    try:
+        idx = [p.lower() for p in parts].index("resourcegroups")
+        return parts[idx + 1]
+    except (ValueError, IndexError):
+        return None
+
+
+def _resource_group_and_name(resource_id: str) -> tuple[str | None, str | None]:
+    parts = [p for p in resource_id.split("/") if p]
+    rg = None
+    name = parts[-1] if parts else None
+    try:
+        idx = [p.lower() for p in parts].index("resourcegroups")
+        rg = parts[idx + 1]
+    except (ValueError, IndexError):
+        pass
+    return rg, name
+
+
+def _scope_type_from_id(scope_id: str) -> str:
+    lower = scope_id.lower()
+    if "/providers/" in lower:
+        return "resource"
+    if "/resourcegroups/" in lower:
+        return "resource_group"
+    return "subscription"
+
+
+def _extract_power_state(vm: object) -> str | None:
+    view = getattr(vm, "instance_view", None)
+    statuses = getattr(view, "statuses", None) or []
+    for status in statuses:
+        code = getattr(status, "code", "")
+        if isinstance(code, str) and code.startswith("PowerState/"):
+            return code.replace("PowerState/", "", 1)
+    return None

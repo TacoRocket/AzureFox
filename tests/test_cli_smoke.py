@@ -1,0 +1,34 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from typer.testing import CliRunner
+
+from azurefox.cli import app
+
+runner = CliRunner()
+
+
+def test_cli_smoke_all_commands(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    commands = [
+        "whoami",
+        "inventory",
+        "rbac",
+        "managed-identities",
+        "storage",
+        "vms",
+    ]
+
+    for command in commands:
+        result = runner.invoke(
+            app,
+            ["--outdir", str(tmp_path), "--output", "json", command],
+            env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+        )
+        assert result.exit_code == 0
+        payload = json.loads(result.stdout)
+        assert payload["metadata"]["command"] == command
+        assert (tmp_path / "loot" / f"{command}.json").exists()

@@ -1,0 +1,33 @@
+{
+  "vm_assets": [
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+      "name": "vm-web-01",
+      "resource_group": "rg-workload",
+      "location": "eastus",
+      "vm_type": "vm",
+      "power_state": "running",
+      "private_ips": ["10.0.1.4"],
+      "public_ips": ["52.160.10.20"],
+      "identity_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-app"
+      ],
+      "nic_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Network/networkInterfaces/nic-web-01"
+      ]
+    },
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-api",
+      "name": "vmss-api",
+      "resource_group": "rg-workload",
+      "location": "eastus",
+      "vm_type": "vmss",
+      "power_state": null,
+      "private_ips": [],
+      "public_ips": [],
+      "identity_ids": [],
+      "nic_ids": []
+    }
+  ],
+  "issues": []
+}

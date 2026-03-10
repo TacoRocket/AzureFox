@@ -1,0 +1,10 @@
+{
+  "model": "RbacOutput",
+  "top_level_fields": [
+    "metadata",
+    "principals",
+    "scopes",
+    "role_assignments",
+    "issues"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "model": "WhoAmIOutput",
+  "top_level_fields": [
+    "metadata",
+    "tenant_id",
+    "subscription",
+    "principal",
+    "effective_scopes",
+    "issues"
+  ]
+}

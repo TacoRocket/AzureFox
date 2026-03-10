@@ -1,0 +1,9 @@
+{
+  "model": "VmsOutput",
+  "top_level_fields": [
+    "metadata",
+    "vm_assets",
+    "findings",
+    "issues"
+  ]
+}

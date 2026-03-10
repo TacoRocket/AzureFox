@@ -1,0 +1,28 @@
+{
+  "identities": [
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-app",
+      "name": "ua-app",
+      "identity_type": "userAssigned",
+      "principal_id": "33333333-3333-3333-3333-333333333333",
+      "client_id": "55555555-5555-5555-5555-555555555555",
+      "attached_to": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01"
+      ],
+      "scope_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222"
+      ]
+    }
+  ],
+  "role_assignments": [
+    {
+      "id": "ra-1",
+      "scope_id": "/subscriptions/22222222-2222-2222-2222-222222222222",
+      "principal_id": "33333333-3333-3333-3333-333333333333",
+      "principal_type": "ServicePrincipal",
+      "role_definition_id": "rd-owner",
+      "role_name": "Owner"
+    }
+  ],
+  "issues": []
+}

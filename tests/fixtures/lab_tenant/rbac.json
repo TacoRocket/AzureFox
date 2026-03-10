@@ -1,0 +1,42 @@
+{
+  "principals": [
+    {
+      "id": "33333333-3333-3333-3333-333333333333",
+      "principal_type": "ServicePrincipal",
+      "display_name": "azurefox-lab-sp",
+      "tenant_id": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "id": "44444444-4444-4444-4444-444444444444",
+      "principal_type": "User",
+      "display_name": "operator@lab.local",
+      "tenant_id": "11111111-1111-1111-1111-111111111111"
+    }
+  ],
+  "scopes": [
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222",
+      "scope_type": "subscription",
+      "display_name": "azurefox-lab-sub"
+    }
+  ],
+  "role_assignments": [
+    {
+      "id": "ra-1",
+      "scope_id": "/subscriptions/22222222-2222-2222-2222-222222222222",
+      "principal_id": "33333333-3333-3333-3333-333333333333",
+      "principal_type": "ServicePrincipal",
+      "role_definition_id": "rd-owner",
+      "role_name": "Owner"
+    },
+    {
+      "id": "ra-2",
+      "scope_id": "/subscriptions/22222222-2222-2222-2222-222222222222",
+      "principal_id": "44444444-4444-4444-4444-444444444444",
+      "principal_type": "User",
+      "role_definition_id": "rd-reader",
+      "role_name": "Reader"
+    }
+  ],
+  "issues": []
+}

@@ -1,0 +1,10 @@
+{
+  "model": "ManagedIdentitiesOutput",
+  "top_level_fields": [
+    "metadata",
+    "identities",
+    "role_assignments",
+    "findings",
+    "issues"
+  ]
+}

@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+from collections import Counter
+
+from pydantic import BaseModel, Field
+
+from azurefox.models.common import (
+    CollectionIssue,
+    CommandMetadata,
+    Finding,
+    ManagedIdentity,
+    Principal,
+    RoleAssignment,
+    ScopeRef,
+    StorageAsset,
+    SubscriptionRef,
+    VmAsset,
+)
+
+
+class WhoAmIOutput(BaseModel):
+    metadata: CommandMetadata
+    tenant_id: str | None = None
+    subscription: SubscriptionRef | None = None
+    principal: Principal | None = None
+    effective_scopes: list[ScopeRef] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class InventoryOutput(BaseModel):
+    metadata: CommandMetadata
+    subscription: SubscriptionRef | None = None
+    resource_group_count: int = 0
+    resource_count: int = 0
+    top_resource_types: dict[str, int] = Field(default_factory=dict)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class RbacOutput(BaseModel):
+    metadata: CommandMetadata
+    principals: list[Principal] = Field(default_factory=list)
+    scopes: list[ScopeRef] = Field(default_factory=list)
+    role_assignments: list[RoleAssignment] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+    def role_distribution(self) -> dict[str, int]:
+        dist = Counter()
+        for assignment in self.role_assignments:
+            dist[assignment.role_name or "Unknown"] += 1
+        return dict(dist)
+
+
+class ManagedIdentitiesOutput(BaseModel):
+    metadata: CommandMetadata
+    identities: list[ManagedIdentity] = Field(default_factory=list)
+    role_assignments: list[RoleAssignment] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class StorageOutput(BaseModel):
+    metadata: CommandMetadata
+    storage_assets: list[StorageAsset] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class VmsOutput(BaseModel):
+    metadata: CommandMetadata
+    vm_assets: list[VmAsset] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
