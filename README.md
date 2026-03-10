@@ -11,7 +11,7 @@ approach to cloud situational awareness and attack-path-focused enumeration.
 This project is an independent implementation and is not affiliated with or endorsed by Bishop
 Fox.
 
-## Milestone 1 Commands
+## Currently Supported Azure Commands
 
 - `whoami`
 - `inventory`
