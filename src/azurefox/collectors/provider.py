@@ -54,6 +54,10 @@ class BaseProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def keyvault(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
     def storage(self) -> dict:
         raise NotImplementedError
 
@@ -98,6 +102,9 @@ class FixtureProvider(BaseProvider):
 
     def managed_identities(self) -> dict:
         return self._read("managed_identities")
+
+    def keyvault(self) -> dict:
+        return self._read("keyvault")
 
     def storage(self) -> dict:
         return self._read("storage")
@@ -811,6 +818,58 @@ class AzureProvider(BaseProvider):
             "issues": issues + rbac_data.get("issues", []),
         }
 
+    def keyvault(self) -> dict:
+        key_vaults: list[dict] = []
+        issues: list[dict] = []
+
+        try:
+            for vault in self.clients.keyvault.vaults.list_by_subscription():
+                vault_id = getattr(vault, "id", "unknown")
+                properties = getattr(vault, "properties", None)
+                network_acls = getattr(properties, "network_acls", None)
+                private_endpoints = (
+                    getattr(properties, "private_endpoint_connections", None)
+                    or getattr(vault, "private_endpoint_connections", None)
+                    or []
+                )
+                sku = getattr(vault, "sku", None)
+
+                key_vaults.append(
+                    {
+                        "id": vault_id,
+                        "name": getattr(vault, "name", "unknown"),
+                        "resource_group": _resource_group_from_id(vault_id),
+                        "location": getattr(vault, "location", None),
+                        "vault_uri": getattr(properties, "vault_uri", None),
+                        "tenant_id": _string_value(getattr(properties, "tenant_id", None)),
+                        "sku_name": _string_value(getattr(sku, "name", None)),
+                        "public_network_access": _string_value(
+                            getattr(properties, "public_network_access", None)
+                        ),
+                        "network_default_action": _string_value(
+                            getattr(network_acls, "default_action", None)
+                        ),
+                        "private_endpoint_enabled": len(private_endpoints) > 0,
+                        "purge_protection_enabled": bool(
+                            getattr(properties, "enable_purge_protection", False)
+                        ),
+                        "soft_delete_enabled": bool(
+                            getattr(properties, "enable_soft_delete", False)
+                        ),
+                        "enable_rbac_authorization": bool(
+                            getattr(properties, "enable_rbac_authorization", False)
+                        ),
+                        "access_policy_count": len(
+                            getattr(properties, "access_policies", None) or []
+                        ),
+                    }
+                )
+        except Exception as exc:
+            issues.append(_issue_from_exception("keyvault", exc))
+
+        key_vaults.sort(key=lambda item: ((item.get("name") or ""), item.get("id") or ""))
+        return {"key_vaults": key_vaults, "issues": issues}
+
     def storage(self) -> dict:
         assets: list[dict] = []
         issues: list[dict] = []
@@ -1264,6 +1323,12 @@ def _resource_group_and_name(resource_id: str) -> tuple[str | None, str | None]:
     except (ValueError, IndexError):
         pass
     return rg, name
+
+
+def _string_value(value: object) -> str | None:
+    if value is None:
+        return None
+    return str(getattr(value, "value", value))
 
 
 def _scope_type_from_id(scope_id: str) -> str:

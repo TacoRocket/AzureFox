@@ -13,6 +13,7 @@ class AzureClients:
     subscription: SubscriptionRef
     resource: object
     authorization: object
+    keyvault: object
     storage: object
     compute: object
     network: object
@@ -22,6 +23,7 @@ def build_clients(session: AuthSession, requested_subscription: str | None) -> A
     try:
         from azure.mgmt.authorization import AuthorizationManagementClient
         from azure.mgmt.compute import ComputeManagementClient
+        from azure.mgmt.keyvault import KeyVaultManagementClient
         from azure.mgmt.network import NetworkManagementClient
         from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient
         from azure.mgmt.storage import StorageManagementClient
@@ -68,6 +70,7 @@ def build_clients(session: AuthSession, requested_subscription: str | None) -> A
         subscription=subscription_ref,
         resource=ResourceManagementClient(session.credential, subscription_id),
         authorization=AuthorizationManagementClient(session.credential, subscription_id),
+        keyvault=KeyVaultManagementClient(session.credential, subscription_id),
         storage=StorageManagementClient(session.credential, subscription_id),
         compute=ComputeManagementClient(session.credential, subscription_id),
         network=NetworkManagementClient(session.credential, subscription_id),

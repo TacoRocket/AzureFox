@@ -1,0 +1,9 @@
+{
+  "model": "KeyVaultOutput",
+  "top_level_fields": [
+    "metadata",
+    "key_vaults",
+    "findings",
+    "issues"
+  ]
+}

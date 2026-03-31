@@ -91,6 +91,11 @@ def managed_identities(ctx: typer.Context) -> None:
     _run_single(ctx, "managed-identities")
 
 
+@app.command("keyvault")
+def keyvault(ctx: typer.Context) -> None:
+    _run_single(ctx, "keyvault")
+
+
 @app.command("storage")
 def storage(ctx: typer.Context) -> None:
     _run_single(ctx, "storage")

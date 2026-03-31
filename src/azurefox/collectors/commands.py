@@ -5,12 +5,14 @@ from azurefox.config import GlobalOptions
 from azurefox.correlation.findings import (
     build_auth_policy_findings,
     build_identity_findings,
+    build_keyvault_findings,
     build_storage_findings,
     build_vm_findings,
 )
 from azurefox.models.commands import (
     AuthPoliciesOutput,
     InventoryOutput,
+    KeyVaultOutput,
     ManagedIdentitiesOutput,
     PermissionsOutput,
     PrincipalsOutput,
@@ -101,6 +103,14 @@ def collect_managed_identities(
             "findings": findings,
             **data,
         }
+    )
+
+
+def collect_keyvault(provider: BaseProvider, options: GlobalOptions) -> KeyVaultOutput:
+    data = provider.keyvault()
+    findings = build_keyvault_findings(data.get("key_vaults", []))
+    return KeyVaultOutput.model_validate(
+        {"metadata": _metadata(provider, "keyvault", options), "findings": findings, **data}
     )
 
 

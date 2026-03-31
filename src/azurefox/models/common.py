@@ -132,6 +132,23 @@ class ManagedIdentity(BaseModel):
     scope_ids: list[str] = Field(default_factory=list)
 
 
+class KeyVaultAsset(BaseModel):
+    id: str
+    name: str
+    resource_group: str | None = None
+    location: str | None = None
+    vault_uri: str | None = None
+    tenant_id: str | None = None
+    sku_name: str | None = None
+    public_network_access: str | None = None
+    network_default_action: str | None = None
+    private_endpoint_enabled: bool = False
+    purge_protection_enabled: bool = False
+    soft_delete_enabled: bool = False
+    enable_rbac_authorization: bool = False
+    access_policy_count: int = 0
+
+
 class StorageAsset(BaseModel):
     id: str
     name: str

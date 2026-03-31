@@ -103,6 +103,27 @@ def _records_for_command(command: str, payload: dict) -> list[dict]:
             for item in payload.get("auth_policies", [])
         ]
 
+    if command == "keyvault":
+        return [
+            {
+                "name": item.get("name"),
+                "resource_group": item.get("resource_group"),
+                "public_network_access": item.get("public_network_access"),
+                "network_default_action": item.get("network_default_action"),
+                "private_endpoint_enabled": str(
+                    bool(item.get("private_endpoint_enabled", False))
+                ).lower(),
+                "purge_protection_enabled": str(
+                    bool(item.get("purge_protection_enabled", False))
+                ).lower(),
+                "enable_rbac_authorization": str(
+                    bool(item.get("enable_rbac_authorization", False))
+                ).lower(),
+                "access_policy_count": item.get("access_policy_count", 0),
+            }
+            for item in payload.get("key_vaults", [])
+        ]
+
     mapping = {
         "rbac": "role_assignments",
         "principals": "principals",
@@ -111,6 +132,7 @@ def _records_for_command(command: str, payload: dict) -> list[dict]:
         "role-trusts": "trusts",
         "auth-policies": "auth_policies",
         "managed-identities": "identities",
+        "keyvault": "key_vaults",
         "storage": "storage_assets",
         "vms": "vm_assets",
     }

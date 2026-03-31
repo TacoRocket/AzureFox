@@ -22,6 +22,7 @@ Fox.
 - `role-trusts`
 - `auth-policies`
 - `managed-identities`
+- `keyvault`
 - `storage`
 - `vms`
 - `all-checks`
@@ -89,6 +90,7 @@ AzureFox keeps flat standalone commands and also supports grouped execution:
 ```bash
 azurefox all-checks
 azurefox all-checks --section identity
+azurefox all-checks --section secrets
 azurefox all-checks --section storage
 azurefox all-checks --section compute
 ```
@@ -96,6 +98,7 @@ azurefox all-checks --section compute
 Current section mappings:
 
 - `identity`: `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `auth-policies`, `managed-identities`
+- `secrets`: `keyvault`
 - `storage`: `storage`
 - `compute`: `vms`
 - `core`: `inventory`

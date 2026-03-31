@@ -9,6 +9,7 @@ from azurefox.models.common import (
     CollectionIssue,
     CommandMetadata,
     Finding,
+    KeyVaultAsset,
     ManagedIdentity,
     PermissionSummary,
     Principal,
@@ -90,6 +91,13 @@ class ManagedIdentitiesOutput(BaseModel):
     metadata: CommandMetadata
     identities: list[ManagedIdentity] = Field(default_factory=list)
     role_assignments: list[RoleAssignment] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class KeyVaultOutput(BaseModel):
+    metadata: CommandMetadata
+    key_vaults: list[KeyVaultAsset] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 

@@ -69,6 +69,15 @@ def test_help_command_auth_policies_topic() -> None:
     assert "sign-in, consent, and identity hardening" in result.stdout
 
 
+def test_help_command_keyvault_topic() -> None:
+    result = runner.invoke(app, ["help", "keyvault"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: keyvault" in result.stdout
+    assert "secret-management surface" in result.stdout
+    assert "purge_protection_enabled" in result.stdout
+
+
 def test_help_command_unknown_topic() -> None:
     result = runner.invoke(app, ["help", "banana"])
 
