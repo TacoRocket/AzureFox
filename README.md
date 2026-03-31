@@ -97,6 +97,20 @@ Current section mappings:
 - `compute`: `vms`
 - `core`: `inventory`
 
+## Help
+
+AzureFox supports generic and scoped help:
+
+```bash
+azurefox help
+azurefox help identity
+azurefox help permissions
+azurefox -h identity
+azurefox -h permissions
+```
+
+Command help includes ATT&CK cloud leads as investigative context so users can map the output to likely tactics and techniques without treating the help text as proof that a technique occurred.
+
 ## Fixture Mode
 
 Set `AZUREFOX_FIXTURE_DIR` to run against local fixture files rather than Azure APIs.

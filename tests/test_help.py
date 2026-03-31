@@ -1,0 +1,59 @@
+from __future__ import annotations
+
+from typer.testing import CliRunner
+
+from azurefox.cli import _normalize_argv, app
+
+runner = CliRunner()
+
+
+def test_help_command_generic() -> None:
+    result = runner.invoke(app, ["help"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help" in result.stdout
+    assert "azurefox -h <section>" in result.stdout
+    assert (
+        "permissions: Triage which visible principals hold "
+        "high-impact RBAC roles."
+    ) in result.stdout
+
+
+def test_help_command_section() -> None:
+    result = runner.invoke(app, ["help", "identity"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: identity" in result.stdout
+    assert "Implemented commands:" in result.stdout
+    assert (
+        "permissions: Triage which visible principals hold "
+        "high-impact RBAC roles."
+    ) in result.stdout
+    assert "ATT&CK cloud lenses:" in result.stdout
+
+
+def test_help_command_command_topic() -> None:
+    result = runner.invoke(app, ["help", "permissions"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: permissions" in result.stdout
+    assert "Offensive question:" in result.stdout
+    assert "ATT&CK cloud leads:" in result.stdout
+    assert "Temporary Elevated Cloud Access" in result.stdout
+
+
+def test_help_command_unknown_topic() -> None:
+    result = runner.invoke(app, ["help", "banana"])
+
+    assert result.exit_code == 2
+    assert "Unknown help topic 'banana'" in result.stderr
+
+
+def test_normalize_argv_help_shorthand() -> None:
+    assert _normalize_argv(["azurefox", "-h"]) == ["azurefox", "help"]
+    assert _normalize_argv(["azurefox", "-h", "identity"]) == ["azurefox", "help", "identity"]
+    assert _normalize_argv(["azurefox", "--help", "permissions"]) == [
+        "azurefox",
+        "help",
+        "permissions",
+    ]

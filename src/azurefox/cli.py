@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import typer
@@ -7,6 +8,7 @@ import typer
 from azurefox.collectors.provider import get_provider
 from azurefox.config import GlobalOptions
 from azurefox.errors import AzureFoxError
+from azurefox.help import render_help
 from azurefox.models.common import OutputMode
 from azurefox.models.run import AllChecksSummary, RunCommandResult
 from azurefox.output.style import emit_artifact_paths, emit_command_status, emit_context_banner
@@ -163,6 +165,15 @@ def all_checks(
         raise typer.Exit(code=1)
 
 
+@app.command("help")
+def help_command(topic: str | None = typer.Argument(None)) -> None:
+    try:
+        typer.echo(render_help(topic))
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=2) from exc
+
+
 def _run_single(ctx: typer.Context, command: str) -> None:
     options: GlobalOptions = ctx.obj
     try:
@@ -185,6 +196,7 @@ def _run_single(ctx: typer.Context, command: str) -> None:
 
 
 def main() -> None:
+    sys.argv = _normalize_argv(sys.argv)
     app()
 
 
@@ -195,3 +207,15 @@ def _build_metadata(command: str, options: GlobalOptions) -> dict[str, str | Non
         "subscription_id": options.subscription,
         "token_source": None,
     }
+
+
+def _normalize_argv(argv: list[str]) -> list[str]:
+    if len(argv) < 2:
+        return argv
+
+    if argv[1] in {"-h", "--help"}:
+        if len(argv) == 2:
+            return [argv[0], "help"]
+        return [argv[0], "help", argv[2]]
+
+    return argv
