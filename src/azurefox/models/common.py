@@ -63,6 +63,19 @@ class PrincipalSummary(BaseModel):
     is_current_identity: bool = False
 
 
+class PermissionSummary(BaseModel):
+    principal_id: str
+    display_name: str | None = None
+    principal_type: str
+    high_impact_roles: list[str] = Field(default_factory=list)
+    all_role_names: list[str] = Field(default_factory=list)
+    role_assignment_count: int = 0
+    scope_count: int = 0
+    scope_ids: list[str] = Field(default_factory=list)
+    privileged: bool = False
+    is_current_identity: bool = False
+
+
 class RoleAssignment(BaseModel):
     id: str
     scope_id: str

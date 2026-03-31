@@ -30,6 +30,10 @@ class BaseProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def permissions(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
     def managed_identities(self) -> dict:
         raise NotImplementedError
 
@@ -63,6 +67,9 @@ class FixtureProvider(BaseProvider):
 
     def principals(self) -> dict:
         return self._read("principals")
+
+    def permissions(self) -> dict:
+        return self._read("permissions")
 
     def managed_identities(self) -> dict:
         return self._read("managed_identities")
@@ -280,6 +287,46 @@ class AzureProvider(BaseProvider):
             ),
         )
         return {"principals": principals, "issues": issues}
+
+    def permissions(self) -> dict:
+        principal_data = self.principals()
+        permission_rows: list[dict] = []
+
+        for principal in principal_data.get("principals", []):
+            role_names = sorted(set(principal.get("role_names", [])))
+            scope_ids = sorted(set(principal.get("scope_ids", [])))
+            high_impact_roles = sorted(
+                {
+                    role_name
+                    for role_name in role_names
+                    if role_name.lower() in _HIGH_IMPACT_ROLE_NAMES
+                }
+            )
+            permission_rows.append(
+                {
+                    "principal_id": principal.get("id"),
+                    "display_name": principal.get("display_name"),
+                    "principal_type": principal.get("principal_type", "unknown"),
+                    "high_impact_roles": high_impact_roles,
+                    "all_role_names": role_names,
+                    "role_assignment_count": principal.get("role_assignment_count", 0),
+                    "scope_count": len(scope_ids),
+                    "scope_ids": scope_ids,
+                    "privileged": len(high_impact_roles) > 0,
+                    "is_current_identity": principal.get("is_current_identity", False),
+                }
+            )
+
+        permission_rows.sort(
+            key=lambda item: (
+                not item["privileged"],
+                not item["is_current_identity"],
+                -(item["role_assignment_count"]),
+                item.get("display_name") or "",
+                item["principal_id"] or "",
+            )
+        )
+        return {"permissions": permission_rows, "issues": principal_data.get("issues", [])}
 
     def managed_identities(self) -> dict:
         issues: list[dict] = []
@@ -604,6 +651,13 @@ def _normalize_principal_type(existing: str | None, candidate: str | None) -> st
     if normalized_existing != "unknown":
         return normalized_existing
     return normalized
+
+
+_HIGH_IMPACT_ROLE_NAMES = {
+    "owner",
+    "contributor",
+    "user access administrator",
+}
 
 
 def _resource_group_from_id(resource_id: str) -> str | None:

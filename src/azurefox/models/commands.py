@@ -9,6 +9,7 @@ from azurefox.models.common import (
     CommandMetadata,
     Finding,
     ManagedIdentity,
+    PermissionSummary,
     Principal,
     PrincipalSummary,
     RoleAssignment,
@@ -54,6 +55,12 @@ class RbacOutput(BaseModel):
 class PrincipalsOutput(BaseModel):
     metadata: CommandMetadata
     principals: list[PrincipalSummary] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class PermissionsOutput(BaseModel):
+    metadata: CommandMetadata
+    permissions: list[PermissionSummary] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 
 

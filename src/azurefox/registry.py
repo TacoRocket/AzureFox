@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from azurefox.collectors.commands import (
     collect_inventory,
     collect_managed_identities,
+    collect_permissions,
     collect_principals,
     collect_rbac,
     collect_storage,
@@ -30,6 +31,7 @@ COMMAND_SPECS: tuple[CommandSpec, ...] = (
     CommandSpec("inventory", "core", collect_inventory),
     CommandSpec("rbac", "identity", collect_rbac),
     CommandSpec("principals", "identity", collect_principals),
+    CommandSpec("permissions", "identity", collect_permissions),
     CommandSpec("managed-identities", "identity", collect_managed_identities),
     CommandSpec("storage", "storage", collect_storage),
     CommandSpec("vms", "compute", collect_vms),
