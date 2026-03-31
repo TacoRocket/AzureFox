@@ -34,6 +34,10 @@ class BaseProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def privesc(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
     def managed_identities(self) -> dict:
         raise NotImplementedError
 
@@ -70,6 +74,9 @@ class FixtureProvider(BaseProvider):
 
     def permissions(self) -> dict:
         return self._read("permissions")
+
+    def privesc(self) -> dict:
+        return self._read("privesc")
 
     def managed_identities(self) -> dict:
         return self._read("managed_identities")
@@ -327,6 +334,105 @@ class AzureProvider(BaseProvider):
             )
         )
         return {"permissions": permission_rows, "issues": principal_data.get("issues", [])}
+
+    def privesc(self) -> dict:
+        permissions_data = self.permissions()
+        principals_data = self.principals()
+        identities_data = self.managed_identities()
+        vms_data = self.vms()
+
+        principal_by_id = {
+            item.get("id"): item
+            for item in principals_data.get("principals", [])
+            if item.get("id")
+        }
+        identities_by_principal: dict[str, list[dict]] = {}
+        for identity in identities_data.get("identities", []):
+            principal_id = identity.get("principal_id")
+            if principal_id:
+                identities_by_principal.setdefault(principal_id, []).append(identity)
+
+        vm_by_id = {
+            item.get("id"): item
+            for item in vms_data.get("vm_assets", [])
+            if item.get("id")
+        }
+        paths: list[dict] = []
+
+        for permission in permissions_data.get("permissions", []):
+            if not permission.get("privileged"):
+                continue
+
+            principal_name = (
+                permission.get("display_name") or permission.get("principal_id") or "unknown"
+            )
+            impact_roles = permission.get("high_impact_roles", [])
+            principal_id = permission.get("principal_id", "unknown")
+            related_ids = [principal_id, *permission.get("scope_ids", [])]
+
+            paths.append(
+                {
+                    "principal": principal_name,
+                    "principal_id": principal_id,
+                    "principal_type": permission.get("principal_type", "unknown"),
+                    "path_type": "direct-role-abuse",
+                    "asset": None,
+                    "impact_roles": impact_roles,
+                    "severity": "high" if permission.get("is_current_identity") else "medium",
+                    "current_identity": permission.get("is_current_identity", False),
+                    "summary": (
+                        f"Principal '{principal_name}' already holds high-impact role "
+                        f"assignments ({', '.join(impact_roles) or 'Unknown'}) in the "
+                        "current subscription scope."
+                    ),
+                    "related_ids": related_ids,
+                }
+            )
+
+            for identity in identities_by_principal.get(principal_id, []):
+                for attached_id in identity.get("attached_to", []):
+                    vm_asset = vm_by_id.get(attached_id)
+                    if not vm_asset or not vm_asset.get("public_ips"):
+                        continue
+
+                    paths.append(
+                        {
+                            "principal": identity.get("name") or principal_name,
+                            "principal_id": principal_id,
+                            "principal_type": "ManagedIdentity",
+                            "path_type": "public-identity-pivot",
+                            "asset": vm_asset.get("name") or attached_id,
+                            "impact_roles": impact_roles,
+                            "severity": "high",
+                            "current_identity": False,
+                            "summary": (
+                                f"Public workload '{vm_asset.get('name') or attached_id}' carries "
+                                f"managed identity '{identity.get('name') or principal_name}' with "
+                                "high-impact role assignments "
+                                f"({', '.join(impact_roles) or 'Unknown'})."
+                            ),
+                            "related_ids": [
+                                identity.get("id"),
+                                principal_id,
+                                attached_id,
+                                *principal_by_id.get(principal_id, {}).get("scope_ids", []),
+                            ],
+                        }
+                    )
+
+        paths.sort(
+            key=lambda item: (
+                not item["current_identity"],
+                item["path_type"] != "public-identity-pivot",
+                item["principal"],
+            )
+        )
+        issues = [
+            *permissions_data.get("issues", []),
+            *identities_data.get("issues", []),
+            *vms_data.get("issues", []),
+        ]
+        return {"paths": paths, "issues": issues}
 
     def managed_identities(self) -> dict:
         issues: list[dict] = []

@@ -5,6 +5,7 @@ from azurefox.collectors.commands import (
     collect_managed_identities,
     collect_permissions,
     collect_principals,
+    collect_privesc,
     collect_rbac,
     collect_storage,
     collect_vms,
@@ -42,6 +43,13 @@ def test_collect_permissions(fixture_provider, options) -> None:
     assert len(output.permissions) == 2
     assert output.permissions[0].privileged is True
     assert output.permissions[0].high_impact_roles == ["Owner"]
+
+
+def test_collect_privesc(fixture_provider, options) -> None:
+    output = collect_privesc(fixture_provider, options)
+    assert len(output.paths) == 2
+    assert output.paths[0].path_type == "direct-role-abuse"
+    assert output.paths[1].asset == "vm-web-01"
 
 
 def test_collect_managed_identities(fixture_provider, options) -> None:

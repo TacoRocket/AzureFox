@@ -1,0 +1,8 @@
+{
+  "model": "PrivescOutput",
+  "top_level_fields": [
+    "metadata",
+    "paths",
+    "issues"
+  ]
+}

@@ -71,6 +71,11 @@ def permissions(ctx: typer.Context) -> None:
     _run_single(ctx, "permissions")
 
 
+@app.command("privesc")
+def privesc(ctx: typer.Context) -> None:
+    _run_single(ctx, "privesc")
+
+
 @app.command("managed-identities")
 def managed_identities(ctx: typer.Context) -> None:
     _run_single(ctx, "managed-identities")

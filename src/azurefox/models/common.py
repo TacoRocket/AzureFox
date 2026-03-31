@@ -76,6 +76,19 @@ class PermissionSummary(BaseModel):
     is_current_identity: bool = False
 
 
+class PrivescPathSummary(BaseModel):
+    principal: str
+    principal_id: str
+    principal_type: str
+    path_type: str
+    asset: str | None = None
+    impact_roles: list[str] = Field(default_factory=list)
+    severity: str
+    current_identity: bool = False
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class RoleAssignment(BaseModel):
     id: str
     scope_id: str

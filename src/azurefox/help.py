@@ -129,6 +129,39 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox permissions --output table",
     ),
+    "privesc": CommandHelpTopic(
+        name="privesc",
+        section="identity",
+        summary="Surface likely Azure privilege-escalation and role-abuse paths first.",
+        offensive_question=(
+            "Which Azure identity paths look most likely to produce privileged "
+            "control if an operator or attacker can act on them?"
+        ),
+        cloudfox_frame=(
+            "Azure analogue to CloudFox privesc/cape triage, with emphasis on "
+            "RBAC abuse and workload identity pivots."
+        ),
+        output_highlights=(
+            "path_type",
+            "asset",
+            "impact_roles",
+            "severity",
+            "current_identity",
+        ),
+        attack_leads=(
+            AttackLead("Privilege Escalation", "Account Manipulation: Additional Cloud Roles"),
+            AttackLead(
+                "Privilege Escalation",
+                "Abuse Elevation Control Mechanism: Temporary Elevated Cloud Access",
+            ),
+            AttackLead("Credential Access", "Cloud Instance Metadata API"),
+            AttackLead(
+                "Credential Access",
+                "Use Alternate Authentication Material: Application Access Token",
+            ),
+        ),
+        example="azurefox privesc --output table",
+    ),
     "managed-identities": CommandHelpTopic(
         name="managed-identities",
         section="identity",

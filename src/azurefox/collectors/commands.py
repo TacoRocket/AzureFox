@@ -12,6 +12,7 @@ from azurefox.models.commands import (
     ManagedIdentitiesOutput,
     PermissionsOutput,
     PrincipalsOutput,
+    PrivescOutput,
     RbacOutput,
     StorageOutput,
     VmsOutput,
@@ -49,6 +50,11 @@ def collect_principals(provider: BaseProvider, options: GlobalOptions) -> Princi
 def collect_permissions(provider: BaseProvider, options: GlobalOptions) -> PermissionsOutput:
     data = provider.permissions()
     return PermissionsOutput.model_validate({"metadata": _metadata("permissions", options), **data})
+
+
+def collect_privesc(provider: BaseProvider, options: GlobalOptions) -> PrivescOutput:
+    data = provider.privesc()
+    return PrivescOutput.model_validate({"metadata": _metadata("privesc", options), **data})
 
 
 def collect_managed_identities(
