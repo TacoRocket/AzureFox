@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from azurefox.models.commands import (
+    AuthPoliciesOutput,
     InventoryOutput,
     ManagedIdentitiesOutput,
     PermissionsOutput,
@@ -24,6 +25,7 @@ MODEL_MAP = {
     "permissions": PermissionsOutput,
     "privesc": PrivescOutput,
     "role-trusts": RoleTrustsOutput,
+    "auth-policies": AuthPoliciesOutput,
     "managed-identities": ManagedIdentitiesOutput,
     "storage": StorageOutput,
     "vms": VmsOutput,

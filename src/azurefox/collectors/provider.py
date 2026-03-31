@@ -46,6 +46,10 @@ class BaseProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def auth_policies(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
     def managed_identities(self) -> dict:
         raise NotImplementedError
 
@@ -88,6 +92,9 @@ class FixtureProvider(BaseProvider):
 
     def role_trusts(self) -> dict:
         return self._read("role_trusts")
+
+    def auth_policies(self) -> dict:
+        return self._read("auth_policies")
 
     def managed_identities(self) -> dict:
         return self._read("managed_identities")
@@ -733,6 +740,60 @@ class AzureProvider(BaseProvider):
         )
         return {"trusts": trusts, "issues": issues}
 
+    def auth_policies(self) -> dict:
+        issues: list[dict] = []
+        auth_policies: list[dict] = []
+
+        try:
+            defaults = self.graph.get_identity_security_defaults_policy()
+            auth_policies.append(
+                {
+                    "policy_type": "security-defaults",
+                    "name": defaults.get("displayName") or "Security Defaults",
+                    "state": "enabled" if defaults.get("isEnabled") else "disabled",
+                    "scope": "tenant",
+                    "controls": [
+                        "baseline-mfa",
+                        "legacy-auth-protection",
+                    ]
+                    if defaults.get("isEnabled")
+                    else [],
+                    "summary": (
+                        "Security defaults are enabled for the tenant."
+                        if defaults.get("isEnabled")
+                        else "Security defaults are disabled for the tenant."
+                    ),
+                    "related_ids": [
+                        item for item in [defaults.get("id")] if item
+                    ],
+                }
+            )
+        except Exception as exc:
+            issues.append(_issue_from_exception("auth_policies.security_defaults", exc))
+
+        try:
+            authorization_policy = self.graph.get_authorization_policy()
+            auth_policies.append(_authorization_policy_summary(authorization_policy))
+        except Exception as exc:
+            issues.append(_issue_from_exception("auth_policies.authorization_policy", exc))
+
+        try:
+            conditional_access_policies = self.graph.list_conditional_access_policies()
+            auth_policies.extend(
+                _conditional_access_policy_summary(item) for item in conditional_access_policies
+            )
+        except Exception as exc:
+            issues.append(_issue_from_exception("auth_policies.conditional_access", exc))
+
+        auth_policies.sort(
+            key=lambda item: (
+                item["policy_type"] != "security-defaults",
+                item["policy_type"] != "authorization-policy",
+                item["name"],
+            )
+        )
+        return {"auth_policies": auth_policies, "issues": issues}
+
     def managed_identities(self) -> dict:
         issues: list[dict] = []
         identities: dict[str, dict] = {}
@@ -1099,6 +1160,103 @@ def _dedupe_role_trusts(items: list[dict]) -> list[dict]:
         deduped.append(item)
 
     return deduped
+
+
+def _authorization_policy_summary(policy: dict) -> dict:
+    controls: list[str] = []
+
+    invite_setting = policy.get("allowInvitesFrom")
+    if invite_setting:
+        controls.append(f"guest-invites:{invite_setting}")
+
+    if policy.get("allowUserConsentForRiskyApps") is True:
+        controls.append("risky-app-consent:enabled")
+
+    if policy.get("allowedToUseSSPR") is True:
+        controls.append("sspr:enabled")
+
+    if policy.get("blockMsolPowerShell") is True:
+        controls.append("legacy-msol-powershell:blocked")
+
+    default_permissions = policy.get("defaultUserRolePermissions") or {}
+    if default_permissions.get("allowedToCreateApps") is True:
+        controls.append("users-can-register-apps")
+    if default_permissions.get("allowedToCreateSecurityGroups") is True:
+        controls.append("users-can-create-security-groups")
+
+    permission_grants = default_permissions.get("permissionGrantPoliciesAssigned") or []
+    if permission_grants:
+        controls.append("user-consent:self-service")
+
+    summary_parts = []
+    if invite_setting:
+        summary_parts.append(f"guest invites: {invite_setting}")
+    summary_parts.append(
+        "users can register apps"
+        if default_permissions.get("allowedToCreateApps")
+        else "users cannot register apps"
+    )
+    if permission_grants:
+        summary_parts.append("self-service permission grant policies assigned")
+    if policy.get("allowUserConsentForRiskyApps") is True:
+        summary_parts.append("risky app consent enabled")
+    if policy.get("blockMsolPowerShell") is True:
+        summary_parts.append("legacy MSOL PowerShell blocked")
+
+    return {
+        "policy_type": "authorization-policy",
+        "name": policy.get("displayName") or "Authorization Policy",
+        "state": "configured",
+        "scope": "tenant",
+        "controls": controls,
+        "summary": "; ".join(summary_parts) if summary_parts else "Authorization policy retrieved.",
+        "related_ids": [item for item in [policy.get("id")] if item],
+    }
+
+
+def _conditional_access_policy_summary(policy: dict) -> dict:
+    grant_controls = (policy.get("grantControls") or {}).get("builtInControls") or []
+    session_controls = [
+        key
+        for key, value in (policy.get("sessionControls") or {}).items()
+        if value not in (None, False, [], {})
+    ]
+    auth_strength = ((policy.get("grantControls") or {}).get("authenticationStrength") or {}).get(
+        "displayName"
+    )
+    if auth_strength:
+        grant_controls = [*grant_controls, f"authentication-strength:{auth_strength}"]
+
+    users = ((policy.get("conditions") or {}).get("users") or {})
+    applications = ((policy.get("conditions") or {}).get("applications") or {})
+
+    scope_parts = []
+    if "All" in (users.get("includeUsers") or []):
+        scope_parts.append("users:all")
+    if users.get("includeRoles"):
+        scope_parts.append(f"roles:{len(users['includeRoles'])}")
+    if "All" in (applications.get("includeApplications") or []):
+        scope_parts.append("apps:all")
+    elif applications.get("includeApplications"):
+        scope_parts.append(f"apps:{len(applications['includeApplications'])}")
+
+    summary_parts = [f"state: {policy.get('state') or 'unknown'}"]
+    if grant_controls:
+        summary_parts.append(f"grants: {', '.join(str(item) for item in grant_controls)}")
+    if session_controls:
+        summary_parts.append(f"session: {', '.join(session_controls)}")
+    if scope_parts:
+        summary_parts.append(f"scope: {', '.join(scope_parts)}")
+
+    return {
+        "policy_type": "conditional-access",
+        "name": policy.get("displayName") or policy.get("id") or "Conditional Access",
+        "state": policy.get("state") or "unknown",
+        "scope": ", ".join(scope_parts) if scope_parts else "scoped",
+        "controls": [*grant_controls, *session_controls],
+        "summary": "; ".join(summary_parts),
+        "related_ids": [item for item in [policy.get("id")] if item],
+    }
 
 
 _HIGH_IMPACT_ROLE_NAMES = {

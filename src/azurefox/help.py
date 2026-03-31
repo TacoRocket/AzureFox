@@ -191,6 +191,35 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox role-trusts --output table",
     ),
+    "auth-policies": CommandHelpTopic(
+        name="auth-policies",
+        section="identity",
+        summary="Review tenant auth controls that affect sign-in, consent, and identity hardening.",
+        offensive_question=(
+            "Which tenant auth settings materially change how identities authenticate, "
+            "register apps, invite guests, or bypass stronger sign-in controls?"
+        ),
+        cloudfox_frame=(
+            "Azure-native auth-control triage for tenant-wide identity policy surfaces "
+            "such as security defaults, authorization policy, and Conditional Access."
+        ),
+        output_highlights=(
+            "policy_type",
+            "state",
+            "controls",
+            "summary",
+            "findings",
+        ),
+        attack_leads=(
+            AttackLead("Defense Evasion", "Modify Authentication Process"),
+            AttackLead("Initial Access", "Valid Accounts: Cloud Accounts"),
+            AttackLead(
+                "Credential Access",
+                "Use Alternate Authentication Material: Application Access Token",
+            ),
+        ),
+        example="azurefox auth-policies --output table",
+    ),
     "managed-identities": CommandHelpTopic(
         name="managed-identities",
         section="identity",

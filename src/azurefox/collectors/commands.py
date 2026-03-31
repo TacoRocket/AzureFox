@@ -3,11 +3,13 @@ from __future__ import annotations
 from azurefox.collectors.provider import BaseProvider
 from azurefox.config import GlobalOptions
 from azurefox.correlation.findings import (
+    build_auth_policy_findings,
     build_identity_findings,
     build_storage_findings,
     build_vm_findings,
 )
 from azurefox.models.commands import (
+    AuthPoliciesOutput,
     InventoryOutput,
     ManagedIdentitiesOutput,
     PermissionsOutput,
@@ -70,6 +72,18 @@ def collect_role_trusts(provider: BaseProvider, options: GlobalOptions) -> RoleT
     data = provider.role_trusts()
     return RoleTrustsOutput.model_validate(
         {"metadata": _metadata(provider, "role-trusts", options), **data}
+    )
+
+
+def collect_auth_policies(provider: BaseProvider, options: GlobalOptions) -> AuthPoliciesOutput:
+    data = provider.auth_policies()
+    findings = build_auth_policy_findings(data.get("auth_policies", []))
+    return AuthPoliciesOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "auth-policies", options),
+            "findings": findings,
+            **data,
+        }
     )
 
 

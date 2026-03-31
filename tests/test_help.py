@@ -60,6 +60,15 @@ def test_help_command_role_trusts_topic() -> None:
     assert "federated credentials" in result.stdout
 
 
+def test_help_command_auth_policies_topic() -> None:
+    result = runner.invoke(app, ["help", "auth-policies"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: auth-policies" in result.stdout
+    assert "Conditional Access" in result.stdout
+    assert "sign-in, consent, and identity hardening" in result.stdout
+
+
 def test_help_command_unknown_topic() -> None:
     result = runner.invoke(app, ["help", "banana"])
 

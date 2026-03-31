@@ -20,6 +20,7 @@ Fox.
 - `permissions`
 - `privesc`
 - `role-trusts`
+- `auth-policies`
 - `managed-identities`
 - `storage`
 - `vms`
@@ -94,7 +95,7 @@ azurefox all-checks --section compute
 
 Current section mappings:
 
-- `identity`: `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `managed-identities`
+- `identity`: `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `auth-policies`, `managed-identities`
 - `storage`: `storage`
 - `compute`: `vms`
 - `core`: `inventory`

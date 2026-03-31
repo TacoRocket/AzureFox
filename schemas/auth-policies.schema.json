@@ -1,0 +1,9 @@
+{
+  "model": "AuthPoliciesOutput",
+  "top_level_fields": [
+    "metadata",
+    "auth_policies",
+    "findings",
+    "issues"
+  ]
+}

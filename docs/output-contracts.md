@@ -22,6 +22,7 @@ Each command output is represented by a versioned Pydantic model and is rendered
 - `PermissionsOutput`
 - `PrivescOutput`
 - `RoleTrustsOutput`
+- `AuthPoliciesOutput`
 - `ManagedIdentitiesOutput`
 - `StorageOutput`
 - `VmsOutput`

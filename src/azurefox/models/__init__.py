@@ -1,4 +1,5 @@
 from azurefox.models.commands import (
+    AuthPoliciesOutput,
     InventoryOutput,
     ManagedIdentitiesOutput,
     PermissionsOutput,
@@ -11,6 +12,7 @@ from azurefox.models.commands import (
     WhoAmIOutput,
 )
 from azurefox.models.common import (
+    AuthPolicySummary,
     CollectionIssue,
     CommandMetadata,
     Finding,
@@ -31,6 +33,8 @@ from azurefox.models.run import AllChecksSummary, RunCommandResult
 
 __all__ = [
     "AllChecksSummary",
+    "AuthPoliciesOutput",
+    "AuthPolicySummary",
     "CollectionIssue",
     "CommandMetadata",
     "Finding",

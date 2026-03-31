@@ -92,6 +92,7 @@ def _to_csv(command: str, payload: dict) -> str:
         "permissions": "permissions",
         "privesc": "paths",
         "role-trusts": "trusts",
+        "auth-policies": "auth_policies",
         "managed-identities": "identities",
         "storage": "storage_assets",
         "vms": "vm_assets",
