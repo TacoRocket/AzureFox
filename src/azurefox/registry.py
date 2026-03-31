@@ -12,6 +12,7 @@ from azurefox.collectors.commands import (
     collect_principals,
     collect_privesc,
     collect_rbac,
+    collect_resource_trusts,
     collect_role_trusts,
     collect_storage,
     collect_vms,
@@ -41,10 +42,10 @@ COMMAND_SPECS: tuple[CommandSpec, ...] = (
     CommandSpec("auth-policies", "identity", collect_auth_policies),
     CommandSpec("managed-identities", "identity", collect_managed_identities),
     CommandSpec("keyvault", "secrets", collect_keyvault),
+    CommandSpec("resource-trusts", "resource", collect_resource_trusts),
     CommandSpec("storage", "storage", collect_storage),
     CommandSpec("vms", "compute", collect_vms),
 )
-
 
 SECTION_NAMES: tuple[str, ...] = tuple(
     sorted({command.section for command in COMMAND_SPECS} | {"ai", "azure-only", "network"})

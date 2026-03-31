@@ -18,6 +18,7 @@ from azurefox.models.commands import (
     PrincipalsOutput,
     PrivescOutput,
     RbacOutput,
+    ResourceTrustsOutput,
     RoleTrustsOutput,
     StorageOutput,
     VmsOutput,
@@ -74,6 +75,15 @@ def collect_role_trusts(provider: BaseProvider, options: GlobalOptions) -> RoleT
     data = provider.role_trusts()
     return RoleTrustsOutput.model_validate(
         {"metadata": _metadata(provider, "role-trusts", options), **data}
+    )
+
+
+def collect_resource_trusts(
+    provider: BaseProvider, options: GlobalOptions
+) -> ResourceTrustsOutput:
+    data = provider.resource_trusts()
+    return ResourceTrustsOutput.model_validate(
+        {"metadata": _metadata(provider, "resource-trusts", options), **data}
     )
 
 

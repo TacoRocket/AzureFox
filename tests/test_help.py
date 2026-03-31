@@ -78,6 +78,15 @@ def test_help_command_keyvault_topic() -> None:
     assert "purge_protection_enabled" in result.stdout
 
 
+def test_help_command_resource_trusts_topic() -> None:
+    result = runner.invoke(app, ["help", "resource-trusts"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: resource-trusts" in result.stdout
+    assert "public network paths" in result.stdout
+    assert "resource_type" in result.stdout
+
+
 def test_help_command_unknown_topic() -> None:
     result = runner.invoke(app, ["help", "banana"])
 

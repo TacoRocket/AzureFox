@@ -9,6 +9,7 @@ from azurefox.auth.session import build_auth_session, decode_jwt_payload
 from azurefox.clients.factory import build_clients
 from azurefox.clients.graph import GraphClient
 from azurefox.config import GlobalOptions
+from azurefox.correlation.findings import build_keyvault_findings, build_storage_findings
 from azurefox.errors import AzureFoxError, ErrorKind, classify_exception
 from azurefox.models.common import Principal, RoleAssignment, ScopeRef
 
@@ -43,6 +44,10 @@ class BaseProvider(ABC):
 
     @abstractmethod
     def role_trusts(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
+    def resource_trusts(self) -> dict:
         raise NotImplementedError
 
     @abstractmethod
@@ -96,6 +101,9 @@ class FixtureProvider(BaseProvider):
 
     def role_trusts(self) -> dict:
         return self._read("role_trusts")
+
+    def resource_trusts(self) -> dict:
+        return self._read("resource_trusts")
 
     def auth_policies(self) -> dict:
         return self._read("auth_policies")
@@ -697,6 +705,34 @@ class AzureProvider(BaseProvider):
             )
         )
         return {"trusts": trusts, "issues": issues}
+
+    def resource_trusts(self) -> dict:
+        storage_data = self.storage()
+        keyvault_data = self.keyvault()
+
+        resource_trusts = [
+            *_resource_trusts_from_storage(storage_data.get("storage_assets", [])),
+            *_resource_trusts_from_keyvault(keyvault_data.get("key_vaults", [])),
+        ]
+        resource_trusts.sort(
+            key=lambda item: (
+                item.get("exposure") != "high",
+                item.get("resource_type") or "",
+                item.get("resource_name") or item.get("resource_id") or "",
+                item.get("trust_type") or "",
+            )
+        )
+
+        findings = [
+            *build_storage_findings(storage_data.get("storage_assets", [])),
+            *build_keyvault_findings(keyvault_data.get("key_vaults", [])),
+        ]
+        issues = [*storage_data.get("issues", []), *keyvault_data.get("issues", [])]
+        return {
+            "resource_trusts": resource_trusts,
+            "findings": findings,
+            "issues": issues,
+        }
 
     def auth_policies(self) -> dict:
         issues: list[dict] = []
@@ -1329,6 +1365,123 @@ def _string_value(value: object) -> str | None:
     if value is None:
         return None
     return str(getattr(value, "value", value))
+
+
+def _resource_trusts_from_storage(storage_assets: list[dict]) -> list[dict]:
+    trusts: list[dict] = []
+
+    for asset in storage_assets:
+        resource_id = asset.get("id")
+        if not resource_id:
+            continue
+
+        name = asset.get("name")
+        if asset.get("public_access"):
+            trusts.append(
+                {
+                    "resource_id": resource_id,
+                    "resource_name": name,
+                    "resource_type": "StorageAccount",
+                    "trust_type": "anonymous-blob-access",
+                    "target": "public-network",
+                    "exposure": "high",
+                    "confidence": "confirmed",
+                    "summary": (
+                        f"Storage account '{name or resource_id}' permits public blob access from "
+                        "the public network."
+                    ),
+                    "related_ids": [resource_id],
+                }
+            )
+
+        if (asset.get("network_default_action") or "").lower() == "allow":
+            trusts.append(
+                {
+                    "resource_id": resource_id,
+                    "resource_name": name,
+                    "resource_type": "StorageAccount",
+                    "trust_type": "public-network-default",
+                    "target": "public-network",
+                    "exposure": "medium",
+                    "confidence": "confirmed",
+                    "summary": (
+                        f"Storage account '{name or resource_id}' accepts public network traffic "
+                        "by default."
+                    ),
+                    "related_ids": [resource_id],
+                }
+            )
+
+        if asset.get("private_endpoint_enabled"):
+            trusts.append(
+                {
+                    "resource_id": resource_id,
+                    "resource_name": name,
+                    "resource_type": "StorageAccount",
+                    "trust_type": "private-endpoint",
+                    "target": "private-link",
+                    "exposure": "restricted",
+                    "confidence": "confirmed",
+                    "summary": (
+                        f"Storage account '{name or resource_id}' exposes a private endpoint path "
+                        "through Azure Private Link."
+                    ),
+                    "related_ids": [resource_id],
+                }
+            )
+
+    return trusts
+
+
+def _resource_trusts_from_keyvault(key_vaults: list[dict]) -> list[dict]:
+    trusts: list[dict] = []
+
+    for vault in key_vaults:
+        resource_id = vault.get("id")
+        if not resource_id:
+            continue
+
+        name = vault.get("name")
+        public_network_access = (vault.get("public_network_access") or "").lower()
+        network_default_action = (vault.get("network_default_action") or "").lower()
+        if public_network_access == "enabled":
+            exposure = "high" if network_default_action == "allow" else "medium"
+            trusts.append(
+                {
+                    "resource_id": resource_id,
+                    "resource_name": name,
+                    "resource_type": "KeyVault",
+                    "trust_type": "public-network",
+                    "target": "public-network",
+                    "exposure": exposure,
+                    "confidence": "confirmed",
+                    "summary": (
+                        f"Key Vault '{name or resource_id}' remains reachable through a public "
+                        "network path."
+                    ),
+                    "related_ids": [resource_id],
+                }
+            )
+
+        if vault.get("private_endpoint_enabled"):
+            trusts.append(
+                {
+                    "resource_id": resource_id,
+                    "resource_name": name,
+                    "resource_type": "KeyVault",
+                    "trust_type": "private-endpoint",
+                    "target": "private-link",
+                    "exposure": "restricted",
+                    "confidence": "confirmed",
+                    "summary": (
+                        f"Key Vault '{name or resource_id}' exposes a private endpoint path "
+                        "through Azure Private Link."
+                    ),
+                    "related_ids": [resource_id],
+                }
+            )
+
+    return trusts
 
 
 def _scope_type_from_id(scope_id: str) -> str:

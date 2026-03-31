@@ -270,6 +270,35 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox keyvault --output table",
     ),
+    "resource-trusts": CommandHelpTopic(
+        name="resource-trusts",
+        section="resource",
+        summary=(
+            "Correlate Storage and Key Vault trust surfaces into operator-first "
+            "resource paths."
+        ),
+        offensive_question=(
+            "Which resources still trust public network paths, and which ones are constrained to "
+            "private-link style access?"
+        ),
+        cloudfox_frame=(
+            "Azure-native resource trust review centered on management-plane network posture and "
+            "private endpoint surfaces."
+        ),
+        output_highlights=(
+            "resource_type",
+            "trust_type",
+            "target",
+            "exposure",
+            "summary",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Initial Access", "Exploit Public-Facing Application"),
+            AttackLead("Collection", "Data from Cloud Storage"),
+        ),
+        example="azurefox resource-trusts --output table",
+    ),
     "storage": CommandHelpTopic(
         name="storage",
         section="storage",
@@ -379,6 +408,22 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
                 "Credential Access",
                 "Steal or Forge Authentication Certificates",
             ),
+        ),
+    ),
+    "resource": SectionHelpTopic(
+        name="resource",
+        summary=(
+            "Resource-level trust surfaces such as public network reachability "
+            "and private-link paths."
+        ),
+        operator_goal=(
+            "Find which resources still trust broad network paths and which ones are constrained "
+            "to narrower trust boundaries."
+        ),
+        attack_lenses=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Initial Access", "Exploit Public-Facing Application"),
+            AttackLead("Collection", "Data from Cloud Storage"),
         ),
     ),
     "compute": SectionHelpTopic(
