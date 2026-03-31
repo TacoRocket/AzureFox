@@ -24,6 +24,7 @@ azure = [
   "azure-mgmt-storage>=21.2,<22",
   "azure-mgmt-compute>=33.0,<34",
   "azure-mgmt-network>=26.0,<27",
+  "certifi>=2024.2,<2027",
 ]
 dev = [
   "pytest>=8.3,<9",

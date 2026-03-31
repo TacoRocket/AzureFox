@@ -1,0 +1,8 @@
+{
+  "model": "RoleTrustsOutput",
+  "top_level_fields": [
+    "metadata",
+    "trusts",
+    "issues"
+  ]
+}

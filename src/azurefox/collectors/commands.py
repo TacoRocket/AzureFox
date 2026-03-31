@@ -14,6 +14,7 @@ from azurefox.models.commands import (
     PrincipalsOutput,
     PrivescOutput,
     RbacOutput,
+    RoleTrustsOutput,
     StorageOutput,
     VmsOutput,
     WhoAmIOutput,
@@ -25,7 +26,7 @@ def collect_whoami(provider: BaseProvider, options: GlobalOptions) -> WhoAmIOutp
     data = provider.whoami()
     output = WhoAmIOutput.model_validate(
         {
-            "metadata": _metadata("whoami", options, data.get("token_source")),
+            "metadata": _metadata(provider, "whoami", options, data.get("token_source")),
             **data,
         }
     )
@@ -34,27 +35,42 @@ def collect_whoami(provider: BaseProvider, options: GlobalOptions) -> WhoAmIOutp
 
 def collect_inventory(provider: BaseProvider, options: GlobalOptions) -> InventoryOutput:
     data = provider.inventory()
-    return InventoryOutput.model_validate({"metadata": _metadata("inventory", options), **data})
+    return InventoryOutput.model_validate(
+        {"metadata": _metadata(provider, "inventory", options), **data}
+    )
 
 
 def collect_rbac(provider: BaseProvider, options: GlobalOptions) -> RbacOutput:
     data = provider.rbac()
-    return RbacOutput.model_validate({"metadata": _metadata("rbac", options), **data})
+    return RbacOutput.model_validate({"metadata": _metadata(provider, "rbac", options), **data})
 
 
 def collect_principals(provider: BaseProvider, options: GlobalOptions) -> PrincipalsOutput:
     data = provider.principals()
-    return PrincipalsOutput.model_validate({"metadata": _metadata("principals", options), **data})
+    return PrincipalsOutput.model_validate(
+        {"metadata": _metadata(provider, "principals", options), **data}
+    )
 
 
 def collect_permissions(provider: BaseProvider, options: GlobalOptions) -> PermissionsOutput:
     data = provider.permissions()
-    return PermissionsOutput.model_validate({"metadata": _metadata("permissions", options), **data})
+    return PermissionsOutput.model_validate(
+        {"metadata": _metadata(provider, "permissions", options), **data}
+    )
 
 
 def collect_privesc(provider: BaseProvider, options: GlobalOptions) -> PrivescOutput:
     data = provider.privesc()
-    return PrivescOutput.model_validate({"metadata": _metadata("privesc", options), **data})
+    return PrivescOutput.model_validate(
+        {"metadata": _metadata(provider, "privesc", options), **data}
+    )
+
+
+def collect_role_trusts(provider: BaseProvider, options: GlobalOptions) -> RoleTrustsOutput:
+    data = provider.role_trusts()
+    return RoleTrustsOutput.model_validate(
+        {"metadata": _metadata(provider, "role-trusts", options), **data}
+    )
 
 
 def collect_managed_identities(
@@ -66,7 +82,11 @@ def collect_managed_identities(
         data.get("role_assignments", []),
     )
     return ManagedIdentitiesOutput.model_validate(
-        {"metadata": _metadata("managed-identities", options), "findings": findings, **data}
+        {
+            "metadata": _metadata(provider, "managed-identities", options),
+            "findings": findings,
+            **data,
+        }
     )
 
 
@@ -74,7 +94,7 @@ def collect_storage(provider: BaseProvider, options: GlobalOptions) -> StorageOu
     data = provider.storage()
     findings = build_storage_findings(data.get("storage_assets", []))
     return StorageOutput.model_validate(
-        {"metadata": _metadata("storage", options), "findings": findings, **data}
+        {"metadata": _metadata(provider, "storage", options), "findings": findings, **data}
     )
 
 
@@ -82,16 +102,20 @@ def collect_vms(provider: BaseProvider, options: GlobalOptions) -> VmsOutput:
     data = provider.vms()
     findings = build_vm_findings(data.get("vm_assets", []))
     return VmsOutput.model_validate(
-        {"metadata": _metadata("vms", options), "findings": findings, **data}
+        {"metadata": _metadata(provider, "vms", options), "findings": findings, **data}
     )
 
 
 def _metadata(
-    command: str, options: GlobalOptions, token_source: str | None = None
+    provider: BaseProvider,
+    command: str,
+    options: GlobalOptions,
+    token_source: str | None = None,
 ) -> CommandMetadata:
+    context = provider.metadata_context()
     return CommandMetadata(
         command=command,
-        tenant_id=options.tenant,
-        subscription_id=options.subscription,
-        token_source=token_source,
+        tenant_id=options.tenant or context.get("tenant_id"),
+        subscription_id=options.subscription or context.get("subscription_id"),
+        token_source=token_source or context.get("token_source"),
     )

@@ -7,12 +7,16 @@ from pathlib import Path
 
 from azurefox.auth.session import build_auth_session, decode_jwt_payload
 from azurefox.clients.factory import build_clients
+from azurefox.clients.graph import GraphClient
 from azurefox.config import GlobalOptions
 from azurefox.errors import AzureFoxError, ErrorKind, classify_exception
 from azurefox.models.common import Principal, RoleAssignment, ScopeRef
 
 
 class BaseProvider(ABC):
+    def metadata_context(self) -> dict[str, str | None]:
+        return {}
+
     @abstractmethod
     def whoami(self) -> dict:
         raise NotImplementedError
@@ -35,6 +39,10 @@ class BaseProvider(ABC):
 
     @abstractmethod
     def privesc(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
+    def role_trusts(self) -> dict:
         raise NotImplementedError
 
     @abstractmethod
@@ -78,6 +86,9 @@ class FixtureProvider(BaseProvider):
     def privesc(self) -> dict:
         return self._read("privesc")
 
+    def role_trusts(self) -> dict:
+        return self._read("role_trusts")
+
     def managed_identities(self) -> dict:
         return self._read("managed_identities")
 
@@ -93,7 +104,15 @@ class AzureProvider(BaseProvider):
         self.options = options
         self.session = build_auth_session(options.tenant)
         self.clients = build_clients(self.session, options.subscription)
+        self.graph = GraphClient(self.session.credential)
         self.subscription = self.clients.subscription
+
+    def metadata_context(self) -> dict[str, str | None]:
+        return {
+            "tenant_id": self.session.tenant_id,
+            "subscription_id": self.clients.subscription_id,
+            "token_source": self.session.token_source,
+        }
 
     def whoami(self) -> dict:
         claims = decode_jwt_payload(self.session.access_token)
@@ -434,6 +453,286 @@ class AzureProvider(BaseProvider):
         ]
         return {"paths": paths, "issues": issues}
 
+    def role_trusts(self) -> dict:
+        issues: list[dict] = []
+        trusts: list[dict] = []
+
+        principal_data = self.principals()
+        candidate_sp_ids = sorted(
+            {
+                principal.get("id")
+                for principal in principal_data.get("principals", [])
+                if principal.get("id")
+                and principal.get("principal_type") in {"ServicePrincipal", "ManagedIdentity"}
+            }
+        )
+
+        service_principals: list[dict] = []
+        for service_principal_id in candidate_sp_ids:
+            try:
+                service_principals.append(self.graph.get_service_principal(service_principal_id))
+            except Exception as exc:
+                issues.append(
+                    _issue_from_exception(
+                        f"role_trusts.service_principals[{service_principal_id}]",
+                        exc,
+                    )
+                )
+
+        service_principal_by_id = {
+            item.get("id"): item for item in service_principals if item.get("id")
+        }
+        applications: list[dict] = []
+        application_by_app_id: dict[str, dict] = {}
+
+        for service_principal in service_principals:
+            app_id = service_principal.get("appId")
+            if not app_id or app_id in application_by_app_id:
+                continue
+            try:
+                application = self.graph.get_application_by_app_id(app_id)
+            except Exception as exc:
+                issues.append(
+                    _issue_from_exception(
+                        f"role_trusts.applications.by_app_id[{app_id}]",
+                        exc,
+                    )
+                )
+                application = None
+            if application is None:
+                continue
+            application_by_app_id[app_id] = application
+            applications.append(application)
+
+        for application in applications:
+            app_object_id = application.get("id")
+            if not app_object_id:
+                continue
+            application_app_id = application.get("appId") or app_object_id
+
+            backing_sp = next(
+                (
+                    item
+                    for item in service_principals
+                    if item.get("appId") and item.get("appId") == application.get("appId")
+                ),
+                None,
+            )
+
+            try:
+                federated_credentials = self.graph.list_application_federated_credentials(
+                    app_object_id
+                )
+            except Exception as exc:
+                issues.append(
+                    _issue_from_exception(
+                        f"role_trusts.applications[{app_object_id}].federated_credentials",
+                        exc,
+                    )
+                )
+                federated_credentials = []
+
+            for credential in federated_credentials:
+                related_ids = [app_object_id]
+                if credential.get("id"):
+                    related_ids.append(credential["id"])
+                if backing_sp and backing_sp.get("id"):
+                    related_ids.append(backing_sp["id"])
+
+                target_object_id = backing_sp.get("id") if backing_sp else app_object_id
+                target_name = (
+                    backing_sp.get("displayName") if backing_sp else application.get("displayName")
+                )
+                target_type = "ServicePrincipal" if backing_sp else "Application"
+                issuer = credential.get("issuer") or "unknown issuer"
+                subject = credential.get("subject") or "unknown subject"
+
+                trusts.append(
+                    {
+                        "trust_type": "federated-credential",
+                        "source_object_id": app_object_id,
+                        "source_name": application.get("displayName"),
+                        "source_type": "Application",
+                        "target_object_id": target_object_id,
+                        "target_name": target_name,
+                        "target_type": target_type,
+                        "evidence_type": "graph-federated-credential",
+                        "confidence": "confirmed",
+                        "summary": (
+                            "Application "
+                            f"'{application.get('displayName') or application_app_id}' trusts "
+                            f"federated subject '{subject}' from issuer '{issuer}'."
+                        ),
+                        "related_ids": related_ids,
+                    }
+                )
+
+            try:
+                owners = self.graph.list_application_owners(app_object_id)
+            except Exception as exc:
+                issues.append(
+                    _issue_from_exception(
+                        f"role_trusts.applications[{app_object_id}].owners",
+                        exc,
+                    )
+                )
+                owners = []
+
+            for owner in owners:
+                owner_id = owner.get("id")
+                if not owner_id:
+                    continue
+                trusts.append(
+                    {
+                        "trust_type": "app-owner",
+                        "source_object_id": owner_id,
+                        "source_name": _display_name_for_graph_object(owner),
+                        "source_type": _graph_object_type(owner),
+                        "target_object_id": app_object_id,
+                        "target_name": application.get("displayName"),
+                        "target_type": "Application",
+                        "evidence_type": "graph-owner",
+                        "confidence": "confirmed",
+                        "summary": (
+                            f"Owner '{_display_name_for_graph_object(owner)}' can modify "
+                            f"application '{application.get('displayName') or app_object_id}'."
+                        ),
+                        "related_ids": [owner_id, app_object_id],
+                    }
+                )
+
+        for service_principal in service_principals:
+            sp_id = service_principal.get("id")
+            if not sp_id:
+                continue
+
+            try:
+                owners = self.graph.list_service_principal_owners(sp_id)
+            except Exception as exc:
+                issues.append(
+                    _issue_from_exception(
+                        f"role_trusts.service_principals[{sp_id}].owners",
+                        exc,
+                    )
+                )
+                owners = []
+
+            for owner in owners:
+                owner_id = owner.get("id")
+                if not owner_id:
+                    continue
+                trusts.append(
+                    {
+                        "trust_type": "service-principal-owner",
+                        "source_object_id": owner_id,
+                        "source_name": _display_name_for_graph_object(owner),
+                        "source_type": _graph_object_type(owner),
+                        "target_object_id": sp_id,
+                        "target_name": service_principal.get("displayName"),
+                        "target_type": "ServicePrincipal",
+                        "evidence_type": "graph-owner",
+                        "confidence": "confirmed",
+                        "summary": (
+                            f"Owner '{_display_name_for_graph_object(owner)}' can modify "
+                            f"service principal '{service_principal.get('displayName') or sp_id}'."
+                        ),
+                        "related_ids": [owner_id, sp_id],
+                    }
+                )
+
+            try:
+                grants = self.graph.list_oauth2_permission_grants(sp_id)
+            except Exception as exc:
+                issues.append(
+                    _issue_from_exception(
+                        f"role_trusts.service_principals[{sp_id}].oauth2_permission_grants",
+                        exc,
+                    )
+                )
+                grants = []
+
+            for grant in grants:
+                resource = service_principal_by_id.get(grant.get("resourceId"), {})
+                consent_type = grant.get("consentType") or "unknown"
+                trust_type = (
+                    "admin-consent"
+                    if str(consent_type).lower() == "allprincipals"
+                    else "delegated-consent"
+                )
+                scope = grant.get("scope") or "unspecified scopes"
+                resource_name = resource.get("displayName") or grant.get("resourceId") or "unknown"
+                grant_related_ids = [
+                    item for item in [grant.get("id"), grant.get("resourceId")] if item
+                ]
+                trusts.append(
+                    {
+                        "trust_type": trust_type,
+                        "source_object_id": sp_id,
+                        "source_name": service_principal.get("displayName"),
+                        "source_type": "ServicePrincipal",
+                        "target_object_id": grant.get("resourceId") or "unknown",
+                        "target_name": resource.get("displayName"),
+                        "target_type": "ServicePrincipal",
+                        "evidence_type": "graph-consent-grant",
+                        "confidence": "lead",
+                        "summary": (
+                            f"Service principal '{service_principal.get('displayName') or sp_id}' "
+                            f"has consented access ({scope}) to '{resource_name}'."
+                        ),
+                        "related_ids": [sp_id, *grant_related_ids],
+                    }
+                )
+
+            try:
+                assignments = self.graph.list_app_role_assignments(sp_id)
+            except Exception as exc:
+                issues.append(
+                    _issue_from_exception(
+                        f"role_trusts.service_principals[{sp_id}].app_role_assignments",
+                        exc,
+                    )
+                )
+                assignments = []
+
+            for assignment in assignments:
+                resource = service_principal_by_id.get(assignment.get("resourceId"), {})
+                resource_name = (
+                    resource.get("displayName") or assignment.get("resourceId") or "unknown"
+                )
+                assignment_related_ids = [
+                    item for item in [assignment.get("id"), assignment.get("resourceId")] if item
+                ]
+                trusts.append(
+                    {
+                        "trust_type": "app-to-service-principal",
+                        "source_object_id": sp_id,
+                        "source_name": service_principal.get("displayName"),
+                        "source_type": "ServicePrincipal",
+                        "target_object_id": assignment.get("resourceId") or "unknown",
+                        "target_name": resource.get("displayName"),
+                        "target_type": "ServicePrincipal",
+                        "evidence_type": "graph-app-role-assignment",
+                        "confidence": "confirmed",
+                        "summary": (
+                            f"Service principal '{service_principal.get('displayName') or sp_id}' "
+                            "holds an application permission or app-role assignment "
+                            f"to '{resource_name}'."
+                        ),
+                        "related_ids": [sp_id, *assignment_related_ids],
+                    }
+                )
+
+        trusts = _dedupe_role_trusts(trusts)
+        trusts.sort(
+            key=lambda item: (
+                item["confidence"] != "confirmed",
+                item["trust_type"],
+                item.get("source_name") or item["source_object_id"],
+                item.get("target_name") or item["target_object_id"],
+            )
+        )
+        return {"trusts": trusts, "issues": issues}
+
     def managed_identities(self) -> dict:
         issues: list[dict] = []
         identities: dict[str, dict] = {}
@@ -757,6 +1056,49 @@ def _normalize_principal_type(existing: str | None, candidate: str | None) -> st
     if normalized_existing != "unknown":
         return normalized_existing
     return normalized
+
+
+def _display_name_for_graph_object(item: dict) -> str:
+    return (
+        item.get("displayName")
+        or item.get("userPrincipalName")
+        or item.get("appId")
+        or item.get("id")
+        or "unknown"
+    )
+
+
+def _graph_object_type(item: dict) -> str:
+    odata_type = item.get("@odata.type")
+    if isinstance(odata_type, str) and odata_type:
+        value = odata_type.rsplit(".", 1)[-1]
+        return value[:1].upper() + value[1:]
+
+    if item.get("servicePrincipalType") is not None or item.get("appId") is not None:
+        return "ServicePrincipal"
+    if item.get("userPrincipalName") is not None:
+        return "User"
+    return "DirectoryObject"
+
+
+def _dedupe_role_trusts(items: list[dict]) -> list[dict]:
+    deduped: list[dict] = []
+    seen: set[tuple[str, str, str, str, str]] = set()
+
+    for item in items:
+        key = (
+            item.get("trust_type") or "",
+            item.get("source_object_id") or "",
+            item.get("target_object_id") or "",
+            item.get("evidence_type") or "",
+            item.get("summary") or "",
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+
+    return deduped
 
 
 _HIGH_IMPACT_ROLE_NAMES = {
