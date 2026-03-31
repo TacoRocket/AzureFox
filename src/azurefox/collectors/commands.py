@@ -3,6 +3,7 @@ from __future__ import annotations
 from azurefox.collectors.provider import BaseProvider
 from azurefox.config import GlobalOptions
 from azurefox.correlation.findings import (
+    build_arm_deployment_findings,
     build_auth_policy_findings,
     build_identity_findings,
     build_keyvault_findings,
@@ -10,6 +11,7 @@ from azurefox.correlation.findings import (
     build_vm_findings,
 )
 from azurefox.models.commands import (
+    ArmDeploymentsOutput,
     AuthPoliciesOutput,
     InventoryOutput,
     KeyVaultOutput,
@@ -42,6 +44,29 @@ def collect_inventory(provider: BaseProvider, options: GlobalOptions) -> Invento
     data = provider.inventory()
     return InventoryOutput.model_validate(
         {"metadata": _metadata(provider, "inventory", options), **data}
+    )
+
+
+def collect_arm_deployments(
+    provider: BaseProvider, options: GlobalOptions
+) -> ArmDeploymentsOutput:
+    data = provider.arm_deployments()
+    deployments = sorted(
+        data.get("deployments", []),
+        key=lambda item: (
+            item.get("scope_type") != "subscription",
+            item.get("resource_group") or "",
+            item.get("name") or "",
+        ),
+    )
+    findings = build_arm_deployment_findings(deployments)
+    return ArmDeploymentsOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "arm-deployments", options),
+            **data,
+            "deployments": deployments,
+            "findings": findings,
+        }
     )
 
 

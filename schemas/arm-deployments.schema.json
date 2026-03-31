@@ -1,0 +1,9 @@
+{
+  "model": "ArmDeploymentsOutput",
+  "top_level_fields": [
+    "metadata",
+    "deployments",
+    "findings",
+    "issues"
+  ]
+}

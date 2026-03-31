@@ -42,6 +42,15 @@ def test_help_command_command_topic() -> None:
     assert "Temporary Elevated Cloud Access" in result.stdout
 
 
+def test_help_command_arm_deployments_topic() -> None:
+    result = runner.invoke(app, ["help", "arm-deployments"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: arm-deployments" in result.stdout
+    assert "linked templates" in result.stdout
+    assert "outputs_count" in result.stdout
+
+
 def test_help_command_privesc_topic() -> None:
     result = runner.invoke(app, ["help", "privesc"])
 

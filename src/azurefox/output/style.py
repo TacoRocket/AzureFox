@@ -10,6 +10,7 @@ from azurefox.models.common import OutputMode
 COMMAND_NARRATION = {
     "whoami": "Checking caller context and active subscription scope.",
     "inventory": "Scoping the visible Azure resource footprint.",
+    "arm-deployments": "Reviewing ARM deployment history for config exposure and linked content.",
     "rbac": "Collecting raw RBAC assignments across the current subscription.",
     "principals": "Building an operator-first principal census from RBAC and identity context.",
     "permissions": "Ranking principals by high-impact RBAC exposure.",

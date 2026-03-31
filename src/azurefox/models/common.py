@@ -115,6 +115,25 @@ class ResourceTrustSummary(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class ArmDeploymentSummary(BaseModel):
+    id: str
+    name: str
+    scope: str
+    scope_type: str
+    resource_group: str | None = None
+    provisioning_state: str | None = None
+    mode: str | None = None
+    timestamp: str | None = None
+    duration: str | None = None
+    outputs_count: int = 0
+    output_resource_count: int = 0
+    providers: list[str] = Field(default_factory=list)
+    template_link: str | None = None
+    parameters_link: str | None = None
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class AuthPolicySummary(BaseModel):
     policy_type: str
     name: str

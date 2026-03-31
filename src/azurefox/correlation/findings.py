@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from azurefox.models.common import (
+    ArmDeploymentSummary,
     AuthPolicySummary,
     Finding,
     KeyVaultAsset,
@@ -123,6 +124,62 @@ def build_keyvault_findings(key_vaults_raw: list[dict]) -> list[dict]:
                         "absent."
                     ),
                     related_ids=[vault.id],
+                )
+            )
+
+    return [f.model_dump() for f in findings]
+
+
+def build_arm_deployment_findings(deployments_raw: list[dict]) -> list[dict]:
+    deployments = [ArmDeploymentSummary.model_validate(item) for item in deployments_raw]
+    findings: list[Finding] = []
+
+    for deployment in deployments:
+        state = (deployment.provisioning_state or "").lower()
+
+        if state in {"failed", "canceled"}:
+            findings.append(
+                Finding(
+                    id=f"arm-deployment-failed-{deployment.id}",
+                    severity="medium",
+                    title="Deployment did not complete successfully",
+                    description=(
+                        f"Deployment '{deployment.name}' ended in state "
+                        f"'{deployment.provisioning_state or 'unknown'}'. Review the deployment "
+                        "history for leaked config context, partial resource creation, or "
+                        "operator troubleshooting artifacts."
+                    ),
+                    related_ids=[deployment.id],
+                )
+            )
+
+        if deployment.outputs_count > 0:
+            findings.append(
+                Finding(
+                    id=f"arm-deployment-outputs-{deployment.id}",
+                    severity="medium",
+                    title="Deployment exposes output values",
+                    description=(
+                        f"Deployment '{deployment.name}' includes {deployment.outputs_count} "
+                        "recorded output values. Validate whether any outputs reveal useful "
+                        "endpoints, identifiers, or sensitive configuration."
+                    ),
+                    related_ids=[deployment.id],
+                )
+            )
+
+        if deployment.template_link or deployment.parameters_link:
+            findings.append(
+                Finding(
+                    id=f"arm-deployment-remote-link-{deployment.id}",
+                    severity="low",
+                    title="Deployment references linked template content",
+                    description=(
+                        f"Deployment '{deployment.name}' uses linked template or parameter "
+                        "content. Review those linked artifacts for exposed configuration, trust "
+                        "assumptions, or reusable infrastructure patterns."
+                    ),
+                    related_ids=[deployment.id],
                 )
             )
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from azurefox.models.common import (
     SCHEMA_VERSION,
+    ArmDeploymentSummary,
     AuthPolicySummary,
     ManagedIdentity,
     PermissionSummary,
@@ -16,6 +17,19 @@ from azurefox.models.common import (
 
 def test_schema_version() -> None:
     assert SCHEMA_VERSION == "1.0.0"
+
+
+def test_arm_deployment_summary_defaults() -> None:
+    deployment = ArmDeploymentSummary(
+        id="d-1",
+        name="dep-1",
+        scope="/subscriptions/s1",
+        scope_type="subscription",
+        summary="test",
+    )
+    assert deployment.resource_group is None
+    assert deployment.providers == []
+    assert deployment.related_ids == []
 
 
 def test_managed_identity_defaults() -> None:
