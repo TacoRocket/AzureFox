@@ -103,6 +103,16 @@ class RoleTrustSummary(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class AuthPolicySummary(BaseModel):
+    policy_type: str
+    name: str
+    state: str
+    scope: str | None = None
+    controls: list[str] = Field(default_factory=list)
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class RoleAssignment(BaseModel):
     id: str
     scope_id: str

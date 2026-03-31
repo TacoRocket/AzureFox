@@ -51,6 +51,29 @@ class GraphClient:
             items.append(self.get_service_principal(service_principal_id))
         return items
 
+    def get_identity_security_defaults_policy(self) -> dict[str, Any]:
+        return self._get(
+            f"{GRAPH_ROOT}/policies/identitySecurityDefaultsEnforcementPolicy"
+            "?$select=id,displayName,description,isEnabled"
+        )
+
+    def get_authorization_policy(self) -> dict[str, Any]:
+        return self._get(
+            f"{GRAPH_ROOT}/policies/authorizationPolicy"
+            "?$select=id,displayName,description,allowInvitesFrom,"
+            "allowUserConsentForRiskyApps,allowedToUseSSPR,"
+            "allowedToSignUpEmailBasedSubscriptions,allowEmailVerifiedUsersToJoinOrganization,"
+            "blockMsolPowerShell,defaultUserRolePermissions"
+        )
+
+    def list_conditional_access_policies(self) -> list[dict[str, Any]]:
+        return self._list(
+            "/identity/conditionalAccess/policies",
+            {
+                "$select": "id,displayName,state,conditions,grantControls,sessionControls",
+            },
+        )
+
     def list_application_federated_credentials(self, application_id: str) -> list[dict[str, Any]]:
         return self._list(
             f"/applications/{application_id}/federatedIdentityCredentials",

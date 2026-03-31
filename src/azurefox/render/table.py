@@ -91,12 +91,25 @@ def _records_for_command(command: str, payload: dict) -> list[dict]:
             for item in payload.get("trusts", [])
         ]
 
+    if command == "auth-policies":
+        return [
+            {
+                "policy_type": item.get("policy_type"),
+                "name": item.get("name"),
+                "state": item.get("state"),
+                "controls": item.get("controls", []),
+                "scope": item.get("scope"),
+            }
+            for item in payload.get("auth_policies", [])
+        ]
+
     mapping = {
         "rbac": "role_assignments",
         "principals": "principals",
         "permissions": "permissions",
         "privesc": "paths",
         "role-trusts": "trusts",
+        "auth-policies": "auth_policies",
         "managed-identities": "identities",
         "storage": "storage_assets",
         "vms": "vm_assets",

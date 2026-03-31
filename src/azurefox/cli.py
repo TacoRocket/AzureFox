@@ -81,6 +81,11 @@ def role_trusts(ctx: typer.Context) -> None:
     _run_single(ctx, "role-trusts")
 
 
+@app.command("auth-policies")
+def auth_policies(ctx: typer.Context) -> None:
+    _run_single(ctx, "auth-policies")
+
+
 @app.command("managed-identities")
 def managed_identities(ctx: typer.Context) -> None:
     _run_single(ctx, "managed-identities")

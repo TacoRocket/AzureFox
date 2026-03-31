@@ -1,0 +1,60 @@
+{
+  "auth_policies": [
+    {
+      "policy_type": "security-defaults",
+      "name": "Security Defaults",
+      "state": "disabled",
+      "scope": "tenant",
+      "controls": [],
+      "summary": "Security defaults are disabled for the tenant.",
+      "related_ids": [
+        "00000000-0000-0000-0000-000000000005"
+      ]
+    },
+    {
+      "policy_type": "authorization-policy",
+      "name": "Authorization Policy",
+      "state": "configured",
+      "scope": "tenant",
+      "controls": [
+        "guest-invites:everyone",
+        "sspr:enabled",
+        "legacy-msol-powershell:blocked",
+        "users-can-register-apps",
+        "users-can-create-security-groups",
+        "user-consent:self-service"
+      ],
+      "summary": "guest invites: everyone; users can register apps; self-service permission grant policies assigned; legacy MSOL PowerShell blocked",
+      "related_ids": [
+        "authorizationPolicy"
+      ]
+    },
+    {
+      "policy_type": "conditional-access",
+      "name": "CA001: Require multi-factor authentication for admins",
+      "state": "enabledForReportingButNotEnforced",
+      "scope": "roles:2, apps:all",
+      "controls": [
+        "mfa"
+      ],
+      "summary": "state: enabledForReportingButNotEnforced; grants: mfa; scope: roles:2, apps:all",
+      "related_ids": [
+        "ca-1"
+      ]
+    },
+    {
+      "policy_type": "conditional-access",
+      "name": "CA002: Block legacy auth",
+      "state": "disabled",
+      "scope": "users:all, apps:all",
+      "controls": [
+        "block"
+      ],
+      "summary": "state: disabled; grants: block; scope: users:all, apps:all",
+      "related_ids": [
+        "ca-2"
+      ]
+    }
+  ],
+  "issues": []
+}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from azurefox.models.common import (
+    AuthPolicySummary,
     Finding,
     ManagedIdentity,
     RoleAssignment,
@@ -103,3 +104,111 @@ def build_vm_findings(vms_raw: list[dict]) -> list[dict]:
             )
 
     return [f.model_dump() for f in findings]
+
+
+def build_auth_policy_findings(policies_raw: list[dict]) -> list[dict]:
+    policies = [AuthPolicySummary.model_validate(item) for item in policies_raw]
+    findings: list[Finding] = []
+
+    security_defaults = next(
+        (policy for policy in policies if policy.policy_type == "security-defaults"),
+        None,
+    )
+    authorization_policy = next(
+        (policy for policy in policies if policy.policy_type == "authorization-policy"),
+        None,
+    )
+    conditional_access = [
+        policy for policy in policies if policy.policy_type == "conditional-access"
+    ]
+
+    if security_defaults and security_defaults.state == "disabled":
+        findings.append(
+            Finding(
+                id="auth-policy-security-defaults-disabled",
+                severity="medium",
+                title="Security defaults are disabled",
+                description=(
+                    "Tenant-wide security defaults are disabled. Review whether Conditional "
+                    "Access policies provide equivalent baseline MFA and legacy-auth controls."
+                ),
+                related_ids=security_defaults.related_ids,
+            )
+        )
+
+    if authorization_policy:
+        controls = set(authorization_policy.controls)
+
+        if "users-can-register-apps" in controls:
+            findings.append(
+                Finding(
+                    id="auth-policy-users-can-register-apps",
+                    severity="medium",
+                    title="Users can register applications",
+                    description=(
+                        "Default user permissions allow application registration. Review whether "
+                        "that app-creation surface is expected for this tenant."
+                    ),
+                    related_ids=authorization_policy.related_ids,
+                )
+            )
+
+        if "guest-invites:everyone" in controls:
+            findings.append(
+                Finding(
+                    id="auth-policy-guest-invites-everyone",
+                    severity="medium",
+                    title="Guest invitations are broadly allowed",
+                    description=(
+                        "The authorization policy allows guest invitations from everyone in the "
+                        "tenant. Validate whether that guest-invite surface is intentional."
+                    ),
+                    related_ids=authorization_policy.related_ids,
+                )
+            )
+
+        if "risky-app-consent:enabled" in controls:
+            findings.append(
+                Finding(
+                    id="auth-policy-risky-app-consent-enabled",
+                    severity="high",
+                    title="Risky app consent is enabled",
+                    description=(
+                        "Authorization policy allows user consent for risky apps. Review whether "
+                        "that consent posture is expected for this tenant."
+                    ),
+                    related_ids=authorization_policy.related_ids,
+                )
+            )
+        elif "user-consent:self-service" in controls:
+            findings.append(
+                Finding(
+                    id="auth-policy-user-consent-enabled",
+                    severity="medium",
+                    title="User consent is available to default users",
+                    description=(
+                        "Default user permissions include self-service permission-grant policy "
+                        "assignment. Review which delegated or application access paths "
+                        "that enables."
+                    ),
+                    related_ids=authorization_policy.related_ids,
+                )
+            )
+
+    enabled_ca = [policy for policy in conditional_access if policy.state == "enabled"]
+    if security_defaults and security_defaults.state == "disabled" and not enabled_ca:
+        findings.append(
+            Finding(
+                id="auth-policy-no-active-enforcement-visible",
+                severity="medium",
+                title="No active auth enforcement visible",
+                description=(
+                    "Security defaults are disabled and no enabled Conditional Access policies are "
+                    "visible from the current read path. Validate whether stronger auth controls "
+                    "exist outside the currently readable policy surface."
+                ),
+                related_ids=security_defaults.related_ids,
+            )
+        )
+
+    return [finding.model_dump() for finding in findings]

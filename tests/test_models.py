@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from azurefox.models.common import (
     SCHEMA_VERSION,
+    AuthPolicySummary,
     ManagedIdentity,
     PermissionSummary,
     PrincipalSummary,
@@ -63,6 +64,18 @@ def test_role_trust_summary_defaults() -> None:
     )
     assert trust.source_name is None
     assert trust.related_ids == []
+
+
+def test_auth_policy_summary_defaults() -> None:
+    policy = AuthPolicySummary(
+        policy_type="security-defaults",
+        name="Security Defaults",
+        state="enabled",
+        summary="test",
+    )
+    assert policy.scope is None
+    assert policy.controls == []
+    assert policy.related_ids == []
 
 
 def test_storage_asset_defaults() -> None:

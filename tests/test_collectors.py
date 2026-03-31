@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from azurefox.collectors.commands import (
+    collect_auth_policies,
     collect_inventory,
     collect_managed_identities,
     collect_permissions,
@@ -57,6 +58,13 @@ def test_collect_inventory_metadata_falls_back_to_provider_context(
     assert output.metadata.tenant_id == "tenant-from-provider"
     assert output.metadata.subscription_id == "subscription-from-provider"
     assert output.metadata.token_source == "azure_cli"
+
+
+def test_collect_auth_policies(fixture_provider, options) -> None:
+    output = collect_auth_policies(fixture_provider, options)
+    assert len(output.auth_policies) == 4
+    assert len(output.findings) == 5
+    assert output.auth_policies[0].policy_type == "security-defaults"
 
 
 def test_collect_rbac(fixture_provider, options) -> None:

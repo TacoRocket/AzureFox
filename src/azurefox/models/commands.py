@@ -5,6 +5,7 @@ from collections import Counter
 from pydantic import BaseModel, Field
 
 from azurefox.models.common import (
+    AuthPolicySummary,
     CollectionIssue,
     CommandMetadata,
     Finding,
@@ -75,6 +76,13 @@ class PrivescOutput(BaseModel):
 class RoleTrustsOutput(BaseModel):
     metadata: CommandMetadata
     trusts: list[RoleTrustSummary] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class AuthPoliciesOutput(BaseModel):
+    metadata: CommandMetadata
+    auth_policies: list[AuthPolicySummary] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 
 
