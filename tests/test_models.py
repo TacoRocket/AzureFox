@@ -5,6 +5,7 @@ from azurefox.models.common import (
     ManagedIdentity,
     PermissionSummary,
     PrincipalSummary,
+    PrivescPathSummary,
     StorageAsset,
     VmAsset,
 )
@@ -32,6 +33,20 @@ def test_permission_summary_defaults() -> None:
     assert permission.high_impact_roles == []
     assert permission.scope_ids == []
     assert permission.privileged is False
+
+
+def test_privesc_path_defaults() -> None:
+    path = PrivescPathSummary(
+        principal="svc-app",
+        principal_id="p-1",
+        principal_type="ServicePrincipal",
+        path_type="direct-role-abuse",
+        severity="high",
+        summary="test",
+    )
+    assert path.asset is None
+    assert path.impact_roles == []
+    assert path.related_ids == []
 
 
 def test_storage_asset_defaults() -> None:

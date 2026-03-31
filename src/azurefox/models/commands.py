@@ -12,6 +12,7 @@ from azurefox.models.common import (
     PermissionSummary,
     Principal,
     PrincipalSummary,
+    PrivescPathSummary,
     RoleAssignment,
     ScopeRef,
     StorageAsset,
@@ -61,6 +62,12 @@ class PrincipalsOutput(BaseModel):
 class PermissionsOutput(BaseModel):
     metadata: CommandMetadata
     permissions: list[PermissionSummary] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class PrivescOutput(BaseModel):
+    metadata: CommandMetadata
+    paths: list[PrivescPathSummary] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 
 

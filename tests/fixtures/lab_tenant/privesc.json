@@ -1,0 +1,41 @@
+{
+  "paths": [
+    {
+      "principal": "azurefox-lab-sp",
+      "principal_id": "33333333-3333-3333-3333-333333333333",
+      "principal_type": "ServicePrincipal",
+      "path_type": "direct-role-abuse",
+      "asset": null,
+      "impact_roles": [
+        "Owner"
+      ],
+      "severity": "high",
+      "current_identity": true,
+      "summary": "Principal 'azurefox-lab-sp' already holds high-impact role assignments (Owner) in the current subscription scope.",
+      "related_ids": [
+        "33333333-3333-3333-3333-333333333333",
+        "/subscriptions/22222222-2222-2222-2222-222222222222"
+      ]
+    },
+    {
+      "principal": "ua-app",
+      "principal_id": "33333333-3333-3333-3333-333333333333",
+      "principal_type": "ManagedIdentity",
+      "path_type": "public-identity-pivot",
+      "asset": "vm-web-01",
+      "impact_roles": [
+        "Owner"
+      ],
+      "severity": "high",
+      "current_identity": false,
+      "summary": "Public workload 'vm-web-01' carries managed identity 'ua-app' with high-impact role assignments (Owner).",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-app",
+        "33333333-3333-3333-3333-333333333333",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+        "/subscriptions/22222222-2222-2222-2222-222222222222"
+      ]
+    }
+  ],
+  "issues": []
+}

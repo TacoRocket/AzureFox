@@ -64,10 +64,24 @@ def _records_for_command(command: str, payload: dict) -> list[dict]:
             for item in payload.get("permissions", [])
         ]
 
+    if command == "privesc":
+        return [
+            {
+                "principal": item.get("principal"),
+                "path_type": item.get("path_type"),
+                "asset": item.get("asset"),
+                "impact_roles": item.get("impact_roles", []),
+                "severity": item.get("severity"),
+                "current_identity": str(bool(item.get("current_identity", False))).lower(),
+            }
+            for item in payload.get("paths", [])
+        ]
+
     mapping = {
         "rbac": "role_assignments",
         "principals": "principals",
         "permissions": "permissions",
+        "privesc": "paths",
         "managed-identities": "identities",
         "storage": "storage_assets",
         "vms": "vm_assets",

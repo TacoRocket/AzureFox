@@ -42,6 +42,15 @@ def test_help_command_command_topic() -> None:
     assert "Temporary Elevated Cloud Access" in result.stdout
 
 
+def test_help_command_privesc_topic() -> None:
+    result = runner.invoke(app, ["help", "privesc"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: privesc" in result.stdout
+    assert "Cloud Instance Metadata API" in result.stdout
+    assert "workload identity pivots" in result.stdout
+
+
 def test_help_command_unknown_topic() -> None:
     result = runner.invoke(app, ["help", "banana"])
 
