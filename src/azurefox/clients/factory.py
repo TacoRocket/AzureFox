@@ -13,6 +13,7 @@ class AzureClients:
     subscription: SubscriptionRef
     resource: object
     authorization: object
+    web: object
     keyvault: object
     storage: object
     compute: object
@@ -27,6 +28,7 @@ def build_clients(session: AuthSession, requested_subscription: str | None) -> A
         from azure.mgmt.network import NetworkManagementClient
         from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient
         from azure.mgmt.storage import StorageManagementClient
+        from azure.mgmt.web import WebSiteManagementClient
     except ImportError as exc:  # pragma: no cover - dependency surface
         raise AzureFoxError(
             ErrorKind.DEPENDENCY_MISSING,
@@ -70,6 +72,7 @@ def build_clients(session: AuthSession, requested_subscription: str | None) -> A
         subscription=subscription_ref,
         resource=ResourceManagementClient(session.credential, subscription_id),
         authorization=AuthorizationManagementClient(session.credential, subscription_id),
+        web=WebSiteManagementClient(session.credential, subscription_id),
         keyvault=KeyVaultManagementClient(session.credential, subscription_id),
         storage=StorageManagementClient(session.credential, subscription_id),
         compute=ComputeManagementClient(session.credential, subscription_id),

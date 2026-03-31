@@ -16,6 +16,7 @@ Fox.
 - `whoami`
 - `inventory`
 - `arm-deployments`
+- `env-vars`
 - `rbac`
 - `principals`
 - `permissions`
@@ -102,7 +103,7 @@ azurefox all-checks --section compute
 Current section mappings:
 
 - `identity`: `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `auth-policies`, `managed-identities`
-- `config`: `arm-deployments`
+- `config`: `arm-deployments`, `env-vars`
 - `secrets`: `keyvault`
 - `resource`: `resource-trusts`
 - `storage`: `storage`

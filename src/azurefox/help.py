@@ -92,6 +92,37 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox arm-deployments --output table",
     ),
+    "env-vars": CommandHelpTopic(
+        name="env-vars",
+        section="config",
+        summary=(
+            "Review App Service and Function App settings for plain-text secrets and Key Vault "
+            "references."
+        ),
+        offensive_question=(
+            "Which workload app settings expose plain-text secrets, high-signal config names, "
+            "or Key Vault-backed configuration paths worth review?"
+        ),
+        cloudfox_frame=(
+            "Azure-native config triage focused on workload environment variables exposed through "
+            "management-plane app settings."
+        ),
+        output_highlights=(
+            "asset_kind",
+            "workload_identity_type",
+            "setting_name",
+            "value_type",
+            "looks_sensitive",
+            "reference_target",
+            "key_vault_reference_identity",
+        ),
+        attack_leads=(
+            AttackLead("Credential Access", "Unsecured Credentials"),
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Collection", "Data from Information Repositories"),
+        ),
+        example="azurefox env-vars --output table",
+    ),
     "rbac": CommandHelpTopic(
         name="rbac",
         section="identity",
@@ -416,10 +447,12 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
     ),
     "config": SectionHelpTopic(
         name="config",
-        summary="Deployment and configuration history that can expose useful operator context.",
+        summary=(
+            "Deployment and workload configuration surfaces that expose useful operator context."
+        ),
         operator_goal=(
-            "Find deployment artifacts, linked content, and surfaced outputs that reveal how the "
-            "environment is wired together."
+            "Find deployment artifacts, workload settings, linked content, and surfaced outputs "
+            "that reveal how the environment is wired together."
         ),
         attack_lenses=(
             AttackLead("Discovery", "Cloud Service Discovery"),

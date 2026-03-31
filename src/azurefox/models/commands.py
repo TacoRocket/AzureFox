@@ -9,6 +9,7 @@ from azurefox.models.common import (
     AuthPolicySummary,
     CollectionIssue,
     CommandMetadata,
+    EnvVarSummary,
     Finding,
     KeyVaultAsset,
     ManagedIdentity,
@@ -92,6 +93,13 @@ class ResourceTrustsOutput(BaseModel):
 class ArmDeploymentsOutput(BaseModel):
     metadata: CommandMetadata
     deployments: list[ArmDeploymentSummary] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class EnvVarsOutput(BaseModel):
+    metadata: CommandMetadata
+    env_vars: list[EnvVarSummary] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 

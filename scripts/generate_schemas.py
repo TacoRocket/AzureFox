@@ -5,6 +5,7 @@ from pathlib import Path
 
 from azurefox.models.commands import (
     ArmDeploymentsOutput,
+    EnvVarsOutput,
     InventoryOutput,
     KeyVaultOutput,
     ManagedIdentitiesOutput,
@@ -19,6 +20,7 @@ MODELS = {
     "whoami": WhoAmIOutput,
     "inventory": InventoryOutput,
     "arm-deployments": ArmDeploymentsOutput,
+    "env-vars": EnvVarsOutput,
     "rbac": RbacOutput,
     "managed-identities": ManagedIdentitiesOutput,
     "keyvault": KeyVaultOutput,

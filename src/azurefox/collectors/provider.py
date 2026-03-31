@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import re
 from abc import ABC, abstractmethod
 from collections import Counter
 from pathlib import Path
+from urllib.parse import urlparse
 
 from azurefox.auth.session import build_auth_session, decode_jwt_payload
 from azurefox.clients.factory import build_clients
@@ -28,6 +30,10 @@ class BaseProvider(ABC):
 
     @abstractmethod
     def arm_deployments(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
+    def env_vars(self) -> dict:
         raise NotImplementedError
 
     @abstractmethod
@@ -120,6 +126,9 @@ class FixtureProvider(BaseProvider):
 
     def keyvault(self) -> dict:
         return self._read("keyvault")
+
+    def env_vars(self) -> dict:
+        return self._read("env_vars")
 
     def storage(self) -> dict:
         return self._read("storage")
@@ -244,6 +253,51 @@ class AzureProvider(BaseProvider):
             )
         )
         return {"deployments": deployments, "issues": issues}
+
+    def env_vars(self) -> dict:
+        issues: list[dict] = []
+        env_vars: list[dict] = []
+
+        try:
+            iterator = self.clients.web.web_apps.list()
+            for app in iterator:
+                asset_kind = _web_asset_kind(getattr(app, "kind", None))
+                if not asset_kind:
+                    continue
+
+                app_id = getattr(app, "id", "") or ""
+                resource_group = _resource_group_from_id(app_id)
+                app_name = getattr(app, "name", None)
+                if not resource_group or not app_name:
+                    continue
+
+                try:
+                    settings = self.clients.web.web_apps.list_application_settings(
+                        resource_group,
+                        app_name,
+                    )
+                    for setting_name, setting_value in (
+                        getattr(settings, "properties", None) or {}
+                    ).items():
+                        env_vars.append(
+                            _env_var_summary(
+                                app,
+                                asset_kind=asset_kind,
+                                setting_name=setting_name,
+                                setting_value=setting_value,
+                            )
+                        )
+                except Exception as exc:
+                    issues.append(
+                        _issue_from_exception(
+                            f"env_vars[{resource_group}/{app_name}]",
+                            exc,
+                        )
+                    )
+        except Exception as exc:
+            issues.append(_issue_from_exception("env_vars.web_apps", exc))
+
+        return {"env_vars": env_vars, "issues": issues}
 
     def rbac(self) -> dict:
         scope = f"/subscriptions/{self.clients.subscription_id}"
@@ -1606,6 +1660,149 @@ def _deployment_summary(
         "summary": summary,
         "related_ids": [item for item in [deployment_id] if item],
     }
+
+
+_ENV_VAR_SENSITIVE_TOKENS = {
+    "key",
+    "secret",
+    "token",
+    "password",
+    "passwd",
+    "connectionstring",
+    "connection_string",
+    "connstr",
+    "clientsecret",
+}
+
+
+def _env_var_summary(
+    app: object,
+    *,
+    asset_kind: str,
+    setting_name: str,
+    setting_value: object,
+) -> dict:
+    app_id = getattr(app, "id", "") or ""
+    app_name = getattr(app, "name", "unknown")
+    identity = getattr(app, "identity", None)
+    value_type = _env_var_value_type(setting_value)
+    looks_sensitive = _looks_sensitive_setting_name(setting_name)
+    reference_target = _env_var_reference_target(setting_value)
+    workload_identity_type = _string_value(getattr(identity, "type", None))
+    workload_principal_id = _string_value(getattr(identity, "principal_id", None))
+    workload_client_id = _string_value(getattr(identity, "client_id", None))
+    workload_identity_ids = sorted(
+        str(identity_id)
+        for identity_id in (getattr(identity, "user_assigned_identities", None) or {}).keys()
+    )
+    key_vault_reference_identity = _string_value(
+        getattr(app, "key_vault_reference_identity", None)
+    )
+    kv_identity_summary = _key_vault_reference_identity_summary(key_vault_reference_identity)
+
+    if value_type == "keyvault-ref":
+        summary = (
+            f"{asset_kind} '{app_name}' maps setting '{setting_name}' to Key Vault-backed "
+            f"configuration{f' ({reference_target})' if reference_target else ''}"
+            f"{f' via {kv_identity_summary}' if kv_identity_summary else ''}."
+        )
+    elif looks_sensitive and value_type == "plain-text":
+        summary = (
+            f"{asset_kind} '{app_name}' stores sensitive-looking setting '{setting_name}' as "
+            "plain-text app configuration."
+        )
+    else:
+        summary = (
+            f"{asset_kind} '{app_name}' exposes setting '{setting_name}' through management-plane "
+            f"app settings ({value_type})."
+        )
+
+    return {
+        "asset_id": app_id or f"/unknown/{app_name}",
+        "asset_name": app_name,
+        "asset_kind": asset_kind,
+        "resource_group": _resource_group_from_id(app_id),
+        "location": _string_value(getattr(app, "location", None)),
+        "workload_identity_type": workload_identity_type,
+        "workload_principal_id": workload_principal_id,
+        "workload_client_id": workload_client_id,
+        "workload_identity_ids": workload_identity_ids,
+        "key_vault_reference_identity": key_vault_reference_identity,
+        "setting_name": setting_name,
+        "value_type": value_type,
+        "looks_sensitive": looks_sensitive,
+        "reference_target": reference_target,
+        "summary": summary,
+        "related_ids": [item for item in [app_id] if item],
+    }
+
+
+def _web_asset_kind(kind: object) -> str | None:
+    value = str(kind or "").lower()
+    if "workflowapp" in value:
+        return None
+    if "functionapp" in value:
+        return "FunctionApp"
+    if not value or "app" in value:
+        return "AppService"
+    return None
+
+
+def _env_var_value_type(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "empty"
+    if text.startswith("@Microsoft.KeyVault("):
+        return "keyvault-ref"
+    return "plain-text"
+
+
+def _looks_sensitive_setting_name(setting_name: str) -> bool:
+    normalized = re.sub(r"[^a-z0-9]+", "", setting_name.lower())
+    return any(token in normalized for token in _ENV_VAR_SENSITIVE_TOKENS)
+
+
+def _env_var_reference_target(value: object) -> str | None:
+    text = str(value or "").strip()
+    if not text.startswith("@Microsoft.KeyVault("):
+        return None
+
+    match = re.search(r"SecretUri=([^)]+)", text)
+    if match:
+        parsed = urlparse(match.group(1).strip())
+        if parsed.netloc and parsed.path:
+            return f"{parsed.netloc}{parsed.path}"
+        return match.group(1).strip()
+
+    vault_name = _keyvault_reference_part(text, "VaultName")
+    secret_name = _keyvault_reference_part(text, "SecretName")
+    secret_version = _keyvault_reference_part(text, "SecretVersion")
+    if not vault_name or not secret_name:
+        return None
+
+    target = f"{vault_name}.vault.azure.net/secrets/{secret_name}"
+    if secret_version:
+        target = f"{target}/{secret_version}"
+    return target
+
+
+def _keyvault_reference_part(text: str, key: str) -> str | None:
+    match = re.search(rf"{key}=([^;)]*)", text)
+    if not match:
+        return None
+    value = match.group(1).strip()
+    return value or None
+
+
+def _key_vault_reference_identity_summary(value: str | None) -> str | None:
+    if not value:
+        return None
+    if value.lower() == "systemassigned":
+        return "SystemAssigned identity"
+    parts = [part for part in value.split("/") if part]
+    if parts:
+        return f"reference identity {parts[-1]}"
+    return f"reference identity {value}"
 
 
 def _dedupe_deployments(deployments: list[dict]) -> list[dict]:
