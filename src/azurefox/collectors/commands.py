@@ -10,6 +10,7 @@ from azurefox.correlation.findings import (
 from azurefox.models.commands import (
     InventoryOutput,
     ManagedIdentitiesOutput,
+    PrincipalsOutput,
     RbacOutput,
     StorageOutput,
     VmsOutput,
@@ -37,6 +38,11 @@ def collect_inventory(provider: BaseProvider, options: GlobalOptions) -> Invento
 def collect_rbac(provider: BaseProvider, options: GlobalOptions) -> RbacOutput:
     data = provider.rbac()
     return RbacOutput.model_validate({"metadata": _metadata("rbac", options), **data})
+
+
+def collect_principals(provider: BaseProvider, options: GlobalOptions) -> PrincipalsOutput:
+    data = provider.principals()
+    return PrincipalsOutput.model_validate({"metadata": _metadata("principals", options), **data})
 
 
 def collect_managed_identities(

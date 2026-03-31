@@ -1,0 +1,8 @@
+{
+  "model": "PrincipalsOutput",
+  "top_level_fields": [
+    "metadata",
+    "principals",
+    "issues"
+  ]
+}

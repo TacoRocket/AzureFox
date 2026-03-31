@@ -26,6 +26,10 @@ class BaseProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def principals(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
     def managed_identities(self) -> dict:
         raise NotImplementedError
 
@@ -56,6 +60,9 @@ class FixtureProvider(BaseProvider):
 
     def rbac(self) -> dict:
         return self._read("rbac")
+
+    def principals(self) -> dict:
+        return self._read("principals")
 
     def managed_identities(self) -> dict:
         return self._read("managed_identities")
@@ -180,6 +187,99 @@ class AzureProvider(BaseProvider):
             "role_assignments": [a.model_dump() for a in assignments],
             "issues": issues,
         }
+
+    def principals(self) -> dict:
+        rbac_data = self.rbac()
+        whoami_data = self.whoami()
+        identity_data = self.managed_identities()
+
+        records: dict[str, dict] = {}
+        issues = [
+            *rbac_data.get("issues", []),
+            *whoami_data.get("issues", []),
+            *identity_data.get("issues", []),
+        ]
+
+        def ensure_record(principal_id: str) -> dict:
+            if principal_id not in records:
+                records[principal_id] = {
+                    "id": principal_id,
+                    "principal_type": "unknown",
+                    "display_name": None,
+                    "tenant_id": None,
+                    "sources": [],
+                    "scope_ids": [],
+                    "role_names": [],
+                    "role_assignment_count": 0,
+                    "identity_names": [],
+                    "identity_types": [],
+                    "attached_to": [],
+                    "is_current_identity": False,
+                }
+            return records[principal_id]
+
+        for principal in rbac_data.get("principals", []):
+            principal_id = principal.get("id")
+            if not principal_id:
+                continue
+            record = ensure_record(principal_id)
+            _merge_principal_attributes(record, principal)
+            _append_unique(record["sources"], "rbac")
+
+        for assignment in rbac_data.get("role_assignments", []):
+            principal_id = assignment.get("principal_id")
+            if not principal_id:
+                continue
+            record = ensure_record(principal_id)
+            role_name = assignment.get("role_name")
+            scope_id = assignment.get("scope_id")
+            if role_name:
+                _append_unique(record["role_names"], role_name)
+            if scope_id:
+                _append_unique(record["scope_ids"], scope_id)
+            record["role_assignment_count"] += 1
+            principal_type = assignment.get("principal_type")
+            if principal_type:
+                record["principal_type"] = _normalize_principal_type(
+                    record["principal_type"],
+                    principal_type,
+                )
+            _append_unique(record["sources"], "rbac")
+
+        principal = whoami_data.get("principal")
+        if principal and principal.get("id"):
+            record = ensure_record(principal["id"])
+            _merge_principal_attributes(record, principal)
+            record["is_current_identity"] = True
+            for scope in whoami_data.get("effective_scopes", []):
+                scope_id = scope.get("id")
+                if scope_id:
+                    _append_unique(record["scope_ids"], scope_id)
+            _append_unique(record["sources"], "whoami")
+
+        for identity in identity_data.get("identities", []):
+            principal_id = identity.get("principal_id")
+            if not principal_id:
+                continue
+            record = ensure_record(principal_id)
+            if record["principal_type"] == "unknown":
+                record["principal_type"] = "ServicePrincipal"
+            _append_unique(record["identity_names"], identity.get("name"))
+            _append_unique(record["identity_types"], identity.get("identity_type"))
+            for scope_id in identity.get("scope_ids", []):
+                _append_unique(record["scope_ids"], scope_id)
+            for attachment in identity.get("attached_to", []):
+                _append_unique(record["attached_to"], attachment)
+            _append_unique(record["sources"], "managed-identities")
+
+        principals = sorted(
+            records.values(),
+            key=lambda item: (
+                item.get("display_name") or "",
+                item["id"],
+            ),
+        )
+        return {"principals": principals, "issues": issues}
 
     def managed_identities(self) -> dict:
         issues: list[dict] = []
@@ -466,6 +566,44 @@ def _issue_from_exception(area: str, exc: Exception) -> dict:
         "message": f"{area}: {exc}",
         "context": {"collector": area},
     }
+
+
+def _merge_principal_attributes(record: dict, principal: dict) -> None:
+    display_name = principal.get("display_name")
+    tenant_id = principal.get("tenant_id")
+    principal_type = principal.get("principal_type")
+
+    if display_name and not record["display_name"]:
+        record["display_name"] = display_name
+    if tenant_id and not record["tenant_id"]:
+        record["tenant_id"] = tenant_id
+    if principal_type:
+        record["principal_type"] = _normalize_principal_type(
+            record["principal_type"],
+            principal_type,
+        )
+
+
+def _append_unique(items: list[str], value: str | None) -> None:
+    if value and value not in items:
+        items.append(value)
+
+
+def _normalize_principal_type(existing: str | None, candidate: str | None) -> str:
+    normalized_existing = existing or "unknown"
+    if not candidate:
+        return normalized_existing
+
+    normalized = {
+        "serviceprincipal": "ServicePrincipal",
+        "user": "User",
+        "group": "Group",
+        "managedidentity": "ManagedIdentity",
+    }.get(candidate.replace(" ", "").lower(), candidate)
+
+    if normalized_existing != "unknown":
+        return normalized_existing
+    return normalized
 
 
 def _resource_group_from_id(resource_id: str) -> str | None:

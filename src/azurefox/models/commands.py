@@ -10,6 +10,7 @@ from azurefox.models.common import (
     Finding,
     ManagedIdentity,
     Principal,
+    PrincipalSummary,
     RoleAssignment,
     ScopeRef,
     StorageAsset,
@@ -48,6 +49,12 @@ class RbacOutput(BaseModel):
         for assignment in self.role_assignments:
             dist[assignment.role_name or "Unknown"] += 1
         return dict(dist)
+
+
+class PrincipalsOutput(BaseModel):
+    metadata: CommandMetadata
+    principals: list[PrincipalSummary] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
 
 
 class ManagedIdentitiesOutput(BaseModel):

@@ -59,6 +59,11 @@ def rbac(ctx: typer.Context) -> None:
     _run_single(ctx, "rbac")
 
 
+@app.command("principals")
+def principals(ctx: typer.Context) -> None:
+    _run_single(ctx, "principals")
+
+
 @app.command("managed-identities")
 def managed_identities(ctx: typer.Context) -> None:
     _run_single(ctx, "managed-identities")

@@ -52,6 +52,7 @@ def _records_for_command(command: str, payload: dict) -> list[dict]:
 
     mapping = {
         "rbac": "role_assignments",
+        "principals": "principals",
         "managed-identities": "identities",
         "storage": "storage_assets",
         "vms": "vm_assets",

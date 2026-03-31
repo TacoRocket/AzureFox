@@ -48,6 +48,21 @@ class Principal(BaseModel):
     tenant_id: str | None = None
 
 
+class PrincipalSummary(BaseModel):
+    id: str
+    principal_type: str
+    display_name: str | None = None
+    tenant_id: str | None = None
+    sources: list[str] = Field(default_factory=list)
+    scope_ids: list[str] = Field(default_factory=list)
+    role_names: list[str] = Field(default_factory=list)
+    role_assignment_count: int = 0
+    identity_names: list[str] = Field(default_factory=list)
+    identity_types: list[str] = Field(default_factory=list)
+    attached_to: list[str] = Field(default_factory=list)
+    is_current_identity: bool = False
+
+
 class RoleAssignment(BaseModel):
     id: str
     scope_id: str

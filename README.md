@@ -16,6 +16,7 @@ Fox.
 - `whoami`
 - `inventory`
 - `rbac`
+- `principals`
 - `managed-identities`
 - `storage`
 - `vms`
@@ -90,7 +91,7 @@ azurefox all-checks --section compute
 
 Current section mappings:
 
-- `identity`: `whoami`, `rbac`, `managed-identities`
+- `identity`: `whoami`, `rbac`, `principals`, `managed-identities`
 - `storage`: `storage`
 - `compute`: `vms`
 - `core`: `inventory`

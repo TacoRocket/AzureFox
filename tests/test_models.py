@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from azurefox.models.common import SCHEMA_VERSION, ManagedIdentity, StorageAsset, VmAsset
+from azurefox.models.common import (
+    SCHEMA_VERSION,
+    ManagedIdentity,
+    PrincipalSummary,
+    StorageAsset,
+    VmAsset,
+)
 
 
 def test_schema_version() -> None:
@@ -11,6 +17,13 @@ def test_managed_identity_defaults() -> None:
     identity = ManagedIdentity(id="id-1", name="mi-1", identity_type="userAssigned")
     assert identity.attached_to == []
     assert identity.scope_ids == []
+
+
+def test_principal_summary_defaults() -> None:
+    principal = PrincipalSummary(id="p-1", principal_type="User")
+    assert principal.sources == []
+    assert principal.attached_to == []
+    assert principal.is_current_identity is False
 
 
 def test_storage_asset_defaults() -> None:

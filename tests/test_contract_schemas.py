@@ -6,6 +6,7 @@ from pathlib import Path
 from azurefox.models.commands import (
     InventoryOutput,
     ManagedIdentitiesOutput,
+    PrincipalsOutput,
     RbacOutput,
     StorageOutput,
     VmsOutput,
@@ -16,6 +17,7 @@ MODEL_MAP = {
     "whoami": WhoAmIOutput,
     "inventory": InventoryOutput,
     "rbac": RbacOutput,
+    "principals": PrincipalsOutput,
     "managed-identities": ManagedIdentitiesOutput,
     "storage": StorageOutput,
     "vms": VmsOutput,
