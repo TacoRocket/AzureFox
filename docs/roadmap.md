@@ -1,14 +1,9 @@
 # AzureFox Roadmap
 
-## Pre-Work Gate
+This document is the public-facing high-level roadmap for AzureFox.
+Detailed planning, handoff notes, and internal implementation guidance are maintained outside the repo.
 
-Before new command implementation resumes:
-
-- complete the external assumptions review in `~/Documents/AzureFox-Assumptions.md`
-- keep the external handoff file current in `~/Documents/AzureFox-Lab-Reference.md`
-- classify CloudFox parity gaps in `docs/cloudfox-compatibility-ledger.md`
-
-## First-Class Recon Tool Standard
+## Product Direction
 
 AzureFox should provide:
 
@@ -62,3 +57,8 @@ AzureFox should provide:
 - `openai`
 - `ai-foundry`
 - `aml`
+
+## Notes
+
+- CloudFox remains an inspiration for operator workflow and output style, but AzureFox should stay Azure-native in command design and findings language.
+- Detailed slice planning, help-surface requirements, and reference material live outside the public repo docs.
