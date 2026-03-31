@@ -8,6 +8,7 @@ from azurefox.models.commands import (
     KeyVaultOutput,
     ManagedIdentitiesOutput,
     RbacOutput,
+    ResourceTrustsOutput,
     StorageOutput,
     VmsOutput,
     WhoAmIOutput,
@@ -19,6 +20,7 @@ MODELS = {
     "rbac": RbacOutput,
     "managed-identities": ManagedIdentitiesOutput,
     "keyvault": KeyVaultOutput,
+    "resource-trusts": ResourceTrustsOutput,
     "storage": StorageOutput,
     "vms": VmsOutput,
 }

@@ -18,6 +18,10 @@ COMMAND_NARRATION = {
     "auth-policies": "Reviewing tenant auth controls, findings, and any partial-read gaps.",
     "managed-identities": "Enumerating workload identities and attached privilege exposure.",
     "keyvault": "Reviewing Key Vault posture for exposed or weakly protected secret surfaces.",
+    "resource-trusts": (
+        "Correlating resource trust surfaces across public network and "
+        "private-link paths."
+    ),
     "storage": "Checking storage exposure and network posture for likely data targets.",
     "vms": "Summarizing reachable compute assets and identity-bearing workloads.",
     "all-checks": "Running the current AzureFox command set in operator-first sequence.",

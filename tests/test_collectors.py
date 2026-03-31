@@ -11,6 +11,7 @@ from azurefox.collectors.commands import (
     collect_principals,
     collect_privesc,
     collect_rbac,
+    collect_resource_trusts,
     collect_role_trusts,
     collect_storage,
     collect_vms,
@@ -193,6 +194,13 @@ def test_collect_keyvault(fixture_provider, options) -> None:
     assert len(output.key_vaults) == 2
     assert len(output.findings) == 2
     assert output.key_vaults[0].public_network_access == "Enabled"
+
+
+def test_collect_resource_trusts(fixture_provider, options) -> None:
+    output = collect_resource_trusts(fixture_provider, options)
+    assert len(output.resource_trusts) == 5
+    assert len(output.findings) == 4
+    assert output.resource_trusts[0].resource_type == "KeyVault"
 
 
 def test_collect_storage(fixture_provider, options) -> None:

@@ -1,0 +1,9 @@
+{
+  "model": "ResourceTrustsOutput",
+  "top_level_fields": [
+    "metadata",
+    "resource_trusts",
+    "findings",
+    "issues"
+  ]
+}

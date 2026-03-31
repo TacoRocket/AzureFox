@@ -101,6 +101,11 @@ def keyvault(ctx: typer.Context) -> None:
     _run_single(ctx, "keyvault")
 
 
+@app.command("resource-trusts")
+def resource_trusts(ctx: typer.Context) -> None:
+    _run_single(ctx, "resource-trusts")
+
+
 @app.command("storage")
 def storage(ctx: typer.Context) -> None:
     _run_single(ctx, "storage")

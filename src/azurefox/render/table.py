@@ -192,6 +192,29 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "resource-trusts":
+        return (
+            [
+                ("resource", "resource"),
+                ("resource_type", "type"),
+                ("trust_type", "trust"),
+                ("target", "target"),
+                ("exposure", "exposure"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "resource": item.get("resource_name") or item.get("resource_id"),
+                    "resource_type": item.get("resource_type"),
+                    "trust_type": item.get("trust_type"),
+                    "target": item.get("target"),
+                    "exposure": item.get("exposure"),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("resource_trusts", [])
+            ],
+        )
+
     if command == "auth-policies":
         return (
             [
@@ -338,6 +361,15 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         families = Counter(item.get("trust_type") or "unknown" for item in trusts)
         counts = ", ".join(f"{count} {name}" for name, count in sorted(families.items()))
         return f"{len(trusts)} trust edges surfaced; {counts or 'no trust edges visible'}."
+
+    if command == "resource-trusts":
+        resource_trusts = payload.get("resource_trusts", [])
+        exposures = Counter(item.get("exposure") or "unknown" for item in resource_trusts)
+        counts = ", ".join(f"{count} {name}" for name, count in sorted(exposures.items()))
+        return (
+            f"{len(resource_trusts)} resource trust surfaces visible; "
+            f"{counts or 'no resource trust surfaces visible'}."
+        )
 
     if command == "auth-policies":
         policies = payload.get("auth_policies", [])

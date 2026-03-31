@@ -8,6 +8,7 @@ from azurefox.collectors.commands import (
     collect_keyvault,
     collect_managed_identities,
     collect_rbac,
+    collect_resource_trusts,
     collect_storage,
     collect_vms,
     collect_whoami,
@@ -39,6 +40,7 @@ def main() -> None:
         "rbac": collect_rbac,
         "managed-identities": collect_managed_identities,
         "keyvault": collect_keyvault,
+        "resource-trusts": collect_resource_trusts,
         "storage": collect_storage,
         "vms": collect_vms,
     }

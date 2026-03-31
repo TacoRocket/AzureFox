@@ -7,6 +7,7 @@ from azurefox.models.common import (
     PermissionSummary,
     PrincipalSummary,
     PrivescPathSummary,
+    ResourceTrustSummary,
     RoleTrustSummary,
     StorageAsset,
     VmAsset,
@@ -63,6 +64,20 @@ def test_role_trust_summary_defaults() -> None:
         summary="test",
     )
     assert trust.source_name is None
+    assert trust.related_ids == []
+
+
+def test_resource_trust_summary_defaults() -> None:
+    trust = ResourceTrustSummary(
+        resource_id="r-1",
+        resource_type="StorageAccount",
+        trust_type="public-network",
+        target="public-network",
+        exposure="high",
+        confidence="confirmed",
+        summary="test",
+    )
+    assert trust.resource_name is None
     assert trust.related_ids == []
 
 
