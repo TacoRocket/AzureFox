@@ -17,3 +17,15 @@ class GlobalOptions:
     @property
     def loot_dir(self) -> Path:
         return self.outdir / "loot"
+
+    @property
+    def json_dir(self) -> Path:
+        return self.outdir / "json"
+
+    @property
+    def table_dir(self) -> Path:
+        return self.outdir / "table"
+
+    @property
+    def csv_dir(self) -> Path:
+        return self.outdir / "csv"

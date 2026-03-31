@@ -19,6 +19,7 @@ Fox.
 - `managed-identities`
 - `storage`
 - `vms`
+- `all-checks`
 
 ## Quickstart
 
@@ -27,6 +28,7 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e .[dev,azure]
 azurefox whoami --output table
+azurefox all-checks --output table
 ```
 
 ## Auth Precedence
@@ -67,7 +69,31 @@ azurefox whoami --tenant <tenant-id> --subscription <subscription-id>
 - `--output json`
 - `--output csv`
 
-All commands also write a loot artifact to `<outdir>/loot/<command>.json`.
+All commands write artifacts under `<outdir>/`:
+
+- `loot/<command>.json`
+- `json/<command>.json`
+- `table/<command>.txt`
+- `csv/<command>.csv`
+- `run-summary.json` for `all-checks`
+
+## Sections And All-Checks
+
+AzureFox keeps flat standalone commands and also supports grouped execution:
+
+```bash
+azurefox all-checks
+azurefox all-checks --section identity
+azurefox all-checks --section storage
+azurefox all-checks --section compute
+```
+
+Current section mappings:
+
+- `identity`: `whoami`, `rbac`, `managed-identities`
+- `storage`: `storage`
+- `compute`: `vms`
+- `core`: `inventory`
 
 ## Fixture Mode
 

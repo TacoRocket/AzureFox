@@ -11,29 +11,76 @@ from azurefox.models.common import OutputMode
 from azurefox.render.table import render_table
 
 
-def emit_output(command: str, model: object, options: GlobalOptions) -> None:
+def emit_output(
+    command: str,
+    model: object,
+    options: GlobalOptions,
+    *,
+    emit_stdout: bool = True,
+) -> dict[str, Path]:
     payload = model.model_dump(mode="json")
-    _write_loot(command, payload, options.loot_dir)
+    artifact_paths = write_artifacts(command, payload, options)
+
+    if not emit_stdout:
+        return artifact_paths
 
     if options.output == OutputMode.TABLE:
         typer.echo(render_table(command, payload))
-        return
+        return artifact_paths
 
     if options.output == OutputMode.JSON:
         typer.echo(json.dumps(payload, indent=2, sort_keys=True))
-        return
+        return artifact_paths
 
     if options.output == OutputMode.CSV:
         typer.echo(_to_csv(command, payload))
-        return
+        return artifact_paths
 
     raise ValueError(f"Unsupported output mode: {options.output}")
+
+
+def write_artifacts(command: str, payload: dict, options: GlobalOptions) -> dict[str, Path]:
+    options.json_dir.mkdir(parents=True, exist_ok=True)
+    options.table_dir.mkdir(parents=True, exist_ok=True)
+    options.csv_dir.mkdir(parents=True, exist_ok=True)
+
+    loot_path = _write_loot(command, payload, options.loot_dir)
+    json_path = _write_json(command, payload, options.json_dir)
+    table_path = _write_text(
+        command,
+        render_table(command, payload),
+        options.table_dir,
+        suffix=".txt",
+    )
+    csv_path = _write_text(command, _to_csv(command, payload), options.csv_dir, suffix=".csv")
+
+    return {
+        "loot": loot_path,
+        "json": json_path,
+        "table": table_path,
+        "csv": csv_path,
+    }
 
 
 def _write_loot(command: str, payload: dict, loot_dir: Path) -> None:
     loot_dir.mkdir(parents=True, exist_ok=True)
     path = loot_dir / f"{command}.json"
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return path
+
+
+def _write_json(command: str, payload: dict, outdir: Path) -> Path:
+    outdir.mkdir(parents=True, exist_ok=True)
+    path = outdir / f"{command}.json"
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return path
+
+
+def _write_text(command: str, content: str, outdir: Path, *, suffix: str) -> Path:
+    outdir.mkdir(parents=True, exist_ok=True)
+    path = outdir / f"{command}{suffix}"
+    path.write_text(content, encoding="utf-8")
+    return path
 
 
 def _to_csv(command: str, payload: dict) -> str:

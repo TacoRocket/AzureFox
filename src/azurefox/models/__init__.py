@@ -19,8 +19,10 @@ from azurefox.models.common import (
     SubscriptionRef,
     VmAsset,
 )
+from azurefox.models.run import AllChecksSummary, RunCommandResult
 
 __all__ = [
+    "AllChecksSummary",
     "CollectionIssue",
     "CommandMetadata",
     "Finding",
@@ -31,6 +33,7 @@ __all__ = [
     "Principal",
     "RbacOutput",
     "RoleAssignment",
+    "RunCommandResult",
     "ScopeRef",
     "StorageAsset",
     "StorageOutput",

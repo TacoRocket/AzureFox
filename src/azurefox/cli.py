@@ -4,19 +4,14 @@ from pathlib import Path
 
 import typer
 
-from azurefox.collectors.commands import (
-    collect_inventory,
-    collect_managed_identities,
-    collect_rbac,
-    collect_storage,
-    collect_vms,
-    collect_whoami,
-)
 from azurefox.collectors.provider import get_provider
 from azurefox.config import GlobalOptions
 from azurefox.errors import AzureFoxError
 from azurefox.models.common import OutputMode
+from azurefox.models.run import AllChecksSummary, RunCommandResult
+from azurefox.output.style import emit_artifact_paths, emit_command_status, emit_context_banner
 from azurefox.output.writer import emit_output
+from azurefox.registry import SECTION_NAMES, get_command_specs
 
 app = typer.Typer(help="AzureFox CLI")
 TENANT_OPTION = typer.Option(None, "--tenant", help="Azure tenant ID")
@@ -24,6 +19,11 @@ SUBSCRIPTION_OPTION = typer.Option(None, "--subscription", help="Azure subscript
 OUTPUT_OPTION = typer.Option(OutputMode.TABLE, "--output", help="Output format")
 OUTDIR_OPTION = typer.Option(Path("."), "--outdir", help="Output directory")
 DEBUG_OPTION = typer.Option(False, "--debug", help="Enable verbose error output")
+SECTION_OPTION = typer.Option(
+    None,
+    "--section",
+    help=f"Limit all-checks to a section: {', '.join(SECTION_NAMES)}",
+)
 
 
 @app.callback()
@@ -46,40 +46,124 @@ def root(
 
 @app.command("whoami")
 def whoami(ctx: typer.Context) -> None:
-    _run_command(ctx, "whoami", collect_whoami)
+    _run_single(ctx, "whoami")
 
 
 @app.command("inventory")
 def inventory(ctx: typer.Context) -> None:
-    _run_command(ctx, "inventory", collect_inventory)
+    _run_single(ctx, "inventory")
 
 
 @app.command("rbac")
 def rbac(ctx: typer.Context) -> None:
-    _run_command(ctx, "rbac", collect_rbac)
+    _run_single(ctx, "rbac")
 
 
 @app.command("managed-identities")
 def managed_identities(ctx: typer.Context) -> None:
-    _run_command(ctx, "managed-identities", collect_managed_identities)
+    _run_single(ctx, "managed-identities")
 
 
 @app.command("storage")
 def storage(ctx: typer.Context) -> None:
-    _run_command(ctx, "storage", collect_storage)
+    _run_single(ctx, "storage")
 
 
 @app.command("vms")
 def vms(ctx: typer.Context) -> None:
-    _run_command(ctx, "vms", collect_vms)
+    _run_single(ctx, "vms")
 
 
-def _run_command(ctx: typer.Context, command: str, collector: callable) -> None:
+@app.command("all-checks")
+def all_checks(
+    ctx: typer.Context,
+    section: str | None = SECTION_OPTION,
+) -> None:
+    options: GlobalOptions = ctx.obj
+    if section is not None and section not in SECTION_NAMES:
+        typer.echo(
+            f"[all-checks] Unknown section '{section}'. Valid sections: {', '.join(SECTION_NAMES)}",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    provider = get_provider(options)
+    specs = get_command_specs(section)
+
+    if options.output != OutputMode.JSON:
+        emit_context_banner(options)
+
+    results: list[RunCommandResult] = []
+    for spec in specs:
+        emit_command_status(spec.name, "running", err=options.output == OutputMode.JSON)
+        try:
+            model = spec.collector(provider, options)
+            artifact_paths = emit_output(spec.name, model, options, emit_stdout=False)
+            emit_artifact_paths(spec.name, artifact_paths, options)
+            results.append(
+                RunCommandResult(
+                    command=spec.name,
+                    section=spec.section,
+                    status="ok",
+                    artifact_paths={key: str(value) for key, value in artifact_paths.items()},
+                )
+            )
+        except AzureFoxError as exc:
+            emit_command_status(spec.name, f"failed: {exc}", err=True)
+            results.append(
+                RunCommandResult(
+                    command=spec.name,
+                    section=spec.section,
+                    status="error",
+                    error=str(exc),
+                )
+            )
+        except Exception as exc:  # pragma: no cover - safety rail
+            emit_command_status(spec.name, f"failed: {exc}", err=True)
+            results.append(
+                RunCommandResult(
+                    command=spec.name,
+                    section=spec.section,
+                    status="error",
+                    error=str(exc),
+                )
+            )
+
+    summary = AllChecksSummary(
+        metadata=_build_metadata("all-checks", options),
+        section=section,
+        results=results,
+    )
+    summary_path = options.outdir / "run-summary.json"
+    summary_path.write_text(
+        summary.model_dump_json(indent=2),
+        encoding="utf-8",
+    )
+
+    if options.output == OutputMode.JSON:
+        typer.echo(summary.model_dump_json(indent=2))
+    else:
+        ok_count = sum(result.status == "ok" for result in results)
+        emit_command_status(
+            "all-checks",
+            f"completed {ok_count}/{len(results)} commands; summary written to {summary_path}",
+        )
+
+    if any(result.status != "ok" for result in results):
+        raise typer.Exit(code=1)
+
+
+def _run_single(ctx: typer.Context, command: str) -> None:
     options: GlobalOptions = ctx.obj
     try:
         provider = get_provider(options)
-        model = collector(provider, options)
-        emit_output(command, model, options)
+        spec = next(spec for spec in get_command_specs() if spec.name == command)
+        if options.output != OutputMode.JSON:
+            emit_context_banner(options)
+            emit_command_status(command, "running")
+        model = spec.collector(provider, options)
+        artifact_paths = emit_output(command, model, options)
+        emit_artifact_paths(command, artifact_paths, options)
     except AzureFoxError as exc:
         typer.echo(f"[{exc.kind}] {exc}", err=True)
         if options.debug and exc.details:
@@ -92,3 +176,12 @@ def _run_command(ctx: typer.Context, command: str, collector: callable) -> None:
 
 def main() -> None:
     app()
+
+
+def _build_metadata(command: str, options: GlobalOptions) -> dict[str, str | None]:
+    return {
+        "command": command,
+        "tenant_id": options.tenant,
+        "subscription_id": options.subscription,
+        "token_source": None,
+    }
