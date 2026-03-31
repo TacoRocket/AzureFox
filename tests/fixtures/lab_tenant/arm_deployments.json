@@ -68,52 +68,5 @@
       ]
     }
   ],
-  "findings": [
-    {
-      "id": "arm-deployment-outputs-/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.Resources/deployments/sub-foundation",
-      "severity": "medium",
-      "title": "Deployment exposes output values",
-      "description": "Deployment 'sub-foundation' includes 2 recorded output values. Validate whether any outputs reveal useful endpoints, identifiers, or sensitive configuration.",
-      "related_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.Resources/deployments/sub-foundation"
-      ]
-    },
-    {
-      "id": "arm-deployment-remote-link-/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.Resources/deployments/sub-foundation",
-      "severity": "low",
-      "title": "Deployment references linked template content",
-      "description": "Deployment 'sub-foundation' uses linked template or parameter content. Review those linked artifacts for exposed configuration, trust assumptions, or reusable infrastructure patterns.",
-      "related_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.Resources/deployments/sub-foundation"
-      ]
-    },
-    {
-      "id": "arm-deployment-outputs-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.Resources/deployments/kv-secrets",
-      "severity": "medium",
-      "title": "Deployment exposes output values",
-      "description": "Deployment 'kv-secrets' includes 1 recorded output values. Validate whether any outputs reveal useful endpoints, identifiers, or sensitive configuration.",
-      "related_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.Resources/deployments/kv-secrets"
-      ]
-    },
-    {
-      "id": "arm-deployment-remote-link-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.Resources/deployments/kv-secrets",
-      "severity": "low",
-      "title": "Deployment references linked template content",
-      "description": "Deployment 'kv-secrets' uses linked template or parameter content. Review those linked artifacts for exposed configuration, trust assumptions, or reusable infrastructure patterns.",
-      "related_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.Resources/deployments/kv-secrets"
-      ]
-    },
-    {
-      "id": "arm-deployment-failed-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-app/providers/Microsoft.Resources/deployments/app-failed",
-      "severity": "medium",
-      "title": "Deployment did not complete successfully",
-      "description": "Deployment 'app-failed' ended in state 'Failed'. Review the deployment history for leaked config context, partial resource creation, or operator troubleshooting artifacts.",
-      "related_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-app/providers/Microsoft.Resources/deployments/app-failed"
-      ]
-    }
-  ],
   "issues": []
 }

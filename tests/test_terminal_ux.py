@@ -71,6 +71,24 @@ def test_principals_table_mode_uses_curated_columns(tmp_path: Path) -> None:
     assert "Takeaway: 2 principals visible" in result.stdout
 
 
+def test_arm_deployments_table_mode_surfaces_scope_and_linked_refs(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "arm-deployments"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert "linked refs" in result.stdout
+    assert "sub:22222222-2222-2222-2222-22222222" in result.stdout
+    assert "rg:rg-secrets" in result.stdout
+    assert "template=example.blob.core.windows" in result.stdout
+    assert (
+        "Takeaway: 3 deployments visible; 1 at subscription scope and 5 findings."
+        in result.stdout
+    )
+
+
 def test_auth_policies_partial_read_surfaces_collection_issue() -> None:
     artifact_path = Path(
         "/Users/cfarley/Documents/Terraform Labs for AzureFox/proof-artifacts/latest/"
