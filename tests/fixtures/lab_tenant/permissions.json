@@ -1,0 +1,39 @@
+{
+  "permissions": [
+    {
+      "principal_id": "33333333-3333-3333-3333-333333333333",
+      "display_name": "azurefox-lab-sp",
+      "principal_type": "ServicePrincipal",
+      "high_impact_roles": [
+        "Owner"
+      ],
+      "all_role_names": [
+        "Owner"
+      ],
+      "role_assignment_count": 1,
+      "scope_count": 1,
+      "scope_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222"
+      ],
+      "privileged": true,
+      "is_current_identity": true
+    },
+    {
+      "principal_id": "44444444-4444-4444-4444-444444444444",
+      "display_name": "operator@lab.local",
+      "principal_type": "User",
+      "high_impact_roles": [],
+      "all_role_names": [
+        "Reader"
+      ],
+      "role_assignment_count": 1,
+      "scope_count": 1,
+      "scope_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222"
+      ],
+      "privileged": false,
+      "is_current_identity": false
+    }
+  ],
+  "issues": []
+}

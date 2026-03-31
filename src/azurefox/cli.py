@@ -64,6 +64,11 @@ def principals(ctx: typer.Context) -> None:
     _run_single(ctx, "principals")
 
 
+@app.command("permissions")
+def permissions(ctx: typer.Context) -> None:
+    _run_single(ctx, "permissions")
+
+
 @app.command("managed-identities")
 def managed_identities(ctx: typer.Context) -> None:
     _run_single(ctx, "managed-identities")

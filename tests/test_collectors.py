@@ -3,6 +3,7 @@ from __future__ import annotations
 from azurefox.collectors.commands import (
     collect_inventory,
     collect_managed_identities,
+    collect_permissions,
     collect_principals,
     collect_rbac,
     collect_storage,
@@ -34,6 +35,13 @@ def test_collect_principals(fixture_provider, options) -> None:
     assert len(output.principals) == 2
     assert output.principals[0].is_current_identity is True
     assert "ua-app" in output.principals[0].identity_names
+
+
+def test_collect_permissions(fixture_provider, options) -> None:
+    output = collect_permissions(fixture_provider, options)
+    assert len(output.permissions) == 2
+    assert output.permissions[0].privileged is True
+    assert output.permissions[0].high_impact_roles == ["Owner"]
 
 
 def test_collect_managed_identities(fixture_provider, options) -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from azurefox.models.common import (
     SCHEMA_VERSION,
     ManagedIdentity,
+    PermissionSummary,
     PrincipalSummary,
     StorageAsset,
     VmAsset,
@@ -24,6 +25,13 @@ def test_principal_summary_defaults() -> None:
     assert principal.sources == []
     assert principal.attached_to == []
     assert principal.is_current_identity is False
+
+
+def test_permission_summary_defaults() -> None:
+    permission = PermissionSummary(principal_id="p-1", principal_type="User")
+    assert permission.high_impact_roles == []
+    assert permission.scope_ids == []
+    assert permission.privileged is False
 
 
 def test_storage_asset_defaults() -> None:

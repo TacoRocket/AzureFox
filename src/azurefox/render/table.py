@@ -50,9 +50,24 @@ def _records_for_command(command: str, payload: dict) -> list[dict]:
             }
         ]
 
+    if command == "permissions":
+        return [
+            {
+                "principal": item.get("display_name") or item.get("principal_id"),
+                "principal_type": item.get("principal_type"),
+                "high_impact_roles": item.get("high_impact_roles", []),
+                "assignment_count": item.get("role_assignment_count", 0),
+                "privileged": str(bool(item.get("privileged", False))).lower(),
+                "scope_count": item.get("scope_count", 0),
+                "current_identity": str(bool(item.get("is_current_identity", False))).lower(),
+            }
+            for item in payload.get("permissions", [])
+        ]
+
     mapping = {
         "rbac": "role_assignments",
         "principals": "principals",
+        "permissions": "permissions",
         "managed-identities": "identities",
         "storage": "storage_assets",
         "vms": "vm_assets",

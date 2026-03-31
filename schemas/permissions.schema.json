@@ -1,0 +1,8 @@
+{
+  "model": "PermissionsOutput",
+  "top_level_fields": [
+    "metadata",
+    "permissions",
+    "issues"
+  ]
+}
