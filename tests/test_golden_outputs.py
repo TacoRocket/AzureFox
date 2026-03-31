@@ -6,6 +6,7 @@ from pathlib import Path
 from azurefox.collectors.commands import (
     collect_auth_policies,
     collect_inventory,
+    collect_keyvault,
     collect_managed_identities,
     collect_permissions,
     collect_principals,
@@ -38,6 +39,7 @@ def test_golden_outputs(fixture_provider, options) -> None:
         "role-trusts": collect_role_trusts,
         "auth-policies": collect_auth_policies,
         "managed-identities": collect_managed_identities,
+        "keyvault": collect_keyvault,
         "storage": collect_storage,
         "vms": collect_vms,
     }

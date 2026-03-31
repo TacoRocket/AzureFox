@@ -5,6 +5,7 @@ from pathlib import Path
 from azurefox.collectors.commands import (
     collect_auth_policies,
     collect_inventory,
+    collect_keyvault,
     collect_managed_identities,
     collect_permissions,
     collect_principals,
@@ -185,6 +186,13 @@ def test_collect_managed_identities(fixture_provider, options) -> None:
     output = collect_managed_identities(fixture_provider, options)
     assert len(output.identities) == 1
     assert len(output.findings) == 1
+
+
+def test_collect_keyvault(fixture_provider, options) -> None:
+    output = collect_keyvault(fixture_provider, options)
+    assert len(output.key_vaults) == 2
+    assert len(output.findings) == 2
+    assert output.key_vaults[0].public_network_access == "Enabled"
 
 
 def test_collect_storage(fixture_provider, options) -> None:

@@ -241,6 +241,35 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox managed-identities --output table",
     ),
+    "keyvault": CommandHelpTopic(
+        name="keyvault",
+        section="secrets",
+        summary="Enumerate Key Vault assets and flag secret-management exposure or recovery risk.",
+        offensive_question=(
+            "Which Key Vaults are exposed, weakly protected, or worth deeper secret-access "
+            "review first?"
+        ),
+        cloudfox_frame=(
+            "Azure-native secret-management surface triage using management-plane "
+            "Key Vault metadata."
+        ),
+        output_highlights=(
+            "public_network_access",
+            "network_default_action",
+            "purge_protection_enabled",
+            "enable_rbac_authorization",
+            "findings",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Collection", "Data from Information Repositories"),
+            AttackLead(
+                "Credential Access",
+                "Steal or Forge Authentication Certificates",
+            ),
+        ),
+        example="azurefox keyvault --output table",
+    ),
     "storage": CommandHelpTopic(
         name="storage",
         section="storage",
@@ -335,6 +364,21 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
         attack_lenses=(
             AttackLead("Discovery", "Cloud Storage Object Discovery"),
             AttackLead("Collection", "Data from Cloud Storage"),
+        ),
+    ),
+    "secrets": SectionHelpTopic(
+        name="secrets",
+        summary="Secret-store exposure and recovery-control posture for Azure secret services.",
+        operator_goal=(
+            "Find exposed or weakly protected secret-management surfaces worth deeper follow-up."
+        ),
+        attack_lenses=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Collection", "Data from Information Repositories"),
+            AttackLead(
+                "Credential Access",
+                "Steal or Forge Authentication Certificates",
+            ),
         ),
     ),
     "compute": SectionHelpTopic(

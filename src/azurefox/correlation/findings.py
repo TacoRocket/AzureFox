@@ -3,6 +3,7 @@ from __future__ import annotations
 from azurefox.models.common import (
     AuthPolicySummary,
     Finding,
+    KeyVaultAsset,
     ManagedIdentity,
     RoleAssignment,
     StorageAsset,
@@ -77,6 +78,51 @@ def build_storage_findings(storage_raw: list[dict]) -> list[dict]:
                         "Review allowed network sources and private endpoint posture."
                     ),
                     related_ids=[asset.id],
+                )
+            )
+
+    return [f.model_dump() for f in findings]
+
+
+def build_keyvault_findings(key_vaults_raw: list[dict]) -> list[dict]:
+    key_vaults = [KeyVaultAsset.model_validate(item) for item in key_vaults_raw]
+    findings: list[Finding] = []
+
+    for vault in key_vaults:
+        public_network_access = (vault.public_network_access or "").lower()
+        network_default_action = (vault.network_default_action or "").lower()
+
+        if (
+            public_network_access == "enabled"
+            and network_default_action == "allow"
+            and not vault.private_endpoint_enabled
+        ):
+            findings.append(
+                Finding(
+                    id=f"keyvault-public-network-open-{vault.id}",
+                    severity="high",
+                    title="Key Vault is broadly reachable on the public network",
+                    description=(
+                        f"Key Vault '{vault.name}' has public network access enabled, default "
+                        "network action Allow, and no private endpoint visible. Review whether "
+                        "that secret-management surface is intentionally internet reachable."
+                    ),
+                    related_ids=[vault.id],
+                )
+            )
+
+        if not vault.purge_protection_enabled:
+            findings.append(
+                Finding(
+                    id=f"keyvault-purge-protection-disabled-{vault.id}",
+                    severity="medium",
+                    title="Key Vault purge protection is disabled",
+                    description=(
+                        f"Key Vault '{vault.name}' does not have purge protection enabled. "
+                        "Validate whether destructive recovery protections are intentionally "
+                        "absent."
+                    ),
+                    related_ids=[vault.id],
                 )
             )
 
