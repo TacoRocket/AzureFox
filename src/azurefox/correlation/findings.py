@@ -3,6 +3,7 @@ from __future__ import annotations
 from azurefox.models.common import (
     ArmDeploymentSummary,
     AuthPolicySummary,
+    EnvVarSummary,
     Finding,
     KeyVaultAsset,
     ManagedIdentity,
@@ -180,6 +181,43 @@ def build_arm_deployment_findings(deployments_raw: list[dict]) -> list[dict]:
                         "assumptions, or reusable infrastructure patterns."
                     ),
                     related_ids=[deployment.id],
+                )
+            )
+
+    return [f.model_dump() for f in findings]
+
+
+def build_env_var_findings(env_vars_raw: list[dict]) -> list[dict]:
+    env_vars = [EnvVarSummary.model_validate(item) for item in env_vars_raw]
+    findings: list[Finding] = []
+
+    for env_var in env_vars:
+        if env_var.looks_sensitive and env_var.value_type == "plain-text":
+            findings.append(
+                Finding(
+                    id=f"env-var-plain-sensitive-{env_var.asset_id}-{env_var.setting_name}",
+                    severity="medium",
+                    title="Sensitive-looking app setting is stored in plain text",
+                    description=(
+                        f"{env_var.asset_kind} '{env_var.asset_name}' stores setting "
+                        f"'{env_var.setting_name}' as plain-text management-plane config."
+                    ),
+                    related_ids=[env_var.asset_id],
+                )
+            )
+
+        if env_var.value_type == "keyvault-ref":
+            findings.append(
+                Finding(
+                    id=f"env-var-keyvault-ref-{env_var.asset_id}-{env_var.setting_name}",
+                    severity="low",
+                    title="App setting references Key Vault",
+                    description=(
+                        f"{env_var.asset_kind} '{env_var.asset_name}' maps setting "
+                        f"'{env_var.setting_name}' to Key Vault-backed configuration"
+                        f"{f' ({env_var.reference_target})' if env_var.reference_target else ''}."
+                    ),
+                    related_ids=[env_var.asset_id],
                 )
             )
 

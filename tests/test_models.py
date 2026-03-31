@@ -4,6 +4,7 @@ from azurefox.models.common import (
     SCHEMA_VERSION,
     ArmDeploymentSummary,
     AuthPolicySummary,
+    EnvVarSummary,
     ManagedIdentity,
     PermissionSummary,
     PrincipalSummary,
@@ -30,6 +31,23 @@ def test_arm_deployment_summary_defaults() -> None:
     assert deployment.resource_group is None
     assert deployment.providers == []
     assert deployment.related_ids == []
+
+
+def test_env_var_summary_defaults() -> None:
+    env_var = EnvVarSummary(
+        asset_id="app-1",
+        asset_name="app",
+        asset_kind="AppService",
+        setting_name="API_URL",
+        value_type="plain-text",
+        summary="test",
+    )
+    assert env_var.workload_identity_type is None
+    assert env_var.workload_identity_ids == []
+    assert env_var.key_vault_reference_identity is None
+    assert env_var.looks_sensitive is False
+    assert env_var.reference_target is None
+    assert env_var.related_ids == []
 
 
 def test_managed_identity_defaults() -> None:

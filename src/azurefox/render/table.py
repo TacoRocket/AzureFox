@@ -124,6 +124,31 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "env-vars":
+        return (
+            [
+                ("asset_name", "workload"),
+                ("asset_kind", "kind"),
+                ("identity", "identity"),
+                ("setting_name", "setting"),
+                ("value_type", "value type"),
+                ("signal", "signal"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "asset_name": item.get("asset_name"),
+                    "asset_kind": item.get("asset_kind"),
+                    "identity": _env_var_identity_context(item),
+                    "setting_name": item.get("setting_name"),
+                    "value_type": item.get("value_type"),
+                    "signal": _env_var_signal(item),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("env_vars", [])
+            ],
+        )
+
     if command == "principals":
         return (
             [
@@ -450,6 +475,21 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             f"scope and {len(findings)} findings."
         )
 
+    if command == "env-vars":
+        env_vars = payload.get("env_vars", [])
+        findings = payload.get("findings", [])
+        workloads = {item.get("asset_id") for item in env_vars if item.get("asset_id")}
+        plain_sensitive = sum(
+            item.get("looks_sensitive") and item.get("value_type") == "plain-text"
+            for item in env_vars
+        )
+        keyvault_refs = sum(item.get("value_type") == "keyvault-ref" for item in env_vars)
+        return (
+            f"{len(env_vars)} settings across {len(workloads)} workloads; "
+            f"{plain_sensitive} plain-text sensitive settings, {keyvault_refs} Key Vault "
+            f"references, and {len(findings)} findings."
+        )
+
     if command == "rbac":
         assignments = payload.get("role_assignments", [])
         principals = payload.get("principals", [])
@@ -499,6 +539,44 @@ def _display_link(value: object) -> str:
     if parsed.netloc and parsed.path:
         return f"{parsed.netloc}{parsed.path}"
     return str(value)
+
+
+def _env_var_signal(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("looks_sensitive"):
+        parts.append("sensitive-name")
+    if item.get("value_type") == "keyvault-ref":
+        parts.append("keyvault-ref")
+    if item.get("reference_target"):
+        parts.append(str(item.get("reference_target")))
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _env_var_identity_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("workload_identity_type"):
+        parts.append(str(item.get("workload_identity_type")))
+    if item.get("workload_identity_ids"):
+        parts.append(f"user-assigned={len(item.get('workload_identity_ids', []))}")
+    if item.get("key_vault_reference_identity"):
+        parts.append(_display_reference_identity(item.get("key_vault_reference_identity")))
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _display_reference_identity(value: object) -> str:
+    text = str(value or "")
+    if not text:
+        return "-"
+    if text.lower() == "systemassigned":
+        return "kv-ref=SystemAssigned"
+    parts = [part for part in text.split("/") if part]
+    if parts:
+        return f"kv-ref={parts[-1]}"
+    return f"kv-ref={text}"
 
 
 def _bool_text(value: bool) -> str:

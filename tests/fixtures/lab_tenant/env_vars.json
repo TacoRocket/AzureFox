@@ -1,0 +1,89 @@
+{
+  "env_vars": [
+    {
+      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api",
+      "asset_name": "app-public-api",
+      "asset_kind": "AppService",
+      "resource_group": "rg-apps",
+      "location": "eastus",
+      "workload_identity_type": "SystemAssigned",
+      "workload_principal_id": "aaaa1111-1111-1111-1111-111111111111",
+      "workload_client_id": "bbbb1111-1111-1111-1111-111111111111",
+      "workload_identity_ids": [],
+      "key_vault_reference_identity": null,
+      "setting_name": "API_BASE_URL",
+      "value_type": "plain-text",
+      "looks_sensitive": false,
+      "reference_target": null,
+      "summary": "AppService 'app-public-api' exposes setting 'API_BASE_URL' through management-plane app settings (plain-text).",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api"
+      ]
+    },
+    {
+      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api",
+      "asset_name": "app-public-api",
+      "asset_kind": "AppService",
+      "resource_group": "rg-apps",
+      "location": "eastus",
+      "workload_identity_type": "SystemAssigned",
+      "workload_principal_id": "aaaa1111-1111-1111-1111-111111111111",
+      "workload_client_id": "bbbb1111-1111-1111-1111-111111111111",
+      "workload_identity_ids": [],
+      "key_vault_reference_identity": null,
+      "setting_name": "DB_PASSWORD",
+      "value_type": "plain-text",
+      "looks_sensitive": true,
+      "reference_target": null,
+      "summary": "AppService 'app-public-api' stores sensitive-looking setting 'DB_PASSWORD' as plain-text app configuration.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api"
+      ]
+    },
+    {
+      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders",
+      "asset_name": "func-orders",
+      "asset_kind": "FunctionApp",
+      "resource_group": "rg-apps",
+      "location": "eastus",
+      "workload_identity_type": "SystemAssigned, UserAssigned",
+      "workload_principal_id": "cccc2222-2222-2222-2222-222222222222",
+      "workload_client_id": "dddd2222-2222-2222-2222-222222222222",
+      "workload_identity_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-orders"
+      ],
+      "key_vault_reference_identity": "SystemAssigned",
+      "setting_name": "AzureWebJobsStorage",
+      "value_type": "plain-text",
+      "looks_sensitive": false,
+      "reference_target": null,
+      "summary": "FunctionApp 'func-orders' exposes setting 'AzureWebJobsStorage' through management-plane app settings (plain-text).",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders"
+      ]
+    },
+    {
+      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders",
+      "asset_name": "func-orders",
+      "asset_kind": "FunctionApp",
+      "resource_group": "rg-apps",
+      "location": "eastus",
+      "workload_identity_type": "SystemAssigned, UserAssigned",
+      "workload_principal_id": "cccc2222-2222-2222-2222-222222222222",
+      "workload_client_id": "dddd2222-2222-2222-2222-222222222222",
+      "workload_identity_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-orders"
+      ],
+      "key_vault_reference_identity": "SystemAssigned",
+      "setting_name": "PAYMENT_API_KEY",
+      "value_type": "keyvault-ref",
+      "looks_sensitive": true,
+      "reference_target": "kvlabopen01.vault.azure.net/secrets/payment-api-key",
+      "summary": "FunctionApp 'func-orders' maps setting 'PAYMENT_API_KEY' to Key Vault-backed configuration (kvlabopen01.vault.azure.net/secrets/payment-api-key) via SystemAssigned identity.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders"
+      ]
+    }
+  ],
+  "issues": []
+}

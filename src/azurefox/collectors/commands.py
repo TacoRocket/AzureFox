@@ -5,6 +5,7 @@ from azurefox.config import GlobalOptions
 from azurefox.correlation.findings import (
     build_arm_deployment_findings,
     build_auth_policy_findings,
+    build_env_var_findings,
     build_identity_findings,
     build_keyvault_findings,
     build_storage_findings,
@@ -13,6 +14,7 @@ from azurefox.correlation.findings import (
 from azurefox.models.commands import (
     ArmDeploymentsOutput,
     AuthPoliciesOutput,
+    EnvVarsOutput,
     InventoryOutput,
     KeyVaultOutput,
     ManagedIdentitiesOutput,
@@ -65,6 +67,31 @@ def collect_arm_deployments(
             "metadata": _metadata(provider, "arm-deployments", options),
             **data,
             "deployments": deployments,
+            "findings": findings,
+        }
+    )
+
+
+def collect_env_vars(provider: BaseProvider, options: GlobalOptions) -> EnvVarsOutput:
+    data = provider.env_vars()
+    env_vars = sorted(
+        data.get("env_vars", []),
+        key=lambda item: (
+            not (
+                item.get("looks_sensitive")
+                and item.get("value_type") == "plain-text"
+            ),
+            item.get("value_type") != "keyvault-ref",
+            item.get("asset_name") or "",
+            item.get("setting_name") or "",
+        ),
+    )
+    findings = build_env_var_findings(env_vars)
+    return EnvVarsOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "env-vars", options),
+            **data,
+            "env_vars": env_vars,
             "findings": findings,
         }
     )

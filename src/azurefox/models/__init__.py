@@ -1,5 +1,6 @@
 from azurefox.models.commands import (
     AuthPoliciesOutput,
+    EnvVarsOutput,
     InventoryOutput,
     ManagedIdentitiesOutput,
     PermissionsOutput,
@@ -15,6 +16,7 @@ from azurefox.models.common import (
     AuthPolicySummary,
     CollectionIssue,
     CommandMetadata,
+    EnvVarSummary,
     Finding,
     ManagedIdentity,
     OutputMode,
@@ -37,6 +39,8 @@ __all__ = [
     "AuthPolicySummary",
     "CollectionIssue",
     "CommandMetadata",
+    "EnvVarSummary",
+    "EnvVarsOutput",
     "Finding",
     "InventoryOutput",
     "ManagedIdentitiesOutput",

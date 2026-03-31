@@ -134,6 +134,25 @@ class ArmDeploymentSummary(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class EnvVarSummary(BaseModel):
+    asset_id: str
+    asset_name: str
+    asset_kind: str
+    resource_group: str | None = None
+    location: str | None = None
+    workload_identity_type: str | None = None
+    workload_principal_id: str | None = None
+    workload_client_id: str | None = None
+    workload_identity_ids: list[str] = Field(default_factory=list)
+    key_vault_reference_identity: str | None = None
+    setting_name: str
+    value_type: str
+    looks_sensitive: bool = False
+    reference_target: str | None = None
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class AuthPolicySummary(BaseModel):
     policy_type: str
     name: str

@@ -5,6 +5,7 @@ from pathlib import Path
 from azurefox.collectors.commands import (
     collect_arm_deployments,
     collect_auth_policies,
+    collect_env_vars,
     collect_inventory,
     collect_keyvault,
     collect_managed_identities,
@@ -18,7 +19,12 @@ from azurefox.collectors.commands import (
     collect_vms,
     collect_whoami,
 )
-from azurefox.collectors.provider import FixtureProvider, _principal_from_claims
+from azurefox.collectors.provider import (
+    FixtureProvider,
+    _env_var_reference_target,
+    _principal_from_claims,
+    _web_asset_kind,
+)
 from azurefox.config import GlobalOptions
 from azurefox.models.common import OutputMode
 
@@ -112,6 +118,43 @@ def test_collect_arm_deployments(fixture_provider, options) -> None:
     assert len(output.deployments) == 3
     assert len(output.findings) == 5
     assert output.deployments[0].scope_type == "subscription"
+
+
+def test_collect_env_vars(fixture_provider, options) -> None:
+    output = collect_env_vars(fixture_provider, options)
+    assert len(output.env_vars) == 4
+    assert len(output.findings) == 2
+    assert output.env_vars[0].setting_name == "DB_PASSWORD"
+    assert output.env_vars[0].workload_identity_type == "SystemAssigned"
+    assert output.env_vars[1].key_vault_reference_identity == "SystemAssigned"
+
+
+def test_web_asset_kind_filters_out_of_scope_site_kinds() -> None:
+    assert _web_asset_kind("app,linux") == "AppService"
+    assert _web_asset_kind("functionapp,linux") == "FunctionApp"
+    assert _web_asset_kind("workflowapp,linux") is None
+
+
+def test_env_var_reference_target_supports_secret_uri_form() -> None:
+    value = (
+        "@Microsoft.KeyVault(SecretUri="
+        "https://kvlabopen01.vault.azure.net/secrets/payment-api-key)"
+    )
+
+    assert _env_var_reference_target(value) == (
+        "kvlabopen01.vault.azure.net/secrets/payment-api-key"
+    )
+
+
+def test_env_var_reference_target_supports_vaultname_form() -> None:
+    value = (
+        "@Microsoft.KeyVault(VaultName=kvlabopen01;SecretName=payment-api-key;"
+        "SecretVersion=123abc)"
+    )
+
+    assert _env_var_reference_target(value) == (
+        "kvlabopen01.vault.azure.net/secrets/payment-api-key/123abc"
+    )
 
 
 def test_collect_inventory_metadata_falls_back_to_provider_context(

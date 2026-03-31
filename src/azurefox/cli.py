@@ -66,6 +66,11 @@ def arm_deployments(ctx: typer.Context) -> None:
     _run_single(ctx, "arm-deployments")
 
 
+@app.command("env-vars")
+def env_vars(ctx: typer.Context) -> None:
+    _run_single(ctx, "env-vars")
+
+
 @app.command("rbac")
 def rbac(ctx: typer.Context) -> None:
     _run_single(ctx, "rbac")

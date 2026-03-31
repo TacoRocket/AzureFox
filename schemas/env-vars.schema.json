@@ -1,0 +1,9 @@
+{
+  "model": "EnvVarsOutput",
+  "top_level_fields": [
+    "metadata",
+    "env_vars",
+    "findings",
+    "issues"
+  ]
+}

@@ -89,6 +89,22 @@ def test_arm_deployments_table_mode_surfaces_scope_and_linked_refs(tmp_path: Pat
     )
 
 
+def test_env_vars_table_mode_surfaces_findings_and_takeaway(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "env-vars"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert "Reviewing App Service and Function App settings" in result.stdout
+    assert "identity" in result.stdout
+    assert "SystemAssigned" in result.stdout
+    assert "sensitive-name" in result.stdout
+    assert "Key Vault-backed configuration" in result.stdout
+    assert "Takeaway: 4 settings across 2 workloads;" in result.stdout
+
+
 def test_auth_policies_partial_read_surfaces_collection_issue() -> None:
     artifact_path = Path(
         "/Users/cfarley/Documents/Terraform Labs for AzureFox/proof-artifacts/latest/"
