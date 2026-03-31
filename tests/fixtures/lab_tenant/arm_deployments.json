@@ -1,0 +1,119 @@
+{
+  "deployments": [
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.Resources/deployments/sub-foundation",
+      "name": "sub-foundation",
+      "scope": "/subscriptions/22222222-2222-2222-2222-222222222222",
+      "scope_type": "subscription",
+      "resource_group": null,
+      "provisioning_state": "Succeeded",
+      "mode": "Incremental",
+      "timestamp": "2026-03-30T18:42:00Z",
+      "duration": "PT42S",
+      "outputs_count": 2,
+      "output_resource_count": 3,
+      "providers": [
+        "Microsoft.Network",
+        "Microsoft.Storage"
+      ],
+      "template_link": "https://example.blob.core.windows.net/templates/sub-foundation.json",
+      "parameters_link": null,
+      "summary": "subscription deployment 'sub-foundation' is Succeeded with 2 outputs; 2 providers.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.Resources/deployments/sub-foundation"
+      ]
+    },
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.Resources/deployments/kv-secrets",
+      "name": "kv-secrets",
+      "scope": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets",
+      "scope_type": "resource_group",
+      "resource_group": "rg-secrets",
+      "provisioning_state": "Succeeded",
+      "mode": "Incremental",
+      "timestamp": "2026-03-30T18:50:00Z",
+      "duration": "PT18S",
+      "outputs_count": 1,
+      "output_resource_count": 1,
+      "providers": [
+        "Microsoft.KeyVault"
+      ],
+      "template_link": null,
+      "parameters_link": "https://example.blob.core.windows.net/parameters/kv-secrets.parameters.json",
+      "summary": "resource group deployment 'kv-secrets' is Succeeded with 1 outputs; 1 providers.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.Resources/deployments/kv-secrets"
+      ]
+    },
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-app/providers/Microsoft.Resources/deployments/app-failed",
+      "name": "app-failed",
+      "scope": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-app",
+      "scope_type": "resource_group",
+      "resource_group": "rg-app",
+      "provisioning_state": "Failed",
+      "mode": "Incremental",
+      "timestamp": "2026-03-30T19:03:00Z",
+      "duration": "PT1M12S",
+      "outputs_count": 0,
+      "output_resource_count": 0,
+      "providers": [
+        "Microsoft.Web"
+      ],
+      "template_link": null,
+      "parameters_link": null,
+      "summary": "resource group deployment 'app-failed' is Failed with no outputs recorded; 1 providers.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-app/providers/Microsoft.Resources/deployments/app-failed"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "arm-deployment-outputs-/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.Resources/deployments/sub-foundation",
+      "severity": "medium",
+      "title": "Deployment exposes output values",
+      "description": "Deployment 'sub-foundation' includes 2 recorded output values. Validate whether any outputs reveal useful endpoints, identifiers, or sensitive configuration.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.Resources/deployments/sub-foundation"
+      ]
+    },
+    {
+      "id": "arm-deployment-remote-link-/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.Resources/deployments/sub-foundation",
+      "severity": "low",
+      "title": "Deployment references linked template content",
+      "description": "Deployment 'sub-foundation' uses linked template or parameter content. Review those linked artifacts for exposed configuration, trust assumptions, or reusable infrastructure patterns.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.Resources/deployments/sub-foundation"
+      ]
+    },
+    {
+      "id": "arm-deployment-outputs-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.Resources/deployments/kv-secrets",
+      "severity": "medium",
+      "title": "Deployment exposes output values",
+      "description": "Deployment 'kv-secrets' includes 1 recorded output values. Validate whether any outputs reveal useful endpoints, identifiers, or sensitive configuration.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.Resources/deployments/kv-secrets"
+      ]
+    },
+    {
+      "id": "arm-deployment-remote-link-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.Resources/deployments/kv-secrets",
+      "severity": "low",
+      "title": "Deployment references linked template content",
+      "description": "Deployment 'kv-secrets' uses linked template or parameter content. Review those linked artifacts for exposed configuration, trust assumptions, or reusable infrastructure patterns.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.Resources/deployments/kv-secrets"
+      ]
+    },
+    {
+      "id": "arm-deployment-failed-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-app/providers/Microsoft.Resources/deployments/app-failed",
+      "severity": "medium",
+      "title": "Deployment did not complete successfully",
+      "description": "Deployment 'app-failed' ended in state 'Failed'. Review the deployment history for leaked config context, partial resource creation, or operator troubleshooting artifacts.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-app/providers/Microsoft.Resources/deployments/app-failed"
+      ]
+    }
+  ],
+  "issues": []
+}

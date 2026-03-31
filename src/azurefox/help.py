@@ -64,6 +64,34 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox inventory --output table",
     ),
+    "arm-deployments": CommandHelpTopic(
+        name="arm-deployments",
+        section="config",
+        summary=(
+            "Review ARM deployment history for output exposure, linked content, and failed "
+            "runs."
+        ),
+        offensive_question=(
+            "Which ARM deployments reveal useful config context, linked templates, or output "
+            "values worth operator review?"
+        ),
+        cloudfox_frame=(
+            "Azure-native deployment-history triage focused on management-plane config exposure."
+        ),
+        output_highlights=(
+            "scope_type",
+            "provisioning_state",
+            "outputs_count",
+            "template_link",
+            "summary",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Collection", "Data from Information Repositories"),
+            AttackLead("Credential Access", "Unsecured Credentials"),
+        ),
+        example="azurefox arm-deployments --output table",
+    ),
     "rbac": CommandHelpTopic(
         name="rbac",
         section="identity",
@@ -384,6 +412,19 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
         attack_lenses=(
             AttackLead("Discovery", "Cloud Infrastructure Discovery"),
             AttackLead("Discovery", "Cloud Service Discovery"),
+        ),
+    ),
+    "config": SectionHelpTopic(
+        name="config",
+        summary="Deployment and configuration history that can expose useful operator context.",
+        operator_goal=(
+            "Find deployment artifacts, linked content, and surfaced outputs that reveal how the "
+            "environment is wired together."
+        ),
+        attack_lenses=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Collection", "Data from Information Repositories"),
+            AttackLead("Credential Access", "Unsecured Credentials"),
         ),
     ),
     "storage": SectionHelpTopic(

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from azurefox.collectors.commands import (
+    collect_arm_deployments,
     collect_auth_policies,
     collect_inventory,
     collect_keyvault,
@@ -104,6 +105,13 @@ def test_collect_inventory(fixture_provider, options) -> None:
     output = collect_inventory(fixture_provider, options)
     assert output.resource_group_count == 4
     assert output.resource_count == 27
+
+
+def test_collect_arm_deployments(fixture_provider, options) -> None:
+    output = collect_arm_deployments(fixture_provider, options)
+    assert len(output.deployments) == 3
+    assert len(output.findings) == 5
+    assert output.deployments[0].scope_type == "subscription"
 
 
 def test_collect_inventory_metadata_falls_back_to_provider_context(

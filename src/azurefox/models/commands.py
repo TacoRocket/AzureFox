@@ -5,6 +5,7 @@ from collections import Counter
 from pydantic import BaseModel, Field
 
 from azurefox.models.common import (
+    ArmDeploymentSummary,
     AuthPolicySummary,
     CollectionIssue,
     CommandMetadata,
@@ -84,6 +85,13 @@ class RoleTrustsOutput(BaseModel):
 class ResourceTrustsOutput(BaseModel):
     metadata: CommandMetadata
     resource_trusts: list[ResourceTrustSummary] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class ArmDeploymentsOutput(BaseModel):
+    metadata: CommandMetadata
+    deployments: list[ArmDeploymentSummary] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 

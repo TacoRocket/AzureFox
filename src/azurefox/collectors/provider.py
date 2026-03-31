@@ -27,6 +27,10 @@ class BaseProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def arm_deployments(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
     def rbac(self) -> dict:
         raise NotImplementedError
 
@@ -86,6 +90,9 @@ class FixtureProvider(BaseProvider):
 
     def inventory(self) -> dict:
         return self._read("inventory")
+
+    def arm_deployments(self) -> dict:
+        return self._read("arm_deployments")
 
     def rbac(self) -> dict:
         return self._read("rbac")
@@ -182,6 +189,61 @@ class AzureProvider(BaseProvider):
             "top_resource_types": dict(resource_types.most_common(15)),
             "issues": issues,
         }
+
+    def arm_deployments(self) -> dict:
+        issues: list[dict] = []
+        deployments: list[dict] = []
+
+        try:
+            for deployment in self.clients.resource.deployments.list_at_subscription_scope():
+                deployments.append(
+                    _deployment_summary(
+                        deployment,
+                        scope=f"/subscriptions/{self.clients.subscription_id}",
+                        scope_type="subscription",
+                    )
+                )
+        except Exception as exc:
+            issues.append(_issue_from_exception("arm_deployments.subscription", exc))
+
+        resource_groups: list[str] = []
+        try:
+            resource_groups = [group.name for group in self.clients.resource.resource_groups.list()]
+        except Exception as exc:
+            issues.append(_issue_from_exception("arm_deployments.resource_groups", exc))
+
+        for resource_group in resource_groups:
+            try:
+                iterator = self.clients.resource.deployments.list_by_resource_group(resource_group)
+                for deployment in iterator:
+                    deployments.append(
+                        _deployment_summary(
+                            deployment,
+                            scope=(
+                                f"/subscriptions/{self.clients.subscription_id}/resourceGroups/"
+                                f"{resource_group}"
+                            ),
+                            scope_type="resource_group",
+                            resource_group=resource_group,
+                        )
+                    )
+            except Exception as exc:
+                issues.append(
+                    _issue_from_exception(
+                        f"arm_deployments.resource_groups[{resource_group}]",
+                        exc,
+                    )
+                )
+
+        deployments = _dedupe_deployments(deployments)
+        deployments.sort(
+            key=lambda item: (
+                item.get("scope_type") != "subscription",
+                item.get("resource_group") or "",
+                item.get("name") or "",
+            )
+        )
+        return {"deployments": deployments, "issues": issues}
 
     def rbac(self) -> dict:
         scope = f"/subscriptions/{self.clients.subscription_id}"
@@ -1491,6 +1553,73 @@ def _scope_type_from_id(scope_id: str) -> str:
     if "/resourcegroups/" in lower:
         return "resource_group"
     return "subscription"
+
+
+def _deployment_summary(
+    deployment: object,
+    *,
+    scope: str,
+    scope_type: str,
+    resource_group: str | None = None,
+) -> dict:
+    properties = getattr(deployment, "properties", None)
+    output_resources = getattr(properties, "output_resources", None) or []
+    template_link = getattr(getattr(properties, "template_link", None), "uri", None)
+    parameters_link = getattr(getattr(properties, "parameters_link", None), "uri", None)
+    providers = []
+    for provider in getattr(properties, "providers", None) or []:
+        namespace = getattr(provider, "namespace", None)
+        if namespace and namespace not in providers:
+            providers.append(str(namespace))
+
+    name = getattr(deployment, "name", "unknown")
+    state = getattr(properties, "provisioning_state", None)
+    output_count = len(getattr(properties, "outputs", None) or {})
+    provider_summary = f"{len(providers)} providers" if providers else "no providers recorded"
+    output_summary = f"{output_count} outputs" if output_count else "no outputs recorded"
+    summary = (
+        f"{scope_type.replace('_', ' ')} deployment '{name}' is "
+        f"{state or 'unknown'} with {output_summary}; {provider_summary}."
+    )
+
+    deployment_id = getattr(
+        deployment,
+        "id",
+        f"{scope}/providers/Microsoft.Resources/deployments/{name}",
+    )
+
+    return {
+        "id": deployment_id,
+        "name": name,
+        "scope": scope,
+        "scope_type": scope_type,
+        "resource_group": resource_group or _resource_group_from_id(getattr(deployment, "id", "")),
+        "provisioning_state": state,
+        "mode": _string_value(getattr(properties, "mode", None)),
+        "timestamp": _string_value(getattr(properties, "timestamp", None)),
+        "duration": _string_value(getattr(properties, "duration", None)),
+        "outputs_count": output_count,
+        "output_resource_count": len(output_resources),
+        "providers": providers,
+        "template_link": _string_value(template_link),
+        "parameters_link": _string_value(parameters_link),
+        "summary": summary,
+        "related_ids": [item for item in [deployment_id] if item],
+    }
+
+
+def _dedupe_deployments(deployments: list[dict]) -> list[dict]:
+    deduped: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+
+    for item in deployments:
+        key = (item.get("id") or "", item.get("scope") or "")
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+
+    return deduped
 
 
 def _extract_power_state(vm: object) -> str | None:

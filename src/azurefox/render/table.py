@@ -100,6 +100,29 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "arm-deployments":
+        return (
+            [
+                ("name", "deployment"),
+                ("scope_type", "scope"),
+                ("provisioning_state", "state"),
+                ("outputs_count", "outputs"),
+                ("linked_content", "linked content"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "name": item.get("name"),
+                    "scope_type": item.get("scope_type"),
+                    "provisioning_state": item.get("provisioning_state"),
+                    "outputs_count": item.get("outputs_count", 0),
+                    "linked_content": _linked_content_summary(item),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("deployments", [])
+            ],
+        )
+
     if command == "principals":
         return (
             [
@@ -417,6 +440,15 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             f"{payload.get('resource_group_count', 0)} resource groups."
         )
 
+    if command == "arm-deployments":
+        deployments = payload.get("deployments", [])
+        findings = payload.get("findings", [])
+        subscription_scope = sum(item.get("scope_type") == "subscription" for item in deployments)
+        return (
+            f"{len(deployments)} deployments visible; {subscription_scope} at subscription "
+            f"scope and {len(findings)} findings."
+        )
+
     if command == "rbac":
         assignments = payload.get("role_assignments", [])
         principals = payload.get("principals", [])
@@ -434,6 +466,17 @@ def _principal_identity_context(item: dict) -> str:
     if not parts:
         return "-"
     return "; ".join(parts)
+
+
+def _linked_content_summary(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("template_link"):
+        parts.append("template")
+    if item.get("parameters_link"):
+        parts.append("parameters")
+    if not parts:
+        return "-"
+    return ", ".join(parts)
 
 
 def _bool_text(value: bool) -> str:
