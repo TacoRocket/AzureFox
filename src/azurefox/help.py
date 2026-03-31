@@ -162,6 +162,35 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox privesc --output table",
     ),
+    "role-trusts": CommandHelpTopic(
+        name="role-trusts",
+        section="identity",
+        summary="Triage Azure app and service-principal trust edges worth abuse review.",
+        offensive_question=(
+            "Which Azure app, service-principal, and consent relationships create "
+            "trust paths I should review first?"
+        ),
+        cloudfox_frame=(
+            "Azure-native analogue to trust-relationship triage, centered on app "
+            "registrations, service principals, federated credentials, and consent."
+        ),
+        output_highlights=(
+            "trust_type",
+            "source_name",
+            "target_name",
+            "confidence",
+            "evidence_type",
+        ),
+        attack_leads=(
+            AttackLead("Initial Access", "Trusted Relationship"),
+            AttackLead(
+                "Credential Access",
+                "Use Alternate Authentication Material: Application Access Token",
+            ),
+            AttackLead("Privilege Escalation", "Account Manipulation: Additional Cloud Roles"),
+        ),
+        example="azurefox role-trusts --output table",
+    ),
     "managed-identities": CommandHelpTopic(
         name="managed-identities",
         section="identity",

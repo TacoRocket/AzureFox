@@ -51,6 +51,15 @@ def test_help_command_privesc_topic() -> None:
     assert "workload identity pivots" in result.stdout
 
 
+def test_help_command_role_trusts_topic() -> None:
+    result = runner.invoke(app, ["help", "role-trusts"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: role-trusts" in result.stdout
+    assert "Trusted Relationship" in result.stdout
+    assert "federated credentials" in result.stdout
+
+
 def test_help_command_unknown_topic() -> None:
     result = runner.invoke(app, ["help", "banana"])
 

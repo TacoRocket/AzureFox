@@ -14,6 +14,7 @@ from azurefox.models.common import (
     PrincipalSummary,
     PrivescPathSummary,
     RoleAssignment,
+    RoleTrustSummary,
     ScopeRef,
     StorageAsset,
     SubscriptionRef,
@@ -68,6 +69,12 @@ class PermissionsOutput(BaseModel):
 class PrivescOutput(BaseModel):
     metadata: CommandMetadata
     paths: list[PrivescPathSummary] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class RoleTrustsOutput(BaseModel):
+    metadata: CommandMetadata
+    trusts: list[RoleTrustSummary] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 
 

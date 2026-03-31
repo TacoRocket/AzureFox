@@ -26,4 +26,7 @@ def test_whoami_integration_smoke() -> None:
 
     payload = json.loads(result.stdout)
     assert payload["metadata"]["command"] == "whoami"
+    assert payload["metadata"]["subscription_id"] == subscription
+    assert payload["metadata"]["token_source"] in {"azure_cli", "environment"}
+    assert payload["metadata"]["tenant_id"]
     assert payload["subscription"]["id"]

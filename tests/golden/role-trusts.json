@@ -1,0 +1,113 @@
+{
+  "issues": [],
+  "metadata": {
+    "command": "role-trusts",
+    "generated_at": "<generated_at>",
+    "schema_version": "1.0.0",
+    "subscription_id": "22222222-2222-2222-2222-222222222222",
+    "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "token_source": null
+  },
+  "trusts": [
+    {
+      "confidence": "confirmed",
+      "evidence_type": "graph-owner",
+      "related_ids": [
+        "77777777-7777-7777-7777-777777777777",
+        "55555555-5555-5555-5555-555555555555"
+      ],
+      "source_name": "ci-admin@lab.local",
+      "source_object_id": "77777777-7777-7777-7777-777777777777",
+      "source_type": "User",
+      "summary": "Owner 'ci-admin@lab.local' can modify application 'build-app'.",
+      "target_name": "build-app",
+      "target_object_id": "55555555-5555-5555-5555-555555555555",
+      "target_type": "Application",
+      "trust_type": "app-owner"
+    },
+    {
+      "confidence": "confirmed",
+      "evidence_type": "graph-owner",
+      "related_ids": [
+        "88888888-8888-8888-8888-888888888888",
+        "66666666-6666-6666-6666-666666666666"
+      ],
+      "source_name": "automation-runner",
+      "source_object_id": "88888888-8888-8888-8888-888888888888",
+      "source_type": "ServicePrincipal",
+      "summary": "Owner 'automation-runner' can modify service principal 'build-sp'.",
+      "target_name": "build-sp",
+      "target_object_id": "66666666-6666-6666-6666-666666666666",
+      "target_type": "ServicePrincipal",
+      "trust_type": "service-principal-owner"
+    },
+    {
+      "confidence": "confirmed",
+      "evidence_type": "graph-federated-credential",
+      "related_ids": [
+        "55555555-5555-5555-5555-555555555555",
+        "fic-build-main",
+        "66666666-6666-6666-6666-666666666666"
+      ],
+      "source_name": "build-app",
+      "source_object_id": "55555555-5555-5555-5555-555555555555",
+      "source_type": "Application",
+      "summary": "Application 'build-app' trusts federated subject 'repo:TacoRocket/AzureFox:ref:refs/heads/main' from issuer 'https://token.actions.githubusercontent.com'.",
+      "target_name": "build-sp",
+      "target_object_id": "66666666-6666-6666-6666-666666666666",
+      "target_type": "ServicePrincipal",
+      "trust_type": "federated-credential"
+    },
+    {
+      "confidence": "lead",
+      "evidence_type": "graph-consent-grant",
+      "related_ids": [
+        "99999999-9999-9999-9999-999999999999",
+        "grant-admin-1",
+        "00000003-0000-0000-c000-000000000000"
+      ],
+      "source_name": "reporting-sp",
+      "source_object_id": "99999999-9999-9999-9999-999999999999",
+      "source_type": "ServicePrincipal",
+      "summary": "Service principal 'reporting-sp' has consented access (Directory.Read.All) to 'Microsoft Graph'.",
+      "target_name": "Microsoft Graph",
+      "target_object_id": "00000003-0000-0000-c000-000000000000",
+      "target_type": "ServicePrincipal",
+      "trust_type": "admin-consent"
+    },
+    {
+      "confidence": "lead",
+      "evidence_type": "graph-consent-grant",
+      "related_ids": [
+        "99999999-9999-9999-9999-999999999999",
+        "grant-delegated-1",
+        "00000003-0000-0000-c000-000000000000"
+      ],
+      "source_name": "reporting-sp",
+      "source_object_id": "99999999-9999-9999-9999-999999999999",
+      "source_type": "ServicePrincipal",
+      "summary": "Service principal 'reporting-sp' has consented access (User.Read offline_access) to 'Microsoft Graph'.",
+      "target_name": "Microsoft Graph",
+      "target_object_id": "00000003-0000-0000-c000-000000000000",
+      "target_type": "ServicePrincipal",
+      "trust_type": "delegated-consent"
+    },
+    {
+      "confidence": "confirmed",
+      "evidence_type": "graph-app-role-assignment",
+      "related_ids": [
+        "99999999-9999-9999-9999-999999999999",
+        "app-role-graph-1",
+        "00000003-0000-0000-c000-000000000000"
+      ],
+      "source_name": "reporting-sp",
+      "source_object_id": "99999999-9999-9999-9999-999999999999",
+      "source_type": "ServicePrincipal",
+      "summary": "Service principal 'reporting-sp' holds an application permission or app-role assignment to 'Microsoft Graph'.",
+      "target_name": "Microsoft Graph",
+      "target_object_id": "00000003-0000-0000-c000-000000000000",
+      "target_type": "ServicePrincipal",
+      "trust_type": "app-to-service-principal"
+    }
+  ]
+}

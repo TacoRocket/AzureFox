@@ -6,6 +6,7 @@ from azurefox.models.common import (
     PermissionSummary,
     PrincipalSummary,
     PrivescPathSummary,
+    RoleTrustSummary,
     StorageAsset,
     VmAsset,
 )
@@ -47,6 +48,21 @@ def test_privesc_path_defaults() -> None:
     assert path.asset is None
     assert path.impact_roles == []
     assert path.related_ids == []
+
+
+def test_role_trust_summary_defaults() -> None:
+    trust = RoleTrustSummary(
+        trust_type="app-owner",
+        source_object_id="src-1",
+        source_type="User",
+        target_object_id="dst-1",
+        target_type="Application",
+        evidence_type="graph-owner",
+        confidence="confirmed",
+        summary="test",
+    )
+    assert trust.source_name is None
+    assert trust.related_ids == []
 
 
 def test_storage_asset_defaults() -> None:

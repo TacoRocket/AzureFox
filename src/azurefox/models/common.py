@@ -89,6 +89,20 @@ class PrivescPathSummary(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class RoleTrustSummary(BaseModel):
+    trust_type: str
+    source_object_id: str
+    source_name: str | None = None
+    source_type: str
+    target_object_id: str
+    target_name: str | None = None
+    target_type: str
+    evidence_type: str
+    confidence: str
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class RoleAssignment(BaseModel):
     id: str
     scope_id: str

@@ -76,6 +76,11 @@ def privesc(ctx: typer.Context) -> None:
     _run_single(ctx, "privesc")
 
 
+@app.command("role-trusts")
+def role_trusts(ctx: typer.Context) -> None:
+    _run_single(ctx, "role-trusts")
+
+
 @app.command("managed-identities")
 def managed_identities(ctx: typer.Context) -> None:
     _run_single(ctx, "managed-identities")

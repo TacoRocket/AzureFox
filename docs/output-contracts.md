@@ -18,7 +18,10 @@ Each command output is represented by a versioned Pydantic model and is rendered
 - `WhoAmIOutput`
 - `InventoryOutput`
 - `RbacOutput`
+- `PrincipalsOutput`
+- `PermissionsOutput`
+- `PrivescOutput`
+- `RoleTrustsOutput`
 - `ManagedIdentitiesOutput`
 - `StorageOutput`
 - `VmsOutput`
-

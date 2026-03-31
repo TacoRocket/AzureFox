@@ -1,0 +1,105 @@
+{
+  "issues": [],
+  "trusts": [
+    {
+      "trust_type": "app-owner",
+      "source_object_id": "77777777-7777-7777-7777-777777777777",
+      "source_name": "ci-admin@lab.local",
+      "source_type": "User",
+      "target_object_id": "55555555-5555-5555-5555-555555555555",
+      "target_name": "build-app",
+      "target_type": "Application",
+      "evidence_type": "graph-owner",
+      "confidence": "confirmed",
+      "summary": "Owner 'ci-admin@lab.local' can modify application 'build-app'.",
+      "related_ids": [
+        "77777777-7777-7777-7777-777777777777",
+        "55555555-5555-5555-5555-555555555555"
+      ]
+    },
+    {
+      "trust_type": "service-principal-owner",
+      "source_object_id": "88888888-8888-8888-8888-888888888888",
+      "source_name": "automation-runner",
+      "source_type": "ServicePrincipal",
+      "target_object_id": "66666666-6666-6666-6666-666666666666",
+      "target_name": "build-sp",
+      "target_type": "ServicePrincipal",
+      "evidence_type": "graph-owner",
+      "confidence": "confirmed",
+      "summary": "Owner 'automation-runner' can modify service principal 'build-sp'.",
+      "related_ids": [
+        "88888888-8888-8888-8888-888888888888",
+        "66666666-6666-6666-6666-666666666666"
+      ]
+    },
+    {
+      "trust_type": "federated-credential",
+      "source_object_id": "55555555-5555-5555-5555-555555555555",
+      "source_name": "build-app",
+      "source_type": "Application",
+      "target_object_id": "66666666-6666-6666-6666-666666666666",
+      "target_name": "build-sp",
+      "target_type": "ServicePrincipal",
+      "evidence_type": "graph-federated-credential",
+      "confidence": "confirmed",
+      "summary": "Application 'build-app' trusts federated subject 'repo:TacoRocket/AzureFox:ref:refs/heads/main' from issuer 'https://token.actions.githubusercontent.com'.",
+      "related_ids": [
+        "55555555-5555-5555-5555-555555555555",
+        "fic-build-main",
+        "66666666-6666-6666-6666-666666666666"
+      ]
+    },
+    {
+      "trust_type": "admin-consent",
+      "source_object_id": "99999999-9999-9999-9999-999999999999",
+      "source_name": "reporting-sp",
+      "source_type": "ServicePrincipal",
+      "target_object_id": "00000003-0000-0000-c000-000000000000",
+      "target_name": "Microsoft Graph",
+      "target_type": "ServicePrincipal",
+      "evidence_type": "graph-consent-grant",
+      "confidence": "lead",
+      "summary": "Service principal 'reporting-sp' has consented access (Directory.Read.All) to 'Microsoft Graph'.",
+      "related_ids": [
+        "99999999-9999-9999-9999-999999999999",
+        "grant-admin-1",
+        "00000003-0000-0000-c000-000000000000"
+      ]
+    },
+    {
+      "trust_type": "delegated-consent",
+      "source_object_id": "99999999-9999-9999-9999-999999999999",
+      "source_name": "reporting-sp",
+      "source_type": "ServicePrincipal",
+      "target_object_id": "00000003-0000-0000-c000-000000000000",
+      "target_name": "Microsoft Graph",
+      "target_type": "ServicePrincipal",
+      "evidence_type": "graph-consent-grant",
+      "confidence": "lead",
+      "summary": "Service principal 'reporting-sp' has consented access (User.Read offline_access) to 'Microsoft Graph'.",
+      "related_ids": [
+        "99999999-9999-9999-9999-999999999999",
+        "grant-delegated-1",
+        "00000003-0000-0000-c000-000000000000"
+      ]
+    },
+    {
+      "trust_type": "app-to-service-principal",
+      "source_object_id": "99999999-9999-9999-9999-999999999999",
+      "source_name": "reporting-sp",
+      "source_type": "ServicePrincipal",
+      "target_object_id": "00000003-0000-0000-c000-000000000000",
+      "target_name": "Microsoft Graph",
+      "target_type": "ServicePrincipal",
+      "evidence_type": "graph-app-role-assignment",
+      "confidence": "confirmed",
+      "summary": "Service principal 'reporting-sp' holds an application permission or app-role assignment to 'Microsoft Graph'.",
+      "related_ids": [
+        "99999999-9999-9999-9999-999999999999",
+        "app-role-graph-1",
+        "00000003-0000-0000-c000-000000000000"
+      ]
+    }
+  ]
+}
