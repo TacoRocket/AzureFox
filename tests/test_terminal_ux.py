@@ -1,0 +1,84 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from typer.testing import CliRunner
+
+from azurefox.cli import app
+from azurefox.render.table import render_table
+
+runner = CliRunner()
+
+
+def _fixture_env() -> dict[str, str]:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+    return {"AZUREFOX_FIXTURE_DIR": str(fixture_dir)}
+
+
+def test_role_trusts_table_mode_includes_narration_and_takeaway(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "role-trusts"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Reviewing high-signal identity trust edges worth operator attention first."
+        in result.stdout
+    )
+    assert "why it matters" in result.stdout
+    assert "Takeaway: 4 trust edges surfaced" in result.stdout
+
+
+def test_auth_policies_table_mode_surfaces_findings_and_issues(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "auth-policies"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert "Findings:" in result.stdout
+    assert "Security defaults are disabled" in result.stdout
+    assert "Takeaway: 4 policy rows, 5 findings, and 0 collection issues" in result.stdout
+
+
+def test_privesc_table_mode_surfaces_takeaway(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "privesc"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert "Triage likely privilege-escalation and workload identity abuse paths." in result.stdout
+    assert "why it matters" in result.stdout
+    assert "Takeaway: 2 privilege-escalation paths surfaced" in result.stdout
+
+
+def test_principals_table_mode_uses_curated_columns(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "principals"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert "identity context" in result.stdout
+    assert "current" in result.stdout
+    assert "Takeaway: 2 principals visible" in result.stdout
+
+
+def test_auth_policies_partial_read_surfaces_collection_issue() -> None:
+    artifact_path = Path(
+        "/Users/cfarley/Documents/Terraform Labs for AzureFox/proof-artifacts/latest/"
+        "auth-policies.json"
+    )
+    payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    rendered = render_table("auth-policies", payload)
+
+    assert "Collection issues:" in rendered
+    assert "permission_denied" in rendered
+    assert "auth_policies.security_defaults" in rendered

@@ -11,7 +11,12 @@ from azurefox.errors import AzureFoxError
 from azurefox.help import render_help
 from azurefox.models.common import OutputMode
 from azurefox.models.run import AllChecksSummary, RunCommandResult
-from azurefox.output.style import emit_artifact_paths, emit_command_status, emit_context_banner
+from azurefox.output.style import (
+    emit_artifact_paths,
+    emit_command_intro,
+    emit_command_status,
+    emit_context_banner,
+)
 from azurefox.output.writer import emit_output
 from azurefox.registry import SECTION_NAMES, get_command_specs
 
@@ -127,7 +132,7 @@ def all_checks(
 
     results: list[RunCommandResult] = []
     for spec in specs:
-        emit_command_status(spec.name, "running", err=options.output == OutputMode.JSON)
+        emit_command_intro(spec.name, err=options.output == OutputMode.JSON)
         try:
             model = spec.collector(provider, options)
             artifact_paths = emit_output(spec.name, model, options, emit_stdout=False)
@@ -201,7 +206,7 @@ def _run_single(ctx: typer.Context, command: str) -> None:
         spec = next(spec for spec in get_command_specs() if spec.name == command)
         if options.output != OutputMode.JSON:
             emit_context_banner(options)
-            emit_command_status(command, "running")
+            emit_command_intro(command)
         model = spec.collector(provider, options)
         artifact_paths = emit_output(command, model, options)
         emit_artifact_paths(command, artifact_paths, options)
