@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from io import StringIO
+from urllib.parse import urlparse
 
 from rich.console import Console
 from rich.table import Table
@@ -104,19 +105,19 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
         return (
             [
                 ("name", "deployment"),
-                ("scope_type", "scope"),
+                ("scope", "scope"),
                 ("provisioning_state", "state"),
                 ("outputs_count", "outputs"),
-                ("linked_content", "linked content"),
+                ("linked_refs", "linked refs"),
                 ("why_it_matters", "why it matters"),
             ],
             [
                 {
                     "name": item.get("name"),
-                    "scope_type": item.get("scope_type"),
+                    "scope": _deployment_scope_label(item),
                     "provisioning_state": item.get("provisioning_state"),
                     "outputs_count": item.get("outputs_count", 0),
-                    "linked_content": _linked_content_summary(item),
+                    "linked_refs": _linked_reference_summary(item),
                     "why_it_matters": item.get("summary"),
                 }
                 for item in payload.get("deployments", [])
@@ -468,15 +469,36 @@ def _principal_identity_context(item: dict) -> str:
     return "; ".join(parts)
 
 
-def _linked_content_summary(item: dict) -> str:
+def _deployment_scope_label(item: dict) -> str:
+    if item.get("resource_group"):
+        return f"rg:{item.get('resource_group')}"
+    scope = str(item.get("scope") or "")
+    if "/subscriptions/" in scope:
+        subscription_id = scope.rstrip("/").split("/subscriptions/", 1)[-1].split("/", 1)[0]
+        if subscription_id:
+            return f"sub:{subscription_id}"
+    return item.get("scope") or item.get("scope_type") or "-"
+
+
+def _linked_reference_summary(item: dict) -> str:
     parts: list[str] = []
     if item.get("template_link"):
-        parts.append("template")
+        parts.append(f"template={_display_link(item.get('template_link'))}")
     if item.get("parameters_link"):
-        parts.append("parameters")
+        parts.append(f"parameters={_display_link(item.get('parameters_link'))}")
     if not parts:
         return "-"
     return ", ".join(parts)
+
+
+def _display_link(value: object) -> str:
+    if not value:
+        return "-"
+
+    parsed = urlparse(str(value))
+    if parsed.netloc and parsed.path:
+        return f"{parsed.netloc}{parsed.path}"
+    return str(value)
 
 
 def _bool_text(value: bool) -> str:
