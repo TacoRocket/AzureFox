@@ -7,7 +7,7 @@
   },
   "principal": {
     "id": "33333333-3333-3333-3333-333333333333",
-    "principal_type": "servicePrincipal",
+    "principal_type": "ServicePrincipal",
     "display_name": "azurefox-lab-sp",
     "tenant_id": "11111111-1111-1111-1111-111111111111"
   },

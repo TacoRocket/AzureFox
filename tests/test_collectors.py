@@ -15,7 +15,7 @@ from azurefox.collectors.commands import (
     collect_vms,
     collect_whoami,
 )
-from azurefox.collectors.provider import FixtureProvider
+from azurefox.collectors.provider import FixtureProvider, _principal_from_claims
 from azurefox.config import GlobalOptions
 from azurefox.models.common import OutputMode
 
@@ -29,10 +29,73 @@ class MetadataFixtureProvider(FixtureProvider):
         }
 
 
+class PartialAuthPoliciesFixtureProvider(FixtureProvider):
+    def auth_policies(self) -> dict:
+        return {
+            "auth_policies": [
+                {
+                    "policy_type": "authorization-policy",
+                    "name": "Authorization Policy",
+                    "state": "configured",
+                    "scope": "tenant",
+                    "controls": [
+                        "guest-invites:everyone",
+                        "users-can-register-apps",
+                        "user-consent:self-service",
+                    ],
+                    "summary": (
+                        "guest invites: everyone; users can register apps; "
+                        "self-service permission grant policies assigned"
+                    ),
+                    "related_ids": ["authorizationPolicy"],
+                }
+            ],
+            "issues": [
+                {
+                    "kind": "permission_denied",
+                    "message": "auth_policies.security_defaults: 403 Forbidden",
+                    "context": {"collector": "auth_policies.security_defaults"},
+                }
+            ],
+        }
+
+
 def test_collect_whoami(fixture_provider, options) -> None:
     output = collect_whoami(fixture_provider, options)
     assert output.principal is not None
     assert output.principal.id == "33333333-3333-3333-3333-333333333333"
+
+
+def test_principal_from_claims_prefers_user_for_delegated_tokens() -> None:
+    principal = _principal_from_claims(
+        {
+            "oid": "1058bd62-c9bd-4332-b6c4-bcf3f90f1c4e",
+            "appid": "04b07795-8ddb-461a-bbee-02f9e1bf7b46",
+            "scp": "user_impersonation",
+            "name": "Colby Farley",
+            "tid": "tenant-id",
+        },
+        tenant_id="tenant-id",
+    )
+
+    assert principal.id == "1058bd62-c9bd-4332-b6c4-bcf3f90f1c4e"
+    assert principal.principal_type == "User"
+
+
+def test_principal_from_claims_keeps_app_tokens_as_service_principals() -> None:
+    principal = _principal_from_claims(
+        {
+            "oid": "52dae25a-117d-4e2b-8a15-81ee220c1b7a",
+            "appid": "deferred-client-id",
+            "idtyp": "app",
+            "name": "af-roletrust-client",
+            "tid": "tenant-id",
+        },
+        tenant_id="tenant-id",
+    )
+
+    assert principal.id == "52dae25a-117d-4e2b-8a15-81ee220c1b7a"
+    assert principal.principal_type == "ServicePrincipal"
 
 
 def test_collect_inventory(fixture_provider, options) -> None:
@@ -67,6 +130,23 @@ def test_collect_auth_policies(fixture_provider, options) -> None:
     assert output.auth_policies[0].policy_type == "security-defaults"
 
 
+def test_collect_auth_policies_keeps_partial_visibility_explicit(
+    fixture_dir: Path, options
+) -> None:
+    provider = PartialAuthPoliciesFixtureProvider(fixture_dir)
+
+    output = collect_auth_policies(provider, options)
+
+    assert len(output.auth_policies) == 1
+    assert [finding.id for finding in output.findings] == [
+        "auth-policy-users-can-register-apps",
+        "auth-policy-guest-invites-everyone",
+        "auth-policy-user-consent-enabled",
+    ]
+    assert output.issues[0].kind == "permission_denied"
+    assert output.issues[0].context["collector"] == "auth_policies.security_defaults"
+
+
 def test_collect_rbac(fixture_provider, options) -> None:
     output = collect_rbac(fixture_provider, options)
     assert len(output.role_assignments) == 2
@@ -96,7 +176,7 @@ def test_collect_privesc(fixture_provider, options) -> None:
 
 def test_collect_role_trusts(fixture_provider, options) -> None:
     output = collect_role_trusts(fixture_provider, options)
-    assert len(output.trusts) == 6
+    assert len(output.trusts) == 4
     assert output.trusts[0].trust_type == "app-owner"
     assert output.trusts[2].evidence_type == "graph-federated-credential"
 

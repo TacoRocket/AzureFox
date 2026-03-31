@@ -167,12 +167,13 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         section="identity",
         summary="Triage Azure app and service-principal trust edges worth abuse review.",
         offensive_question=(
-            "Which Azure app, service-principal, and consent relationships create "
+            "Which Azure app, service-principal, ownership, and federated relationships create "
             "trust paths I should review first?"
         ),
         cloudfox_frame=(
             "Azure-native analogue to trust-relationship triage, centered on app "
-            "registrations, service principals, federated credentials, and consent."
+            "registrations, service principals, federated credentials, ownership, and "
+            "app-role assignment metadata."
         ),
         output_highlights=(
             "trust_type",

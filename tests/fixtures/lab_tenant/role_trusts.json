@@ -51,40 +51,6 @@
       ]
     },
     {
-      "trust_type": "admin-consent",
-      "source_object_id": "99999999-9999-9999-9999-999999999999",
-      "source_name": "reporting-sp",
-      "source_type": "ServicePrincipal",
-      "target_object_id": "00000003-0000-0000-c000-000000000000",
-      "target_name": "Microsoft Graph",
-      "target_type": "ServicePrincipal",
-      "evidence_type": "graph-consent-grant",
-      "confidence": "lead",
-      "summary": "Service principal 'reporting-sp' has consented access (Directory.Read.All) to 'Microsoft Graph'.",
-      "related_ids": [
-        "99999999-9999-9999-9999-999999999999",
-        "grant-admin-1",
-        "00000003-0000-0000-c000-000000000000"
-      ]
-    },
-    {
-      "trust_type": "delegated-consent",
-      "source_object_id": "99999999-9999-9999-9999-999999999999",
-      "source_name": "reporting-sp",
-      "source_type": "ServicePrincipal",
-      "target_object_id": "00000003-0000-0000-c000-000000000000",
-      "target_name": "Microsoft Graph",
-      "target_type": "ServicePrincipal",
-      "evidence_type": "graph-consent-grant",
-      "confidence": "lead",
-      "summary": "Service principal 'reporting-sp' has consented access (User.Read offline_access) to 'Microsoft Graph'.",
-      "related_ids": [
-        "99999999-9999-9999-9999-999999999999",
-        "grant-delegated-1",
-        "00000003-0000-0000-c000-000000000000"
-      ]
-    },
-    {
       "trust_type": "app-to-service-principal",
       "source_object_id": "99999999-9999-9999-9999-999999999999",
       "source_name": "reporting-sp",

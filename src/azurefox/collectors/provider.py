@@ -123,19 +123,13 @@ class AzureProvider(BaseProvider):
 
     def whoami(self) -> dict:
         claims = decode_jwt_payload(self.session.access_token)
-        principal_id = claims.get("oid") or claims.get("appid") or "unknown"
-        principal_type = "servicePrincipal" if claims.get("appid") else "user"
         scope = f"/subscriptions/{self.clients.subscription_id}"
+        principal = _principal_from_claims(claims, self.session.tenant_id)
 
         return {
             "tenant_id": claims.get("tid", self.session.tenant_id),
             "subscription": self.subscription.model_dump(),
-            "principal": Principal(
-                id=principal_id,
-                principal_type=principal_type,
-                display_name=claims.get("name") or claims.get("upn") or claims.get("appid"),
-                tenant_id=claims.get("tid", self.session.tenant_id),
-            ).model_dump(),
+            "principal": principal.model_dump(),
             "effective_scopes": [
                 ScopeRef(
                     id=scope,
@@ -648,49 +642,6 @@ class AzureProvider(BaseProvider):
                 )
 
             try:
-                grants = self.graph.list_oauth2_permission_grants(sp_id)
-            except Exception as exc:
-                issues.append(
-                    _issue_from_exception(
-                        f"role_trusts.service_principals[{sp_id}].oauth2_permission_grants",
-                        exc,
-                    )
-                )
-                grants = []
-
-            for grant in grants:
-                resource = service_principal_by_id.get(grant.get("resourceId"), {})
-                consent_type = grant.get("consentType") or "unknown"
-                trust_type = (
-                    "admin-consent"
-                    if str(consent_type).lower() == "allprincipals"
-                    else "delegated-consent"
-                )
-                scope = grant.get("scope") or "unspecified scopes"
-                resource_name = resource.get("displayName") or grant.get("resourceId") or "unknown"
-                grant_related_ids = [
-                    item for item in [grant.get("id"), grant.get("resourceId")] if item
-                ]
-                trusts.append(
-                    {
-                        "trust_type": trust_type,
-                        "source_object_id": sp_id,
-                        "source_name": service_principal.get("displayName"),
-                        "source_type": "ServicePrincipal",
-                        "target_object_id": grant.get("resourceId") or "unknown",
-                        "target_name": resource.get("displayName"),
-                        "target_type": "ServicePrincipal",
-                        "evidence_type": "graph-consent-grant",
-                        "confidence": "lead",
-                        "summary": (
-                            f"Service principal '{service_principal.get('displayName') or sp_id}' "
-                            f"has consented access ({scope}) to '{resource_name}'."
-                        ),
-                        "related_ids": [sp_id, *grant_related_ids],
-                    }
-                )
-
-            try:
                 assignments = self.graph.list_app_role_assignments(sp_id)
             except Exception as exc:
                 issues.append(
@@ -1079,6 +1030,34 @@ def _issue_from_exception(area: str, exc: Exception) -> dict:
         "message": f"{area}: {exc}",
         "context": {"collector": area},
     }
+
+
+def _principal_from_claims(claims: dict[str, str], tenant_id: str | None) -> Principal:
+    principal_id = claims.get("oid") or claims.get("appid") or "unknown"
+
+    user_markers = (
+        claims.get("upn"),
+        claims.get("preferred_username"),
+        claims.get("unique_name"),
+        claims.get("scp"),
+    )
+    principal_type = "ServicePrincipal"
+    if claims.get("idtyp", "").lower() != "app" and (
+        any(user_markers) or (claims.get("oid") and not claims.get("appid"))
+    ):
+        principal_type = "User"
+    elif not claims.get("appid") and claims.get("oid"):
+        principal_type = "User"
+
+    return Principal(
+        id=principal_id,
+        principal_type=principal_type,
+        display_name=claims.get("name")
+        or claims.get("upn")
+        or claims.get("preferred_username")
+        or claims.get("appid"),
+        tenant_id=claims.get("tid", tenant_id),
+    )
 
 
 def _merge_principal_attributes(record: dict, principal: dict) -> None:

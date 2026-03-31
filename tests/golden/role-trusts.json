@@ -59,40 +59,6 @@
       "trust_type": "federated-credential"
     },
     {
-      "confidence": "lead",
-      "evidence_type": "graph-consent-grant",
-      "related_ids": [
-        "99999999-9999-9999-9999-999999999999",
-        "grant-admin-1",
-        "00000003-0000-0000-c000-000000000000"
-      ],
-      "source_name": "reporting-sp",
-      "source_object_id": "99999999-9999-9999-9999-999999999999",
-      "source_type": "ServicePrincipal",
-      "summary": "Service principal 'reporting-sp' has consented access (Directory.Read.All) to 'Microsoft Graph'.",
-      "target_name": "Microsoft Graph",
-      "target_object_id": "00000003-0000-0000-c000-000000000000",
-      "target_type": "ServicePrincipal",
-      "trust_type": "admin-consent"
-    },
-    {
-      "confidence": "lead",
-      "evidence_type": "graph-consent-grant",
-      "related_ids": [
-        "99999999-9999-9999-9999-999999999999",
-        "grant-delegated-1",
-        "00000003-0000-0000-c000-000000000000"
-      ],
-      "source_name": "reporting-sp",
-      "source_object_id": "99999999-9999-9999-9999-999999999999",
-      "source_type": "ServicePrincipal",
-      "summary": "Service principal 'reporting-sp' has consented access (User.Read offline_access) to 'Microsoft Graph'.",
-      "target_name": "Microsoft Graph",
-      "target_object_id": "00000003-0000-0000-c000-000000000000",
-      "target_type": "ServicePrincipal",
-      "trust_type": "delegated-consent"
-    },
-    {
       "confidence": "confirmed",
       "evidence_type": "graph-app-role-assignment",
       "related_ids": [

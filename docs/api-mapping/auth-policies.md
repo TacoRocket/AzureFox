@@ -39,6 +39,7 @@ gain consented access?"
 - Summarize authorization policy settings into operator-relevant control flags
 - Summarize Conditional Access scope and grant controls without pretending to fully simulate policy
 - Generate findings only for explicit permissive or missing baseline signals
+- Keep unreadable policy surfaces explicit in `issues` instead of implying a negative state
 
 ## Output Shape
 

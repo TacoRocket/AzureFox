@@ -3,7 +3,7 @@
 ## Slice Goal
 
 Surface high-signal Azure identity trust edges that can create reusable pivot paths between
-applications, service principals, workloads, and consented access.
+applications, service principals, workloads, and federated or ownership-backed access.
 
 This slice is intended to answer:
 "Which Azure app and service-principal relationships create trust paths worth immediate abuse
@@ -14,7 +14,8 @@ review?"
 - CloudFox-style operator framing: trust-relationship triage for immediate abuse review.
 - AzureFox mapping: Azure-native analogue to `role-trusts` / `identity-federation`.
 - Coverage note: covered differently in Azure because the key trust edges are app registrations,
-  service principals, federated identity credentials, app ownership, and consent relationships
+  service principals, federated identity credentials, app ownership, and app-role assignment
+  relationships
   rather than AWS-style role assumption semantics.
 
 ## Initial Scope
@@ -22,7 +23,7 @@ review?"
 - Federated identity credential trusts
 - Application ownership edges
 - Service principal ownership edges where exposed by the selected Graph path
-- Consent-oriented trust relationships that create reusable app access
+- App-role assignment / application-permission style trust relationships
 - High-value service principals linked to broadly trusted or privileged app objects
 
 ## Command Boundary
@@ -39,6 +40,7 @@ review?"
 - Cross-tenant trust and B2B/B2C edge cases
 - PIM or eligible-role modeling
 - Full OAuth abuse-path simulation
+- Delegated or admin consent-grant coverage
 - Proof of exploitability or compromise
 
 ## Primary APIs
@@ -46,14 +48,14 @@ review?"
 - Microsoft Graph application queries for app registrations
 - Microsoft Graph service principal queries
 - Microsoft Graph federated identity credential queries where supported
-- Microsoft Graph ownership and app-role / consent relationship queries
+- Microsoft Graph ownership and app-role assignment queries
 
 ## Correlation / Joins
 
 - Join app registrations to backing service principals
 - Join ownership relationships to app or service-principal objects
 - Join federated credentials to trusted external issuers and subjects
-- Join consented application permissions to the target service principal and exposed scopes
+- Join app-role assignments to the target service principal and exposed application surface
 - Flag trust edges that touch privileged or high-value identities as findings candidates
 
 ## Output Shape
@@ -97,16 +99,16 @@ Suggested fields:
       ]
     },
     {
-      "trust_type": "admin-consent",
+      "trust_type": "app-to-service-principal",
       "source_object_id": "33333333-3333-3333-3333-333333333333",
       "source_name": "reporting-app",
-      "source_type": "Application",
+      "source_type": "ServicePrincipal",
       "target_object_id": "00000003-0000-0000-c000-000000000000",
       "target_name": "Microsoft Graph",
       "target_type": "ServicePrincipal",
-      "evidence_type": "graph-consent-grant",
-      "confidence": "lead",
-      "summary": "Application 'reporting-app' has consented access worth reviewing for reusable directory data exposure.",
+      "evidence_type": "graph-app-role-assignment",
+      "confidence": "confirmed",
+      "summary": "Service principal 'reporting-app' holds an application permission or app-role assignment worth reviewing for reusable directory data exposure.",
       "related_ids": [
         "33333333-3333-3333-3333-333333333333",
         "00000003-0000-0000-c000-000000000000"
@@ -126,8 +128,8 @@ Suggested fields:
 ## Validation Plan
 
 - Add fixtures for app registrations, service principals, federated identity credentials, and at
-  least one consent-oriented relationship
-- Add golden output coverage for mixed `confirmed` and `lead` rows
+  least one app-role assignment relationship
+- Add golden output coverage for ownership, federated, and app-role rows
 - Add real-tenant validation notes before claiming strong confidence in trust-heavy findings
 
 ## Lab-Only Follow-Up
@@ -139,7 +141,6 @@ to excuse weak command design here.
 The lab is the right place to verify:
 
 - whether a federated credential is actually usable from a live issuer/subject combination
-- whether a consented permission set produces the access the operator would expect in practice
 - whether ownership edges can be exercised into meaningful app or service-principal changes under
   current tenant policy
 - whether trust paths remain visible and valid after the required infrastructure is deployed
@@ -153,6 +154,6 @@ correlation, or known-gap update.
 ## Blind Spots
 
 - Tenant-boundary trust may remain incomplete in V1
-- Some ownership and consent paths may require permissions not always granted to read-only
+- Some ownership and app-role paths may require permissions not always granted to read-only
   operator identities
 - Graph relationship breadth can easily outgrow the signal budget if not curated aggressively
