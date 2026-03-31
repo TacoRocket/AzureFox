@@ -29,8 +29,8 @@ Fox.
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .[dev,azure]
-azurefox whoami --output table
-azurefox all-checks --output table
+azurefox --outdir /tmp/azurefox-demo whoami --output table
+azurefox --outdir /tmp/azurefox-demo all-checks --output table
 ```
 
 ## Auth Precedence
@@ -110,6 +110,8 @@ azurefox -h permissions
 ```
 
 Command help includes ATT&CK cloud leads as investigative context so users can map the output to likely tactics and techniques without treating the help text as proof that a technique occurred.
+
+For ad hoc demos or local exploration, prefer `--outdir /tmp/<name>` so generated artifacts do not accumulate in the repo root.
 
 ## Fixture Mode
 

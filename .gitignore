@@ -11,3 +11,6 @@ dist/
 build/
 *.egg-info/
 loot/
+json/
+table/
+csv/
