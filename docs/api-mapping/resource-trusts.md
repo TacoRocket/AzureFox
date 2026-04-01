@@ -32,7 +32,8 @@ constrained to private-link style access?"
 ## Correlation / Joins
 
 - Normalize public-network and private-endpoint posture into trust rows
-- Reuse Storage and Key Vault findings so evidence stays consistent with the underlying collectors
+- Reuse Storage findings and only the trust-relevant Key Vault exposure findings so evidence stays
+  consistent with the underlying collectors without pulling in non-trust recovery posture
 
 ## Blind Spots
 

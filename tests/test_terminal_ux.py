@@ -105,6 +105,21 @@ def test_env_vars_table_mode_surfaces_findings_and_takeaway(tmp_path: Path) -> N
     assert "Takeaway: 4 settings across 2 workloads;" in result.stdout
 
 
+def test_tokens_credentials_table_mode_surfaces_findings_and_takeaway(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "tokens-credentials"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert "Correlating token-minting workloads" in result.stdout
+    assert "operator signal" in result.stdout
+    assert "plain-text-secret" in result.stdout
+    assert "deployment-history" in result.stdout
+    assert "Takeaway: 11 token or credential surfaces across 6 assets;" in result.stdout
+
+
 def test_auth_policies_partial_read_surfaces_collection_issue() -> None:
     artifact_path = Path(
         "/Users/cfarley/Documents/Terraform Labs for AzureFox/proof-artifacts/latest/"

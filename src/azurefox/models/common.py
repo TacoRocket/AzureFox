@@ -153,6 +153,20 @@ class EnvVarSummary(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class TokenCredentialSurfaceSummary(BaseModel):
+    asset_id: str
+    asset_name: str
+    asset_kind: str
+    resource_group: str | None = None
+    location: str | None = None
+    surface_type: str
+    access_path: str
+    priority: str
+    operator_signal: str
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class AuthPolicySummary(BaseModel):
     policy_type: str
     name: str

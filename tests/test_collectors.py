@@ -16,6 +16,7 @@ from azurefox.collectors.commands import (
     collect_resource_trusts,
     collect_role_trusts,
     collect_storage,
+    collect_tokens_credentials,
     collect_vms,
     collect_whoami,
 )
@@ -127,6 +128,20 @@ def test_collect_env_vars(fixture_provider, options) -> None:
     assert output.env_vars[0].setting_name == "DB_PASSWORD"
     assert output.env_vars[0].workload_identity_type == "SystemAssigned"
     assert output.env_vars[1].key_vault_reference_identity == "SystemAssigned"
+
+
+def test_collect_tokens_credentials(fixture_provider, options) -> None:
+    output = collect_tokens_credentials(fixture_provider, options)
+    assert len(output.surfaces) == 11
+    assert len(output.findings) == 11
+    assert len({finding.id for finding in output.findings}) == len(output.findings)
+    assert output.surfaces[0].surface_type == "plain-text-secret"
+    assert output.surfaces[1].operator_signal == "setting=AzureWebJobsStorage"
+    assert any(item.asset_name == "app-empty-mi" for item in output.surfaces)
+    assert any(
+        item.surface_type == "managed-identity-token" and item.access_path == "imds"
+        for item in output.surfaces
+    )
 
 
 def test_web_asset_kind_filters_out_of_scope_site_kinds() -> None:
@@ -251,9 +266,14 @@ def test_collect_keyvault(fixture_provider, options) -> None:
 
 def test_collect_resource_trusts(fixture_provider, options) -> None:
     output = collect_resource_trusts(fixture_provider, options)
-    assert len(output.resource_trusts) == 5
-    assert len(output.findings) == 4
+    assert len(output.resource_trusts) == 8
+    assert len(output.findings) == 5
     assert output.resource_trusts[0].resource_type == "KeyVault"
+    assert not any("purge-protection-disabled" in finding.id for finding in output.findings)
+    assert any(
+        item.resource_name == "kvlabdeny01" and item.trust_type == "public-network"
+        for item in output.resource_trusts
+    )
 
 
 def test_collect_storage(fixture_provider, options) -> None:

@@ -149,6 +149,31 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "tokens-credentials":
+        return (
+            [
+                ("asset_name", "asset"),
+                ("asset_kind", "kind"),
+                ("surface_type", "surface"),
+                ("access_path", "access path"),
+                ("priority", "priority"),
+                ("operator_signal", "operator signal"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "asset_name": item.get("asset_name"),
+                    "asset_kind": item.get("asset_kind"),
+                    "surface_type": item.get("surface_type"),
+                    "access_path": item.get("access_path"),
+                    "priority": item.get("priority"),
+                    "operator_signal": item.get("operator_signal"),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("surfaces", [])
+            ],
+        )
+
     if command == "principals":
         return (
             [
@@ -488,6 +513,17 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             f"{len(env_vars)} settings across {len(workloads)} workloads; "
             f"{plain_sensitive} plain-text sensitive settings, {keyvault_refs} Key Vault "
             f"references, and {len(findings)} findings."
+        )
+
+    if command == "tokens-credentials":
+        surfaces = payload.get("surfaces", [])
+        findings = payload.get("findings", [])
+        assets = {item.get("asset_id") for item in surfaces if item.get("asset_id")}
+        families = Counter(item.get("surface_type") or "unknown" for item in surfaces)
+        counts = ", ".join(f"{count} {name}" for name, count in sorted(families.items()))
+        return (
+            f"{len(surfaces)} token or credential surfaces across {len(assets)} assets; "
+            f"{counts or 'no surfaces visible'} and {len(findings)} findings."
         )
 
     if command == "rbac":

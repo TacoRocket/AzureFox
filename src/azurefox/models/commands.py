@@ -23,6 +23,7 @@ from azurefox.models.common import (
     ScopeRef,
     StorageAsset,
     SubscriptionRef,
+    TokenCredentialSurfaceSummary,
     VmAsset,
 )
 
@@ -100,6 +101,13 @@ class ArmDeploymentsOutput(BaseModel):
 class EnvVarsOutput(BaseModel):
     metadata: CommandMetadata
     env_vars: list[EnvVarSummary] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class TokensCredentialsOutput(BaseModel):
+    metadata: CommandMetadata
+    surfaces: list[TokenCredentialSurfaceSummary] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 

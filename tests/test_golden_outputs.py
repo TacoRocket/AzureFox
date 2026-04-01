@@ -17,6 +17,7 @@ from azurefox.collectors.commands import (
     collect_resource_trusts,
     collect_role_trusts,
     collect_storage,
+    collect_tokens_credentials,
     collect_vms,
     collect_whoami,
 )
@@ -37,6 +38,7 @@ def test_golden_outputs(fixture_provider, options) -> None:
         "inventory": collect_inventory,
         "arm-deployments": collect_arm_deployments,
         "env-vars": collect_env_vars,
+        "tokens-credentials": collect_tokens_credentials,
         "rbac": collect_rbac,
         "principals": collect_principals,
         "permissions": collect_permissions,
