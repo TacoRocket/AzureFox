@@ -32,6 +32,7 @@ from azurefox.models.commands import (
     TokensCredentialsOutput,
     VmsOutput,
     WhoAmIOutput,
+    WorkloadsOutput,
 )
 from azurefox.models.common import CommandMetadata
 
@@ -54,9 +55,7 @@ def collect_inventory(provider: BaseProvider, options: GlobalOptions) -> Invento
     )
 
 
-def collect_arm_deployments(
-    provider: BaseProvider, options: GlobalOptions
-) -> ArmDeploymentsOutput:
+def collect_arm_deployments(provider: BaseProvider, options: GlobalOptions) -> ArmDeploymentsOutput:
     data = provider.arm_deployments()
     deployments = sorted(
         data.get("deployments", []),
@@ -82,10 +81,7 @@ def collect_env_vars(provider: BaseProvider, options: GlobalOptions) -> EnvVarsO
     env_vars = sorted(
         data.get("env_vars", []),
         key=lambda item: (
-            not (
-                item.get("looks_sensitive")
-                and item.get("value_type") == "plain-text"
-            ),
+            not (item.get("looks_sensitive") and item.get("value_type") == "plain-text"),
             item.get("value_type") != "keyvault-ref",
             item.get("asset_name") or "",
             item.get("setting_name") or "",
@@ -113,9 +109,7 @@ def collect_endpoints(provider: BaseProvider, options: GlobalOptions) -> Endpoin
     )
 
 
-def collect_network_ports(
-    provider: BaseProvider, options: GlobalOptions
-) -> NetworkPortsOutput:
+def collect_network_ports(provider: BaseProvider, options: GlobalOptions) -> NetworkPortsOutput:
     data = provider.network_ports()
     return NetworkPortsOutput.model_validate(
         {
@@ -133,9 +127,7 @@ def collect_tokens_credentials(
     surfaces = sorted(
         data.get("surfaces", []),
         key=lambda item: (
-            {"high": 0, "medium": 1, "low": 2}.get(
-                str(item.get("priority") or "").lower(), 9
-            ),
+            {"high": 0, "medium": 1, "low": 2}.get(str(item.get("priority") or "").lower(), 9),
             item.get("asset_name") or "",
             item.get("surface_type") or "",
             item.get("operator_signal") or "",
@@ -185,9 +177,7 @@ def collect_role_trusts(provider: BaseProvider, options: GlobalOptions) -> RoleT
     )
 
 
-def collect_resource_trusts(
-    provider: BaseProvider, options: GlobalOptions
-) -> ResourceTrustsOutput:
+def collect_resource_trusts(provider: BaseProvider, options: GlobalOptions) -> ResourceTrustsOutput:
     data = provider.resource_trusts()
     return ResourceTrustsOutput.model_validate(
         {"metadata": _metadata(provider, "resource-trusts", options), **data}
@@ -255,6 +245,17 @@ def collect_nics(provider: BaseProvider, options: GlobalOptions) -> NicsOutput:
             "findings": [],
             **data,
             "nic_assets": nic_assets,
+        }
+    )
+
+
+def collect_workloads(provider: BaseProvider, options: GlobalOptions) -> WorkloadsOutput:
+    data = provider.workloads()
+    return WorkloadsOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "workloads", options),
+            "findings": [],
+            **data,
         }
     )
 

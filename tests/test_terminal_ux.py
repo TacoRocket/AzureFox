@@ -68,8 +68,7 @@ def test_nics_table_mode_surfaces_network_context(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert (
-        "Enumerating NIC attachments, IP context, and network boundary references."
-        in result.stdout
+        "Enumerating NIC attachments, IP context, and network boundary references." in result.stdout
     )
     assert "public ip refs" in result.stdout
     assert "subnet=vnet-app" in result.stdout
@@ -77,6 +76,26 @@ def test_nics_table_mode_surfaces_network_context(tmp_path: Path) -> None:
     assert (
         "Takeaway: 2 NICs visible; 1 attached to visible assets and 1 reference public IP "
         "resources." in result.stdout
+    )
+
+
+def test_workloads_table_mode_surfaces_joined_workload_context(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "workloads"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Joining workload assets with identity context and visible ingress paths." in result.stdout
+    )
+    assert "direct-vm-ip" in result.stdout
+    assert "UserAssigned" in result.stdout
+    assert "vm-web-01" in result.stdout
+    assert (
+        "Takeaway: 5 workloads visible; 4 with reachable endpoints, 4 with identity context, "
+        "across 2 compute and 3 web assets." in result.stdout
     )
 
 
@@ -119,8 +138,7 @@ def test_arm_deployments_table_mode_surfaces_scope_and_linked_refs(tmp_path: Pat
     assert "rg:rg-secrets" in result.stdout
     assert "template=example.blob.core.windows" in result.stdout
     assert (
-        "Takeaway: 3 deployments visible; 1 at subscription scope and 5 findings."
-        in result.stdout
+        "Takeaway: 3 deployments visible; 1 at subscription scope and 5 findings." in result.stdout
     )
 
 

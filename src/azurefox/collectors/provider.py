@@ -89,6 +89,27 @@ class BaseProvider(ABC):
             "issues": [*workload_data.get("issues", []), *vm_data.get("issues", [])],
         }
 
+    def workloads(self) -> dict:
+        workload_data = self.web_workloads()
+        vm_data = self.vms()
+        endpoints = [
+            *_endpoints_from_vms(vm_data.get("vm_assets", [])),
+            *_endpoints_from_web_workloads(workload_data.get("workloads", [])),
+        ]
+        endpoints_by_asset = _endpoints_by_asset(endpoints)
+        workloads = [
+            *_workload_rows_from_vms(vm_data.get("vm_assets", []), endpoints_by_asset),
+            *_workload_rows_from_web_workloads(
+                workload_data.get("workloads", []),
+                endpoints_by_asset,
+            ),
+        ]
+        workloads.sort(key=_workload_sort_key)
+        return {
+            "workloads": workloads,
+            "issues": [*workload_data.get("issues", []), *vm_data.get("issues", [])],
+        }
+
     @abstractmethod
     def network_ports(self) -> dict:
         raise NotImplementedError
@@ -596,9 +617,7 @@ class AzureProvider(BaseProvider):
         vms_data = self.vms()
 
         principal_by_id = {
-            item.get("id"): item
-            for item in principals_data.get("principals", [])
-            if item.get("id")
+            item.get("id"): item for item in principals_data.get("principals", []) if item.get("id")
         }
         identities_by_principal: dict[str, list[dict]] = {}
         for identity in identities_data.get("identities", []):
@@ -607,9 +626,7 @@ class AzureProvider(BaseProvider):
                 identities_by_principal.setdefault(principal_id, []).append(identity)
 
         vm_by_id = {
-            item.get("id"): item
-            for item in vms_data.get("vm_assets", [])
-            if item.get("id")
+            item.get("id"): item for item in vms_data.get("vm_assets", []) if item.get("id")
         }
         paths: list[dict] = []
 
@@ -966,9 +983,7 @@ class AzureProvider(BaseProvider):
                         if defaults.get("isEnabled")
                         else "Security defaults are disabled for the tenant."
                     ),
-                    "related_ids": [
-                        item for item in [defaults.get("id")] if item
-                    ],
+                    "related_ids": [item for item in [defaults.get("id")] if item],
                 }
             )
         except Exception as exc:
@@ -1030,9 +1045,7 @@ class AzureProvider(BaseProvider):
                     )
                     item["principal_id"] = vm_identity.principal_id
 
-                user_assigned = (
-                    getattr(vm_identity, "user_assigned_identities", None) or {}
-                )
+                user_assigned = getattr(vm_identity, "user_assigned_identities", None) or {}
                 for user_id, user_obj in user_assigned.items():
                     name = user_id.rstrip("/").split("/")[-1]
                     item = ensure_identity(user_id, name, "userAssigned")
@@ -1047,13 +1060,10 @@ class AzureProvider(BaseProvider):
 
         rbac_data = self.rbac()
         assignments = [
-            RoleAssignment.model_validate(a)
-            for a in rbac_data.get("role_assignments", [])
+            RoleAssignment.model_validate(a) for a in rbac_data.get("role_assignments", [])
         ]
         principal_ids = {
-            item.get("principal_id")
-            for item in identities.values()
-            if item.get("principal_id")
+            item.get("principal_id") for item in identities.values() if item.get("principal_id")
         }
         identity_assignments = [a for a in assignments if a.principal_id in principal_ids]
 
@@ -1194,9 +1204,7 @@ class AzureProvider(BaseProvider):
                 if vm_identity is not None:
                     if getattr(vm_identity, "principal_id", None):
                         identity_ids.append(f"{vm_id}/identities/system")
-                    user_assigned = (
-                        getattr(vm_identity, "user_assigned_identities", None) or {}
-                    )
+                    user_assigned = getattr(vm_identity, "user_assigned_identities", None) or {}
                     identity_ids.extend(user_assigned.keys())
 
                 vm_assets.append(
@@ -1221,9 +1229,7 @@ class AzureProvider(BaseProvider):
                 if vmss_identity is not None:
                     if getattr(vmss_identity, "principal_id", None):
                         identity_ids.append(f"{vmss_id}/identities/system")
-                    user_assigned = (
-                        getattr(vmss_identity, "user_assigned_identities", None) or {}
-                    )
+                    user_assigned = getattr(vmss_identity, "user_assigned_identities", None) or {}
                     identity_ids.extend(user_assigned.keys())
 
                 vm_assets.append(
@@ -1685,8 +1691,8 @@ def _conditional_access_policy_summary(policy: dict) -> dict:
     if auth_strength:
         grant_controls = [*grant_controls, f"authentication-strength:{auth_strength}"]
 
-    users = ((policy.get("conditions") or {}).get("users") or {})
-    applications = ((policy.get("conditions") or {}).get("applications") or {})
+    users = (policy.get("conditions") or {}).get("users") or {}
+    applications = (policy.get("conditions") or {}).get("applications") or {}
 
     scope_parts = []
     if "All" in (users.get("includeUsers") or []):
@@ -2029,9 +2035,7 @@ def _env_var_summary(
         str(identity_id)
         for identity_id in (getattr(identity, "user_assigned_identities", None) or {}).keys()
     )
-    key_vault_reference_identity = _string_value(
-        getattr(app, "key_vault_reference_identity", None)
-    )
+    key_vault_reference_identity = _string_value(getattr(app, "key_vault_reference_identity", None))
     kv_identity_summary = _key_vault_reference_identity_summary(key_vault_reference_identity)
 
     if value_type == "keyvault-ref":
@@ -2215,6 +2219,194 @@ def _endpoints_from_web_workloads(workloads: list[dict]) -> list[dict]:
     return endpoints
 
 
+def _endpoints_by_asset(endpoints: list[dict]) -> dict[str, list[dict]]:
+    endpoints_by_asset: dict[str, list[dict]] = {}
+    for endpoint in endpoints:
+        source_asset_id = endpoint.get("source_asset_id")
+        if not source_asset_id:
+            continue
+        endpoints_by_asset.setdefault(str(source_asset_id), []).append(endpoint)
+    return endpoints_by_asset
+
+
+def _workload_rows_from_vms(
+    vm_assets: list[dict],
+    endpoints_by_asset: dict[str, list[dict]],
+) -> list[dict]:
+    workloads: list[dict] = []
+
+    for item in vm_assets:
+        asset_id = item.get("id")
+        asset_name = item.get("name") or asset_id or "unknown"
+        normalized_asset_id = str(asset_id or f"/unknown/{asset_name}")
+        asset_endpoints = endpoints_by_asset.get(normalized_asset_id, [])
+        identity_ids = _dedupe_strings(item.get("identity_ids", []))
+        identity_type = _vm_identity_type(identity_ids)
+        endpoints = _dedupe_strings([endpoint.get("endpoint") for endpoint in asset_endpoints])
+        ingress_paths = _dedupe_strings(
+            [endpoint.get("ingress_path") for endpoint in asset_endpoints]
+        )
+        exposure_families = _dedupe_strings(
+            [endpoint.get("exposure_family") for endpoint in asset_endpoints]
+        )
+
+        network_signals: list[str] = []
+        if item.get("public_ips"):
+            network_signals.append(f"public-ip={len(item.get('public_ips', []))}")
+        if item.get("private_ips"):
+            network_signals.append(f"private-ip={len(item.get('private_ips', []))}")
+        if item.get("nic_ids"):
+            network_signals.append(f"nic={len(item.get('nic_ids', []))}")
+
+        workloads.append(
+            {
+                "asset_id": normalized_asset_id,
+                "asset_name": asset_name,
+                "asset_kind": str(item.get("vm_type") or "vm").upper(),
+                "resource_group": item.get("resource_group"),
+                "location": item.get("location"),
+                "identity_type": identity_type,
+                "identity_principal_id": None,
+                "identity_client_id": None,
+                "identity_ids": identity_ids,
+                "endpoints": endpoints,
+                "ingress_paths": ingress_paths,
+                "exposure_families": exposure_families,
+                "summary": _workload_summary_text(
+                    asset_kind=str(item.get("vm_type") or "vm").upper(),
+                    asset_name=asset_name,
+                    endpoints=endpoints,
+                    identity_type=identity_type,
+                    network_signals=network_signals,
+                ),
+                "related_ids": _dedupe_strings([asset_id, *identity_ids, *item.get("nic_ids", [])]),
+            }
+        )
+
+    return workloads
+
+
+def _workload_rows_from_web_workloads(
+    workloads_raw: list[dict],
+    endpoints_by_asset: dict[str, list[dict]],
+) -> list[dict]:
+    workloads: list[dict] = []
+
+    for item in workloads_raw:
+        asset_id = item.get("asset_id")
+        asset_name = item.get("asset_name") or asset_id or "unknown"
+        normalized_asset_id = str(asset_id or f"/unknown/{asset_name}")
+        asset_kind = str(item.get("asset_kind") or "WebWorkload")
+        identity_ids = _dedupe_strings(item.get("workload_identity_ids", []))
+        identity_type = item.get("workload_identity_type")
+        asset_endpoints = endpoints_by_asset.get(normalized_asset_id, [])
+        endpoints = _dedupe_strings([endpoint.get("endpoint") for endpoint in asset_endpoints])
+        ingress_paths = _dedupe_strings(
+            [endpoint.get("ingress_path") for endpoint in asset_endpoints]
+        )
+        exposure_families = _dedupe_strings(
+            [endpoint.get("exposure_family") for endpoint in asset_endpoints]
+        )
+
+        network_signals: list[str] = []
+        if item.get("default_hostname"):
+            network_signals.append("default-hostname")
+        if identity_ids:
+            network_signals.append(f"user-assigned={len(identity_ids)}")
+
+        workloads.append(
+            {
+                "asset_id": normalized_asset_id,
+                "asset_name": asset_name,
+                "asset_kind": asset_kind,
+                "resource_group": item.get("resource_group"),
+                "location": item.get("location"),
+                "identity_type": identity_type,
+                "identity_principal_id": item.get("workload_principal_id"),
+                "identity_client_id": item.get("workload_client_id"),
+                "identity_ids": identity_ids,
+                "endpoints": endpoints,
+                "ingress_paths": ingress_paths,
+                "exposure_families": exposure_families,
+                "summary": _workload_summary_text(
+                    asset_kind=asset_kind,
+                    asset_name=asset_name,
+                    endpoints=endpoints,
+                    identity_type=identity_type,
+                    network_signals=network_signals,
+                ),
+                "related_ids": _dedupe_strings(
+                    [
+                        asset_id,
+                        item.get("workload_principal_id"),
+                        *identity_ids,
+                    ]
+                ),
+            }
+        )
+
+    return workloads
+
+
+def _vm_identity_type(identity_ids: list[str]) -> str | None:
+    has_system = any(
+        str(identity_id).endswith("/identities/system") for identity_id in identity_ids
+    )
+    has_user = any(
+        not str(identity_id).endswith("/identities/system") for identity_id in identity_ids
+    )
+    if has_system and has_user:
+        return "SystemAssigned, UserAssigned"
+    if has_system:
+        return "SystemAssigned"
+    if has_user:
+        return "UserAssigned"
+    return None
+
+
+def _workload_summary_text(
+    *,
+    asset_kind: str,
+    asset_name: str,
+    endpoints: list[str],
+    identity_type: object,
+    network_signals: list[str],
+) -> str:
+    if endpoints:
+        endpoint_phrase = (
+            f"exposes reachable endpoint '{endpoints[0]}'"
+            if len(endpoints) == 1
+            else f"exposes {len(endpoints)} reachable endpoints ({', '.join(endpoints)})"
+        )
+    else:
+        endpoint_phrase = "has no reachable endpoint visible from the current read path"
+
+    if identity_type:
+        identity_phrase = f"carries managed identity context ({identity_type})"
+    else:
+        identity_phrase = "has no managed identity context visible from the current read path"
+
+    signal_phrase = ""
+    if network_signals:
+        signal_phrase = f" Visible signals: {', '.join(network_signals)}."
+
+    return (
+        f"{asset_kind} '{asset_name}' {endpoint_phrase} and {identity_phrase}."
+        f"{signal_phrase} Use this as a quick workload census pivot before deeper "
+        "service-specific review."
+    )
+
+
+def _workload_sort_key(item: dict) -> tuple[bool, bool, int, str]:
+    kind_order = {"VM": 0, "AppService": 1, "FunctionApp": 2, "VMSS": 3}
+    return (
+        not bool(item.get("endpoints")),
+        not bool(item.get("identity_type")),
+        kind_order.get(str(item.get("asset_kind") or ""), 9),
+        str(item.get("asset_name") or ""),
+    )
+
+
 def _tokens_credentials_surfaces_from_env_vars(env_vars: list[dict]) -> list[dict]:
     surfaces: list[dict] = []
 
@@ -2382,9 +2574,7 @@ def _token_credential_surfaces_from_vms(vm_assets: list[dict]) -> list[dict]:
                     else f"{str(item.get('vm_type') or 'vm').upper()} '{asset_name}' exposes a "
                     "token minting path through IMDS for its attached managed identity."
                 ),
-                "related_ids": _dedupe_strings(
-                    [*([asset_id] if asset_id else []), *identity_ids]
-                ),
+                "related_ids": _dedupe_strings([*([asset_id] if asset_id else []), *identity_ids]),
             }
         )
 
@@ -2477,9 +2667,7 @@ def _nic_detail_from_resource(nic: object) -> dict:
         "public_ip_ids": _dedupe_strings(public_ip_ids),
         "subnet_ids": _dedupe_strings(subnet_ids),
         "vnet_ids": _dedupe_strings(vnet_ids),
-        "network_security_group_id": (
-            str(getattr(network_security_group, "id", "") or "") or None
-        ),
+        "network_security_group_id": (str(getattr(network_security_group, "id", "") or "") or None),
     }
 
 

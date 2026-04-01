@@ -9,7 +9,7 @@
       "tenant_id": "11111111-1111-1111-1111-111111111111",
       "sku_name": "standard",
       "public_network_access": "Enabled",
-      "network_default_action": "Allow",
+      "network_default_action": null,
       "private_endpoint_enabled": false,
       "purge_protection_enabled": false,
       "soft_delete_enabled": true,

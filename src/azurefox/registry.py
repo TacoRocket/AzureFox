@@ -23,6 +23,7 @@ from azurefox.collectors.commands import (
     collect_tokens_credentials,
     collect_vms,
     collect_whoami,
+    collect_workloads,
 )
 from azurefox.collectors.provider import BaseProvider
 from azurefox.config import GlobalOptions
@@ -56,6 +57,7 @@ COMMAND_SPECS: tuple[CommandSpec, ...] = (
     CommandSpec("nics", "network", collect_nics),
     CommandSpec("endpoints", "network", collect_endpoints),
     CommandSpec("network-ports", "network", collect_network_ports),
+    CommandSpec("workloads", "compute", collect_workloads),
     CommandSpec("vms", "compute", collect_vms),
 )
 

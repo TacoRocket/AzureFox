@@ -448,6 +448,29 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "workloads":
+        return (
+            [
+                ("asset_name", "workload"),
+                ("asset_kind", "kind"),
+                ("identity", "identity"),
+                ("endpoints", "endpoints"),
+                ("ingress_paths", "ingress"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "asset_name": item.get("asset_name"),
+                    "asset_kind": item.get("asset_kind"),
+                    "identity": _workload_identity_context(item),
+                    "endpoints": item.get("endpoints", []),
+                    "ingress_paths": item.get("ingress_paths", []),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("workloads", [])
+            ],
+        )
+
     if command == "vms":
         return (
             [
@@ -563,6 +586,18 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         return (
             f"{len(nic_assets)} NICs visible; {attached} attached to visible assets and "
             f"{public_refs} reference public IP resources."
+        )
+
+    if command == "workloads":
+        workloads = payload.get("workloads", [])
+        exposed = sum(bool(item.get("endpoints")) for item in workloads)
+        identity_bearing = sum(bool(item.get("identity_type")) for item in workloads)
+        compute_assets = sum(item.get("asset_kind") in {"VM", "VMSS"} for item in workloads)
+        web_assets = len(workloads) - compute_assets
+        return (
+            f"{len(workloads)} workloads visible; {exposed} with reachable endpoints, "
+            f"{identity_bearing} with identity context, across {compute_assets} compute and "
+            f"{web_assets} web assets."
         )
 
     if command == "vms":
@@ -708,6 +743,17 @@ def _env_var_identity_context(item: dict) -> str:
         parts.append(f"user-assigned={len(item.get('workload_identity_ids', []))}")
     if item.get("key_vault_reference_identity"):
         parts.append(_display_reference_identity(item.get("key_vault_reference_identity")))
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _workload_identity_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("identity_type"):
+        parts.append(str(item.get("identity_type")))
+    if item.get("identity_ids"):
+        parts.append(f"ids={len(item.get('identity_ids', []))}")
     if not parts:
         return "-"
     return "; ".join(parts)

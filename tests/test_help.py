@@ -14,8 +14,7 @@ def test_help_command_generic() -> None:
     assert "AzureFox Help" in result.stdout
     assert "azurefox -h <section>" in result.stdout
     assert (
-        "permissions: Triage which visible principals hold "
-        "high-impact RBAC roles."
+        "permissions: Triage which visible principals hold high-impact RBAC roles."
     ) in result.stdout
 
 
@@ -26,8 +25,7 @@ def test_help_command_section() -> None:
     assert "AzureFox Help :: identity" in result.stdout
     assert "Implemented commands:" in result.stdout
     assert (
-        "permissions: Triage which visible principals hold "
-        "high-impact RBAC roles."
+        "permissions: Triage which visible principals hold high-impact RBAC roles."
     ) in result.stdout
     assert "ATT&CK cloud lenses:" in result.stdout
 
@@ -145,6 +143,16 @@ def test_help_command_nics_topic() -> None:
     assert "AzureFox Help :: nics" in result.stdout
     assert "public IP references" in result.stdout
     assert "network_security_group_id" in result.stdout
+
+
+def test_help_command_workloads_topic() -> None:
+    result = runner.invoke(app, ["help", "workloads"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: workloads" in result.stdout
+    assert "joined workload census" in result.stdout
+    assert "identity_type" in result.stdout
+    assert "ingress_paths" in result.stdout
 
 
 def test_help_command_unknown_topic() -> None:

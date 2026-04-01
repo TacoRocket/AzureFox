@@ -19,7 +19,7 @@
       "title": "Storage account network default action is Allow"
     },
     {
-      "description": "Key Vault 'kvlabopen01' has public network access enabled, default network action Allow, and no private endpoint visible. Review whether that secret-management surface is intentionally internet reachable.",
+      "description": "Key Vault 'kvlabopen01' has public network access enabled, Azure omitted the network ACL object, and no private endpoint is visible. Azure can return that shape for a fully open vault. Review whether that secret-management surface is intentionally internet reachable.",
       "id": "keyvault-public-network-open-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabopen01",
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabopen01"

@@ -103,6 +103,7 @@ def _to_csv(command: str, payload: dict) -> str:
         "keyvault": "key_vaults",
         "storage": "storage_assets",
         "nics": "nic_assets",
+        "workloads": "workloads",
         "vms": "vm_assets",
     }
 
