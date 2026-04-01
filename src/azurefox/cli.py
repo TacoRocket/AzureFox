@@ -71,6 +71,11 @@ def env_vars(ctx: typer.Context) -> None:
     _run_single(ctx, "env-vars")
 
 
+@app.command("tokens-credentials")
+def tokens_credentials(ctx: typer.Context) -> None:
+    _run_single(ctx, "tokens-credentials")
+
+
 @app.command("rbac")
 def rbac(ctx: typer.Context) -> None:
     _run_single(ctx, "rbac")

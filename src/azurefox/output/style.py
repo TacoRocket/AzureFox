@@ -12,6 +12,9 @@ COMMAND_NARRATION = {
     "inventory": "Scoping the visible Azure resource footprint.",
     "arm-deployments": "Reviewing ARM deployment history for config exposure and linked content.",
     "env-vars": "Reviewing App Service and Function App settings for exposed config paths.",
+    "tokens-credentials": (
+        "Correlating token-minting workloads and credential-bearing metadata paths."
+    ),
     "rbac": "Collecting raw RBAC assignments across the current subscription.",
     "principals": "Building an operator-first principal census from RBAC and identity context.",
     "permissions": "Ranking principals by high-impact RBAC exposure.",

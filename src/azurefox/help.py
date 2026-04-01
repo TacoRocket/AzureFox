@@ -123,6 +123,39 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox env-vars --output table",
     ),
+    "tokens-credentials": CommandHelpTopic(
+        name="tokens-credentials",
+        section="secrets",
+        summary=(
+            "Correlate readable token and credential surfaces across workloads, app settings, "
+            "and deployment history."
+        ),
+        offensive_question=(
+            "Which workloads can mint tokens or expose credential-bearing metadata paths worth "
+            "operator follow-up first?"
+        ),
+        cloudfox_frame=(
+            "Azure-native credential leverage review that combines workload identity, readable "
+            "app settings, and deployment-history clues into one operator-first surface."
+        ),
+        output_highlights=(
+            "surface_type",
+            "access_path",
+            "priority",
+            "operator_signal",
+            "findings",
+        ),
+        attack_leads=(
+            AttackLead("Credential Access", "Cloud Instance Metadata API"),
+            AttackLead(
+                "Credential Access",
+                "Use Alternate Authentication Material: Application Access Token",
+            ),
+            AttackLead("Credential Access", "Unsecured Credentials"),
+            AttackLead("Collection", "Data from Information Repositories"),
+        ),
+        example="azurefox tokens-credentials --output table",
+    ),
     "rbac": CommandHelpTopic(
         name="rbac",
         section="identity",
@@ -471,13 +504,17 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
     ),
     "secrets": SectionHelpTopic(
         name="secrets",
-        summary="Secret-store exposure and recovery-control posture for Azure secret services.",
+        summary=(
+            "Secret, token, and credential surfaces that matter during Azure operator follow-up."
+        ),
         operator_goal=(
-            "Find exposed or weakly protected secret-management surfaces worth deeper follow-up."
+            "Find secret-management surfaces, token minting paths, and credential-bearing "
+            "metadata worth deeper follow-up."
         ),
         attack_lenses=(
             AttackLead("Discovery", "Cloud Service Discovery"),
             AttackLead("Collection", "Data from Information Repositories"),
+            AttackLead("Credential Access", "Cloud Instance Metadata API"),
             AttackLead(
                 "Credential Access",
                 "Steal or Forge Authentication Certificates",

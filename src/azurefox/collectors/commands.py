@@ -9,6 +9,7 @@ from azurefox.correlation.findings import (
     build_identity_findings,
     build_keyvault_findings,
     build_storage_findings,
+    build_tokens_credentials_findings,
     build_vm_findings,
 )
 from azurefox.models.commands import (
@@ -25,6 +26,7 @@ from azurefox.models.commands import (
     ResourceTrustsOutput,
     RoleTrustsOutput,
     StorageOutput,
+    TokensCredentialsOutput,
     VmsOutput,
     WhoAmIOutput,
 )
@@ -92,6 +94,32 @@ def collect_env_vars(provider: BaseProvider, options: GlobalOptions) -> EnvVarsO
             "metadata": _metadata(provider, "env-vars", options),
             **data,
             "env_vars": env_vars,
+            "findings": findings,
+        }
+    )
+
+
+def collect_tokens_credentials(
+    provider: BaseProvider, options: GlobalOptions
+) -> TokensCredentialsOutput:
+    data = provider.tokens_credentials()
+    surfaces = sorted(
+        data.get("surfaces", []),
+        key=lambda item: (
+            {"high": 0, "medium": 1, "low": 2}.get(
+                str(item.get("priority") or "").lower(), 9
+            ),
+            item.get("asset_name") or "",
+            item.get("surface_type") or "",
+            item.get("operator_signal") or "",
+        ),
+    )
+    findings = build_tokens_credentials_findings(surfaces)
+    return TokensCredentialsOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "tokens-credentials", options),
+            **data,
+            "surfaces": surfaces,
             "findings": findings,
         }
     )

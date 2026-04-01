@@ -17,6 +17,7 @@ from azurefox.models.commands import (
     ResourceTrustsOutput,
     RoleTrustsOutput,
     StorageOutput,
+    TokensCredentialsOutput,
     VmsOutput,
     WhoAmIOutput,
 )
@@ -26,6 +27,7 @@ MODEL_MAP = {
     "inventory": InventoryOutput,
     "arm-deployments": ArmDeploymentsOutput,
     "env-vars": EnvVarsOutput,
+    "tokens-credentials": TokensCredentialsOutput,
     "rbac": RbacOutput,
     "principals": PrincipalsOutput,
     "permissions": PermissionsOutput,

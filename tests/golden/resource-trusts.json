@@ -28,13 +28,22 @@
       "title": "Key Vault is broadly reachable on the public network"
     },
     {
-      "description": "Key Vault 'kvlabopen01' does not have purge protection enabled. Validate whether destructive recovery protections are intentionally absent.",
-      "id": "keyvault-purge-protection-disabled-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabopen01",
+      "description": "Key Vault 'kvlabdeny01' keeps public network access enabled with default network action 'Deny' and no private endpoint visible. Review whether that public path is still intended.",
+      "id": "keyvault-public-network-enabled-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabdeny01",
       "related_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabopen01"
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabdeny01"
       ],
       "severity": "medium",
-      "title": "Key Vault purge protection is disabled"
+      "title": "Key Vault remains reachable through a public network path"
+    },
+    {
+      "description": "Key Vault 'kvlabhybrid01' has public network access enabled while a private endpoint is also present. Validate whether the public path is still required.",
+      "id": "keyvault-public-network-with-private-endpoint-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabhybrid01",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabhybrid01"
+      ],
+      "severity": "low",
+      "title": "Key Vault keeps a public network path alongside Private Link"
     }
   ],
   "issues": [],
@@ -77,14 +86,40 @@
       "confidence": "confirmed",
       "exposure": "medium",
       "related_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.Storage/storageAccounts/stlabpub01"
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabdeny01"
       ],
-      "resource_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.Storage/storageAccounts/stlabpub01",
-      "resource_name": "stlabpub01",
-      "resource_type": "StorageAccount",
-      "summary": "Storage account 'stlabpub01' accepts public network traffic by default.",
+      "resource_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabdeny01",
+      "resource_name": "kvlabdeny01",
+      "resource_type": "KeyVault",
+      "summary": "Key Vault 'kvlabdeny01' remains reachable through a public network path.",
       "target": "public-network",
-      "trust_type": "public-network-default"
+      "trust_type": "public-network"
+    },
+    {
+      "confidence": "confirmed",
+      "exposure": "restricted",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabhybrid01"
+      ],
+      "resource_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabhybrid01",
+      "resource_name": "kvlabhybrid01",
+      "resource_type": "KeyVault",
+      "summary": "Key Vault 'kvlabhybrid01' exposes a private endpoint path through Azure Private Link.",
+      "target": "private-link",
+      "trust_type": "private-endpoint"
+    },
+    {
+      "confidence": "confirmed",
+      "exposure": "medium",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabhybrid01"
+      ],
+      "resource_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabhybrid01",
+      "resource_name": "kvlabhybrid01",
+      "resource_type": "KeyVault",
+      "summary": "Key Vault 'kvlabhybrid01' remains reachable through a public network path.",
+      "target": "public-network",
+      "trust_type": "public-network"
     },
     {
       "confidence": "confirmed",
@@ -111,6 +146,19 @@
       "summary": "Storage account 'stlabpriv01' exposes a private endpoint path through Azure Private Link.",
       "target": "private-link",
       "trust_type": "private-endpoint"
+    },
+    {
+      "confidence": "confirmed",
+      "exposure": "medium",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.Storage/storageAccounts/stlabpub01"
+      ],
+      "resource_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.Storage/storageAccounts/stlabpub01",
+      "resource_name": "stlabpub01",
+      "resource_type": "StorageAccount",
+      "summary": "Storage account 'stlabpub01' accepts public network traffic by default.",
+      "target": "public-network",
+      "trust_type": "public-network-default"
     }
   ]
 }

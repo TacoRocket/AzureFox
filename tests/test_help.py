@@ -61,6 +61,15 @@ def test_help_command_env_vars_topic() -> None:
     assert "setting_name" in result.stdout
 
 
+def test_help_command_tokens_credentials_topic() -> None:
+    result = runner.invoke(app, ["help", "tokens-credentials"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: tokens-credentials" in result.stdout
+    assert "mint tokens" in result.stdout
+    assert "operator_signal" in result.stdout
+
+
 def test_help_command_privesc_topic() -> None:
     result = runner.invoke(app, ["help", "privesc"])
 

@@ -17,6 +17,7 @@ Fox.
 - `inventory`
 - `arm-deployments`
 - `env-vars`
+- `tokens-credentials`
 - `rbac`
 - `principals`
 - `permissions`
@@ -104,7 +105,7 @@ Current section mappings:
 
 - `identity`: `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `auth-policies`, `managed-identities`
 - `config`: `arm-deployments`, `env-vars`
-- `secrets`: `keyvault`
+- `secrets`: `keyvault`, `tokens-credentials`
 - `resource`: `resource-trusts`
 - `storage`: `storage`
 - `compute`: `vms`

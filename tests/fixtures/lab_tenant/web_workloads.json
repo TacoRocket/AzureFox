@@ -1,0 +1,40 @@
+{
+  "workloads": [
+    {
+      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-empty-mi",
+      "asset_name": "app-empty-mi",
+      "asset_kind": "AppService",
+      "resource_group": "rg-apps",
+      "location": "eastus",
+      "workload_identity_type": "SystemAssigned",
+      "workload_principal_id": "eeee3333-3333-3333-3333-333333333333",
+      "workload_client_id": "ffff3333-3333-3333-3333-333333333333",
+      "workload_identity_ids": []
+    },
+    {
+      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api",
+      "asset_name": "app-public-api",
+      "asset_kind": "AppService",
+      "resource_group": "rg-apps",
+      "location": "eastus",
+      "workload_identity_type": "SystemAssigned",
+      "workload_principal_id": "aaaa1111-1111-1111-1111-111111111111",
+      "workload_client_id": "bbbb1111-1111-1111-1111-111111111111",
+      "workload_identity_ids": []
+    },
+    {
+      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders",
+      "asset_name": "func-orders",
+      "asset_kind": "FunctionApp",
+      "resource_group": "rg-apps",
+      "location": "eastus",
+      "workload_identity_type": "SystemAssigned, UserAssigned",
+      "workload_principal_id": "cccc2222-2222-2222-2222-222222222222",
+      "workload_client_id": "dddd2222-2222-2222-2222-222222222222",
+      "workload_identity_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-orders"
+      ]
+    }
+  ],
+  "issues": []
+}

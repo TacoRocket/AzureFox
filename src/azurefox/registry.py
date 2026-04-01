@@ -17,6 +17,7 @@ from azurefox.collectors.commands import (
     collect_resource_trusts,
     collect_role_trusts,
     collect_storage,
+    collect_tokens_credentials,
     collect_vms,
     collect_whoami,
 )
@@ -38,6 +39,7 @@ COMMAND_SPECS: tuple[CommandSpec, ...] = (
     CommandSpec("inventory", "core", collect_inventory),
     CommandSpec("arm-deployments", "config", collect_arm_deployments),
     CommandSpec("env-vars", "config", collect_env_vars),
+    CommandSpec("tokens-credentials", "secrets", collect_tokens_credentials),
     CommandSpec("rbac", "identity", collect_rbac),
     CommandSpec("principals", "identity", collect_principals),
     CommandSpec("permissions", "identity", collect_permissions),

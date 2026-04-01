@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from azurefox.models.common import (
     ArmDeploymentSummary,
     AuthPolicySummary,
@@ -9,6 +11,7 @@ from azurefox.models.common import (
     ManagedIdentity,
     RoleAssignment,
     StorageAsset,
+    TokenCredentialSurfaceSummary,
     VmAsset,
 )
 
@@ -249,6 +252,95 @@ def build_env_var_findings(env_vars_raw: list[dict]) -> list[dict]:
             )
 
     return [f.model_dump() for f in findings]
+
+
+def build_tokens_credentials_findings(surfaces_raw: list[dict]) -> list[dict]:
+    surfaces = [TokenCredentialSurfaceSummary.model_validate(item) for item in surfaces_raw]
+    findings: list[Finding] = []
+
+    for surface in surfaces:
+        finding_id_suffix = _tokens_credentials_finding_suffix(surface)
+
+        if surface.surface_type == "plain-text-secret":
+            findings.append(
+                Finding(
+                    id=f"tokens-credentials-plain-text-{finding_id_suffix}",
+                    severity="high",
+                    title="Credential-like value is exposed in plain-text app settings",
+                    description=surface.summary,
+                    related_ids=surface.related_ids,
+                )
+            )
+            continue
+
+        if surface.surface_type == "keyvault-reference":
+            findings.append(
+                Finding(
+                    id=f"tokens-credentials-keyvault-ref-{finding_id_suffix}",
+                    severity="low",
+                    title="Workload setting depends on Key Vault-backed secret retrieval",
+                    description=surface.summary,
+                    related_ids=surface.related_ids,
+                )
+            )
+            continue
+
+        if surface.surface_type == "managed-identity-token":
+            severity = "high" if surface.priority == "high" else "medium"
+            title = (
+                "Publicly reachable workload can mint tokens with managed identity"
+                if surface.priority == "high"
+                else "Workload can mint tokens with managed identity"
+            )
+            findings.append(
+                Finding(
+                    id=f"tokens-credentials-managed-identity-{finding_id_suffix}",
+                    severity=severity,
+                    title=title,
+                    description=surface.summary,
+                    related_ids=surface.related_ids,
+                )
+            )
+            continue
+
+        if surface.surface_type == "deployment-output":
+            findings.append(
+                Finding(
+                    id=f"tokens-credentials-deployment-output-{finding_id_suffix}",
+                    severity="medium",
+                    title="Deployment history records output values",
+                    description=surface.summary,
+                    related_ids=surface.related_ids,
+                )
+            )
+            continue
+
+        if surface.surface_type == "linked-deployment-content":
+            findings.append(
+                Finding(
+                    id=f"tokens-credentials-linked-content-{finding_id_suffix}",
+                    severity="low",
+                    title="Deployment history references remote template or parameter content",
+                    description=surface.summary,
+                    related_ids=surface.related_ids,
+                )
+            )
+
+    return [f.model_dump() for f in findings]
+
+
+def _tokens_credentials_finding_suffix(surface: TokenCredentialSurfaceSummary) -> str:
+    parts = [
+        surface.asset_id or surface.asset_name,
+        surface.access_path,
+        _finding_slug(surface.operator_signal),
+    ]
+    return "-".join(part for part in parts if part)
+
+
+def _finding_slug(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return slug or "surface"
 
 
 def build_vm_findings(vms_raw: list[dict]) -> list[dict]:

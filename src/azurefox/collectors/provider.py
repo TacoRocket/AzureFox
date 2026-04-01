@@ -36,6 +36,33 @@ class BaseProvider(ABC):
     def env_vars(self) -> dict:
         raise NotImplementedError
 
+    def web_workloads(self) -> dict:
+        return {"workloads": [], "issues": []}
+
+    def tokens_credentials(self) -> dict:
+        workload_data = self.web_workloads()
+        env_var_data = self.env_vars()
+        arm_data = self.arm_deployments()
+        vm_data = self.vms()
+
+        surfaces = [
+            *_token_credential_surfaces_from_web_workloads(workload_data.get("workloads", [])),
+            *_tokens_credentials_surfaces_from_env_vars(env_var_data.get("env_vars", [])),
+            *_token_credential_surfaces_from_arm_deployments(arm_data.get("deployments", [])),
+            *_token_credential_surfaces_from_vms(vm_data.get("vm_assets", [])),
+        ]
+        surfaces.sort(key=_token_credential_surface_sort_key)
+
+        return {
+            "surfaces": surfaces,
+            "issues": [
+                *workload_data.get("issues", []),
+                *env_var_data.get("issues", []),
+                *arm_data.get("issues", []),
+                *vm_data.get("issues", []),
+            ],
+        }
+
     @abstractmethod
     def rbac(self) -> dict:
         raise NotImplementedError
@@ -116,7 +143,21 @@ class FixtureProvider(BaseProvider):
         return self._read("role_trusts")
 
     def resource_trusts(self) -> dict:
-        return self._read("resource_trusts")
+        storage_data = self.storage()
+        keyvault_data = self.keyvault()
+        resource_trusts = _compose_resource_trusts(
+            storage_data.get("storage_assets", []),
+            keyvault_data.get("key_vaults", []),
+        )
+        findings = _resource_trust_findings(
+            storage_data.get("storage_assets", []),
+            keyvault_data.get("key_vaults", []),
+        )
+        return {
+            "resource_trusts": resource_trusts,
+            "findings": findings,
+            "issues": [*storage_data.get("issues", []), *keyvault_data.get("issues", [])],
+        }
 
     def auth_policies(self) -> dict:
         return self._read("auth_policies")
@@ -129,6 +170,9 @@ class FixtureProvider(BaseProvider):
 
     def env_vars(self) -> dict:
         return self._read("env_vars")
+
+    def web_workloads(self) -> dict:
+        return self._read("web_workloads")
 
     def storage(self) -> dict:
         return self._read("storage")
@@ -298,6 +342,25 @@ class AzureProvider(BaseProvider):
             issues.append(_issue_from_exception("env_vars.web_apps", exc))
 
         return {"env_vars": env_vars, "issues": issues}
+
+    def web_workloads(self) -> dict:
+        issues: list[dict] = []
+        workloads: list[dict] = []
+
+        try:
+            iterator = self.clients.web.web_apps.list()
+            for app in iterator:
+                asset_kind = _web_asset_kind(getattr(app, "kind", None))
+                if not asset_kind:
+                    continue
+                workloads.append(_web_workload_summary(app, asset_kind=asset_kind))
+        except Exception as exc:
+            issues.append(_issue_from_exception("web_workloads.web_apps", exc))
+
+        workloads.sort(
+            key=lambda item: ((item.get("asset_name") or ""), item.get("asset_id") or "")
+        )
+        return {"workloads": workloads, "issues": issues}
 
     def rbac(self) -> dict:
         scope = f"/subscriptions/{self.clients.subscription_id}"
@@ -825,24 +888,14 @@ class AzureProvider(BaseProvider):
     def resource_trusts(self) -> dict:
         storage_data = self.storage()
         keyvault_data = self.keyvault()
-
-        resource_trusts = [
-            *_resource_trusts_from_storage(storage_data.get("storage_assets", [])),
-            *_resource_trusts_from_keyvault(keyvault_data.get("key_vaults", [])),
-        ]
-        resource_trusts.sort(
-            key=lambda item: (
-                item.get("exposure") != "high",
-                item.get("resource_type") or "",
-                item.get("resource_name") or item.get("resource_id") or "",
-                item.get("trust_type") or "",
-            )
+        resource_trusts = _compose_resource_trusts(
+            storage_data.get("storage_assets", []),
+            keyvault_data.get("key_vaults", []),
         )
-
-        findings = [
-            *build_storage_findings(storage_data.get("storage_assets", [])),
-            *build_keyvault_findings(keyvault_data.get("key_vaults", [])),
-        ]
+        findings = _resource_trust_findings(
+            storage_data.get("storage_assets", []),
+            keyvault_data.get("key_vaults", []),
+        )
         issues = [*storage_data.get("issues", []), *keyvault_data.get("issues", [])]
         return {
             "resource_trusts": resource_trusts,
@@ -1674,6 +1727,31 @@ _ENV_VAR_SENSITIVE_TOKENS = {
     "clientsecret",
 }
 
+_TOKENS_CREDENTIALS_PLAIN_TEXT_NAMES = {
+    "azurewebjobsstorage",
+}
+
+
+def _web_workload_summary(app: object, *, asset_kind: str) -> dict:
+    app_id = getattr(app, "id", "") or ""
+    app_name = getattr(app, "name", "unknown")
+    identity = getattr(app, "identity", None)
+
+    return {
+        "asset_id": app_id or f"/unknown/{app_name}",
+        "asset_name": app_name,
+        "asset_kind": asset_kind,
+        "resource_group": _resource_group_from_id(app_id),
+        "location": _string_value(getattr(app, "location", None)),
+        "workload_identity_type": _string_value(getattr(identity, "type", None)),
+        "workload_principal_id": _string_value(getattr(identity, "principal_id", None)),
+        "workload_client_id": _string_value(getattr(identity, "client_id", None)),
+        "workload_identity_ids": sorted(
+            str(identity_id)
+            for identity_id in (getattr(identity, "user_assigned_identities", None) or {}).keys()
+        ),
+    }
+
 
 def _env_var_summary(
     app: object,
@@ -1762,6 +1840,281 @@ def _looks_sensitive_setting_name(setting_name: str) -> bool:
     return any(token in normalized for token in _ENV_VAR_SENSITIVE_TOKENS)
 
 
+def _token_credential_surfaces_from_web_workloads(workloads: list[dict]) -> list[dict]:
+    surfaces: list[dict] = []
+
+    for item in workloads:
+        asset_id = item.get("asset_id")
+        asset_name = item.get("asset_name") or asset_id or "unknown"
+        asset_kind = item.get("asset_kind") or "Workload"
+        related_ids = [
+            *([asset_id] if asset_id else []),
+            *[str(identity_id) for identity_id in item.get("workload_identity_ids", [])],
+        ]
+        if item.get("workload_principal_id"):
+            related_ids.append(str(item.get("workload_principal_id")))
+
+        if not item.get("workload_identity_type"):
+            continue
+
+        identity_signal = str(item.get("workload_identity_type"))
+        user_assigned_count = len(item.get("workload_identity_ids", []))
+        if user_assigned_count:
+            identity_signal = f"{identity_signal}; user-assigned={user_assigned_count}"
+
+        surfaces.append(
+            {
+                "asset_id": asset_id or f"/unknown/{asset_name}",
+                "asset_name": asset_name,
+                "asset_kind": asset_kind,
+                "resource_group": item.get("resource_group"),
+                "location": item.get("location"),
+                "surface_type": "managed-identity-token",
+                "access_path": "workload-identity",
+                "priority": "medium",
+                "operator_signal": identity_signal,
+                "summary": (
+                    f"{asset_kind} '{asset_name}' can request tokens through attached "
+                    f"managed identity ({item.get('workload_identity_type')})."
+                ),
+                "related_ids": _dedupe_strings(related_ids),
+            }
+        )
+
+    return surfaces
+
+
+def _tokens_credentials_surfaces_from_env_vars(env_vars: list[dict]) -> list[dict]:
+    surfaces: list[dict] = []
+
+    for item in env_vars:
+        asset_id = item.get("asset_id")
+        asset_name = item.get("asset_name") or asset_id or "unknown"
+        asset_kind = item.get("asset_kind") or "Workload"
+        related_ids = [
+            *([asset_id] if asset_id else []),
+            *[str(identity_id) for identity_id in item.get("workload_identity_ids", [])],
+        ]
+        if item.get("workload_principal_id"):
+            related_ids.append(str(item.get("workload_principal_id")))
+
+        setting_name = str(item.get("setting_name") or "")
+        normalized_setting_name = re.sub(r"[^a-z0-9]+", "", setting_name.lower())
+        plain_text_credential = item.get("value_type") == "plain-text" and (
+            item.get("looks_sensitive")
+            or normalized_setting_name in _TOKENS_CREDENTIALS_PLAIN_TEXT_NAMES
+        )
+        if plain_text_credential:
+            surfaces.append(
+                {
+                    "asset_id": asset_id or f"/unknown/{asset_name}",
+                    "asset_name": asset_name,
+                    "asset_kind": asset_kind,
+                    "resource_group": item.get("resource_group"),
+                    "location": item.get("location"),
+                    "surface_type": "plain-text-secret",
+                    "access_path": "app-setting",
+                    "priority": "high",
+                    "operator_signal": f"setting={setting_name}",
+                    "summary": (
+                        f"{asset_kind} '{asset_name}' exposes credential-like setting "
+                        f"'{setting_name}' as plain-text management-plane app configuration."
+                    ),
+                    "related_ids": _dedupe_strings(related_ids),
+                }
+            )
+
+        if item.get("value_type") == "keyvault-ref":
+            signal_parts = [f"target={item.get('reference_target') or 'unknown'}"]
+            kv_identity = _key_vault_reference_identity_summary(
+                item.get("key_vault_reference_identity")
+            )
+            if kv_identity:
+                signal_parts.append(f"identity={kv_identity}")
+            target_suffix = (
+                f" ({item.get('reference_target')})" if item.get("reference_target") else ""
+            )
+            identity_suffix = f" via {kv_identity}" if kv_identity else ""
+
+            surfaces.append(
+                {
+                    "asset_id": asset_id or f"/unknown/{asset_name}",
+                    "asset_name": asset_name,
+                    "asset_kind": asset_kind,
+                    "resource_group": item.get("resource_group"),
+                    "location": item.get("location"),
+                    "surface_type": "keyvault-reference",
+                    "access_path": "app-setting",
+                    "priority": "medium",
+                    "operator_signal": "; ".join(signal_parts),
+                    "summary": (
+                        f"{asset_kind} '{asset_name}' uses setting '{setting_name}' to reach "
+                        f"Key Vault-backed secret material{target_suffix}{identity_suffix}."
+                    ),
+                    "related_ids": _dedupe_strings(related_ids),
+                }
+            )
+
+    return surfaces
+
+
+def _token_credential_surfaces_from_arm_deployments(deployments: list[dict]) -> list[dict]:
+    surfaces: list[dict] = []
+
+    for item in deployments:
+        deployment_id = item.get("id")
+        deployment_name = item.get("name") or deployment_id or "unknown"
+        related_ids = [str(deployment_id)] if deployment_id else []
+
+        if (item.get("outputs_count") or 0) > 0:
+            surfaces.append(
+                {
+                    "asset_id": deployment_id or f"/unknown/{deployment_name}",
+                    "asset_name": deployment_name,
+                    "asset_kind": "ArmDeployment",
+                    "resource_group": item.get("resource_group"),
+                    "location": None,
+                    "surface_type": "deployment-output",
+                    "access_path": "deployment-history",
+                    "priority": "medium",
+                    "operator_signal": (
+                        f"outputs={item.get('outputs_count', 0)}; "
+                        f"providers={len(item.get('providers', []))}"
+                    ),
+                    "summary": (
+                        f"Deployment '{deployment_name}' recorded {item.get('outputs_count', 0)} "
+                        "output values in deployment history."
+                    ),
+                    "related_ids": related_ids,
+                }
+            )
+
+        if item.get("template_link") or item.get("parameters_link"):
+            link_parts: list[str] = []
+            if item.get("template_link"):
+                link_parts.append(f"template={_compact_link(item.get('template_link'))}")
+            if item.get("parameters_link"):
+                link_parts.append(f"parameters={_compact_link(item.get('parameters_link'))}")
+
+            surfaces.append(
+                {
+                    "asset_id": deployment_id or f"/unknown/{deployment_name}",
+                    "asset_name": deployment_name,
+                    "asset_kind": "ArmDeployment",
+                    "resource_group": item.get("resource_group"),
+                    "location": None,
+                    "surface_type": "linked-deployment-content",
+                    "access_path": "deployment-history",
+                    "priority": "low",
+                    "operator_signal": "; ".join(link_parts),
+                    "summary": (
+                        f"Deployment '{deployment_name}' references remote template or parameter "
+                        "content that may expose reusable configuration or credential context."
+                    ),
+                    "related_ids": related_ids,
+                }
+            )
+
+    return surfaces
+
+
+def _token_credential_surfaces_from_vms(vm_assets: list[dict]) -> list[dict]:
+    surfaces: list[dict] = []
+
+    for item in vm_assets:
+        identity_ids = [str(identity_id) for identity_id in item.get("identity_ids", [])]
+        if not identity_ids:
+            continue
+
+        asset_id = item.get("id")
+        asset_name = item.get("name") or asset_id or "unknown"
+        public_ips = [str(ip) for ip in item.get("public_ips", [])]
+        public_signal = f"public-ip={public_ips[0]}" if public_ips else "public-ip=none"
+        priority = "high" if public_ips else "medium"
+
+        surfaces.append(
+            {
+                "asset_id": asset_id or f"/unknown/{asset_name}",
+                "asset_name": asset_name,
+                "asset_kind": str(item.get("vm_type") or "vm").upper(),
+                "resource_group": item.get("resource_group"),
+                "location": item.get("location"),
+                "surface_type": "managed-identity-token",
+                "access_path": "imds",
+                "priority": priority,
+                "operator_signal": f"{public_signal}; identities={len(identity_ids)}",
+                "summary": (
+                    f"{str(item.get('vm_type') or 'vm').upper()} '{asset_name}' is publicly "
+                    "reachable and exposes a token minting path through IMDS for its attached "
+                    "managed identity."
+                    if public_ips
+                    else f"{str(item.get('vm_type') or 'vm').upper()} '{asset_name}' exposes a "
+                    "token minting path through IMDS for its attached managed identity."
+                ),
+                "related_ids": _dedupe_strings(
+                    [*([asset_id] if asset_id else []), *identity_ids]
+                ),
+            }
+        )
+
+    return surfaces
+
+
+def _compose_resource_trusts(storage_assets: list[dict], key_vaults: list[dict]) -> list[dict]:
+    resource_trusts = [
+        *_resource_trusts_from_storage(storage_assets),
+        *_resource_trusts_from_keyvault(key_vaults),
+    ]
+    resource_trusts.sort(
+        key=lambda item: (
+            item.get("exposure") != "high",
+            item.get("resource_type") or "",
+            item.get("resource_name") or item.get("resource_id") or "",
+            item.get("trust_type") or "",
+        )
+    )
+    return resource_trusts
+
+
+def _resource_trust_findings(storage_assets: list[dict], key_vaults: list[dict]) -> list[dict]:
+    keyvault_findings = [
+        finding
+        for finding in build_keyvault_findings(key_vaults)
+        if not str(finding.get("id") or "").startswith("keyvault-purge-protection-disabled-")
+    ]
+    return [*build_storage_findings(storage_assets), *keyvault_findings]
+
+
+def _token_credential_surface_sort_key(item: dict) -> tuple[int, str, str, str]:
+    priority_rank = {"high": 0, "medium": 1, "low": 2}
+    return (
+        priority_rank.get(str(item.get("priority") or "").lower(), 9),
+        str(item.get("asset_name") or ""),
+        str(item.get("surface_type") or ""),
+        str(item.get("operator_signal") or ""),
+    )
+
+
+def _dedupe_strings(values: list[object]) -> list[str]:
+    items: list[str] = []
+    for value in values:
+        text = str(value or "")
+        if text and text not in items:
+            items.append(text)
+    return items
+
+
+def _compact_link(value: object) -> str:
+    text = str(value or "")
+    if not text:
+        return "-"
+
+    parsed = urlparse(text)
+    if parsed.netloc and parsed.path:
+        return f"{parsed.netloc}{parsed.path}"
+    return text
+
+
 def _env_var_reference_target(value: object) -> str | None:
     text = str(value or "").strip()
     if not text.startswith("@Microsoft.KeyVault("):
@@ -1798,11 +2151,11 @@ def _key_vault_reference_identity_summary(value: str | None) -> str | None:
     if not value:
         return None
     if value.lower() == "systemassigned":
-        return "SystemAssigned identity"
+        return "SystemAssigned"
     parts = [part for part in value.split("/") if part]
     if parts:
-        return f"reference identity {parts[-1]}"
-    return f"reference identity {value}"
+        return parts[-1]
+    return value
 
 
 def _dedupe_deployments(deployments: list[dict]) -> list[dict]:
