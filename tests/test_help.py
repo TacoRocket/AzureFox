@@ -51,6 +51,26 @@ def test_help_command_arm_deployments_topic() -> None:
     assert "outputs_count" in result.stdout
 
 
+def test_help_command_endpoints_topic() -> None:
+    result = runner.invoke(app, ["help", "endpoints"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: endpoints" in result.stdout
+    assert "reachability view" in result.stdout
+    assert "exposure_family" in result.stdout
+    assert "ingress_path" in result.stdout
+
+
+def test_help_command_network_ports_topic() -> None:
+    result = runner.invoke(app, ["help", "network-ports"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: network-ports" in result.stdout
+    assert "NIC-backed public endpoints" in result.stdout
+    assert "allow_source_summary" in result.stdout
+    assert "exposure_confidence" in result.stdout
+
+
 def test_help_command_env_vars_topic() -> None:
     result = runner.invoke(app, ["help", "env-vars"])
 
@@ -86,6 +106,7 @@ def test_help_command_role_trusts_topic() -> None:
     assert "AzureFox Help :: role-trusts" in result.stdout
     assert "Trusted Relationship" in result.stdout
     assert "federated credentials" in result.stdout
+    assert "delegated or admin consent grants" in result.stdout
 
 
 def test_help_command_auth_policies_topic() -> None:
@@ -95,6 +116,8 @@ def test_help_command_auth_policies_topic() -> None:
     assert "AzureFox Help :: auth-policies" in result.stdout
     assert "Conditional Access" in result.stdout
     assert "sign-in, consent, and identity hardening" in result.stdout
+    assert "partial-read gaps kept explicit" in result.stdout
+    assert "issues" in result.stdout
 
 
 def test_help_command_keyvault_topic() -> None:
@@ -113,6 +136,15 @@ def test_help_command_resource_trusts_topic() -> None:
     assert "AzureFox Help :: resource-trusts" in result.stdout
     assert "public network paths" in result.stdout
     assert "resource_type" in result.stdout
+
+
+def test_help_command_nics_topic() -> None:
+    result = runner.invoke(app, ["help", "nics"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: nics" in result.stdout
+    assert "public IP references" in result.stdout
+    assert "network_security_group_id" in result.stdout
 
 
 def test_help_command_unknown_topic() -> None:

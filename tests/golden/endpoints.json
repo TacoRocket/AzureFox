@@ -1,0 +1,72 @@
+{
+  "endpoints": [
+    {
+      "endpoint": "52.160.10.20",
+      "endpoint_type": "ip",
+      "exposure_family": "public-ip",
+      "ingress_path": "direct-vm-ip",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Network/networkInterfaces/nic-web-01",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-app"
+      ],
+      "source_asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+      "source_asset_kind": "VM",
+      "source_asset_name": "vm-web-01",
+      "summary": "VM 'vm-web-01' exposes public IP 52.160.10.20. Review direct ingress path alongside NIC and NSG context."
+    },
+    {
+      "endpoint": "app-empty-mi.azurewebsites.net",
+      "endpoint_type": "hostname",
+      "exposure_family": "managed-web-hostname",
+      "ingress_path": "azurewebsites-default-hostname",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-empty-mi",
+        "eeee3333-3333-3333-3333-333333333333"
+      ],
+      "source_asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-empty-mi",
+      "source_asset_kind": "AppService",
+      "source_asset_name": "app-empty-mi",
+      "summary": "AppService 'app-empty-mi' publishes Azure-managed hostname 'app-empty-mi.azurewebsites.net'. Validate whether that ingress path is intended and how it is constrained."
+    },
+    {
+      "endpoint": "app-public-api.azurewebsites.net",
+      "endpoint_type": "hostname",
+      "exposure_family": "managed-web-hostname",
+      "ingress_path": "azurewebsites-default-hostname",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api",
+        "aaaa1111-1111-1111-1111-111111111111"
+      ],
+      "source_asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api",
+      "source_asset_kind": "AppService",
+      "source_asset_name": "app-public-api",
+      "summary": "AppService 'app-public-api' publishes Azure-managed hostname 'app-public-api.azurewebsites.net'. Validate whether that ingress path is intended and how it is constrained."
+    },
+    {
+      "endpoint": "func-orders.azurewebsites.net",
+      "endpoint_type": "hostname",
+      "exposure_family": "managed-web-hostname",
+      "ingress_path": "azure-functions-default-hostname",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders",
+        "cccc2222-2222-2222-2222-222222222222",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-orders"
+      ],
+      "source_asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders",
+      "source_asset_kind": "FunctionApp",
+      "source_asset_name": "func-orders",
+      "summary": "FunctionApp 'func-orders' publishes Azure-managed hostname 'func-orders.azurewebsites.net'. Validate whether that ingress path is intended and how it is constrained."
+    }
+  ],
+  "findings": [],
+  "issues": [],
+  "metadata": {
+    "command": "endpoints",
+    "generated_at": "<generated_at>",
+    "schema_version": "1.0.0",
+    "subscription_id": "22222222-2222-2222-2222-222222222222",
+    "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "token_source": null
+  }
+}

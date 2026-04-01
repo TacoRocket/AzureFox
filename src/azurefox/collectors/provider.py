@@ -13,7 +13,12 @@ from azurefox.clients.graph import GraphClient
 from azurefox.config import GlobalOptions
 from azurefox.correlation.findings import build_keyvault_findings, build_storage_findings
 from azurefox.errors import AzureFoxError, ErrorKind, classify_exception
-from azurefox.models.common import Principal, RoleAssignment, ScopeRef
+from azurefox.models.common import (
+    Principal,
+    RoleAssignment,
+    ScopeRef,
+    is_private_network_prefix,
+)
 
 
 class BaseProvider(ABC):
@@ -63,6 +68,31 @@ class BaseProvider(ABC):
             ],
         }
 
+    def endpoints(self) -> dict:
+        workload_data = self.web_workloads()
+        vm_data = self.vms()
+
+        endpoints = [
+            *_endpoints_from_vms(vm_data.get("vm_assets", [])),
+            *_endpoints_from_web_workloads(workload_data.get("workloads", [])),
+        ]
+        endpoints.sort(
+            key=lambda item: (
+                item.get("endpoint_type") != "ip",
+                item.get("source_asset_name") or "",
+                item.get("endpoint") or "",
+            )
+        )
+
+        return {
+            "endpoints": endpoints,
+            "issues": [*workload_data.get("issues", []), *vm_data.get("issues", [])],
+        }
+
+    @abstractmethod
+    def network_ports(self) -> dict:
+        raise NotImplementedError
+
     @abstractmethod
     def rbac(self) -> dict:
         raise NotImplementedError
@@ -101,6 +131,10 @@ class BaseProvider(ABC):
 
     @abstractmethod
     def storage(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
+    def nics(self) -> dict:
         raise NotImplementedError
 
     @abstractmethod
@@ -176,6 +210,12 @@ class FixtureProvider(BaseProvider):
 
     def storage(self) -> dict:
         return self._read("storage")
+
+    def nics(self) -> dict:
+        return self._read("nics")
+
+    def network_ports(self) -> dict:
+        return self._read("network_ports")
 
     def vms(self) -> dict:
         return self._read("vms")
@@ -1130,6 +1170,7 @@ class AzureProvider(BaseProvider):
     def vms(self) -> dict:
         vm_assets: list[dict] = []
         issues: list[dict] = []
+        nic_cache: dict[str, dict] = {}
 
         try:
             for vm in self.clients.compute.virtual_machines.list_all():
@@ -1141,9 +1182,12 @@ class AzureProvider(BaseProvider):
                 private_ips: list[str] = []
                 public_ips: list[str] = []
                 for nic_id in nic_ids:
-                    nic_private, nic_public = self._resolve_nic_ips(nic_id)
-                    private_ips.extend(nic_private)
-                    public_ips.extend(nic_public)
+                    nic_detail, nic_issues = self._resolve_nic_detail(nic_id, nic_cache)
+                    issues.extend(nic_issues)
+                    if nic_detail is None:
+                        continue
+                    private_ips.extend(nic_detail.get("private_ips", []))
+                    public_ips.extend(self._resolve_public_ip_addresses(nic_detail))
 
                 identity_ids = []
                 vm_identity = getattr(vm, "identity", None)
@@ -1201,6 +1245,119 @@ class AzureProvider(BaseProvider):
 
         return {"vm_assets": vm_assets, "issues": issues}
 
+    def nics(self) -> dict:
+        nic_assets: list[dict] = []
+        issues: list[dict] = []
+
+        try:
+            for nic in self.clients.network.network_interfaces.list_all():
+                nic_assets.append(_nic_detail_from_resource(nic))
+        except Exception as exc:
+            issues.append(_issue_from_exception("nics", exc))
+
+        return {"nic_assets": nic_assets, "issues": issues}
+
+    def network_ports(self) -> dict:
+        endpoint_data = self.endpoints()
+        nic_data = self.nics()
+        issues = [*endpoint_data.get("issues", []), *nic_data.get("issues", [])]
+
+        nic_by_asset: dict[str, list[dict]] = {}
+        for nic in nic_data.get("nic_assets", []):
+            attached_asset_id = nic.get("attached_asset_id")
+            if attached_asset_id:
+                nic_by_asset.setdefault(str(attached_asset_id), []).append(nic)
+
+        subnet_cache: dict[str, str | None] = {}
+        nsg_cache: dict[str, list[dict]] = {}
+        network_ports: list[dict] = []
+        seen: set[tuple[str, str, str, str, str]] = set()
+
+        for endpoint in endpoint_data.get("endpoints", []):
+            if endpoint.get("endpoint_type") != "ip":
+                continue
+            if endpoint.get("exposure_family") != "public-ip":
+                continue
+
+            asset_nics = nic_by_asset.get(str(endpoint.get("source_asset_id") or ""), [])
+            for nic in asset_nics:
+                rows: list[dict] = []
+                visible_nsg = False
+
+                nic_nsg_id = nic.get("network_security_group_id")
+                if nic_nsg_id:
+                    visible_nsg = True
+                    rules, rule_issues = self._resolve_nsg_inbound_allow_rules(
+                        str(nic_nsg_id),
+                        nsg_cache,
+                    )
+                    issues.extend(rule_issues)
+                    rows.extend(
+                        _network_port_rows_from_rules(
+                            endpoint=endpoint,
+                            nic=nic,
+                            rules=rules,
+                            scope_type="nic",
+                            scope_id=str(nic_nsg_id),
+                        )
+                    )
+
+                for subnet_id in nic.get("subnet_ids", []):
+                    subnet_nsg_id, subnet_issues = self._resolve_subnet_nsg_id(
+                        str(subnet_id),
+                        subnet_cache,
+                    )
+                    issues.extend(subnet_issues)
+                    if not subnet_nsg_id:
+                        continue
+
+                    visible_nsg = True
+                    rules, rule_issues = self._resolve_nsg_inbound_allow_rules(
+                        subnet_nsg_id,
+                        nsg_cache,
+                    )
+                    issues.extend(rule_issues)
+                    rows.extend(
+                        _network_port_rows_from_rules(
+                            endpoint=endpoint,
+                            nic=nic,
+                            rules=rules,
+                            scope_type="subnet",
+                            scope_id=subnet_nsg_id,
+                        )
+                    )
+
+                # Azure frequently enforces ingress on the subnet instead of the NIC. Only emit the
+                # "no NSG visible" row when neither layer is visible from the current read path.
+                if not rows and not visible_nsg:
+                    rows.append(_network_port_row_without_nsg(endpoint=endpoint, nic=nic))
+
+                for row in rows:
+                    key = (
+                        row.get("asset_id") or "",
+                        row.get("endpoint") or "",
+                        row.get("protocol") or "",
+                        row.get("port") or "",
+                        row.get("allow_source_summary") or "",
+                    )
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    network_ports.append(row)
+
+        network_ports.sort(
+            key=lambda item: (
+                {"high": 0, "medium": 1, "low": 2}.get(
+                    str(item.get("exposure_confidence") or "").lower(),
+                    9,
+                ),
+                item.get("asset_name") or "",
+                item.get("endpoint") or "",
+                item.get("port") or "",
+            )
+        )
+        return {"network_ports": network_ports, "issues": issues}
+
     def _resolve_role_name(
         self,
         scope: str,
@@ -1243,32 +1400,90 @@ class AzureProvider(BaseProvider):
                 return 0
         return 0
 
-    def _resolve_nic_ips(self, nic_id: str) -> tuple[list[str], list[str]]:
+    def _resolve_nic_detail(
+        self,
+        nic_id: str,
+        cache: dict[str, dict],
+    ) -> tuple[dict | None, list[dict]]:
+        if nic_id in cache:
+            return cache[nic_id], []
+
         rg_name, nic_name = _resource_group_and_name(nic_id)
         if not rg_name or not nic_name:
-            return [], []
-
-        private_ips: list[str] = []
-        public_ips: list[str] = []
+            return None, []
 
         try:
             nic = self.clients.network.network_interfaces.get(rg_name, nic_name)
-            for cfg in getattr(nic, "ip_configurations", None) or []:
-                if getattr(cfg, "private_ip_address", None):
-                    private_ips.append(str(cfg.private_ip_address))
-                pub = getattr(cfg, "public_ip_address", None)
-                pub_id = getattr(pub, "id", None)
-                if pub_id:
-                    pub_rg, pub_name = _resource_group_and_name(pub_id)
-                    if pub_rg and pub_name:
-                        pip = self.clients.network.public_ip_addresses.get(pub_rg, pub_name)
-                        ip_addr = getattr(pip, "ip_address", None)
-                        if ip_addr:
-                            public_ips.append(str(ip_addr))
-        except Exception:
-            return private_ips, public_ips
+        except Exception as exc:
+            return None, [_issue_from_exception(f"network_interfaces[{nic_id}]", exc)]
 
-        return private_ips, public_ips
+        detail = _nic_detail_from_resource(nic)
+        cache[nic_id] = detail
+        return detail, []
+
+    def _resolve_public_ip_addresses(self, nic_detail: dict) -> list[str]:
+        public_ips: list[str] = []
+
+        for public_ip_id in nic_detail.get("public_ip_ids", []):
+            pub_rg, pub_name = _resource_group_and_name(public_ip_id)
+            if not pub_rg or not pub_name:
+                continue
+
+            try:
+                pip = self.clients.network.public_ip_addresses.get(pub_rg, pub_name)
+            except Exception:
+                continue
+
+            ip_addr = getattr(pip, "ip_address", None)
+            if ip_addr:
+                public_ips.append(str(ip_addr))
+
+        return _dedupe_strings(public_ips)
+
+    def _resolve_subnet_nsg_id(
+        self,
+        subnet_id: str,
+        cache: dict[str, str | None],
+    ) -> tuple[str | None, list[dict]]:
+        if subnet_id in cache:
+            return cache[subnet_id], []
+
+        rg_name, vnet_name, subnet_name = _subnet_components_from_id(subnet_id)
+        if not rg_name or not vnet_name or not subnet_name:
+            cache[subnet_id] = None
+            return None, []
+
+        try:
+            subnet = self.clients.network.subnets.get(rg_name, vnet_name, subnet_name)
+        except Exception as exc:
+            return None, [_issue_from_exception(f"subnets[{subnet_id}]", exc)]
+
+        network_security_group = getattr(subnet, "network_security_group", None)
+        nsg_id = str(getattr(network_security_group, "id", "") or "") or None
+        cache[subnet_id] = nsg_id
+        return nsg_id, []
+
+    def _resolve_nsg_inbound_allow_rules(
+        self,
+        nsg_id: str,
+        cache: dict[str, list[dict]],
+    ) -> tuple[list[dict], list[dict]]:
+        if nsg_id in cache:
+            return cache[nsg_id], []
+
+        rg_name, nsg_name = _resource_group_and_name(nsg_id)
+        if not rg_name or not nsg_name:
+            cache[nsg_id] = []
+            return [], []
+
+        try:
+            nsg = self.clients.network.network_security_groups.get(rg_name, nsg_name)
+        except Exception as exc:
+            return [], [_issue_from_exception(f"network_security_groups[{nsg_id}]", exc)]
+
+        rules = _inbound_allow_rules_from_nsg(nsg)
+        cache[nsg_id] = rules
+        return rules, []
 
 
 def get_provider(options: GlobalOptions) -> BaseProvider:
@@ -1530,6 +1745,42 @@ def _resource_group_and_name(resource_id: str) -> tuple[str | None, str | None]:
     return rg, name
 
 
+def _resource_name_from_id(resource_id: str | None) -> str | None:
+    if not resource_id:
+        return None
+    parts = [part for part in resource_id.split("/") if part]
+    if not parts:
+        return None
+    return parts[-1]
+
+
+def _subnet_components_from_id(subnet_id: str) -> tuple[str | None, str | None, str | None]:
+    parts = [part for part in subnet_id.split("/") if part]
+    lowered = [part.lower() for part in parts]
+
+    try:
+        rg_index = lowered.index("resourcegroups")
+        vnet_index = lowered.index("virtualnetworks")
+        subnet_index = lowered.index("subnets")
+    except ValueError:
+        return None, None, None
+
+    try:
+        return parts[rg_index + 1], parts[vnet_index + 1], parts[subnet_index + 1]
+    except IndexError:
+        return None, None, None
+
+
+def _vnet_id_from_subnet_id(subnet_id: str) -> str | None:
+    parts = [part for part in subnet_id.split("/") if part]
+    lowered = [part.lower() for part in parts]
+    try:
+        subnet_index = lowered.index("subnets")
+    except ValueError:
+        return None
+    return "/" + "/".join(parts[:subnet_index])
+
+
 def _string_value(value: object) -> str | None:
     if value is None:
         return None
@@ -1614,7 +1865,11 @@ def _resource_trusts_from_keyvault(key_vaults: list[dict]) -> list[dict]:
         public_network_access = (vault.get("public_network_access") or "").lower()
         network_default_action = (vault.get("network_default_action") or "").lower()
         if public_network_access == "enabled":
-            exposure = "high" if network_default_action == "allow" else "medium"
+            exposure = (
+                "high"
+                if network_default_action == "allow" or not network_default_action
+                else "medium"
+            )
             trusts.append(
                 {
                     "resource_id": resource_id,
@@ -1750,6 +2005,7 @@ def _web_workload_summary(app: object, *, asset_kind: str) -> dict:
             str(identity_id)
             for identity_id in (getattr(identity, "user_assigned_identities", None) or {}).keys()
         ),
+        "default_hostname": _string_value(getattr(app, "default_host_name", None)),
     }
 
 
@@ -1882,6 +2138,81 @@ def _token_credential_surfaces_from_web_workloads(workloads: list[dict]) -> list
         )
 
     return surfaces
+
+
+def _endpoints_from_vms(vm_assets: list[dict]) -> list[dict]:
+    endpoints: list[dict] = []
+
+    for item in vm_assets:
+        asset_id = item.get("id")
+        asset_name = item.get("name") or asset_id or "unknown"
+
+        for public_ip in [str(value) for value in item.get("public_ips", []) if value]:
+            endpoints.append(
+                {
+                    "endpoint": public_ip,
+                    "endpoint_type": "ip",
+                    "source_asset_id": asset_id or f"/unknown/{asset_name}",
+                    "source_asset_name": asset_name,
+                    "source_asset_kind": str(item.get("vm_type") or "vm").upper(),
+                    "exposure_family": "public-ip",
+                    "ingress_path": "direct-vm-ip",
+                    "summary": (
+                        f"{str(item.get('vm_type') or 'vm').upper()} '{asset_name}' exposes "
+                        f"public IP {public_ip}. Review direct ingress path alongside NIC and "
+                        "NSG context."
+                    ),
+                    "related_ids": _dedupe_strings(
+                        [asset_id, *item.get("nic_ids", []), *item.get("identity_ids", [])]
+                    ),
+                }
+            )
+
+    return endpoints
+
+
+def _endpoints_from_web_workloads(workloads: list[dict]) -> list[dict]:
+    endpoints: list[dict] = []
+
+    for item in workloads:
+        default_hostname = str(item.get("default_hostname") or "")
+        if not default_hostname:
+            continue
+
+        asset_id = item.get("asset_id")
+        asset_name = item.get("asset_name") or asset_id or "unknown"
+        asset_kind = item.get("asset_kind") or "WebWorkload"
+        ingress_path = (
+            "azure-functions-default-hostname"
+            if asset_kind == "FunctionApp"
+            else "azurewebsites-default-hostname"
+        )
+
+        endpoints.append(
+            {
+                "endpoint": default_hostname,
+                "endpoint_type": "hostname",
+                "source_asset_id": asset_id or f"/unknown/{asset_name}",
+                "source_asset_name": asset_name,
+                "source_asset_kind": asset_kind,
+                "exposure_family": "managed-web-hostname",
+                "ingress_path": ingress_path,
+                "summary": (
+                    f"{asset_kind} '{asset_name}' publishes Azure-managed hostname "
+                    f"'{default_hostname}'. Validate whether that ingress path is intended and "
+                    "how it is constrained."
+                ),
+                "related_ids": _dedupe_strings(
+                    [
+                        asset_id,
+                        item.get("workload_principal_id"),
+                        *item.get("workload_identity_ids", []),
+                    ]
+                ),
+            }
+        )
+
+    return endpoints
 
 
 def _tokens_credentials_surfaces_from_env_vars(env_vars: list[dict]) -> list[dict]:
@@ -2102,6 +2433,217 @@ def _dedupe_strings(values: list[object]) -> list[str]:
         if text and text not in items:
             items.append(text)
     return items
+
+
+def _nic_detail_from_resource(nic: object) -> dict:
+    nic_id = str(getattr(nic, "id", "") or "")
+    ip_configurations = getattr(nic, "ip_configurations", None) or []
+    virtual_machine = getattr(nic, "virtual_machine", None)
+    network_security_group = getattr(nic, "network_security_group", None)
+
+    private_ips: list[str] = []
+    public_ip_ids: list[str] = []
+    subnet_ids: list[str] = []
+    vnet_ids: list[str] = []
+
+    for config in ip_configurations:
+        private_ip = getattr(config, "private_ip_address", None)
+        if private_ip:
+            private_ips.append(str(private_ip))
+
+        public_ip = getattr(config, "public_ip_address", None)
+        public_ip_id = getattr(public_ip, "id", None)
+        if public_ip_id:
+            public_ip_ids.append(str(public_ip_id))
+
+        subnet = getattr(config, "subnet", None)
+        subnet_id = getattr(subnet, "id", None)
+        if subnet_id:
+            subnet_ids.append(str(subnet_id))
+            vnet_id = _vnet_id_from_subnet_id(str(subnet_id))
+            if vnet_id:
+                vnet_ids.append(vnet_id)
+
+    attached_asset_id = str(getattr(virtual_machine, "id", "") or "") or None
+
+    return {
+        "id": nic_id or f"/unknown/{getattr(nic, 'name', 'nic')}",
+        "name": getattr(nic, "name", "unknown"),
+        "attached_asset_id": attached_asset_id,
+        "attached_asset_name": (
+            _resource_name_from_id(attached_asset_id) if attached_asset_id else None
+        ),
+        "private_ips": _dedupe_strings(private_ips),
+        "public_ip_ids": _dedupe_strings(public_ip_ids),
+        "subnet_ids": _dedupe_strings(subnet_ids),
+        "vnet_ids": _dedupe_strings(vnet_ids),
+        "network_security_group_id": (
+            str(getattr(network_security_group, "id", "") or "") or None
+        ),
+    }
+
+
+def _inbound_allow_rules_from_nsg(nsg: object) -> list[dict]:
+    rules: list[dict] = []
+
+    for rule in getattr(nsg, "security_rules", None) or []:
+        access = str(_string_value(getattr(rule, "access", None)) or "").lower()
+        direction = str(_string_value(getattr(rule, "direction", None)) or "").lower()
+        if access != "allow" or direction != "inbound":
+            continue
+
+        rules.append(
+            {
+                "name": str(getattr(rule, "name", "allow-rule") or "allow-rule"),
+                "protocol": _normalized_network_protocol(getattr(rule, "protocol", None)),
+                "ports": _normalized_destination_ports(rule),
+                "sources": _normalized_rule_sources(rule),
+            }
+        )
+
+    return rules
+
+
+def _normalized_network_protocol(value: object) -> str:
+    text = str(_string_value(value) or "").strip()
+    if not text or text == "*":
+        return "Any"
+    return text.upper()
+
+
+def _normalized_destination_ports(rule: object) -> list[str]:
+    destination_port_range = getattr(rule, "destination_port_range", None)
+    ports = [
+        *[str(item) for item in (getattr(rule, "destination_port_ranges", None) or []) if item],
+        *([str(destination_port_range)] if destination_port_range else []),
+    ]
+    if not ports:
+        return ["any"]
+    return _dedupe_strings(["any" if port == "*" else port for port in ports])
+
+
+def _normalized_rule_sources(rule: object) -> list[str]:
+    source_address_prefix = getattr(rule, "source_address_prefix", None)
+    sources = [
+        *[str(item) for item in (getattr(rule, "source_address_prefixes", None) or []) if item],
+        *([str(source_address_prefix)] if source_address_prefix else []),
+    ]
+    if not sources:
+        return ["Any"]
+    return _dedupe_strings(["Any" if source == "*" else source for source in sources])
+
+
+def _network_port_rows_from_rules(
+    *,
+    endpoint: dict,
+    nic: dict,
+    rules: list[dict],
+    scope_type: str,
+    scope_id: str,
+) -> list[dict]:
+    rows: list[dict] = []
+
+    for rule in rules:
+        source_summary = _network_rule_source_summary(rule.get("sources", []))
+        confidence = _network_port_confidence(rule.get("sources", []))
+        scope_label = _network_scope_label(scope_type, scope_id, rule.get("name"))
+        protocol = str(rule.get("protocol") or "Any")
+
+        for port in rule.get("ports", []):
+            asset_name = (
+                endpoint.get("source_asset_name")
+                or nic.get("attached_asset_name")
+                or nic.get("name")
+                or "unknown"
+            )
+            rows.append(
+                {
+                    "asset_id": endpoint.get("source_asset_id")
+                    or nic.get("attached_asset_id")
+                    or nic.get("id"),
+                    "asset_name": asset_name,
+                    "endpoint": endpoint.get("endpoint") or "unknown",
+                    "protocol": protocol,
+                    "port": str(port),
+                    "allow_source_summary": f"{source_summary} via {scope_label}",
+                    "exposure_confidence": confidence,
+                    "summary": (
+                        f"Asset '{asset_name}' has inbound {protocol} {port} allow evidence for "
+                        f"endpoint {endpoint.get('endpoint') or 'unknown'} from {source_summary} "
+                        f"via {scope_label}."
+                    ),
+                    "related_ids": _dedupe_strings(
+                        [
+                            endpoint.get("source_asset_id"),
+                            nic.get("id"),
+                            scope_id,
+                            *endpoint.get("related_ids", []),
+                        ]
+                    ),
+                }
+            )
+
+    return rows
+
+
+def _network_port_row_without_nsg(*, endpoint: dict, nic: dict) -> dict:
+    asset_name = (
+        endpoint.get("source_asset_name")
+        or nic.get("attached_asset_name")
+        or nic.get("name")
+        or "unknown"
+    )
+    return {
+        "asset_id": (
+            endpoint.get("source_asset_id") or nic.get("attached_asset_id") or nic.get("id")
+        ),
+        "asset_name": asset_name,
+        "endpoint": endpoint.get("endpoint") or "unknown",
+        "protocol": "any",
+        "port": "any",
+        "allow_source_summary": "no Azure NSG visible on NIC or subnet",
+        "exposure_confidence": "low",
+        "summary": (
+            f"Asset '{asset_name}' exposes endpoint {endpoint.get('endpoint') or 'unknown'} with "
+            "no NIC or subnet NSG visible from the current Azure read path. Azure network port "
+            "restrictions are not evident here, but guest or service controls may still apply."
+        ),
+        "related_ids": _dedupe_strings(
+            [endpoint.get("source_asset_id"), nic.get("id"), *endpoint.get("related_ids", [])]
+        ),
+    }
+
+
+def _network_rule_source_summary(sources: list[object]) -> str:
+    values = _dedupe_strings(list(sources))
+    if not values:
+        return "unknown sources"
+    return ", ".join(values)
+
+
+def _network_port_confidence(sources: list[object]) -> str:
+    values = [str(source).strip() for source in sources if str(source or "").strip()]
+    lowered = [value.lower() for value in values]
+
+    if any(value in {"any", "internet", "0.0.0.0/0", "::/0"} for value in lowered):
+        return "high"
+    if any(value == "azureloadbalancer" for value in lowered):
+        return "medium"
+    if any(not is_private_network_prefix(value) and "/" in value for value in values):
+        return "medium"
+    if any(value == "virtualnetwork" for value in lowered):
+        return "low"
+    if any(is_private_network_prefix(value) for value in values):
+        return "low"
+    return "medium"
+
+
+def _network_scope_label(scope_type: str, scope_id: str, rule_name: object) -> str:
+    scope_name = _resource_name_from_id(scope_id) or scope_id or "unknown"
+    resource_group = _resource_group_from_id(scope_id)
+    label = "nic-nsg" if scope_type == "nic" else "subnet-nsg"
+    scope_ref = f"{resource_group}/{scope_name}" if resource_group else scope_name
+    return f"{label}:{scope_ref}/{str(rule_name or 'allow-rule')}"
 
 
 def _compact_link(value: object) -> str:

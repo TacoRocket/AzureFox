@@ -9,10 +9,13 @@ from azurefox.models.common import (
     AuthPolicySummary,
     CollectionIssue,
     CommandMetadata,
+    EndpointSummary,
     EnvVarSummary,
     Finding,
     KeyVaultAsset,
     ManagedIdentity,
+    NetworkPortSummary,
+    NicAsset,
     PermissionSummary,
     Principal,
     PrincipalSummary,
@@ -105,6 +108,20 @@ class EnvVarsOutput(BaseModel):
     issues: list[CollectionIssue] = Field(default_factory=list)
 
 
+class EndpointsOutput(BaseModel):
+    metadata: CommandMetadata
+    endpoints: list[EndpointSummary] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class NetworkPortsOutput(BaseModel):
+    metadata: CommandMetadata
+    network_ports: list[NetworkPortSummary] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
 class TokensCredentialsOutput(BaseModel):
     metadata: CommandMetadata
     surfaces: list[TokenCredentialSurfaceSummary] = Field(default_factory=list)
@@ -137,6 +154,13 @@ class KeyVaultOutput(BaseModel):
 class StorageOutput(BaseModel):
     metadata: CommandMetadata
     storage_assets: list[StorageAsset] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class NicsOutput(BaseModel):
+    metadata: CommandMetadata
+    nic_assets: list[NicAsset] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 

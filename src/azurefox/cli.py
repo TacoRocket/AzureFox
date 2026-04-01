@@ -126,6 +126,21 @@ def storage(ctx: typer.Context) -> None:
     _run_single(ctx, "storage")
 
 
+@app.command("nics")
+def nics(ctx: typer.Context) -> None:
+    _run_single(ctx, "nics")
+
+
+@app.command("endpoints")
+def endpoints(ctx: typer.Context) -> None:
+    _run_single(ctx, "endpoints")
+
+
+@app.command("network-ports")
+def network_ports(ctx: typer.Context) -> None:
+    _run_single(ctx, "network-ports")
+
+
 @app.command("vms")
 def vms(ctx: typer.Context) -> None:
     _run_single(ctx, "vms")

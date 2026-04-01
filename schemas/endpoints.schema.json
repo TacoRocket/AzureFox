@@ -1,0 +1,9 @@
+{
+  "model": "EndpointsOutput",
+  "top_level_fields": [
+    "metadata",
+    "endpoints",
+    "findings",
+    "issues"
+  ]
+}

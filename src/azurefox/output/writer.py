@@ -88,7 +88,9 @@ def _to_csv(command: str, payload: dict) -> str:
         "whoami": None,
         "inventory": None,
         "arm-deployments": "deployments",
+        "endpoints": "endpoints",
         "env-vars": "env_vars",
+        "network-ports": "network_ports",
         "tokens-credentials": "surfaces",
         "rbac": "role_assignments",
         "principals": "principals",
@@ -100,6 +102,7 @@ def _to_csv(command: str, payload: dict) -> str:
         "managed-identities": "identities",
         "keyvault": "key_vaults",
         "storage": "storage_assets",
+        "nics": "nic_assets",
         "vms": "vm_assets",
     }
 

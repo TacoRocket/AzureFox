@@ -124,6 +124,54 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "endpoints":
+        return (
+            [
+                ("endpoint", "endpoint"),
+                ("source_asset_name", "asset"),
+                ("source_asset_kind", "kind"),
+                ("exposure_family", "family"),
+                ("ingress_path", "ingress"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "endpoint": item.get("endpoint"),
+                    "source_asset_name": item.get("source_asset_name"),
+                    "source_asset_kind": item.get("source_asset_kind"),
+                    "exposure_family": item.get("exposure_family"),
+                    "ingress_path": item.get("ingress_path"),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("endpoints", [])
+            ],
+        )
+
+    if command == "network-ports":
+        return (
+            [
+                ("asset_name", "asset"),
+                ("endpoint", "endpoint"),
+                ("protocol", "protocol"),
+                ("port", "port"),
+                ("allow_source_summary", "allow source"),
+                ("exposure_confidence", "confidence"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "asset_name": item.get("asset_name"),
+                    "endpoint": item.get("endpoint"),
+                    "protocol": item.get("protocol"),
+                    "port": item.get("port"),
+                    "allow_source_summary": item.get("allow_source_summary"),
+                    "exposure_confidence": item.get("exposure_confidence"),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("network_ports", [])
+            ],
+        )
+
     if command == "env-vars":
         return (
             [
@@ -335,7 +383,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     "name": item.get("name"),
                     "resource_group": item.get("resource_group"),
                     "public_network_access": item.get("public_network_access"),
-                    "network_default_action": item.get("network_default_action"),
+                    "network_default_action": _keyvault_default_action_text(item),
                     "private_endpoint_enabled": _bool_text(
                         item.get("private_endpoint_enabled", False)
                     ),
@@ -372,6 +420,31 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     "container_count": item.get("container_count", 0),
                 }
                 for item in payload.get("storage_assets", [])
+            ],
+        )
+
+    if command == "nics":
+        return (
+            [
+                ("name", "nic"),
+                ("attached_asset", "attached asset"),
+                ("private_ips", "private ips"),
+                ("public_ip_refs", "public ip refs"),
+                ("subnet_vnet", "subnet / vnet"),
+                ("network_security_group", "nsg"),
+            ],
+            [
+                {
+                    "name": item.get("name"),
+                    "attached_asset": _display_resource_name(item.get("attached_asset_id")),
+                    "private_ips": item.get("private_ips"),
+                    "public_ip_refs": _display_resource_refs(item.get("public_ip_ids")),
+                    "subnet_vnet": _network_scope_summary(item),
+                    "network_security_group": _display_resource_name(
+                        item.get("network_security_group_id")
+                    ),
+                }
+                for item in payload.get("nic_assets", [])
             ],
         )
 
@@ -434,7 +507,10 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         trusts = payload.get("trusts", [])
         families = Counter(item.get("trust_type") or "unknown" for item in trusts)
         counts = ", ".join(f"{count} {name}" for name, count in sorted(families.items()))
-        return f"{len(trusts)} trust edges surfaced; {counts or 'no trust edges visible'}."
+        return (
+            f"{len(trusts)} trust edges surfaced; {counts or 'no trust edges visible'}. "
+            "Delegated and admin consent grants are out of scope for this command."
+        )
 
     if command == "resource-trusts":
         resource_trusts = payload.get("resource_trusts", [])
@@ -480,6 +556,15 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             f"{len(findings)} exposure or recovery findings."
         )
 
+    if command == "nics":
+        nic_assets = payload.get("nic_assets", [])
+        attached = sum(bool(item.get("attached_asset_id")) for item in nic_assets)
+        public_refs = sum(len(item.get("public_ip_ids", [])) for item in nic_assets)
+        return (
+            f"{len(nic_assets)} NICs visible; {attached} attached to visible assets and "
+            f"{public_refs} reference public IP resources."
+        )
+
     if command == "vms":
         vm_assets = payload.get("vm_assets", [])
         public_assets = sum(1 for item in vm_assets if item.get("public_ips"))
@@ -498,6 +583,31 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         return (
             f"{len(deployments)} deployments visible; {subscription_scope} at subscription "
             f"scope and {len(findings)} findings."
+        )
+
+    if command == "endpoints":
+        endpoints = payload.get("endpoints", [])
+        families = Counter(item.get("exposure_family") or "unknown" for item in endpoints)
+        family_order = {"public-ip": 0, "managed-web-hostname": 1}
+        counts = ", ".join(
+            f"{count} {name}"
+            for name, count in sorted(
+                families.items(),
+                key=lambda item: (family_order.get(item[0], 9), item[0]),
+            )
+        )
+        return (
+            f"{len(endpoints)} reachable surfaces visible; "
+            f"{counts or 'no reachable surfaces visible'}."
+        )
+
+    if command == "network-ports":
+        network_ports = payload.get("network_ports", [])
+        confidence = Counter(item.get("exposure_confidence") or "unknown" for item in network_ports)
+        counts = ", ".join(f"{count} {name}" for name, count in sorted(confidence.items()))
+        return (
+            f"{len(network_ports)} port exposure rows visible; "
+            f"{counts or 'no port exposure rows visible'}."
         )
 
     if command == "env-vars":
@@ -613,6 +723,43 @@ def _display_reference_identity(value: object) -> str:
     if parts:
         return f"kv-ref={parts[-1]}"
     return f"kv-ref={text}"
+
+
+def _display_resource_name(value: object) -> str:
+    text = str(value or "")
+    if not text:
+        return "-"
+    parts = [part for part in text.split("/") if part]
+    return parts[-1] if parts else text
+
+
+def _display_resource_refs(values: object) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    return [_display_resource_name(value) for value in values if value]
+
+
+def _network_scope_summary(item: dict) -> str:
+    subnet_names = _display_resource_refs(item.get("subnet_ids"))
+    vnet_names = _display_resource_refs(item.get("vnet_ids"))
+
+    parts: list[str] = []
+    if subnet_names:
+        parts.append(f"subnet={','.join(subnet_names)}")
+    if vnet_names:
+        parts.append(f"vnet={','.join(vnet_names)}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _keyvault_default_action_text(item: dict) -> str | None:
+    value = item.get("network_default_action")
+    if value:
+        return str(value)
+    if str(item.get("public_network_access") or "").lower() == "enabled":
+        return "implicit allow (ACL omitted)"
+    return None
 
 
 def _bool_text(value: bool) -> str:

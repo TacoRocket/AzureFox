@@ -4,8 +4,10 @@ from azurefox.models.common import (
     SCHEMA_VERSION,
     ArmDeploymentSummary,
     AuthPolicySummary,
+    EndpointSummary,
     EnvVarSummary,
     ManagedIdentity,
+    NetworkPortSummary,
     PermissionSummary,
     PrincipalSummary,
     PrivescPathSummary,
@@ -13,6 +15,7 @@ from azurefox.models.common import (
     RoleTrustSummary,
     StorageAsset,
     VmAsset,
+    WebWorkloadSummary,
 )
 
 
@@ -48,6 +51,34 @@ def test_env_var_summary_defaults() -> None:
     assert env_var.looks_sensitive is False
     assert env_var.reference_target is None
     assert env_var.related_ids == []
+
+
+def test_endpoint_summary_defaults() -> None:
+    endpoint = EndpointSummary(
+        endpoint="1.2.3.4",
+        endpoint_type="ip",
+        source_asset_id="vm-1",
+        source_asset_name="vm01",
+        source_asset_kind="VM",
+        exposure_family="public-ip",
+        ingress_path="direct-vm-ip",
+        summary="test",
+    )
+    assert endpoint.related_ids == []
+
+
+def test_network_port_summary_defaults() -> None:
+    network_port = NetworkPortSummary(
+        asset_id="vm-1",
+        asset_name="vm01",
+        endpoint="1.2.3.4",
+        protocol="TCP",
+        port="22",
+        allow_source_summary="Any via nic-nsg:nsg01/allow-ssh",
+        exposure_confidence="high",
+        summary="test",
+    )
+    assert network_port.related_ids == []
 
 
 def test_managed_identity_defaults() -> None:
@@ -135,3 +166,13 @@ def test_vm_asset_defaults() -> None:
     vm = VmAsset(id="v-1", name="vm01")
     assert vm.private_ips == []
     assert vm.public_ips == []
+
+
+def test_web_workload_summary_defaults() -> None:
+    workload = WebWorkloadSummary(
+        asset_id="app-1",
+        asset_name="app01",
+        asset_kind="AppService",
+    )
+    assert workload.workload_identity_ids == []
+    assert workload.default_hostname is None

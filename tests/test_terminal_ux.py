@@ -25,11 +25,13 @@ def test_role_trusts_table_mode_includes_narration_and_takeaway(tmp_path: Path) 
 
     assert result.exit_code == 0
     assert (
-        "Reviewing high-signal identity trust edges worth operator attention first."
+        "Reviewing high-signal identity trust edges without implying delegated or admin consent."
         in result.stdout
     )
     assert "why it matters" in result.stdout
     assert "Takeaway: 4 trust edges surfaced" in result.stdout
+    assert "Delegated and admin consent grants" in result.stdout
+    assert "out of scope for this command." in result.stdout
 
 
 def test_auth_policies_table_mode_surfaces_findings_and_issues(tmp_path: Path) -> None:
@@ -40,9 +42,42 @@ def test_auth_policies_table_mode_surfaces_findings_and_issues(tmp_path: Path) -
     )
 
     assert result.exit_code == 0
+    assert "current read path" in result.stdout
     assert "Findings:" in result.stdout
     assert "Security defaults are disabled" in result.stdout
     assert "Takeaway: 4 policy rows, 5 findings, and 0 collection issues" in result.stdout
+
+
+def test_keyvault_table_mode_labels_implicit_open_acl(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "keyvault"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert "implicit allow (ACL omitted)" in result.stdout
+
+
+def test_nics_table_mode_surfaces_network_context(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "nics"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Enumerating NIC attachments, IP context, and network boundary references."
+        in result.stdout
+    )
+    assert "public ip refs" in result.stdout
+    assert "subnet=vnet-app" in result.stdout
+    assert "nsg-web" in result.stdout
+    assert (
+        "Takeaway: 2 NICs visible; 1 attached to visible assets and 1 reference public IP "
+        "resources." in result.stdout
+    )
 
 
 def test_privesc_table_mode_surfaces_takeaway(tmp_path: Path) -> None:
@@ -87,6 +122,46 @@ def test_arm_deployments_table_mode_surfaces_scope_and_linked_refs(tmp_path: Pat
         "Takeaway: 3 deployments visible; 1 at subscription scope and 5 findings."
         in result.stdout
     )
+
+
+def test_endpoints_table_mode_surfaces_reachability_context(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "endpoints"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Mapping reachable IP and hostname surfaces from compute and web workloads."
+        in result.stdout
+    )
+    assert "family" in result.stdout
+    assert "direct-vm-ip" in result.stdout
+    assert "app-public-api.azurewebsites.net" in result.stdout
+    assert (
+        "Takeaway: 4 reachable surfaces visible; 1 public-ip, 3 managed-web-hostname."
+        in result.stdout
+    )
+
+
+def test_network_ports_table_mode_surfaces_allow_context(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "network-ports"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Tracing likely inbound port exposure from visible NIC and subnet NSG rules."
+        in result.stdout
+    )
+    assert "allow source" in result.stdout
+    assert "nic-nsg:rg-workload/nsg-web/allow-ssh-internet" in result.stdout
+    assert "AzureLoadBalancer via" in result.stdout
+    assert "subnet-nsg:rg-workload/nsg-vnet-app" in result.stdout
+    assert "Takeaway: 3 port exposure rows visible; 1 high, 1 low, 1 medium." in result.stdout
 
 
 def test_env_vars_table_mode_surfaces_findings_and_takeaway(tmp_path: Path) -> None:
