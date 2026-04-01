@@ -1,0 +1,53 @@
+{
+  "network_ports": [
+    {
+      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+      "asset_name": "vm-web-01",
+      "endpoint": "52.160.10.20",
+      "protocol": "TCP",
+      "port": "22",
+      "allow_source_summary": "Any via nic-nsg:rg-workload/nsg-web/allow-ssh-internet",
+      "exposure_confidence": "high",
+      "summary": "Asset 'vm-web-01' has inbound TCP 22 allow evidence for endpoint 52.160.10.20 from Any via nic-nsg:rg-workload/nsg-web/allow-ssh-internet.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Network/networkInterfaces/nic-web-01",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Network/networkSecurityGroups/nsg-web",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-app"
+      ]
+    },
+    {
+      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+      "asset_name": "vm-web-01",
+      "endpoint": "52.160.10.20",
+      "protocol": "TCP",
+      "port": "443",
+      "allow_source_summary": "AzureLoadBalancer via subnet-nsg:rg-workload/nsg-vnet-app/allow-https-lb",
+      "exposure_confidence": "medium",
+      "summary": "Asset 'vm-web-01' has inbound TCP 443 allow evidence for endpoint 52.160.10.20 from AzureLoadBalancer via subnet-nsg:rg-workload/nsg-vnet-app/allow-https-lb.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Network/networkInterfaces/nic-web-01",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Network/networkSecurityGroups/nsg-vnet-app",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-app"
+      ]
+    },
+    {
+      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+      "asset_name": "vm-web-01",
+      "endpoint": "52.160.10.20",
+      "protocol": "TCP",
+      "port": "8080",
+      "allow_source_summary": "10.20.0.0/16 via subnet-nsg:rg-workload/nsg-vnet-app/allow-app-private",
+      "exposure_confidence": "low",
+      "summary": "Asset 'vm-web-01' has inbound TCP 8080 allow evidence for endpoint 52.160.10.20 from 10.20.0.0/16 via subnet-nsg:rg-workload/nsg-vnet-app/allow-app-private.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Network/networkInterfaces/nic-web-01",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Network/networkSecurityGroups/nsg-vnet-app",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-app"
+      ]
+    }
+  ],
+  "issues": []
+}

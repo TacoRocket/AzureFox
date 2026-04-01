@@ -92,6 +92,59 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox arm-deployments --output table",
     ),
+    "endpoints": CommandHelpTopic(
+        name="endpoints",
+        section="network",
+        summary="Correlate public IPs and Azure-managed hostnames into an operator-first reachability view.",
+        offensive_question=(
+            "Which IPs or hostnames can I likely touch first, and which assets do those ingress "
+            "paths belong to?"
+        ),
+        cloudfox_frame=(
+            "Azure-native reachable-surface census that joins VM public IPs with Azure-managed "
+            "web workload hostnames before deeper port or service analysis."
+        ),
+        output_highlights=(
+            "endpoint",
+            "source_asset_name",
+            "exposure_family",
+            "ingress_path",
+            "summary",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Network Service Discovery"),
+            AttackLead("Initial Access", "Exploit Public-Facing Application"),
+            AttackLead("Lateral Movement", "Remote Services: Direct Cloud VM Connections"),
+        ),
+        example="azurefox endpoints --output table",
+    ),
+    "network-ports": CommandHelpTopic(
+        name="network-ports",
+        section="network",
+        summary="Summarize likely inbound port exposure for NIC-backed public endpoints.",
+        offensive_question=(
+            "Which visible public endpoints also have NSG evidence that suggests inbound port "
+            "reachability, and where does that allow appear to come from?"
+        ),
+        cloudfox_frame=(
+            "Azure-native ingress triage that joins public endpoint evidence with visible NIC "
+            "and subnet NSG allow rules, without claiming full effective reachability proof."
+        ),
+        output_highlights=(
+            "asset_name",
+            "endpoint",
+            "protocol",
+            "port",
+            "allow_source_summary",
+            "exposure_confidence",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Network Service Discovery"),
+            AttackLead("Initial Access", "Exploit Public-Facing Application"),
+            AttackLead("Lateral Movement", "Remote Services: Direct Cloud VM Connections"),
+        ),
+        example="azurefox network-ports --output table",
+    ),
     "env-vars": CommandHelpTopic(
         name="env-vars",
         section="config",
@@ -265,7 +318,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         cloudfox_frame=(
             "Azure-native analogue to trust-relationship triage, centered on app "
             "registrations, service principals, federated credentials, ownership, and "
-            "app-role assignment metadata."
+            "app-role assignment metadata rather than delegated or admin consent grants."
         ),
         output_highlights=(
             "trust_type",
@@ -294,7 +347,8 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         cloudfox_frame=(
             "Azure-native auth-control triage for tenant-wide identity policy surfaces "
-            "such as security defaults, authorization policy, and Conditional Access."
+            "such as security defaults, authorization policy, and Conditional Access, with "
+            "partial-read gaps kept explicit."
         ),
         output_highlights=(
             "policy_type",
@@ -302,6 +356,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "controls",
             "summary",
             "findings",
+            "issues",
         ),
         attack_leads=(
             AttackLead("Defense Evasion", "Modify Authentication Process"),
@@ -414,6 +469,32 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             AttackLead("Collection", "Data from Cloud Storage"),
         ),
         example="azurefox storage --output table",
+    ),
+    "nics": CommandHelpTopic(
+        name="nics",
+        section="network",
+        summary="Enumerate NICs with attachment, IP, subnet, and NSG context.",
+        offensive_question=(
+            "Which NICs anchor workload network placement, public IP references, and basic "
+            "security-boundary context worth operator review first?"
+        ),
+        cloudfox_frame=(
+            "Azure-native network-interface census that stays close to workload attachment and "
+            "reachability context before deeper endpoint or port analysis."
+        ),
+        output_highlights=(
+            "attached_asset_name",
+            "private_ips",
+            "public_ip_ids",
+            "subnet_ids",
+            "network_security_group_id",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Network Service Discovery"),
+            AttackLead("Discovery", "Cloud Infrastructure Discovery"),
+            AttackLead("Lateral Movement", "Remote Services: Direct Cloud VM Connections"),
+        ),
+        example="azurefox nics --output table",
     ),
     "vms": CommandHelpTopic(
         name="vms",
@@ -551,12 +632,15 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
     ),
     "network": SectionHelpTopic(
         name="network",
-        summary="Reserved for future network-centric AzureFox coverage.",
+        summary="Network attachment, placement, and exposure context for Azure workloads.",
         operator_goal=(
-            "Support ingress, pathing, and service exposure analysis as "
-            "the network slice lands."
+            "Find the interfaces, placements, and boundary references that shape ingress and "
+            "lateral movement follow-up."
         ),
-        attack_lenses=(AttackLead("Discovery", "Network Service Discovery"),),
+        attack_lenses=(
+            AttackLead("Discovery", "Network Service Discovery"),
+            AttackLead("Lateral Movement", "Remote Services: Direct Cloud VM Connections"),
+        ),
     ),
     "azure-only": SectionHelpTopic(
         name="azure-only",

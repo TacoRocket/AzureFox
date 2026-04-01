@@ -15,10 +15,13 @@ from azurefox.correlation.findings import (
 from azurefox.models.commands import (
     ArmDeploymentsOutput,
     AuthPoliciesOutput,
+    EndpointsOutput,
     EnvVarsOutput,
     InventoryOutput,
     KeyVaultOutput,
     ManagedIdentitiesOutput,
+    NicsOutput,
+    NetworkPortsOutput,
     PermissionsOutput,
     PrincipalsOutput,
     PrivescOutput,
@@ -95,6 +98,30 @@ def collect_env_vars(provider: BaseProvider, options: GlobalOptions) -> EnvVarsO
             **data,
             "env_vars": env_vars,
             "findings": findings,
+        }
+    )
+
+
+def collect_endpoints(provider: BaseProvider, options: GlobalOptions) -> EndpointsOutput:
+    data = provider.endpoints()
+    return EndpointsOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "endpoints", options),
+            "findings": [],
+            **data,
+        }
+    )
+
+
+def collect_network_ports(
+    provider: BaseProvider, options: GlobalOptions
+) -> NetworkPortsOutput:
+    data = provider.network_ports()
+    return NetworkPortsOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "network-ports", options),
+            "findings": [],
+            **data,
         }
     )
 
@@ -209,6 +236,26 @@ def collect_storage(provider: BaseProvider, options: GlobalOptions) -> StorageOu
     findings = build_storage_findings(data.get("storage_assets", []))
     return StorageOutput.model_validate(
         {"metadata": _metadata(provider, "storage", options), "findings": findings, **data}
+    )
+
+
+def collect_nics(provider: BaseProvider, options: GlobalOptions) -> NicsOutput:
+    data = provider.nics()
+    nic_assets = sorted(
+        data.get("nic_assets", []),
+        key=lambda item: (
+            item.get("attached_asset_name") is None,
+            item.get("attached_asset_name") or "",
+            item.get("name") or "",
+        ),
+    )
+    return NicsOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "nics", options),
+            "findings": [],
+            **data,
+            "nic_assets": nic_assets,
+        }
     )
 
 

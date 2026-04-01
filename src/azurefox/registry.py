@@ -6,10 +6,13 @@ from dataclasses import dataclass
 from azurefox.collectors.commands import (
     collect_arm_deployments,
     collect_auth_policies,
+    collect_endpoints,
     collect_env_vars,
     collect_inventory,
     collect_keyvault,
     collect_managed_identities,
+    collect_nics,
+    collect_network_ports,
     collect_permissions,
     collect_principals,
     collect_privesc,
@@ -50,6 +53,9 @@ COMMAND_SPECS: tuple[CommandSpec, ...] = (
     CommandSpec("keyvault", "secrets", collect_keyvault),
     CommandSpec("resource-trusts", "resource", collect_resource_trusts),
     CommandSpec("storage", "storage", collect_storage),
+    CommandSpec("nics", "network", collect_nics),
+    CommandSpec("endpoints", "network", collect_endpoints),
+    CommandSpec("network-ports", "network", collect_network_ports),
     CommandSpec("vms", "compute", collect_vms),
 )
 

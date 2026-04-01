@@ -11,7 +11,9 @@ COMMAND_NARRATION = {
     "whoami": "Checking caller context and active subscription scope.",
     "inventory": "Scoping the visible Azure resource footprint.",
     "arm-deployments": "Reviewing ARM deployment history for config exposure and linked content.",
+    "endpoints": "Mapping reachable IP and hostname surfaces from compute and web workloads.",
     "env-vars": "Reviewing App Service and Function App settings for exposed config paths.",
+    "network-ports": "Tracing likely inbound port exposure from visible NIC and subnet NSG rules.",
     "tokens-credentials": (
         "Correlating token-minting workloads and credential-bearing metadata paths."
     ),
@@ -19,8 +21,12 @@ COMMAND_NARRATION = {
     "principals": "Building an operator-first principal census from RBAC and identity context.",
     "permissions": "Ranking principals by high-impact RBAC exposure.",
     "privesc": "Triage likely privilege-escalation and workload identity abuse paths.",
-    "role-trusts": "Reviewing high-signal identity trust edges worth operator attention first.",
-    "auth-policies": "Reviewing tenant auth controls, findings, and any partial-read gaps.",
+    "role-trusts": (
+        "Reviewing high-signal identity trust edges without implying delegated or admin consent."
+    ),
+    "auth-policies": (
+        "Reviewing tenant auth controls, findings, and any partial-read gaps on the current read path."
+    ),
     "managed-identities": "Enumerating workload identities and attached privilege exposure.",
     "keyvault": "Reviewing Key Vault posture for exposed or weakly protected secret surfaces.",
     "resource-trusts": (
@@ -28,6 +34,7 @@ COMMAND_NARRATION = {
         "private-link paths."
     ),
     "storage": "Checking storage exposure and network posture for likely data targets.",
+    "nics": "Enumerating NIC attachments, IP context, and network boundary references.",
     "vms": "Summarizing reachable compute assets and identity-bearing workloads.",
     "all-checks": "Running the current AzureFox command set in operator-first sequence.",
 }

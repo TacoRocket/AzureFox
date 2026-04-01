@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 from datetime import UTC, datetime
 from enum import StrEnum
 
@@ -228,6 +229,42 @@ class StorageAsset(BaseModel):
     table_count: int = 0
 
 
+class EndpointSummary(BaseModel):
+    endpoint: str
+    endpoint_type: str
+    source_asset_id: str
+    source_asset_name: str
+    source_asset_kind: str
+    exposure_family: str
+    ingress_path: str
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
+class NetworkPortSummary(BaseModel):
+    asset_id: str
+    asset_name: str
+    endpoint: str
+    protocol: str
+    port: str
+    allow_source_summary: str
+    exposure_confidence: str
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
+class NicAsset(BaseModel):
+    id: str
+    name: str
+    attached_asset_id: str | None = None
+    attached_asset_name: str | None = None
+    private_ips: list[str] = Field(default_factory=list)
+    public_ip_ids: list[str] = Field(default_factory=list)
+    subnet_ids: list[str] = Field(default_factory=list)
+    vnet_ids: list[str] = Field(default_factory=list)
+    network_security_group_id: str | None = None
+
+
 class VmAsset(BaseModel):
     id: str
     name: str
@@ -239,6 +276,30 @@ class VmAsset(BaseModel):
     public_ips: list[str] = Field(default_factory=list)
     identity_ids: list[str] = Field(default_factory=list)
     nic_ids: list[str] = Field(default_factory=list)
+
+
+class WebWorkloadSummary(BaseModel):
+    asset_id: str
+    asset_name: str
+    asset_kind: str
+    resource_group: str | None = None
+    location: str | None = None
+    workload_identity_type: str | None = None
+    workload_principal_id: str | None = None
+    workload_client_id: str | None = None
+    workload_identity_ids: list[str] = Field(default_factory=list)
+    default_hostname: str | None = None
+
+
+def is_private_network_prefix(value: str) -> bool:
+    text = value.strip()
+    if not text:
+        return False
+    try:
+        network = ipaddress.ip_network(text, strict=False)
+    except ValueError:
+        return False
+    return network.is_private
 
 
 class Finding(BaseModel):

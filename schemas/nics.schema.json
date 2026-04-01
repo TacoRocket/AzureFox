@@ -1,0 +1,9 @@
+{
+  "model": "NicsOutput",
+  "top_level_fields": [
+    "metadata",
+    "nic_assets",
+    "findings",
+    "issues"
+  ]
+}

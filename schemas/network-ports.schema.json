@@ -1,0 +1,9 @@
+{
+  "model": "NetworkPortsOutput",
+  "top_level_fields": [
+    "metadata",
+    "network_ports",
+    "findings",
+    "issues"
+  ]
+}

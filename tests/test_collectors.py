@@ -5,10 +5,13 @@ from pathlib import Path
 from azurefox.collectors.commands import (
     collect_arm_deployments,
     collect_auth_policies,
+    collect_endpoints,
     collect_env_vars,
     collect_inventory,
     collect_keyvault,
     collect_managed_identities,
+    collect_nics,
+    collect_network_ports,
     collect_permissions,
     collect_principals,
     collect_privesc,
@@ -21,7 +24,9 @@ from azurefox.collectors.commands import (
     collect_whoami,
 )
 from azurefox.collectors.provider import (
+    AzureProvider,
     FixtureProvider,
+    _network_scope_label,
     _env_var_reference_target,
     _principal_from_claims,
     _web_asset_kind,
@@ -119,6 +124,15 @@ def test_collect_arm_deployments(fixture_provider, options) -> None:
     assert len(output.deployments) == 3
     assert len(output.findings) == 5
     assert output.deployments[0].scope_type == "subscription"
+
+
+def test_collect_endpoints(fixture_provider, options) -> None:
+    output = collect_endpoints(fixture_provider, options)
+    assert len(output.endpoints) == 4
+    assert len(output.findings) == 0
+    assert output.endpoints[0].endpoint == "52.160.10.20"
+    assert output.endpoints[0].ingress_path == "direct-vm-ip"
+    assert any(item.endpoint == "app-public-api.azurewebsites.net" for item in output.endpoints)
 
 
 def test_collect_env_vars(fixture_provider, options) -> None:
@@ -260,6 +274,8 @@ def test_collect_keyvault(fixture_provider, options) -> None:
     assert len(output.key_vaults) == 4
     assert len(output.findings) == 4
     assert output.key_vaults[0].public_network_access == "Enabled"
+    assert output.key_vaults[0].network_default_action is None
+    assert output.findings[0].id.startswith("keyvault-public-network-open-")
     assert output.findings[2].id.startswith("keyvault-public-network-enabled-")
     assert output.findings[3].id.startswith("keyvault-public-network-with-private-endpoint-")
 
@@ -269,6 +285,12 @@ def test_collect_resource_trusts(fixture_provider, options) -> None:
     assert len(output.resource_trusts) == 8
     assert len(output.findings) == 5
     assert output.resource_trusts[0].resource_type == "KeyVault"
+    assert any(
+        item.resource_name == "kvlabopen01"
+        and item.trust_type == "public-network"
+        and item.exposure == "high"
+        for item in output.resource_trusts
+    )
     assert not any("purge-protection-disabled" in finding.id for finding in output.findings)
     assert any(
         item.resource_name == "kvlabdeny01" and item.trust_type == "public-network"
@@ -280,6 +302,84 @@ def test_collect_storage(fixture_provider, options) -> None:
     output = collect_storage(fixture_provider, options)
     assert len(output.storage_assets) == 2
     assert len(output.findings) == 2
+
+
+def test_collect_nics(fixture_provider, options) -> None:
+    output = collect_nics(fixture_provider, options)
+    assert len(output.nic_assets) == 2
+    assert len(output.findings) == 0
+    assert output.nic_assets[0].attached_asset_name == "vm-web-01"
+    assert output.nic_assets[0].public_ip_ids[0].endswith("/publicIPAddresses/pip-web-01")
+    assert output.nic_assets[0].vnet_ids[0].endswith("/virtualNetworks/vnet-workload")
+
+
+def test_collect_network_ports(fixture_provider, options) -> None:
+    output = collect_network_ports(fixture_provider, options)
+    assert len(output.network_ports) == 3
+    assert len(output.findings) == 0
+    assert output.network_ports[0].port == "22"
+    assert output.network_ports[0].exposure_confidence == "high"
+    assert any("subnet-nsg" in item.allow_source_summary for item in output.network_ports)
+
+
+def test_network_ports_does_not_claim_missing_nsg_when_subnet_nsg_is_visible() -> None:
+    provider = object.__new__(AzureProvider)
+    provider.endpoints = lambda: {
+        "endpoints": [
+            {
+                "endpoint": "52.160.10.20",
+                "endpoint_type": "ip",
+                "source_asset_id": "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+                "source_asset_name": "vm-web-01",
+                "source_asset_kind": "VM",
+                "exposure_family": "public-ip",
+                "ingress_path": "direct-vm-ip",
+                "summary": "test",
+                "related_ids": [],
+            }
+        ],
+        "issues": [],
+    }
+    provider.nics = lambda: {
+        "nic_assets": [
+            {
+                "id": "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Network/networkInterfaces/nic-web-01",
+                "name": "nic-web-01",
+                "attached_asset_id": "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+                "attached_asset_name": "vm-web-01",
+                "private_ips": ["10.0.0.4"],
+                "public_ip_ids": [],
+                "subnet_ids": [
+                    "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet-app/subnets/subnet-web"
+                ],
+                "vnet_ids": [
+                    "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet-app"
+                ],
+                "network_security_group_id": None,
+            }
+        ],
+        "issues": [],
+    }
+    provider._resolve_subnet_nsg_id = lambda subnet_id, cache: (
+        "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Network/networkSecurityGroups/nsg-subnet",
+        [],
+    )
+    provider._resolve_nsg_inbound_allow_rules = lambda nsg_id, cache: ([], [])
+
+    output = AzureProvider.network_ports(provider)
+
+    assert output["issues"] == []
+    assert output["network_ports"] == []
+
+
+def test_network_scope_label_includes_resource_group() -> None:
+    label = _network_scope_label(
+        "subnet",
+        "/subscriptions/test/resourceGroups/rg-workload/providers/Microsoft.Network/networkSecurityGroups/nsg-vnet-app",
+        "allow-https-lb",
+    )
+
+    assert label == "subnet-nsg:rg-workload/nsg-vnet-app/allow-https-lb"
 
 
 def test_collect_vms(fixture_provider, options) -> None:
