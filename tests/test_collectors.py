@@ -242,9 +242,11 @@ def test_collect_managed_identities(fixture_provider, options) -> None:
 
 def test_collect_keyvault(fixture_provider, options) -> None:
     output = collect_keyvault(fixture_provider, options)
-    assert len(output.key_vaults) == 2
-    assert len(output.findings) == 2
+    assert len(output.key_vaults) == 4
+    assert len(output.findings) == 4
     assert output.key_vaults[0].public_network_access == "Enabled"
+    assert output.findings[2].id.startswith("keyvault-public-network-enabled-")
+    assert output.findings[3].id.startswith("keyvault-public-network-with-private-endpoint-")
 
 
 def test_collect_resource_trusts(fixture_provider, options) -> None:

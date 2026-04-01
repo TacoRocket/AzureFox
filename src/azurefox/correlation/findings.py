@@ -94,24 +94,51 @@ def build_keyvault_findings(key_vaults_raw: list[dict]) -> list[dict]:
         public_network_access = (vault.public_network_access or "").lower()
         network_default_action = (vault.network_default_action or "").lower()
 
-        if (
-            public_network_access == "enabled"
-            and network_default_action == "allow"
-            and not vault.private_endpoint_enabled
-        ):
-            findings.append(
-                Finding(
-                    id=f"keyvault-public-network-open-{vault.id}",
-                    severity="high",
-                    title="Key Vault is broadly reachable on the public network",
-                    description=(
-                        f"Key Vault '{vault.name}' has public network access enabled, default "
-                        "network action Allow, and no private endpoint visible. Review whether "
-                        "that secret-management surface is intentionally internet reachable."
-                    ),
-                    related_ids=[vault.id],
+        if public_network_access == "enabled":
+            if network_default_action == "allow" and not vault.private_endpoint_enabled:
+                findings.append(
+                    Finding(
+                        id=f"keyvault-public-network-open-{vault.id}",
+                        severity="high",
+                        title="Key Vault is broadly reachable on the public network",
+                        description=(
+                            f"Key Vault '{vault.name}' has public network access enabled, "
+                            "default network action Allow, and no private endpoint visible. "
+                            "Review whether that secret-management surface is intentionally "
+                            "internet reachable."
+                        ),
+                        related_ids=[vault.id],
+                    )
                 )
-            )
+            elif not vault.private_endpoint_enabled:
+                findings.append(
+                    Finding(
+                        id=f"keyvault-public-network-enabled-{vault.id}",
+                        severity="medium",
+                        title="Key Vault remains reachable through a public network path",
+                        description=(
+                            f"Key Vault '{vault.name}' keeps public network access enabled with "
+                            f"default network action '{vault.network_default_action or 'unknown'}' "
+                            "and no private endpoint visible. Review whether that public path is "
+                            "still intended."
+                        ),
+                        related_ids=[vault.id],
+                    )
+                )
+            else:
+                findings.append(
+                    Finding(
+                        id=f"keyvault-public-network-with-private-endpoint-{vault.id}",
+                        severity="low",
+                        title="Key Vault keeps a public network path alongside Private Link",
+                        description=(
+                            f"Key Vault '{vault.name}' has public network access enabled while a "
+                            "private endpoint is also present. Validate whether the public path is "
+                            "still required."
+                        ),
+                        related_ids=[vault.id],
+                    )
+                )
 
         if not vault.purge_protection_enabled:
             findings.append(
