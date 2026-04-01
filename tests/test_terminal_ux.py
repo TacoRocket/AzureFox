@@ -67,11 +67,17 @@ def test_nics_table_mode_surfaces_network_context(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0
-    assert "Enumerating NIC attachments, IP context, and network boundary references." in result.stdout
+    assert (
+        "Enumerating NIC attachments, IP context, and network boundary references."
+        in result.stdout
+    )
     assert "public ip refs" in result.stdout
     assert "subnet=vnet-app" in result.stdout
     assert "nsg-web" in result.stdout
-    assert "Takeaway: 2 NICs visible; 1 attached to visible assets and 1 reference public IP resources." in result.stdout
+    assert (
+        "Takeaway: 2 NICs visible; 1 attached to visible assets and 1 reference public IP "
+        "resources." in result.stdout
+    )
 
 
 def test_privesc_table_mode_surfaces_takeaway(tmp_path: Path) -> None:
@@ -126,11 +132,17 @@ def test_endpoints_table_mode_surfaces_reachability_context(tmp_path: Path) -> N
     )
 
     assert result.exit_code == 0
-    assert "Mapping reachable IP and hostname surfaces from compute and web workloads." in result.stdout
+    assert (
+        "Mapping reachable IP and hostname surfaces from compute and web workloads."
+        in result.stdout
+    )
     assert "family" in result.stdout
     assert "direct-vm-ip" in result.stdout
     assert "app-public-api.azurewebsites.net" in result.stdout
-    assert "Takeaway: 4 reachable surfaces visible; 1 public-ip, 3 managed-web-hostname." in result.stdout
+    assert (
+        "Takeaway: 4 reachable surfaces visible; 1 public-ip, 3 managed-web-hostname."
+        in result.stdout
+    )
 
 
 def test_network_ports_table_mode_surfaces_allow_context(tmp_path: Path) -> None:
@@ -141,7 +153,10 @@ def test_network_ports_table_mode_surfaces_allow_context(tmp_path: Path) -> None
     )
 
     assert result.exit_code == 0
-    assert "Tracing likely inbound port exposure from visible NIC and subnet NSG rules." in result.stdout
+    assert (
+        "Tracing likely inbound port exposure from visible NIC and subnet NSG rules."
+        in result.stdout
+    )
     assert "allow source" in result.stdout
     assert "nic-nsg:rg-workload/nsg-web/allow-ssh-internet" in result.stdout
     assert "AzureLoadBalancer via" in result.stdout

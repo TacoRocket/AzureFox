@@ -1865,7 +1865,11 @@ def _resource_trusts_from_keyvault(key_vaults: list[dict]) -> list[dict]:
         public_network_access = (vault.get("public_network_access") or "").lower()
         network_default_action = (vault.get("network_default_action") or "").lower()
         if public_network_access == "enabled":
-            exposure = "high" if network_default_action == "allow" or not network_default_action else "medium"
+            exposure = (
+                "high"
+                if network_default_action == "allow" or not network_default_action
+                else "medium"
+            )
             trusts.append(
                 {
                     "resource_id": resource_id,
@@ -2466,12 +2470,16 @@ def _nic_detail_from_resource(nic: object) -> dict:
         "id": nic_id or f"/unknown/{getattr(nic, 'name', 'nic')}",
         "name": getattr(nic, "name", "unknown"),
         "attached_asset_id": attached_asset_id,
-        "attached_asset_name": _resource_name_from_id(attached_asset_id) if attached_asset_id else None,
+        "attached_asset_name": (
+            _resource_name_from_id(attached_asset_id) if attached_asset_id else None
+        ),
         "private_ips": _dedupe_strings(private_ips),
         "public_ip_ids": _dedupe_strings(public_ip_ids),
         "subnet_ids": _dedupe_strings(subnet_ids),
         "vnet_ids": _dedupe_strings(vnet_ids),
-        "network_security_group_id": str(getattr(network_security_group, "id", "") or "") or None,
+        "network_security_group_id": (
+            str(getattr(network_security_group, "id", "") or "") or None
+        ),
     }
 
 
@@ -2504,13 +2512,10 @@ def _normalized_network_protocol(value: object) -> str:
 
 
 def _normalized_destination_ports(rule: object) -> list[str]:
+    destination_port_range = getattr(rule, "destination_port_range", None)
     ports = [
         *[str(item) for item in (getattr(rule, "destination_port_ranges", None) or []) if item],
-        *(
-            [str(getattr(rule, "destination_port_range"))]
-            if getattr(rule, "destination_port_range", None)
-            else []
-        ),
+        *([str(destination_port_range)] if destination_port_range else []),
     ]
     if not ports:
         return ["any"]
@@ -2518,13 +2523,10 @@ def _normalized_destination_ports(rule: object) -> list[str]:
 
 
 def _normalized_rule_sources(rule: object) -> list[str]:
+    source_address_prefix = getattr(rule, "source_address_prefix", None)
     sources = [
         *[str(item) for item in (getattr(rule, "source_address_prefixes", None) or []) if item],
-        *(
-            [str(getattr(rule, "source_address_prefix"))]
-            if getattr(rule, "source_address_prefix", None)
-            else []
-        ),
+        *([str(source_address_prefix)] if source_address_prefix else []),
     ]
     if not sources:
         return ["Any"]
@@ -2592,7 +2594,9 @@ def _network_port_row_without_nsg(*, endpoint: dict, nic: dict) -> dict:
         or "unknown"
     )
     return {
-        "asset_id": endpoint.get("source_asset_id") or nic.get("attached_asset_id") or nic.get("id"),
+        "asset_id": (
+            endpoint.get("source_asset_id") or nic.get("attached_asset_id") or nic.get("id")
+        ),
         "asset_name": asset_name,
         "endpoint": endpoint.get("endpoint") or "unknown",
         "protocol": "any",

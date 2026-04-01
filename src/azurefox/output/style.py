@@ -25,7 +25,8 @@ COMMAND_NARRATION = {
         "Reviewing high-signal identity trust edges without implying delegated or admin consent."
     ),
     "auth-policies": (
-        "Reviewing tenant auth controls, findings, and any partial-read gaps on the current read path."
+        "Reviewing tenant auth controls, findings, and any partial-read gaps on the "
+        "current read path."
     ),
     "managed-identities": "Enumerating workload identities and attached privilege exposure.",
     "keyvault": "Reviewing Key Vault posture for exposed or weakly protected secret surfaces.",

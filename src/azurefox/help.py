@@ -95,7 +95,10 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
     "endpoints": CommandHelpTopic(
         name="endpoints",
         section="network",
-        summary="Correlate public IPs and Azure-managed hostnames into an operator-first reachability view.",
+        summary=(
+            "Correlate public IPs and Azure-managed hostnames into an operator-first "
+            "reachability view."
+        ),
         offensive_question=(
             "Which IPs or hostnames can I likely touch first, and which assets do those ingress "
             "paths belong to?"

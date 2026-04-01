@@ -10,8 +10,8 @@ from azurefox.collectors.commands import (
     collect_inventory,
     collect_keyvault,
     collect_managed_identities,
-    collect_nics,
     collect_network_ports,
+    collect_nics,
     collect_permissions,
     collect_principals,
     collect_privesc,
@@ -26,8 +26,8 @@ from azurefox.collectors.commands import (
 from azurefox.collectors.provider import (
     AzureProvider,
     FixtureProvider,
-    _network_scope_label,
     _env_var_reference_target,
+    _network_scope_label,
     _principal_from_claims,
     _web_asset_kind,
 )
@@ -329,7 +329,10 @@ def test_network_ports_does_not_claim_missing_nsg_when_subnet_nsg_is_visible() -
             {
                 "endpoint": "52.160.10.20",
                 "endpoint_type": "ip",
-                "source_asset_id": "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+                "source_asset_id": (
+                    "/subscriptions/test/resourceGroups/rg/providers/"
+                    "Microsoft.Compute/virtualMachines/vm-web-01"
+                ),
                 "source_asset_name": "vm-web-01",
                 "source_asset_kind": "VM",
                 "exposure_family": "public-ip",
@@ -343,9 +346,15 @@ def test_network_ports_does_not_claim_missing_nsg_when_subnet_nsg_is_visible() -
     provider.nics = lambda: {
         "nic_assets": [
             {
-                "id": "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Network/networkInterfaces/nic-web-01",
+                "id": (
+                    "/subscriptions/test/resourceGroups/rg/providers/"
+                    "Microsoft.Network/networkInterfaces/nic-web-01"
+                ),
                 "name": "nic-web-01",
-                "attached_asset_id": "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+                "attached_asset_id": (
+                    "/subscriptions/test/resourceGroups/rg/providers/"
+                    "Microsoft.Compute/virtualMachines/vm-web-01"
+                ),
                 "attached_asset_name": "vm-web-01",
                 "private_ips": ["10.0.0.4"],
                 "public_ip_ids": [],
