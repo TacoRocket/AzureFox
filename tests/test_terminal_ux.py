@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -214,11 +213,18 @@ def test_tokens_credentials_table_mode_surfaces_findings_and_takeaway(tmp_path: 
 
 
 def test_auth_policies_partial_read_surfaces_collection_issue() -> None:
-    artifact_path = Path(
-        "/Users/cfarley/Documents/Terraform Labs for AzureFox/proof-artifacts/latest/"
-        "auth-policies.json"
-    )
-    payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    payload = {
+        "metadata": {"command": "auth-policies"},
+        "auth_policies": [],
+        "findings": [],
+        "issues": [
+            {
+                "kind": "permission_denied",
+                "message": "auth_policies.security_defaults: 403 Forbidden",
+                "context": {"collector": "auth_policies.security_defaults"},
+            }
+        ],
+    }
     rendered = render_table("auth-policies", payload)
 
     assert "Collection issues:" in rendered
