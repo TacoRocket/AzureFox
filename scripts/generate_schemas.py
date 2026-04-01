@@ -23,6 +23,7 @@ from azurefox.models.commands import (
     TokensCredentialsOutput,
     VmsOutput,
     WhoAmIOutput,
+    WorkloadsOutput,
 )
 
 MODELS = {
@@ -44,6 +45,7 @@ MODELS = {
     "resource-trusts": ResourceTrustsOutput,
     "storage": StorageOutput,
     "nics": NicsOutput,
+    "workloads": WorkloadsOutput,
     "vms": VmsOutput,
 }
 

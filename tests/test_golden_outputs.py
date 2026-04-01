@@ -23,6 +23,7 @@ from azurefox.collectors.commands import (
     collect_tokens_credentials,
     collect_vms,
     collect_whoami,
+    collect_workloads,
 )
 
 
@@ -55,6 +56,7 @@ def test_golden_outputs(fixture_provider, options) -> None:
         "keyvault": collect_keyvault,
         "storage": collect_storage,
         "nics": collect_nics,
+        "workloads": collect_workloads,
         "vms": collect_vms,
     }
 

@@ -141,6 +141,11 @@ def network_ports(ctx: typer.Context) -> None:
     _run_single(ctx, "network-ports")
 
 
+@app.command("workloads")
+def workloads(ctx: typer.Context) -> None:
+    _run_single(ctx, "workloads")
+
+
 @app.command("vms")
 def vms(ctx: typer.Context) -> None:
     _run_single(ctx, "vms")

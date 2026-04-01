@@ -33,8 +33,7 @@ def build_identity_findings(identities_raw: list[dict], assignments_raw: list[di
         privileged = [
             r
             for r in roles
-            if (r.role_name or "").lower()
-            in {"owner", "contributor", "user access administrator"}
+            if (r.role_name or "").lower() in {"owner", "contributor", "user access administrator"}
         ]
         if privileged:
             findings.append(
@@ -96,19 +95,32 @@ def build_keyvault_findings(key_vaults_raw: list[dict]) -> list[dict]:
     for vault in key_vaults:
         public_network_access = (vault.public_network_access or "").lower()
         network_default_action = (vault.network_default_action or "").lower()
+        implicit_open_acl = public_network_access == "enabled" and not network_default_action
 
         if public_network_access == "enabled":
-            if network_default_action == "allow" and not vault.private_endpoint_enabled:
+            if (
+                network_default_action == "allow" or implicit_open_acl
+            ) and not vault.private_endpoint_enabled:
                 findings.append(
                     Finding(
                         id=f"keyvault-public-network-open-{vault.id}",
                         severity="high",
                         title="Key Vault is broadly reachable on the public network",
                         description=(
-                            f"Key Vault '{vault.name}' has public network access enabled, "
-                            "default network action Allow, and no private endpoint visible. "
-                            "Review whether that secret-management surface is intentionally "
-                            "internet reachable."
+                            (
+                                f"Key Vault '{vault.name}' has public network access enabled, "
+                                "Azure omitted the network ACL object, and no private endpoint "
+                                "is visible. Azure can return that shape for a fully open vault. "
+                                "Review whether that secret-management surface is intentionally "
+                                "internet reachable."
+                            )
+                            if implicit_open_acl
+                            else (
+                                f"Key Vault '{vault.name}' has public network access enabled, "
+                                "default network action Allow, and no private endpoint visible. "
+                                "Review whether that secret-management surface is intentionally "
+                                "internet reachable."
+                            )
                         ),
                         related_ids=[vault.id],
                     )

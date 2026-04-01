@@ -22,6 +22,7 @@ from azurefox.collectors.commands import (
     collect_tokens_credentials,
     collect_vms,
     collect_whoami,
+    collect_workloads,
 )
 from azurefox.collectors.provider import (
     AzureProvider,
@@ -166,8 +167,7 @@ def test_web_asset_kind_filters_out_of_scope_site_kinds() -> None:
 
 def test_env_var_reference_target_supports_secret_uri_form() -> None:
     value = (
-        "@Microsoft.KeyVault(SecretUri="
-        "https://kvlabopen01.vault.azure.net/secrets/payment-api-key)"
+        "@Microsoft.KeyVault(SecretUri=https://kvlabopen01.vault.azure.net/secrets/payment-api-key)"
     )
 
     assert _env_var_reference_target(value) == (
@@ -177,8 +177,7 @@ def test_env_var_reference_target_supports_secret_uri_form() -> None:
 
 def test_env_var_reference_target_supports_vaultname_form() -> None:
     value = (
-        "@Microsoft.KeyVault(VaultName=kvlabopen01;SecretName=payment-api-key;"
-        "SecretVersion=123abc)"
+        "@Microsoft.KeyVault(VaultName=kvlabopen01;SecretName=payment-api-key;SecretVersion=123abc)"
     )
 
     assert _env_var_reference_target(value) == (
@@ -395,3 +394,14 @@ def test_collect_vms(fixture_provider, options) -> None:
     output = collect_vms(fixture_provider, options)
     assert len(output.vm_assets) == 2
     assert len(output.findings) == 1
+
+
+def test_collect_workloads(fixture_provider, options) -> None:
+    output = collect_workloads(fixture_provider, options)
+    assert len(output.workloads) == 5
+    assert len(output.findings) == 0
+    assert output.workloads[0].asset_name == "vm-web-01"
+    assert output.workloads[0].identity_type == "UserAssigned"
+    assert output.workloads[0].endpoints == ["52.160.10.20"]
+    assert output.workloads[-1].asset_name == "vmss-api"
+    assert output.workloads[-1].endpoints == []

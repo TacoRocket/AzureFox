@@ -31,11 +31,11 @@ COMMAND_NARRATION = {
     "managed-identities": "Enumerating workload identities and attached privilege exposure.",
     "keyvault": "Reviewing Key Vault posture for exposed or weakly protected secret surfaces.",
     "resource-trusts": (
-        "Correlating resource trust surfaces across public network and "
-        "private-link paths."
+        "Correlating resource trust surfaces across public network and private-link paths."
     ),
     "storage": "Checking storage exposure and network posture for likely data targets.",
     "nics": "Enumerating NIC attachments, IP context, and network boundary references.",
+    "workloads": "Joining workload assets with identity context and visible ingress paths.",
     "vms": "Summarizing reachable compute assets and identity-bearing workloads.",
     "all-checks": "Running the current AzureFox command set in operator-first sequence.",
 }

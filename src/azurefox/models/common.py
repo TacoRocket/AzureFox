@@ -278,6 +278,23 @@ class VmAsset(BaseModel):
     nic_ids: list[str] = Field(default_factory=list)
 
 
+class WorkloadSummary(BaseModel):
+    asset_id: str
+    asset_name: str
+    asset_kind: str
+    resource_group: str | None = None
+    location: str | None = None
+    identity_type: str | None = None
+    identity_principal_id: str | None = None
+    identity_client_id: str | None = None
+    identity_ids: list[str] = Field(default_factory=list)
+    endpoints: list[str] = Field(default_factory=list)
+    ingress_paths: list[str] = Field(default_factory=list)
+    exposure_families: list[str] = Field(default_factory=list)
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class WebWorkloadSummary(BaseModel):
     asset_id: str
     asset_name: str

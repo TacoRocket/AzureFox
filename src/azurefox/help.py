@@ -37,8 +37,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         section="identity",
         summary="Confirm the caller identity, token context, and active subscription scope.",
         offensive_question=(
-            "Who am I in this tenant and what subscription scope am I "
-            "operating in right now?"
+            "Who am I in this tenant and what subscription scope am I operating in right now?"
         ),
         cloudfox_frame="CloudFox-style caller-context check before deeper cloud enumeration.",
         output_highlights=("principal", "subscription", "effective_scopes", "token_source"),
@@ -53,8 +52,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         section="core",
         summary="Summarize the visible Azure resource footprint for fast scoping.",
         offensive_question=(
-            "What cloud infrastructure and service surface is visible in "
-            "this subscription?"
+            "What cloud infrastructure and service surface is visible in this subscription?"
         ),
         cloudfox_frame="Azure analogue to CloudFox inventory-first situational awareness.",
         output_highlights=("resource_group_count", "resource_count", "top_resource_types"),
@@ -68,8 +66,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="arm-deployments",
         section="config",
         summary=(
-            "Review ARM deployment history for output exposure, linked content, and failed "
-            "runs."
+            "Review ARM deployment history for output exposure, linked content, and failed runs."
         ),
         offensive_question=(
             "Which ARM deployments reveal useful config context, linked templates, or output "
@@ -230,16 +227,14 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="principals",
         section="identity",
         summary=(
-            "Build a principal census from RBAC, caller context, and "
-            "managed identity attachments."
+            "Build a principal census from RBAC, caller context, and managed identity attachments."
         ),
         offensive_question=(
             "Which principals matter in this subscription, and how are "
             "they connected to roles and identities?"
         ),
         cloudfox_frame=(
-            "Azure analogue to a CloudFox principal inventory with "
-            "Azure-native identity edges."
+            "Azure analogue to a CloudFox principal inventory with Azure-native identity edges."
         ),
         output_highlights=("display_name", "principal_type", "role_names", "identity_names"),
         attack_leads=(
@@ -424,8 +419,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="resource-trusts",
         section="resource",
         summary=(
-            "Correlate Storage and Key Vault trust surfaces into operator-first "
-            "resource paths."
+            "Correlate Storage and Key Vault trust surfaces into operator-first resource paths."
         ),
         offensive_question=(
             "Which resources still trust public network paths, and which ones are constrained to "
@@ -458,8 +452,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "look for accessible data next?"
         ),
         cloudfox_frame=(
-            "CloudFox-style storage triage with Azure "
-            "storage-specific exposure signals."
+            "CloudFox-style storage triage with Azure storage-specific exposure signals."
         ),
         output_highlights=(
             "public_access",
@@ -499,6 +492,37 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox nics --output table",
     ),
+    "workloads": CommandHelpTopic(
+        name="workloads",
+        section="compute",
+        summary=(
+            "Build a joined workload census across compute, web apps, identities, and "
+            "endpoints."
+        ),
+        offensive_question=(
+            "Which workloads are worth operator follow-up first once I join identity-bearing "
+            "assets with their visible endpoint paths?"
+        ),
+        cloudfox_frame=(
+            "Azure-native workload census that joins compute assets and web workloads with "
+            "reachable endpoint and managed identity context before deeper service-specific "
+            "review."
+        ),
+        output_highlights=(
+            "asset_kind",
+            "identity_type",
+            "endpoints",
+            "ingress_paths",
+            "summary",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Infrastructure Discovery"),
+            AttackLead("Discovery", "Network Service Discovery"),
+            AttackLead("Initial Access", "Exploit Public-Facing Application"),
+            AttackLead("Lateral Movement", "Remote Services: Direct Cloud VM Connections"),
+        ),
+        example="azurefox workloads --output table",
+    ),
     "vms": CommandHelpTopic(
         name="vms",
         section="compute",
@@ -520,8 +544,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         section="orchestration",
         summary="Run the implemented AzureFox commands in a stable operator-first sequence.",
         offensive_question=(
-            "What is the fastest broad sweep I can run right now for "
-            "this tenant or section?"
+            "What is the fastest broad sweep I can run right now for this tenant or section?"
         ),
         cloudfox_frame="Direct AzureFox analogue to a CloudFox grouped recon pass.",
         output_highlights=("results", "run-summary.json", "section filtering"),
@@ -539,8 +562,7 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
     "identity": SectionHelpTopic(
         name="identity",
         summary=(
-            "Identity and privilege context for Azure principals, roles, "
-            "and workload identities."
+            "Identity and privilege context for Azure principals, roles, and workload identities."
         ),
         operator_goal=(
             "Find who matters, who is privileged, and which identity "
@@ -625,8 +647,7 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
         name="compute",
         summary="Compute reachability, workload identity context, and host-oriented pivot leads.",
         operator_goal=(
-            "Find reachable workloads and identity-bearing hosts worth "
-            "deeper access review."
+            "Find reachable workloads and identity-bearing hosts worth deeper access review."
         ),
         attack_lenses=(
             AttackLead("Discovery", "Cloud Infrastructure Discovery"),
@@ -649,8 +670,7 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
         name="azure-only",
         summary="Reserved for Azure-native trust and control-plane abuse paths.",
         operator_goal=(
-            "Highlight Azure-specific surfaces that do not map cleanly "
-            "to AWS or GCP workflows."
+            "Highlight Azure-specific surfaces that do not map cleanly to AWS or GCP workflows."
         ),
         attack_lenses=(
             AttackLead("Initial Access", "Trusted Relationship"),

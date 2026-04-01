@@ -1,0 +1,9 @@
+{
+  "model": "WorkloadsOutput",
+  "top_level_fields": [
+    "metadata",
+    "workloads",
+    "findings",
+    "issues"
+  ]
+}

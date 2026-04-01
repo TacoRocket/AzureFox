@@ -23,6 +23,7 @@ from azurefox.models.commands import (
     TokensCredentialsOutput,
     VmsOutput,
     WhoAmIOutput,
+    WorkloadsOutput,
 )
 
 MODEL_MAP = {
@@ -44,6 +45,7 @@ MODEL_MAP = {
     "keyvault": KeyVaultOutput,
     "storage": StorageOutput,
     "nics": NicsOutput,
+    "workloads": WorkloadsOutput,
     "vms": VmsOutput,
 }
 
