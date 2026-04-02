@@ -20,6 +20,7 @@ Fox.
 - `whoami`
 - `inventory`
 - `nics`
+- `dns`
 - `endpoints`
 - `network-ports`
 - `workloads`
@@ -27,6 +28,8 @@ Fox.
 - `functions`
 - `aks`
 - `api-mgmt`
+- `acr`
+- `databases`
 - `arm-deployments`
 - `env-vars`
 - `tokens-credentials`
@@ -109,6 +112,7 @@ azurefox all-checks --section identity
 azurefox all-checks --section config
 azurefox all-checks --section secrets
 azurefox all-checks --section resource
+azurefox all-checks --section network
 azurefox all-checks --section storage
 azurefox all-checks --section compute
 ```
@@ -118,9 +122,9 @@ Current section mappings:
 - `identity`: `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `auth-policies`, `managed-identities`
 - `config`: `arm-deployments`, `env-vars`
 - `secrets`: `keyvault`, `tokens-credentials`
-- `resource`: `api-mgmt`, `resource-trusts`
+- `resource`: `acr`, `api-mgmt`, `databases`, `resource-trusts`
 - `storage`: `storage`
-- `network`: `nics`, `endpoints`, `network-ports`
+- `network`: `nics`, `dns`, `endpoints`, `network-ports`
 - `compute`: `workloads`, `app-services`, `functions`, `aks`, `vms`
 - `core`: `inventory`
 

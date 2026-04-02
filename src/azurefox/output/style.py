@@ -13,6 +13,7 @@ COMMAND_NARRATION = {
     "app-services": "Reviewing App Service runtime, hostname, identity, and hardening posture.",
     "acr": "Reviewing Azure Container Registry login servers, auth posture, and network exposure.",
     "databases": "Reviewing Azure SQL server posture and visible user-database inventory.",
+    "dns": "Reviewing public and private DNS zone inventory and namespace boundaries.",
     "aks": "Reviewing AKS control-plane endpoint, identity, auth posture, and network shape.",
     "api-mgmt": (
         "Reviewing API Management gateway hostnames, identity, and service posture."

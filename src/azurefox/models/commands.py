@@ -14,6 +14,7 @@ from azurefox.models.common import (
     CollectionIssue,
     CommandMetadata,
     DatabaseServerAsset,
+    DnsZoneAsset,
     EndpointSummary,
     EnvVarSummary,
     Finding,
@@ -73,6 +74,13 @@ class AcrOutput(BaseModel):
 class DatabasesOutput(BaseModel):
     metadata: CommandMetadata
     database_servers: list[DatabaseServerAsset] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class DnsOutput(BaseModel):
+    metadata: CommandMetadata
+    dns_zones: list[DnsZoneAsset] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 

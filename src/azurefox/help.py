@@ -153,6 +153,33 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox databases --output table",
     ),
+    "dns": CommandHelpTopic(
+        name="dns",
+        section="network",
+        summary="Summarize public and private DNS zone inventory and namespace boundaries.",
+        offensive_question=(
+            "Which DNS zones reveal public delegation or private VNet-linked namespace context "
+            "worth operator follow-up first?"
+        ),
+        cloudfox_frame=(
+            "Azure-native DNS census that stays at management-plane zone metadata: public "
+            "delegation clues, private VNet-link counts, and visible record-set totals before "
+            "deeper record-content or resolution analysis."
+        ),
+        output_highlights=(
+            "zone_kind",
+            "record_set_count",
+            "name_servers",
+            "linked_virtual_network_count",
+            "registration_virtual_network_count",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Discovery", "Network Service Discovery"),
+            AttackLead("Collection", "Data from Information Repositories"),
+        ),
+        example="azurefox dns --output table",
+    ),
     "functions": CommandHelpTopic(
         name="functions",
         section="compute",
@@ -836,10 +863,10 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
     ),
     "network": SectionHelpTopic(
         name="network",
-        summary="Network attachment, placement, and exposure context for Azure workloads.",
+        summary="Network attachment, namespace, and exposure context for Azure workloads.",
         operator_goal=(
-            "Find the interfaces, placements, and boundary references that shape ingress and "
-            "lateral movement follow-up."
+            "Find the interfaces, namespaces, placements, and boundary references that shape "
+            "ingress and lateral movement follow-up."
         ),
         attack_lenses=(
             AttackLead("Discovery", "Network Service Discovery"),

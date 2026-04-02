@@ -163,6 +163,29 @@ Why it should be separate:
 - this is the cleaner future home for augmented-rule handling, layered ingress analysis, and
   stronger effective-exposure claims once the simpler network slices settle
 
+### `dns-depth`
+
+Why it is grounded now:
+
+- the new `dns` command establishes a public-versus-private zone inventory surface using ARM
+  metadata already available through the existing resource client
+- visible record-set totals, public delegation cues, and private VNet-link counts now create a
+  clean DNS vocabulary to deepen later
+
+Why it should be separate:
+
+- record contents, alias targets, resolution behavior, and takeover-style heuristics can easily
+  overwhelm a first operator-first zone census
+- private DNS link graph depth and per-zone target analysis deserve a later evidence-based follow-on
+  once the initial namespace inventory command settles
+
+What this future follow-on could absorb:
+
+- record-type and record-target visibility beyond simple zone totals
+- alias, CNAME, wildcard, and TXT review once boundaries are explicit
+- private DNS VNet-link inventory beyond link counts
+- takeover-style namespace checks or other DNS misconfiguration heuristics
+
 ### `vmss`
 
 Why it is grounded now:

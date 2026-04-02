@@ -1,0 +1,63 @@
+{
+  "dns_zones": [
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-network/providers/Microsoft.Network/dnszones/corp.example.com",
+      "name": "corp.example.com",
+      "resource_group": "rg-network",
+      "location": "global",
+      "zone_kind": "public",
+      "record_set_count": 9,
+      "max_record_set_count": 10000,
+      "name_servers": [
+        "ns1-01.azure-dns.com",
+        "ns2-01.azure-dns.net",
+        "ns3-01.azure-dns.org",
+        "ns4-01.azure-dns.info"
+      ],
+      "linked_virtual_network_count": null,
+      "registration_virtual_network_count": null,
+      "summary": "Public DNS zone 'corp.example.com' shows 9 visible record set(s) and delegates authority through 4 visible Azure name server(s).",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-network/providers/Microsoft.Network/dnszones/corp.example.com"
+      ]
+    },
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-edge/providers/Microsoft.Network/dnszones/partner.example.net",
+      "name": "partner.example.net",
+      "resource_group": "rg-edge",
+      "location": "global",
+      "zone_kind": "public",
+      "record_set_count": 4,
+      "max_record_set_count": 10000,
+      "name_servers": [
+        "ns1-08.azure-dns.com",
+        "ns2-08.azure-dns.net",
+        "ns3-08.azure-dns.org",
+        "ns4-08.azure-dns.info"
+      ],
+      "linked_virtual_network_count": null,
+      "registration_virtual_network_count": null,
+      "summary": "Public DNS zone 'partner.example.net' shows 4 visible record set(s) and delegates authority through 4 visible Azure name server(s).",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-edge/providers/Microsoft.Network/dnszones/partner.example.net"
+      ]
+    },
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-network/providers/Microsoft.Network/privateDnsZones/privatelink.database.windows.net",
+      "name": "privatelink.database.windows.net",
+      "resource_group": "rg-network",
+      "location": "global",
+      "zone_kind": "private",
+      "record_set_count": 6,
+      "max_record_set_count": 25000,
+      "name_servers": [],
+      "linked_virtual_network_count": 2,
+      "registration_virtual_network_count": 1,
+      "summary": "Private DNS zone 'privatelink.database.windows.net' shows 6 visible record set(s) and tracks 2 virtual network link(s), 1 registration-enabled link(s).",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-network/providers/Microsoft.Network/privateDnsZones/privatelink.database.windows.net"
+      ]
+    }
+  ],
+  "issues": []
+}

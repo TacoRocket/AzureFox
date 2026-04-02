@@ -178,6 +178,27 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "dns":
+        return (
+            [
+                ("name", "zone"),
+                ("zone_kind", "kind"),
+                ("inventory", "inventory"),
+                ("namespace", "namespace"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "name": item.get("name"),
+                    "zone_kind": item.get("zone_kind"),
+                    "inventory": _dns_inventory_context(item),
+                    "namespace": _dns_namespace_context(item),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("dns_zones", [])
+            ],
+        )
+
     if command == "aks":
         return (
             [
@@ -818,6 +839,29 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             f"{database_phrase}."
         )
 
+    if command == "dns":
+        dns_zones = payload.get("dns_zones", [])
+        public_zones = sum(item.get("zone_kind") == "public" for item in dns_zones)
+        private_zones = sum(item.get("zone_kind") == "private" for item in dns_zones)
+        record_counts = [item.get("record_set_count") for item in dns_zones]
+        readable_records = sum(count for count in record_counts if isinstance(count, int))
+        if record_counts and any(count is None for count in record_counts):
+            if readable_records:
+                record_phrase = (
+                    f"at least {readable_records} record sets are visible, with some zones "
+                    "unreadable"
+                )
+            else:
+                record_phrase = (
+                    "record-set totals are unreadable from at least one visible zone"
+                )
+        else:
+            record_phrase = f"{readable_records} record sets are visible"
+        return (
+            f"{len(dns_zones)} DNS zones visible; {public_zones} public, {private_zones} "
+            f"private, and {record_phrase}."
+        )
+
     if command == "aks":
         clusters = payload.get("aks_clusters", [])
         private_clusters = sum(item.get("private_cluster_enabled") is True for item in clusters)
@@ -1098,6 +1142,33 @@ def _database_posture_context(item: dict) -> str:
         parts.append(f"version={item.get('server_version')}")
     if item.get("state"):
         parts.append(f"state={item.get('state')}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _dns_inventory_context(item: dict) -> str:
+    count = item.get("record_set_count")
+    max_count = item.get("max_record_set_count")
+    if count is None and max_count is None:
+        return "-"
+    if count is None:
+        return f"records=?/{max_count}"
+    if max_count is None:
+        return f"records={count}"
+    return f"records={count}/{max_count}"
+
+
+def _dns_namespace_context(item: dict) -> str:
+    if item.get("zone_kind") == "public":
+        name_server_count = len(item.get("name_servers", []))
+        return f"ns={name_server_count}" if name_server_count else "-"
+
+    parts: list[str] = []
+    if item.get("linked_virtual_network_count") is not None:
+        parts.append(f"vnet-links={item.get('linked_virtual_network_count')}")
+    if item.get("registration_virtual_network_count") is not None:
+        parts.append(f"reg-links={item.get('registration_virtual_network_count')}")
     if not parts:
         return "-"
     return "; ".join(parts)

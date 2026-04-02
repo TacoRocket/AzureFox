@@ -1,0 +1,9 @@
+{
+  "model": "DnsOutput",
+  "top_level_fields": [
+    "metadata",
+    "dns_zones",
+    "findings",
+    "issues"
+  ]
+}
