@@ -18,6 +18,7 @@ from azurefox.models.commands import (
     AuthPoliciesOutput,
     EndpointsOutput,
     EnvVarsOutput,
+    FunctionsOutput,
     InventoryOutput,
     KeyVaultOutput,
     ManagedIdentitiesOutput,
@@ -61,6 +62,17 @@ def collect_app_services(provider: BaseProvider, options: GlobalOptions) -> AppS
     return AppServicesOutput.model_validate(
         {
             "metadata": _metadata(provider, "app-services", options),
+            "findings": [],
+            **data,
+        }
+    )
+
+
+def collect_functions(provider: BaseProvider, options: GlobalOptions) -> FunctionsOutput:
+    data = provider.functions()
+    return FunctionsOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "functions", options),
             "findings": [],
             **data,
         }

@@ -93,6 +93,37 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox app-services --output table",
     ),
+    "functions": CommandHelpTopic(
+        name="functions",
+        section="compute",
+        summary=(
+            "Deepen Function App runtime, storage binding, identity, and deployment-posture "
+            "visibility."
+        ),
+        offensive_question=(
+            "Which Function Apps expose the most interesting runtime, identity, storage, and "
+            "ingress posture for operator follow-up?"
+        ),
+        cloudfox_frame=(
+            "Azure-native Function App review that goes deeper than workload census by surfacing "
+            "Functions runtime, storage binding, package-deployment signals, hostname, and "
+            "identity posture without duplicating raw app-setting output."
+        ),
+        output_highlights=(
+            "default_hostname",
+            "runtime_stack",
+            "functions_extension_version",
+            "azure_webjobs_storage_value_type",
+            "run_from_package",
+            "key_vault_reference_count",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Discovery", "Network Service Discovery"),
+            AttackLead("Execution", "Serverless Execution"),
+        ),
+        example="azurefox functions --output table",
+    ),
     "arm-deployments": CommandHelpTopic(
         name="arm-deployments",
         section="config",

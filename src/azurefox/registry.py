@@ -9,6 +9,7 @@ from azurefox.collectors.commands import (
     collect_auth_policies,
     collect_endpoints,
     collect_env_vars,
+    collect_functions,
     collect_inventory,
     collect_keyvault,
     collect_managed_identities,
@@ -60,6 +61,7 @@ COMMAND_SPECS: tuple[CommandSpec, ...] = (
     CommandSpec("network-ports", "network", collect_network_ports),
     CommandSpec("workloads", "compute", collect_workloads),
     CommandSpec("app-services", "compute", collect_app_services),
+    CommandSpec("functions", "compute", collect_functions),
     CommandSpec("vms", "compute", collect_vms),
 )
 
