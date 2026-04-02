@@ -236,6 +236,7 @@ def test_storage_asset_defaults() -> None:
     asset = StorageAsset(id="s-1", name="st01")
     assert asset.public_access is False
     assert asset.private_endpoint_enabled is False
+    assert asset.container_count is None
 
 
 def test_vm_asset_defaults() -> None:

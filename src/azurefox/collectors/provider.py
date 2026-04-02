@@ -1027,38 +1027,38 @@ class AzureProvider(BaseProvider):
         issues: list[dict] = []
         trusts: list[dict] = []
 
-        principal_data = self.principals()
-        candidate_sp_ids = sorted(
-            {
-                principal.get("id")
-                for principal in principal_data.get("principals", [])
-                if principal.get("id")
-                and principal.get("principal_type") in {"ServicePrincipal", "ManagedIdentity"}
-            }
-        )
-
         service_principals: list[dict] = []
-        for service_principal_id in candidate_sp_ids:
-            try:
-                service_principals.append(self.graph.get_service_principal(service_principal_id))
-            except Exception as exc:
-                issues.append(
-                    _issue_from_exception(
-                        f"role_trusts.service_principals[{service_principal_id}]",
-                        exc,
-                    )
-                )
+        try:
+            service_principals = self.graph.list_service_principals()
+        except Exception as exc:
+            issues.append(_issue_from_exception("role_trusts.service_principals", exc))
 
         service_principal_by_id = {
             item.get("id"): item for item in service_principals if item.get("id")
         }
+        service_principal_by_app_id = {
+            item.get("appId"): item for item in service_principals if item.get("appId")
+        }
         applications: list[dict] = []
         application_by_app_id: dict[str, dict] = {}
 
-        for service_principal in service_principals:
-            app_id = service_principal.get("appId")
-            if not app_id or app_id in application_by_app_id:
-                continue
+        try:
+            applications = self.graph.list_applications()
+        except Exception as exc:
+            issues.append(_issue_from_exception("role_trusts.applications", exc))
+            applications = []
+
+        for application in applications:
+            app_id = application.get("appId")
+            if app_id:
+                application_by_app_id[app_id] = application
+
+        missing_app_ids = sorted(
+            app_id
+            for app_id in service_principal_by_app_id
+            if app_id and app_id not in application_by_app_id
+        )
+        for app_id in missing_app_ids:
             try:
                 application = self.graph.get_application_by_app_id(app_id)
             except Exception as exc:
@@ -1080,14 +1080,7 @@ class AzureProvider(BaseProvider):
                 continue
             application_app_id = application.get("appId") or app_object_id
 
-            backing_sp = next(
-                (
-                    item
-                    for item in service_principals
-                    if item.get("appId") and item.get("appId") == application.get("appId")
-                ),
-                None,
-            )
+            backing_sp = service_principal_by_app_id.get(application.get("appId"))
 
             try:
                 federated_credentials = self.graph.list_application_federated_credentials(
@@ -1222,12 +1215,27 @@ class AzureProvider(BaseProvider):
                 assignments = []
 
             for assignment in assignments:
-                resource = service_principal_by_id.get(assignment.get("resourceId"), {})
+                resource_id = assignment.get("resourceId")
+                resource = service_principal_by_id.get(resource_id)
+                if resource is None and resource_id:
+                    try:
+                        resource = self.graph.get_service_principal(str(resource_id))
+                    except Exception as exc:
+                        issues.append(
+                            _issue_from_exception(
+                                f"role_trusts.service_principals[{sp_id}].resource[{resource_id}]",
+                                exc,
+                            )
+                        )
+                        resource = {}
+                    else:
+                        if resource.get("id"):
+                            service_principal_by_id[resource["id"]] = resource
                 resource_name = (
-                    resource.get("displayName") or assignment.get("resourceId") or "unknown"
+                    resource.get("displayName") or resource_id or "unknown"
                 )
                 assignment_related_ids = [
-                    item for item in [assignment.get("id"), assignment.get("resourceId")] if item
+                    item for item in [assignment.get("id"), resource_id] if item
                 ]
                 trusts.append(
                     {
@@ -1235,7 +1243,7 @@ class AzureProvider(BaseProvider):
                         "source_object_id": sp_id,
                         "source_name": service_principal.get("displayName"),
                         "source_type": "ServicePrincipal",
-                        "target_object_id": assignment.get("resourceId") or "unknown",
+                        "target_object_id": resource_id or "unknown",
                         "target_name": resource.get("displayName"),
                         "target_type": "ServicePrincipal",
                         "evidence_type": "graph-app-role-assignment",
@@ -1459,14 +1467,30 @@ class AzureProvider(BaseProvider):
 
                 private_endpoints = getattr(account, "private_endpoint_connections", None) or []
 
-                container_count = self._count_storage_children(
+                container_count, container_issues = self._count_storage_children(
                     "blob_containers",
                     rg_name,
                     account_name,
                 )
-                share_count = self._count_storage_children("file_shares", rg_name, account_name)
-                queue_count = self._count_storage_children("queue", rg_name, account_name)
-                table_count = self._count_storage_children("table", rg_name, account_name)
+                share_count, share_issues = self._count_storage_children(
+                    "file_shares",
+                    rg_name,
+                    account_name,
+                )
+                queue_count, queue_issues = self._count_storage_children(
+                    "queue",
+                    rg_name,
+                    account_name,
+                )
+                table_count, table_issues = self._count_storage_children(
+                    "table",
+                    rg_name,
+                    account_name,
+                )
+                issues.extend(container_issues)
+                issues.extend(share_issues)
+                issues.extend(queue_issues)
+                issues.extend(table_issues)
 
                 indicators = []
                 if public_access:
@@ -1493,6 +1517,7 @@ class AzureProvider(BaseProvider):
         except Exception as exc:
             issues.append(_issue_from_exception("storage", exc))
 
+        assets.sort(key=lambda item: ((item.get("name") or ""), item.get("id") or ""))
         return {"storage_assets": assets, "issues": issues}
 
     def vms(self) -> dict:
@@ -1704,13 +1729,18 @@ class AzureProvider(BaseProvider):
         cache[role_definition_id] = role_name or "Unknown"
         return cache[role_definition_id]
 
-    def _count_storage_children(self, op_name: str, rg_name: str | None, account_name: str) -> int:
+    def _count_storage_children(
+        self,
+        op_name: str,
+        rg_name: str | None,
+        account_name: str,
+    ) -> tuple[int | None, list[dict]]:
         if not rg_name:
-            return 0
+            return None, []
 
         operation = getattr(self.clients.storage, op_name, None)
         if operation is None:
-            return 0
+            return None, []
 
         for method_name in ("list", "list_by_storage_account"):
             method = getattr(operation, method_name, None)
@@ -1718,11 +1748,16 @@ class AzureProvider(BaseProvider):
                 continue
             try:
                 if method_name == "list":
-                    return sum(1 for _ in method(rg_name, account_name))
-                return sum(1 for _ in method(account_name))
-            except Exception:
-                return 0
-        return 0
+                    return sum(1 for _ in method(rg_name, account_name)), []
+                return sum(1 for _ in method(account_name)), []
+            except Exception as exc:
+                return None, [
+                    _issue_from_exception(
+                        f"storage[{rg_name}/{account_name}].{op_name}",
+                        exc,
+                    )
+                ]
+        return None, []
 
     def _resolve_nic_detail(
         self,
@@ -3727,6 +3762,7 @@ def _workload_rows_from_vms(
                     asset_kind=str(item.get("vm_type") or "vm").upper(),
                     asset_name=asset_name,
                     endpoints=endpoints,
+                    exposure_families=exposure_families,
                     identity_type=identity_type,
                     network_signals=network_signals,
                 ),
@@ -3783,6 +3819,7 @@ def _workload_rows_from_web_workloads(
                     asset_kind=asset_kind,
                     asset_name=asset_name,
                     endpoints=endpoints,
+                    exposure_families=exposure_families,
                     identity_type=identity_type,
                     network_signals=network_signals,
                 ),
@@ -3820,17 +3857,25 @@ def _workload_summary_text(
     asset_kind: str,
     asset_name: str,
     endpoints: list[str],
+    exposure_families: list[str],
     identity_type: object,
     network_signals: list[str],
 ) -> str:
     if endpoints:
-        endpoint_phrase = (
-            f"exposes reachable endpoint '{endpoints[0]}'"
-            if len(endpoints) == 1
-            else f"exposes {len(endpoints)} reachable endpoints ({', '.join(endpoints)})"
-        )
+        if exposure_families and all(family == "public-ip" for family in exposure_families):
+            endpoint_phrase = (
+                f"exposes reachable endpoint '{endpoints[0]}'"
+                if len(endpoints) == 1
+                else f"exposes {len(endpoints)} reachable endpoints ({', '.join(endpoints)})"
+            )
+        else:
+            endpoint_phrase = (
+                f"publishes visible endpoint hostname '{endpoints[0]}'"
+                if len(endpoints) == 1
+                else f"publishes {len(endpoints)} visible endpoint paths ({', '.join(endpoints)})"
+            )
     else:
-        endpoint_phrase = "has no reachable endpoint visible from the current read path"
+        endpoint_phrase = "has no visible endpoint path from the current read path"
 
     if identity_type:
         identity_phrase = f"carries managed identity context ({identity_type})"

@@ -32,6 +32,29 @@ Why it should be separate:
 - broader consent and directory graph coverage would blur the boundary of `role-trusts`
 - it is the cleanest future home for delegated/admin consent evidence and wider Entra teardown
 
+### `role-trusts` scale modes
+
+Why it is grounded now:
+
+- `role-trusts` now enumerates readable Graph trust edges directly instead of depending only on
+  principal-seeded inputs
+- that broader trust-edge pass is more truthful for Phase 1, but it will naturally do more Graph
+  work in larger tenants
+
+Why it should be separate:
+
+- this is not a new trust family; it is an operator control and scale-hardening follow-on for an
+  existing command
+- AzureFox should not silently downgrade trust coverage based on tenant size because that would
+  make results harder to explain
+
+What this future follow-on could absorb:
+
+- an explicit `role-trusts` collection mode split such as broad/default versus seeded/fast
+- clearer large-tenant handling for Graph pagination, throttling, and wait behavior
+- more explicit issue surfacing when broad trust enumeration is only partially readable
+- operator-facing wording that makes the coverage tradeoff obvious when a narrower mode is chosen
+
 ### `public-ips`
 
 Why it is grounded now:

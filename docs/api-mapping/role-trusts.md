@@ -121,7 +121,8 @@ Suggested fields:
 ## Assumptions
 
 - This command is a trust-edge triage surface, not a full Entra graph dump.
-- Graph-backed collection is required for truthful coverage of most trust relationships.
+- Graph-backed collection should enumerate readable app and service-principal trust edges directly
+  rather than relying only on identities already surfaced by other commands.
 - Confidence labels must separate confirmed relationships from investigative leads.
 - Wording should stay narrower than the breadth implied by the command name.
 

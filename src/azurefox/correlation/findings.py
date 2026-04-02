@@ -378,9 +378,13 @@ def build_vm_findings(vms_raw: list[dict]) -> list[dict]:
     return [f.model_dump() for f in findings]
 
 
-def build_auth_policy_findings(policies_raw: list[dict]) -> list[dict]:
+def build_auth_policy_findings(
+    policies_raw: list[dict],
+    issues_raw: list[dict] | None = None,
+) -> list[dict]:
     policies = [AuthPolicySummary.model_validate(item) for item in policies_raw]
     findings: list[Finding] = []
+    issues = issues_raw or []
 
     security_defaults = next(
         (policy for policy in policies if policy.policy_type == "security-defaults"),
@@ -393,6 +397,11 @@ def build_auth_policy_findings(policies_raw: list[dict]) -> list[dict]:
     conditional_access = [
         policy for policy in policies if policy.policy_type == "conditional-access"
     ]
+    conditional_access_unreadable = any(
+        (issue.get("context") or {}).get("collector") == "auth_policies.conditional_access"
+        for issue in issues
+        if isinstance(issue, dict)
+    )
 
     if security_defaults and security_defaults.state == "disabled":
         findings.append(
@@ -468,7 +477,12 @@ def build_auth_policy_findings(policies_raw: list[dict]) -> list[dict]:
             )
 
     enabled_ca = [policy for policy in conditional_access if policy.state == "enabled"]
-    if security_defaults and security_defaults.state == "disabled" and not enabled_ca:
+    if (
+        security_defaults
+        and security_defaults.state == "disabled"
+        and not enabled_ca
+        and not conditional_access_unreadable
+    ):
         findings.append(
             Finding(
                 id="auth-policy-no-active-enforcement-visible",

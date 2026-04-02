@@ -83,6 +83,160 @@ class PartialAuthPoliciesFixtureProvider(FixtureProvider):
         }
 
 
+class ConditionalAccessUnreadableFixtureProvider(FixtureProvider):
+    def auth_policies(self) -> dict:
+        return {
+            "auth_policies": [
+                {
+                    "policy_type": "security-defaults",
+                    "name": "Security Defaults",
+                    "state": "disabled",
+                    "scope": "tenant",
+                    "controls": [],
+                    "summary": "Security defaults are disabled for the tenant.",
+                    "related_ids": ["security-defaults"],
+                },
+                {
+                    "policy_type": "authorization-policy",
+                    "name": "Authorization Policy",
+                    "state": "configured",
+                    "scope": "tenant",
+                    "controls": [
+                        "guest-invites:everyone",
+                        "users-can-register-apps",
+                        "user-consent:self-service",
+                    ],
+                    "summary": (
+                        "guest invites: everyone; users can register apps; "
+                        "self-service permission grant policies assigned"
+                    ),
+                    "related_ids": ["authorizationPolicy"],
+                },
+            ],
+            "issues": [
+                {
+                    "kind": "permission_denied",
+                    "message": "auth_policies.conditional_access: 403 Forbidden",
+                    "context": {"collector": "auth_policies.conditional_access"},
+                }
+            ],
+        }
+
+
+class FakeRoleTrustsGraph:
+    def list_service_principals(self) -> list[dict]:
+        return [
+            {
+                "id": "66666666-6666-6666-6666-666666666666",
+                "appId": "55555555-5555-5555-5555-555555555550",
+                "displayName": "build-sp",
+                "servicePrincipalType": "Application",
+            },
+            {
+                "id": "99999999-9999-9999-9999-999999999999",
+                "appId": "99999999-9999-9999-9999-999999999990",
+                "displayName": "reporting-sp",
+                "servicePrincipalType": "Application",
+            },
+            {
+                "id": "00000003-0000-0000-c000-000000000000",
+                "appId": "00000003-0000-0000-c000-000000000000",
+                "displayName": "Microsoft Graph",
+                "servicePrincipalType": "Application",
+            },
+        ]
+
+    def list_applications(self) -> list[dict]:
+        return [
+            {
+                "id": "55555555-5555-5555-5555-555555555555",
+                "appId": "55555555-5555-5555-5555-555555555550",
+                "displayName": "build-app",
+            }
+        ]
+
+    def get_application_by_app_id(self, app_id: str) -> dict | None:
+        return None
+
+    def list_application_federated_credentials(self, application_id: str) -> list[dict]:
+        if application_id != "55555555-5555-5555-5555-555555555555":
+            return []
+        return [
+            {
+                "id": "fic-build-main",
+                "issuer": "https://token.actions.githubusercontent.com",
+                "subject": "repo:TacoRocket/AzureFox:ref:refs/heads/main",
+            }
+        ]
+
+    def list_application_owners(self, application_id: str) -> list[dict]:
+        if application_id != "55555555-5555-5555-5555-555555555555":
+            return []
+        return [
+            {
+                "id": "77777777-7777-7777-7777-777777777777",
+                "userPrincipalName": "ci-admin@lab.local",
+                "@odata.type": "#microsoft.graph.user",
+            }
+        ]
+
+    def list_service_principal_owners(self, service_principal_id: str) -> list[dict]:
+        if service_principal_id != "66666666-6666-6666-6666-666666666666":
+            return []
+        return [
+            {
+                "id": "88888888-8888-8888-8888-888888888888",
+                "displayName": "automation-runner",
+                "appId": "88888888-8888-8888-8888-888888888880",
+            }
+        ]
+
+    def list_app_role_assignments(self, service_principal_id: str) -> list[dict]:
+        if service_principal_id != "99999999-9999-9999-9999-999999999999":
+            return []
+        return [
+            {
+                "id": "app-role-graph-1",
+                "resourceId": "00000003-0000-0000-c000-000000000000",
+            }
+        ]
+
+    def get_service_principal(self, service_principal_id: str) -> dict:
+        for item in self.list_service_principals():
+            if item["id"] == service_principal_id:
+                return item
+        raise AssertionError(f"unexpected service principal lookup: {service_principal_id}")
+
+
+class BrokenStorageList:
+    def list(self, _resource_group: str, _account_name: str):
+        raise PermissionError("403 Forbidden")
+
+
+class FakeStorageAccounts:
+    def list(self):
+        account = type("StorageAccount", (), {})()
+        account.id = (
+            "/subscriptions/test/resourceGroups/rg-storage/providers/"
+            "Microsoft.Storage/storageAccounts/stpartial01"
+        )
+        account.name = "stpartial01"
+        account.location = "eastus"
+        account.allow_blob_public_access = False
+        account.network_rule_set = None
+        account.private_endpoint_connections = []
+        return [account]
+
+
+class FakeStorageClient:
+    def __init__(self) -> None:
+        self.storage_accounts = FakeStorageAccounts()
+        self.blob_containers = BrokenStorageList()
+        self.file_shares = BrokenStorageList()
+        self.queue = BrokenStorageList()
+        self.table = BrokenStorageList()
+
+
 class PartialAppServicesFixtureProvider(FixtureProvider):
     def app_services(self) -> dict:
         data = self._read("app_services")
@@ -532,6 +686,20 @@ def test_collect_auth_policies_keeps_partial_visibility_explicit(
     assert output.issues[0].context["collector"] == "auth_policies.security_defaults"
 
 
+def test_collect_auth_policies_does_not_imply_missing_enforcement_when_ca_unreadable(
+    fixture_dir: Path, options
+) -> None:
+    provider = ConditionalAccessUnreadableFixtureProvider(fixture_dir)
+
+    output = collect_auth_policies(provider, options)
+
+    finding_ids = [finding.id for finding in output.findings]
+    assert "auth-policy-security-defaults-disabled" in finding_ids
+    assert "auth-policy-users-can-register-apps" in finding_ids
+    assert "auth-policy-no-active-enforcement-visible" not in finding_ids
+    assert output.issues[0].context["collector"] == "auth_policies.conditional_access"
+
+
 def test_collect_rbac(fixture_provider, options) -> None:
     output = collect_rbac(fixture_provider, options)
     assert len(output.role_assignments) == 2
@@ -564,6 +732,23 @@ def test_collect_role_trusts(fixture_provider, options) -> None:
     assert len(output.trusts) == 4
     assert output.trusts[0].trust_type == "app-owner"
     assert output.trusts[2].evidence_type == "graph-federated-credential"
+
+
+def test_collect_role_trusts_enumerates_graph_edges_without_principal_seed(options) -> None:
+    provider = object.__new__(AzureProvider)
+    provider.graph = FakeRoleTrustsGraph()
+    provider.metadata_context = lambda: {
+        "tenant_id": "tenant-from-provider",
+        "subscription_id": "subscription-from-provider",
+        "token_source": "azure_cli",
+    }
+
+    output = collect_role_trusts(provider, options)
+
+    assert len(output.trusts) == 4
+    assert any(item.source_name == "build-app" for item in output.trusts)
+    assert any(item.source_name == "reporting-sp" for item in output.trusts)
+    assert any(item.target_name == "Microsoft Graph" for item in output.trusts)
 
 
 def test_collect_managed_identities(fixture_provider, options) -> None:
@@ -605,6 +790,23 @@ def test_collect_storage(fixture_provider, options) -> None:
     output = collect_storage(fixture_provider, options)
     assert len(output.storage_assets) == 2
     assert len(output.findings) == 2
+
+
+def test_collect_storage_keeps_child_enumeration_failures_explicit(options) -> None:
+    provider = object.__new__(AzureProvider)
+    provider.clients = type("Clients", (), {"storage": FakeStorageClient()})()
+    provider.metadata_context = lambda: {
+        "tenant_id": "tenant-from-provider",
+        "subscription_id": "subscription-from-provider",
+        "token_source": "azure_cli",
+    }
+
+    output = collect_storage(provider, options)
+
+    assert len(output.storage_assets) == 1
+    assert output.storage_assets[0].container_count is None
+    assert output.storage_assets[0].file_share_count is None
+    assert len(output.issues) == 4
 
 
 def test_collect_nics(fixture_provider, options) -> None:

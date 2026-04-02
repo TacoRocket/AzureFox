@@ -23,6 +23,14 @@ GRAPH_ROOT = "https://graph.microsoft.com/v1.0"
 class GraphClient:
     credential: object
 
+    def list_applications(self) -> list[dict[str, Any]]:
+        return self._list(
+            "/applications",
+            {
+                "$select": "id,appId,displayName,signInAudience",
+            },
+        )
+
     def get_application(self, application_id: str) -> dict[str, Any]:
         return self._get(
             f"{GRAPH_ROOT}/applications/{application_id}"
@@ -43,6 +51,14 @@ class GraphClient:
         return self._get(
             f"{GRAPH_ROOT}/servicePrincipals/{service_principal_id}"
             "?$select=id,appId,displayName,servicePrincipalType,appOwnerOrganizationId"
+        )
+
+    def list_service_principals(self) -> list[dict[str, Any]]:
+        return self._list(
+            "/servicePrincipals",
+            {
+                "$select": "id,appId,displayName,servicePrincipalType,appOwnerOrganizationId",
+            },
         )
 
     def get_service_principals(self, service_principal_ids: list[str]) -> list[dict[str, Any]]:

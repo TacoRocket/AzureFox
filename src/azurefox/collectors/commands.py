@@ -278,7 +278,10 @@ def collect_resource_trusts(provider: BaseProvider, options: GlobalOptions) -> R
 
 def collect_auth_policies(provider: BaseProvider, options: GlobalOptions) -> AuthPoliciesOutput:
     data = provider.auth_policies()
-    findings = build_auth_policy_findings(data.get("auth_policies", []))
+    findings = build_auth_policy_findings(
+        data.get("auth_policies", []),
+        data.get("issues", []),
+    )
     return AuthPoliciesOutput.model_validate(
         {
             "metadata": _metadata(provider, "auth-policies", options),
@@ -315,9 +318,21 @@ def collect_keyvault(provider: BaseProvider, options: GlobalOptions) -> KeyVault
 
 def collect_storage(provider: BaseProvider, options: GlobalOptions) -> StorageOutput:
     data = provider.storage()
-    findings = build_storage_findings(data.get("storage_assets", []))
+    storage_assets = sorted(
+        data.get("storage_assets", []),
+        key=lambda item: (
+            item.get("name") or "",
+            item.get("id") or "",
+        ),
+    )
+    findings = build_storage_findings(storage_assets)
     return StorageOutput.model_validate(
-        {"metadata": _metadata(provider, "storage", options), "findings": findings, **data}
+        {
+            "metadata": _metadata(provider, "storage", options),
+            "findings": findings,
+            **data,
+            "storage_assets": storage_assets,
+        }
     )
 
 

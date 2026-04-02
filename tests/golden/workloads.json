@@ -1,138 +1,138 @@
 {
-  "findings": [],
-  "issues": [],
   "metadata": {
+    "schema_version": "1.0.0",
     "command": "workloads",
     "generated_at": "<generated_at>",
-    "schema_version": "1.0.0",
-    "subscription_id": "22222222-2222-2222-2222-222222222222",
     "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "subscription_id": "22222222-2222-2222-2222-222222222222",
     "token_source": null
   },
   "workloads": [
     {
       "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01",
-      "asset_kind": "VM",
       "asset_name": "vm-web-01",
-      "endpoints": [
-        "52.160.10.20"
-      ],
-      "exposure_families": [
-        "public-ip"
-      ],
+      "asset_kind": "VM",
+      "resource_group": "rg-workload",
+      "location": "eastus",
+      "identity_type": "UserAssigned",
+      "identity_principal_id": null,
       "identity_client_id": null,
       "identity_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-app"
       ],
-      "identity_principal_id": null,
-      "identity_type": "UserAssigned",
+      "endpoints": [
+        "52.160.10.20"
+      ],
       "ingress_paths": [
         "direct-vm-ip"
       ],
-      "location": "eastus",
+      "exposure_families": [
+        "public-ip"
+      ],
+      "summary": "VM 'vm-web-01' exposes reachable endpoint '52.160.10.20' and carries managed identity context (UserAssigned). Visible signals: public-ip=1, private-ip=1, nic=1. Use this as a quick workload census pivot before deeper service-specific review.",
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01",
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-app",
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Network/networkInterfaces/nic-web-01"
-      ],
-      "resource_group": "rg-workload",
-      "summary": "VM 'vm-web-01' exposes reachable endpoint '52.160.10.20' and carries managed identity context (UserAssigned). Visible signals: public-ip=1, private-ip=1, nic=1. Use this as a quick workload census pivot before deeper service-specific review."
+      ]
     },
     {
       "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-empty-mi",
-      "asset_kind": "AppService",
       "asset_name": "app-empty-mi",
+      "asset_kind": "AppService",
+      "resource_group": "rg-apps",
+      "location": "eastus",
+      "identity_type": "SystemAssigned",
+      "identity_principal_id": "eeee3333-3333-3333-3333-333333333333",
+      "identity_client_id": "ffff3333-3333-3333-3333-333333333333",
+      "identity_ids": [],
       "endpoints": [
         "app-empty-mi.azurewebsites.net"
       ],
-      "exposure_families": [
-        "managed-web-hostname"
-      ],
-      "identity_client_id": "ffff3333-3333-3333-3333-333333333333",
-      "identity_ids": [],
-      "identity_principal_id": "eeee3333-3333-3333-3333-333333333333",
-      "identity_type": "SystemAssigned",
       "ingress_paths": [
         "azurewebsites-default-hostname"
       ],
-      "location": "eastus",
+      "exposure_families": [
+        "managed-web-hostname"
+      ],
+      "summary": "AppService 'app-empty-mi' publishes visible endpoint hostname 'app-empty-mi.azurewebsites.net' and carries managed identity context (SystemAssigned). Visible signals: default-hostname. Use this as a quick workload census pivot before deeper service-specific review.",
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-empty-mi",
         "eeee3333-3333-3333-3333-333333333333"
-      ],
-      "resource_group": "rg-apps",
-      "summary": "AppService 'app-empty-mi' exposes reachable endpoint 'app-empty-mi.azurewebsites.net' and carries managed identity context (SystemAssigned). Visible signals: default-hostname. Use this as a quick workload census pivot before deeper service-specific review."
+      ]
     },
     {
       "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api",
-      "asset_kind": "AppService",
       "asset_name": "app-public-api",
+      "asset_kind": "AppService",
+      "resource_group": "rg-apps",
+      "location": "eastus",
+      "identity_type": "SystemAssigned",
+      "identity_principal_id": "aaaa1111-1111-1111-1111-111111111111",
+      "identity_client_id": "bbbb1111-1111-1111-1111-111111111111",
+      "identity_ids": [],
       "endpoints": [
         "app-public-api.azurewebsites.net"
       ],
-      "exposure_families": [
-        "managed-web-hostname"
-      ],
-      "identity_client_id": "bbbb1111-1111-1111-1111-111111111111",
-      "identity_ids": [],
-      "identity_principal_id": "aaaa1111-1111-1111-1111-111111111111",
-      "identity_type": "SystemAssigned",
       "ingress_paths": [
         "azurewebsites-default-hostname"
       ],
-      "location": "eastus",
-      "related_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api",
-        "aaaa1111-1111-1111-1111-111111111111"
-      ],
-      "resource_group": "rg-apps",
-      "summary": "AppService 'app-public-api' exposes reachable endpoint 'app-public-api.azurewebsites.net' and carries managed identity context (SystemAssigned). Visible signals: default-hostname. Use this as a quick workload census pivot before deeper service-specific review."
-    },
-    {
-      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders",
-      "asset_kind": "FunctionApp",
-      "asset_name": "func-orders",
-      "endpoints": [
-        "func-orders.azurewebsites.net"
-      ],
       "exposure_families": [
         "managed-web-hostname"
       ],
+      "summary": "AppService 'app-public-api' publishes visible endpoint hostname 'app-public-api.azurewebsites.net' and carries managed identity context (SystemAssigned). Visible signals: default-hostname. Use this as a quick workload census pivot before deeper service-specific review.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api",
+        "aaaa1111-1111-1111-1111-111111111111"
+      ]
+    },
+    {
+      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders",
+      "asset_name": "func-orders",
+      "asset_kind": "FunctionApp",
+      "resource_group": "rg-apps",
+      "location": "eastus",
+      "identity_type": "SystemAssigned, UserAssigned",
+      "identity_principal_id": "cccc2222-2222-2222-2222-222222222222",
       "identity_client_id": "dddd2222-2222-2222-2222-222222222222",
       "identity_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-orders"
       ],
-      "identity_principal_id": "cccc2222-2222-2222-2222-222222222222",
-      "identity_type": "SystemAssigned, UserAssigned",
+      "endpoints": [
+        "func-orders.azurewebsites.net"
+      ],
       "ingress_paths": [
         "azure-functions-default-hostname"
       ],
-      "location": "eastus",
+      "exposure_families": [
+        "managed-web-hostname"
+      ],
+      "summary": "FunctionApp 'func-orders' publishes visible endpoint hostname 'func-orders.azurewebsites.net' and carries managed identity context (SystemAssigned, UserAssigned). Visible signals: default-hostname, user-assigned=1. Use this as a quick workload census pivot before deeper service-specific review.",
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders",
         "cccc2222-2222-2222-2222-222222222222",
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-orders"
-      ],
-      "resource_group": "rg-apps",
-      "summary": "FunctionApp 'func-orders' exposes reachable endpoint 'func-orders.azurewebsites.net' and carries managed identity context (SystemAssigned, UserAssigned). Visible signals: default-hostname, user-assigned=1. Use this as a quick workload census pivot before deeper service-specific review."
+      ]
     },
     {
       "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-api",
-      "asset_kind": "VMSS",
       "asset_name": "vmss-api",
-      "endpoints": [],
-      "exposure_families": [],
+      "asset_kind": "VMSS",
+      "resource_group": "rg-workload",
+      "location": "eastus",
+      "identity_type": null,
+      "identity_principal_id": null,
       "identity_client_id": null,
       "identity_ids": [],
-      "identity_principal_id": null,
-      "identity_type": null,
+      "endpoints": [],
       "ingress_paths": [],
-      "location": "eastus",
+      "exposure_families": [],
+      "summary": "VMSS 'vmss-api' has no visible endpoint path from the current read path and has no managed identity context visible from the current read path. Use this as a quick workload census pivot before deeper service-specific review.",
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-api"
-      ],
-      "resource_group": "rg-workload",
-      "summary": "VMSS 'vmss-api' has no reachable endpoint visible from the current read path and has no managed identity context visible from the current read path. Use this as a quick workload census pivot before deeper service-specific review."
+      ]
     }
-  ]
+  ],
+  "findings": [],
+  "issues": []
 }
