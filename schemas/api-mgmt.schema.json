@@ -1,0 +1,9 @@
+{
+  "model": "ApiMgmtOutput",
+  "top_level_fields": [
+    "metadata",
+    "api_management_services",
+    "findings",
+    "issues"
+  ]
+}

@@ -80,6 +80,29 @@ def test_app_services_table_mode_surfaces_runtime_and_posture(tmp_path: Path) ->
     ) in result.stdout
 
 
+def test_api_mgmt_table_mode_surfaces_gateway_and_inventory(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "api-mgmt"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Reviewing API Management gateway hostnames, identity, and service posture."
+        in result.stdout
+    )
+    assert "service" in result.stdout
+    assert "apim-edge-01" in result.stdout
+    assert "named-values=2" in result.stdout
+    assert "gateway=2" in result.stdout
+    assert "public=Enabled" in result.stdout
+    assert (
+        "Takeaway: 1 API Management services visible; 1 keep public network access enabled, "
+        "1 carry managed identity context, and 2 named values are visible."
+    ) in result.stdout
+
+
 def test_functions_table_mode_surfaces_runtime_and_deployment(tmp_path: Path) -> None:
     result = runner.invoke(
         app,
@@ -346,3 +369,41 @@ def test_functions_partial_read_surfaces_collection_issue() -> None:
     assert "Collection issues:" in rendered
     assert "permission_denied" in rendered
     assert "functions[rg-apps/func-orders].app_settings" in rendered
+
+
+def test_api_mgmt_partial_read_surfaces_collection_issue() -> None:
+    payload = {
+        "metadata": {"command": "api-mgmt"},
+        "api_management_services": [
+            {
+                "name": "apim-edge-01",
+                "gateway_hostnames": ["apim-edge-01.azure-api.net"],
+                "management_hostnames": ["apim-edge-01.management.azure-api.net"],
+                "portal_hostnames": ["portal.apim-edge-01.contoso.com"],
+                "workload_identity_type": "SystemAssigned",
+                "api_count": None,
+                "backend_count": 1,
+                "named_value_count": None,
+                "public_network_access": "Enabled",
+                "virtual_network_type": "External",
+                "gateway_enabled": True,
+                "developer_portal_status": "Enabled",
+                "summary": "test",
+            }
+        ],
+        "findings": [],
+        "issues": [
+            {
+                "kind": "permission_denied",
+                "message": "api_mgmt[rg-apps/apim-edge-01].named_values: 403 Forbidden",
+                "context": {"collector": "api_mgmt[rg-apps/apim-edge-01].named_values"},
+            }
+        ],
+    }
+    rendered = render_table("api-mgmt", payload)
+
+    assert "Collection issues:" in rendered
+    assert "permission_denied" in rendered
+    assert "api_mgmt[rg-apps/apim-edge-01].named_values" in rendered
+    assert "named value visibility is unreadable" in rendered
+    assert "at least one visible service" in rendered

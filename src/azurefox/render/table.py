@@ -126,6 +126,31 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "api-mgmt":
+        return (
+            [
+                ("name", "service"),
+                ("gateway", "gateway"),
+                ("identity", "identity"),
+                ("inventory", "inventory"),
+                ("exposure", "exposure"),
+                ("posture", "posture"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "name": item.get("name"),
+                    "gateway": item.get("gateway_hostnames", []),
+                    "identity": _app_service_identity_context(item),
+                    "inventory": _api_mgmt_inventory_context(item),
+                    "exposure": _api_mgmt_exposure_context(item),
+                    "posture": _api_mgmt_posture_context(item),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("api_management_services", [])
+            ],
+        )
+
     if command == "functions":
         return (
             [
@@ -675,6 +700,35 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             "managed identity context."
         )
 
+    if command == "api-mgmt":
+        services = payload.get("api_management_services", [])
+        public_network = sum(
+            str(item.get("public_network_access") or "").lower() == "enabled"
+            for item in services
+        )
+        identities = sum(bool(item.get("workload_identity_type")) for item in services)
+        named_value_counts = [item.get("named_value_count") for item in services]
+        readable_named_values = sum(
+            count for count in named_value_counts if isinstance(count, int)
+        )
+        if named_value_counts and any(count is None for count in named_value_counts):
+            if readable_named_values:
+                named_value_phrase = (
+                    f"at least {readable_named_values} named values are visible, with some "
+                    "services unreadable"
+                )
+            else:
+                named_value_phrase = (
+                    "named value visibility is unreadable from at least one visible service"
+                )
+        else:
+            named_value_phrase = f"{readable_named_values} named values are visible"
+        return (
+            f"{len(services)} API Management services visible; {public_network} keep public "
+            f"network access enabled, {identities} carry managed identity context, and "
+            f"{named_value_phrase}."
+        )
+
     if command == "functions":
         function_apps = payload.get("function_apps", [])
         identities = sum(bool(item.get("workload_identity_type")) for item in function_apps)
@@ -881,6 +935,53 @@ def _function_posture_context(item: dict) -> str:
         parts.append("always-on=yes")
     elif item.get("always_on") is False:
         parts.append("always-on=no")
+    return "; ".join(parts)
+
+
+def _api_mgmt_inventory_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("api_count") is not None:
+        parts.append(f"apis={item.get('api_count')}")
+    if item.get("backend_count") is not None:
+        parts.append(f"backends={item.get('backend_count')}")
+    if item.get("named_value_count") is not None:
+        parts.append(f"named-values={item.get('named_value_count')}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _api_mgmt_exposure_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("gateway_hostnames"):
+        parts.append(f"gateway={len(item.get('gateway_hostnames', []))}")
+    if item.get("management_hostnames"):
+        parts.append(f"management={len(item.get('management_hostnames', []))}")
+    if item.get("portal_hostnames"):
+        parts.append(f"portal={len(item.get('portal_hostnames', []))}")
+    if item.get("public_network_access"):
+        parts.append(f"public={item.get('public_network_access')}")
+    if item.get("public_ip_addresses"):
+        parts.append(f"public-ip={len(item.get('public_ip_addresses', []))}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _api_mgmt_posture_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("sku_name"):
+        parts.append(str(item.get("sku_name")))
+    if item.get("virtual_network_type"):
+        parts.append(f"vnet={item.get('virtual_network_type')}")
+    if item.get("gateway_enabled") is True:
+        parts.append("gateway=yes")
+    elif item.get("gateway_enabled") is False:
+        parts.append("gateway=no")
+    if item.get("developer_portal_status"):
+        parts.append(f"devportal={item.get('developer_portal_status')}")
+    if not parts:
+        return "-"
     return "; ".join(parts)
 
 

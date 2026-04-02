@@ -124,6 +124,35 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox functions --output table",
     ),
+    "api-mgmt": CommandHelpTopic(
+        name="api-mgmt",
+        section="resource",
+        summary=(
+            "Summarize API Management gateway, hostname, identity, and service-inventory posture."
+        ),
+        offensive_question=(
+            "Which API Management services expose the most interesting gateway, backend, and "
+            "configuration posture for operator follow-up?"
+        ),
+        cloudfox_frame=(
+            "Azure-native API Management census that surfaces gateway hostnames, identity "
+            "context, service inventory, and basic exposure posture before deeper policy or "
+            "subscription analysis."
+        ),
+        output_highlights=(
+            "gateway_hostnames",
+            "public_network_access",
+            "virtual_network_type",
+            "api_count",
+            "named_value_count",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Initial Access", "Exploit Public-Facing Application"),
+            AttackLead("Collection", "Data from Information Repositories"),
+        ),
+        example="azurefox api-mgmt --output table",
+    ),
     "arm-deployments": CommandHelpTopic(
         name="arm-deployments",
         section="config",

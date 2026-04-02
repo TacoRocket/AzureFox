@@ -79,6 +79,15 @@ def test_help_command_functions_topic() -> None:
     assert "run_from_package" in result.stdout
 
 
+def test_help_command_api_mgmt_topic() -> None:
+    result = runner.invoke(app, ["help", "api-mgmt"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: api-mgmt" in result.stdout
+    assert "gateway_hostnames" in result.stdout
+    assert "virtual_network_type" in result.stdout
+
+
 def test_help_command_network_ports_topic() -> None:
     result = runner.invoke(app, ["help", "network-ports"])
 

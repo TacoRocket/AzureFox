@@ -56,6 +56,29 @@ Why it should wait:
 
 - it needs the shared network vocabulary from `nics` and `endpoints` first
 
+### `api-mgmt-depth`
+
+Why it is grounded now:
+
+- the roadmap already includes `api-mgmt` as a Phase 3 service slice
+- once AzureFox lands a first API Management foothold, the repo can reuse that client and
+  service-level inventory path for narrower follow-on depth
+
+Why it should be separate:
+
+- API Management subscriptions, named-value secret handling, and policy-body inspection can easily
+  overwhelm a first operator-first service census
+- those areas deserve a later evidence-based follow-on once the initial gateway, hostname,
+  identity, and inventory posture command settles
+
+What this future follow-on could absorb:
+
+- subscription inventory and operator risk cues
+- named-value secret posture beyond simple counts
+- Key Vault-backed named-value depth
+- policy-body collection or policy-shape summaries
+- backend URL and trust-path deepening where the first `api-mgmt` slice stays intentionally narrow
+
 ### `network-effective`
 
 Why it is grounded now:
@@ -103,6 +126,35 @@ Do not promote these yet from the current repo state:
 - services with no current client, fixture, or collector adjacency
 - AI, Lighthouse, DevOps, or automation sub-slices beyond the roadmap until the core compute and
   network tranche is further along
+
+## Broader Roadmap Gaps To Revisit Once Grounded
+
+The external roadmap reference also calls out broader domain gaps that should stay visible even
+though they do not yet meet this document's repo-foothold rule.
+
+Keep these as watch items, not near-term candidates, until AzureFox gains client, fixture, or
+collector adjacency for them:
+
+- messaging and eventing
+  Azure Service Bus, Event Grid, Event Hubs, and queue-oriented trust or data-path review
+- filesystems and mounted storage
+  Azure Files, Azure NetApp Files, and mount-oriented loot or trust paths
+- data, analytics, and search platforms
+  Synapse, Data Explorer, Log Analytics, and search-oriented operator surfaces that do not fit
+  cleanly under broad `databases`
+- governance metadata
+  tags, labels, and other governance-oriented enumeration surfaces
+- directory-services-specific coverage
+  Azure AD DS or managed domain-service style visibility beyond current Entra and RBAC coverage
+
+Note on edge and delivery surfaces:
+
+- the external roadmap reference calls out Front Door, CDN, Application Gateway, and
+  load-balancer-style discovery
+- the current future candidates already partially cover this family through `public-ips` and
+  `load-balancers`
+- revisit a broader edge-delivery command later if those footholds land and we need a more unified
+  operator surface
 
 ## Recommendation
 

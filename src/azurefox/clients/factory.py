@@ -14,6 +14,7 @@ class AzureClients:
     resource: object
     authorization: object
     web: object
+    api_management: object
     keyvault: object
     storage: object
     compute: object
@@ -22,6 +23,7 @@ class AzureClients:
 
 def build_clients(session: AuthSession, requested_subscription: str | None) -> AzureClients:
     try:
+        from azure.mgmt.apimanagement import ApiManagementClient
         from azure.mgmt.authorization import AuthorizationManagementClient
         from azure.mgmt.compute import ComputeManagementClient
         from azure.mgmt.keyvault import KeyVaultManagementClient
@@ -73,6 +75,7 @@ def build_clients(session: AuthSession, requested_subscription: str | None) -> A
         resource=ResourceManagementClient(session.credential, subscription_id),
         authorization=AuthorizationManagementClient(session.credential, subscription_id),
         web=WebSiteManagementClient(session.credential, subscription_id),
+        api_management=ApiManagementClient(session.credential, subscription_id),
         keyvault=KeyVaultManagementClient(session.credential, subscription_id),
         storage=StorageManagementClient(session.credential, subscription_id),
         compute=ComputeManagementClient(session.credential, subscription_id),

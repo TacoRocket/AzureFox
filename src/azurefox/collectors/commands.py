@@ -13,6 +13,7 @@ from azurefox.correlation.findings import (
     build_vm_findings,
 )
 from azurefox.models.commands import (
+    ApiMgmtOutput,
     AppServicesOutput,
     ArmDeploymentsOutput,
     AuthPoliciesOutput,
@@ -62,6 +63,17 @@ def collect_app_services(provider: BaseProvider, options: GlobalOptions) -> AppS
     return AppServicesOutput.model_validate(
         {
             "metadata": _metadata(provider, "app-services", options),
+            "findings": [],
+            **data,
+        }
+    )
+
+
+def collect_api_mgmt(provider: BaseProvider, options: GlobalOptions) -> ApiMgmtOutput:
+    data = provider.api_mgmt()
+    return ApiMgmtOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "api-mgmt", options),
             "findings": [],
             **data,
         }
