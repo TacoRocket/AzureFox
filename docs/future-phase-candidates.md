@@ -127,6 +127,35 @@ Do not promote these yet from the current repo state:
 - AI, Lighthouse, DevOps, or automation sub-slices beyond the roadmap until the core compute and
   network tranche is further along
 
+## Broader Roadmap Gaps To Revisit Once Grounded
+
+The external roadmap reference also calls out broader domain gaps that should stay visible even
+though they do not yet meet this document's repo-foothold rule.
+
+Keep these as watch items, not near-term candidates, until AzureFox gains client, fixture, or
+collector adjacency for them:
+
+- messaging and eventing
+  Azure Service Bus, Event Grid, Event Hubs, and queue-oriented trust or data-path review
+- filesystems and mounted storage
+  Azure Files, Azure NetApp Files, and mount-oriented loot or trust paths
+- data, analytics, and search platforms
+  Synapse, Data Explorer, Log Analytics, and search-oriented operator surfaces that do not fit
+  cleanly under broad `databases`
+- governance metadata
+  tags, labels, and other governance-oriented enumeration surfaces
+- directory-services-specific coverage
+  Azure AD DS or managed domain-service style visibility beyond current Entra and RBAC coverage
+
+Note on edge and delivery surfaces:
+
+- the external roadmap reference calls out Front Door, CDN, Application Gateway, and
+  load-balancer-style discovery
+- the current future candidates already partially cover this family through `public-ips` and
+  `load-balancers`
+- revisit a broader edge-delivery command later if those footholds land and we need a more unified
+  operator surface
+
 ## Recommendation
 
 The strongest later candidate outside the current roadmap command list is `entra-graph`.
