@@ -10,6 +10,7 @@ from azurefox.collectors.commands import (
     collect_arm_deployments,
     collect_auth_policies,
     collect_databases,
+    collect_dns,
     collect_endpoints,
     collect_env_vars,
     collect_functions,
@@ -182,6 +183,20 @@ class PartialDatabasesFixtureProvider(FixtureProvider):
         }
 
 
+class PartialDnsFixtureProvider(FixtureProvider):
+    def dns(self) -> dict:
+        return {
+            "dns_zones": [],
+            "issues": [
+                {
+                    "kind": "permission_denied",
+                    "message": "dns.resources: 403 Forbidden",
+                    "context": {"collector": "dns.resources"},
+                }
+            ],
+        }
+
+
 def test_collect_whoami(fixture_provider, options) -> None:
     output = collect_whoami(fixture_provider, options)
     assert output.principal is not None
@@ -274,6 +289,31 @@ def test_collect_databases_keeps_nested_inventory_issue_explicit(
         output.issues[0].context["collector"]
         == "databases[rg-data/sql-public-legacy].databases"
     )
+
+
+def test_collect_dns(fixture_provider, options) -> None:
+    output = collect_dns(fixture_provider, options)
+    assert len(output.dns_zones) == 3
+    assert len(output.findings) == 0
+    assert output.dns_zones[0].name == "corp.example.com"
+    assert output.dns_zones[0].zone_kind == "public"
+    assert len(output.dns_zones[0].name_servers) == 4
+    assert output.dns_zones[2].name == "privatelink.database.windows.net"
+    assert output.dns_zones[2].zone_kind == "private"
+    assert output.dns_zones[2].linked_virtual_network_count == 2
+    assert output.dns_zones[2].registration_virtual_network_count == 1
+
+
+def test_collect_dns_keeps_command_level_issue_explicit(
+    fixture_dir: Path, options
+) -> None:
+    provider = PartialDnsFixtureProvider(fixture_dir)
+
+    output = collect_dns(provider, options)
+
+    assert output.dns_zones == []
+    assert output.issues[0].kind == "permission_denied"
+    assert output.issues[0].context["collector"] == "dns.resources"
 
 
 def test_collect_acr_keeps_command_level_issue_explicit(

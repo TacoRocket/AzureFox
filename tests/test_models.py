@@ -9,6 +9,7 @@ from azurefox.models.common import (
     ArmDeploymentSummary,
     AuthPolicySummary,
     DatabaseServerAsset,
+    DnsZoneAsset,
     EndpointSummary,
     EnvVarSummary,
     FunctionAppAsset,
@@ -89,6 +90,15 @@ def test_database_server_asset_defaults() -> None:
     assert asset.database_count is None
     assert asset.user_database_names == []
     assert asset.workload_identity_ids == []
+    assert asset.related_ids == []
+
+
+def test_dns_zone_asset_defaults() -> None:
+    asset = DnsZoneAsset(id="dns-1", name="example.com", zone_kind="public", summary="test")
+    assert asset.resource_group is None
+    assert asset.record_set_count is None
+    assert asset.name_servers == []
+    assert asset.linked_virtual_network_count is None
     assert asset.related_ids == []
 
 

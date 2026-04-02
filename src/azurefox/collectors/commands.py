@@ -20,6 +20,7 @@ from azurefox.models.commands import (
     ArmDeploymentsOutput,
     AuthPoliciesOutput,
     DatabasesOutput,
+    DnsOutput,
     EndpointsOutput,
     EnvVarsOutput,
     FunctionsOutput,
@@ -90,6 +91,25 @@ def collect_databases(provider: BaseProvider, options: GlobalOptions) -> Databas
             "metadata": _metadata(provider, "databases", options),
             "findings": [],
             **data,
+        }
+    )
+
+
+def collect_dns(provider: BaseProvider, options: GlobalOptions) -> DnsOutput:
+    data = provider.dns()
+    dns_zones = sorted(
+        data.get("dns_zones", []),
+        key=lambda item: (
+            item.get("zone_kind") != "public",
+            item.get("name") or "",
+        ),
+    )
+    return DnsOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "dns", options),
+            "findings": [],
+            **data,
+            "dns_zones": dns_zones,
         }
     )
 

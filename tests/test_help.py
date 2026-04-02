@@ -89,6 +89,16 @@ def test_help_command_databases_topic() -> None:
     assert "minimal_tls_version" in result.stdout
 
 
+def test_help_command_dns_topic() -> None:
+    result = runner.invoke(app, ["help", "dns"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: dns" in result.stdout
+    assert "private VNet-linked namespace context" in result.stdout
+    assert "name_servers" in result.stdout
+    assert "registration_virtual_network_count" in result.stdout
+
+
 def test_help_command_functions_topic() -> None:
     result = runner.invoke(app, ["help", "functions"])
 

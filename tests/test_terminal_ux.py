@@ -131,6 +131,29 @@ def test_databases_table_mode_surfaces_server_inventory_and_posture(tmp_path: Pa
     ) in result.stdout
 
 
+def test_dns_table_mode_surfaces_zone_inventory_and_namespace_context(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "dns"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Reviewing public and private DNS zone inventory and namespace boundaries."
+        in result.stdout
+    )
+    assert "zone" in result.stdout
+    assert "corp.example.com" in result.stdout
+    assert "records=9/10000" in result.stdout
+    assert "ns=4" in result.stdout
+    assert "vnet-links=2" in result.stdout
+    assert (
+        "Takeaway: 3 DNS zones visible; 2 public, 1 private, and 19 record sets are visible."
+        in result.stdout
+    )
+
+
 def test_aks_table_mode_surfaces_endpoint_and_auth_posture(tmp_path: Path) -> None:
     result = runner.invoke(
         app,
@@ -466,6 +489,27 @@ def test_databases_partial_read_surfaces_collection_issue() -> None:
     assert "databases[rg-data/sql-public-legacy].databases" in rendered
     assert "database visibility is unreadable from at" in rendered
     assert "least one visible server" in rendered
+
+
+def test_dns_collection_issue_surfaces_in_table_output() -> None:
+    payload = {
+        "metadata": {"command": "dns"},
+        "dns_zones": [],
+        "findings": [],
+        "issues": [
+            {
+                "kind": "permission_denied",
+                "message": "dns.resources: 403 Forbidden",
+                "context": {"collector": "dns.resources"},
+            }
+        ],
+    }
+    rendered = render_table("dns", payload)
+
+    assert "No records" in rendered
+    assert "Collection issues:" in rendered
+    assert "permission_denied" in rendered
+    assert "dns.resources" in rendered
 
 
 def test_functions_partial_read_surfaces_collection_issue() -> None:

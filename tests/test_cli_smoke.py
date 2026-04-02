@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 
@@ -19,6 +20,7 @@ def test_cli_smoke_all_commands(tmp_path: Path) -> None:
         "app-services",
         "acr",
         "databases",
+        "dns",
         "aks",
         "api-mgmt",
         "functions",
@@ -66,8 +68,31 @@ def test_cli_smoke_all_checks_json_summary(tmp_path: Path) -> None:
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["metadata"]["command"] == "all-checks"
-    assert len(payload["results"]) == 26
+    assert len(payload["results"]) == 27
     assert (tmp_path / "run-summary.json").exists()
+
+
+def test_cli_smoke_csv_row_mapping_for_inventory_style_commands(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    expectations = {
+        "acr": (2, "acr-public-legacy"),
+        "databases": (2, "sql-public-legacy"),
+        "dns": (3, "corp.example.com"),
+    }
+
+    for command, (expected_rows, expected_first_name) in expectations.items():
+        result = runner.invoke(
+            app,
+            ["--outdir", str(tmp_path), "--output", "csv", command],
+            env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+        )
+
+        assert result.exit_code == 0
+        csv_path = tmp_path / "csv" / f"{command}.csv"
+        rows = list(csv.DictReader(csv_path.read_text(encoding="utf-8").splitlines()))
+        assert len(rows) == expected_rows
+        assert rows[0]["name"] == expected_first_name
 
 
 def test_cli_smoke_section_filter(tmp_path: Path) -> None:
@@ -191,7 +216,7 @@ def test_cli_smoke_section_filter_network(tmp_path: Path) -> None:
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     commands = {item["command"] for item in payload["results"]}
-    assert commands == {"endpoints", "network-ports", "nics"}
+    assert commands == {"dns", "endpoints", "network-ports", "nics"}
 
 
 def test_cli_smoke_section_filter_compute(tmp_path: Path) -> None:

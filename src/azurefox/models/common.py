@@ -447,6 +447,21 @@ class DatabaseServerAsset(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class DnsZoneAsset(BaseModel):
+    id: str
+    name: str
+    resource_group: str | None = None
+    location: str | None = None
+    zone_kind: str
+    record_set_count: int | None = None
+    max_record_set_count: int | None = None
+    name_servers: list[str] = Field(default_factory=list)
+    linked_virtual_network_count: int | None = None
+    registration_virtual_network_count: int | None = None
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class WebWorkloadSummary(BaseModel):
     asset_id: str
     asset_name: str

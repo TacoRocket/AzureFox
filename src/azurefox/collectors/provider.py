@@ -46,6 +46,9 @@ class BaseProvider(ABC):
     def databases(self) -> dict:
         return {"database_servers": [], "issues": []}
 
+    def dns(self) -> dict:
+        return {"dns_zones": [], "issues": []}
+
     def aks(self) -> dict:
         return {"aks_clusters": [], "issues": []}
 
@@ -208,6 +211,9 @@ class FixtureProvider(BaseProvider):
 
     def databases(self) -> dict:
         return self._read("databases")
+
+    def dns(self) -> dict:
+        return self._read("dns")
 
     def aks(self) -> dict:
         return self._read("aks")
@@ -540,6 +546,28 @@ class AzureProvider(BaseProvider):
             )
         )
         return {"database_servers": database_servers, "issues": issues}
+
+    def dns(self) -> dict:
+        issues: list[dict] = []
+        dns_zones: list[dict] = []
+
+        try:
+            for resource in self.clients.resource.resources.list():
+                resource_type = str(getattr(resource, "type", "") or "").lower()
+                if resource_type == "microsoft.network/dnszones":
+                    dns_zones.append(_dns_zone_summary(resource, zone_kind="public"))
+                elif resource_type == "microsoft.network/privatednszones":
+                    dns_zones.append(_dns_zone_summary(resource, zone_kind="private"))
+        except Exception as exc:
+            issues.append(_issue_from_exception("dns.resources", exc))
+
+        dns_zones.sort(
+            key=lambda item: (
+                item.get("zone_kind") != "public",
+                item.get("name") or "",
+            )
+        )
+        return {"dns_zones": dns_zones, "issues": issues}
 
     def aks(self) -> dict:
         issues: list[dict] = []
@@ -2083,6 +2111,39 @@ def _string_value(value: object) -> str | None:
     return str(getattr(value, "value", value))
 
 
+def _int_value(value: object) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    try:
+        return int(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _property_value(container: object, *names: str) -> object | None:
+    if container is None:
+        return None
+
+    for name in names:
+        if isinstance(container, dict) and name in container:
+            return container[name]
+
+        direct = getattr(container, name, None)
+        if direct is not None:
+            return direct
+
+        snake_name = re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+        snake_value = getattr(container, snake_name, None)
+        if snake_value is not None:
+            return snake_value
+
+    return None
+
+
 def _resource_trusts_from_storage(storage_assets: list[dict]) -> list[dict]:
     trusts: list[dict] = []
 
@@ -2956,6 +3017,100 @@ def _database_server_operator_summary(
         f"Azure SQL server '{server_name}' {endpoint_phrase} and {identity_phrase}. "
         f"{inventory_phrase} Visible posture: {', '.join(posture_parts)}."
     )
+
+
+def _dns_zone_summary(resource: object, *, zone_kind: str) -> dict:
+    resource_id = getattr(resource, "id", "") or ""
+    zone_name = getattr(resource, "name", "unknown")
+    properties = getattr(resource, "properties", None)
+    record_set_count = _int_value(
+        _property_value(properties, "numberOfRecordSets", "number_of_record_sets")
+    )
+    max_record_set_count = _int_value(
+        _property_value(properties, "maxNumberOfRecordSets", "max_number_of_record_sets")
+    )
+    name_servers = _dedupe_strings(
+        [
+            str(item)
+            for item in (_property_value(properties, "nameServers", "name_servers") or [])
+            if item
+        ]
+    )
+    linked_virtual_network_count = _int_value(
+        _property_value(
+            properties,
+            "numberOfVirtualNetworkLinks",
+            "number_of_virtual_network_links",
+        )
+    )
+    registration_virtual_network_count = _int_value(
+        _property_value(
+            properties,
+            "numberOfVirtualNetworkLinksWithRegistration",
+            "number_of_virtual_network_links_with_registration",
+        )
+    )
+
+    return {
+        "id": resource_id or f"/unknown/{zone_name}",
+        "name": zone_name,
+        "resource_group": _resource_group_from_id(resource_id),
+        "location": _string_value(getattr(resource, "location", None)),
+        "zone_kind": zone_kind,
+        "record_set_count": record_set_count,
+        "max_record_set_count": max_record_set_count,
+        "name_servers": name_servers,
+        "linked_virtual_network_count": linked_virtual_network_count,
+        "registration_virtual_network_count": registration_virtual_network_count,
+        "summary": _dns_zone_operator_summary(
+            zone_name=zone_name,
+            zone_kind=zone_kind,
+            record_set_count=record_set_count,
+            name_server_count=len(name_servers),
+            linked_virtual_network_count=linked_virtual_network_count,
+            registration_virtual_network_count=registration_virtual_network_count,
+        ),
+        "related_ids": [resource_id] if resource_id else [],
+    }
+
+
+def _dns_zone_operator_summary(
+    *,
+    zone_name: str,
+    zone_kind: str,
+    record_set_count: int | None,
+    name_server_count: int,
+    linked_virtual_network_count: int | None,
+    registration_virtual_network_count: int | None,
+) -> str:
+    inventory_phrase = (
+        f"shows {record_set_count} visible record set(s)"
+        if record_set_count is not None
+        else "does not expose a readable record-set total from the current read path"
+    )
+
+    if zone_kind == "public":
+        namespace_phrase = (
+            f"delegates authority through {name_server_count} visible Azure name server(s)"
+            if name_server_count
+            else "does not expose readable name server delegation details"
+        )
+        return f"Public DNS zone '{zone_name}' {inventory_phrase} and {namespace_phrase}."
+
+    link_parts: list[str] = []
+    if linked_virtual_network_count is not None:
+        link_parts.append(f"{linked_virtual_network_count} virtual network link(s)")
+    if registration_virtual_network_count is not None:
+        link_parts.append(
+            f"{registration_virtual_network_count} registration-enabled link(s)"
+        )
+
+    namespace_phrase = (
+        f"tracks {', '.join(link_parts)}"
+        if link_parts
+        else "does not expose readable virtual network link counts"
+    )
+    return f"Private DNS zone '{zone_name}' {inventory_phrase} and {namespace_phrase}."
 
 
 def _visible_user_databases(databases: list[object] | None) -> list[object]:

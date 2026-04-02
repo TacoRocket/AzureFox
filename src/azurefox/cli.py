@@ -76,6 +76,11 @@ def databases(ctx: typer.Context) -> None:
     _run_single(ctx, "databases")
 
 
+@app.command("dns")
+def dns(ctx: typer.Context) -> None:
+    _run_single(ctx, "dns")
+
+
 @app.command("functions")
 def functions(ctx: typer.Context) -> None:
     _run_single(ctx, "functions")
