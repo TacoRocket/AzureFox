@@ -8,6 +8,7 @@ from azurefox.collectors.commands import (
     collect_auth_policies,
     collect_endpoints,
     collect_env_vars,
+    collect_functions,
     collect_inventory,
     collect_keyvault,
     collect_managed_identities,
@@ -92,6 +93,26 @@ class PartialAppServicesFixtureProvider(FixtureProvider):
         }
 
 
+class PartialFunctionsFixtureProvider(FixtureProvider):
+    def functions(self) -> dict:
+        data = self._read("functions")
+        row = dict(data["function_apps"][0])
+        row["azure_webjobs_storage_value_type"] = None
+        row["azure_webjobs_storage_reference_target"] = None
+        row["run_from_package"] = None
+        row["key_vault_reference_count"] = None
+        return {
+            "function_apps": [row],
+            "issues": [
+                {
+                    "kind": "permission_denied",
+                    "message": "functions[rg-apps/func-orders].app_settings: 403 Forbidden",
+                    "context": {"collector": "functions[rg-apps/func-orders].app_settings"},
+                }
+            ],
+        }
+
+
 def test_collect_whoami(fixture_provider, options) -> None:
     output = collect_whoami(fixture_provider, options)
     assert output.principal is not None
@@ -160,6 +181,30 @@ def test_collect_app_services_keeps_partial_visibility_explicit(
     assert output.issues[0].context["collector"] == (
         "app_services[rg-apps/app-empty-mi].configuration"
     )
+
+
+def test_collect_functions(fixture_provider, options) -> None:
+    output = collect_functions(fixture_provider, options)
+    assert len(output.function_apps) == 1
+    assert len(output.findings) == 0
+    assert output.function_apps[0].name == "func-orders"
+    assert output.function_apps[0].functions_extension_version == "~4"
+    assert output.function_apps[0].azure_webjobs_storage_value_type == "plain-text"
+    assert output.function_apps[0].run_from_package is None
+
+
+def test_collect_functions_keeps_partial_visibility_explicit(
+    fixture_dir: Path, options
+) -> None:
+    provider = PartialFunctionsFixtureProvider(fixture_dir)
+
+    output = collect_functions(provider, options)
+
+    assert len(output.function_apps) == 1
+    assert output.function_apps[0].name == "func-orders"
+    assert output.function_apps[0].azure_webjobs_storage_value_type is None
+    assert output.issues[0].kind == "permission_denied"
+    assert output.issues[0].context["collector"] == "functions[rg-apps/func-orders].app_settings"
 
 
 def test_collect_arm_deployments(fixture_provider, options) -> None:

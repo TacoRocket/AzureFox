@@ -1,0 +1,9 @@
+{
+  "model": "FunctionsOutput",
+  "top_level_fields": [
+    "metadata",
+    "function_apps",
+    "findings",
+    "issues"
+  ]
+}

@@ -80,6 +80,30 @@ def test_app_services_table_mode_surfaces_runtime_and_posture(tmp_path: Path) ->
     ) in result.stdout
 
 
+def test_functions_table_mode_surfaces_runtime_and_deployment(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "functions"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Reviewing Function App runtime, storage binding, identity, and deployment posture."
+        in result.stdout
+    )
+    assert "function app" in result.stdout
+    assert "func-orders" in result.stdout
+    assert "functions=~4" in result.stdout
+    assert "storage=plain-text" in result.stdout
+    assert "kv-refs=1" in result.stdout
+    assert "always-on=yes" in result.stdout
+    assert (
+        "Takeaway: 1 Function Apps visible; 1 carry managed identity context, "
+        "0 show run-from-package deployment, and 1 include Key Vault-backed settings."
+    ) in result.stdout
+
+
 def test_nics_table_mode_surfaces_network_context(tmp_path: Path) -> None:
     result = runner.invoke(
         app,
@@ -284,4 +308,41 @@ def test_app_services_partial_read_surfaces_collection_issue() -> None:
 
     assert "Collection issues:" in rendered
     assert "permission_denied" in rendered
-    assert "app_services.configuration" in rendered
+    assert "app_services[rg-apps/app-empty-mi].configuration" in rendered
+
+
+def test_functions_partial_read_surfaces_collection_issue() -> None:
+    payload = {
+        "metadata": {"command": "functions"},
+        "function_apps": [
+            {
+                "name": "func-orders",
+                "default_hostname": "func-orders.azurewebsites.net",
+                "runtime_stack": "PYTHON|3.11",
+                "functions_extension_version": "~4",
+                "workload_identity_type": "SystemAssigned, UserAssigned",
+                "azure_webjobs_storage_value_type": None,
+                "run_from_package": None,
+                "key_vault_reference_count": None,
+                "public_network_access": "Enabled",
+                "https_only": True,
+                "min_tls_version": "1.2",
+                "ftps_state": "Disabled",
+                "always_on": True,
+                "summary": "test",
+            }
+        ],
+        "findings": [],
+        "issues": [
+            {
+                "kind": "permission_denied",
+                "message": "functions[rg-apps/func-orders].app_settings: 403 Forbidden",
+                "context": {"collector": "functions[rg-apps/func-orders].app_settings"},
+            }
+        ],
+    }
+    rendered = render_table("functions", payload)
+
+    assert "Collection issues:" in rendered
+    assert "permission_denied" in rendered
+    assert "functions[rg-apps/func-orders].app_settings" in rendered

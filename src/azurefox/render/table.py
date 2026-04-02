@@ -44,7 +44,7 @@ def render_table(command: str, payload: dict) -> str:
         console.print("Collection issues:")
         for issue in issues[:5]:
             kind = issue.get("kind") or "unknown"
-            console.print(f"- {kind}: {issue.get('message')}")
+            console.print(f"- {kind}: {issue.get('message')}", markup=False)
         remaining = len(issues) - 5
         if remaining > 0:
             console.print(f"- ... plus {remaining} more collection issues in JSON artifacts.")
@@ -123,6 +123,31 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     "why_it_matters": item.get("summary"),
                 }
                 for item in payload.get("app_services", [])
+            ],
+        )
+
+    if command == "functions":
+        return (
+            [
+                ("name", "function app"),
+                ("default_hostname", "hostname"),
+                ("runtime", "runtime"),
+                ("identity", "identity"),
+                ("deployment", "deployment"),
+                ("posture", "posture"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "name": item.get("name"),
+                    "default_hostname": item.get("default_hostname"),
+                    "runtime": _function_runtime_context(item),
+                    "identity": _app_service_identity_context(item),
+                    "deployment": _function_deployment_context(item),
+                    "posture": _function_posture_context(item),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("function_apps", [])
             ],
         )
 
@@ -650,6 +675,19 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             "managed identity context."
         )
 
+    if command == "functions":
+        function_apps = payload.get("function_apps", [])
+        identities = sum(bool(item.get("workload_identity_type")) for item in function_apps)
+        run_from_package = sum(bool(item.get("run_from_package")) for item in function_apps)
+        keyvault_backed = sum(
+            bool((item.get("key_vault_reference_count") or 0) > 0) for item in function_apps
+        )
+        return (
+            f"{len(function_apps)} Function Apps visible; {identities} carry managed identity "
+            f"context, {run_from_package} show run-from-package deployment, and "
+            f"{keyvault_backed} include Key Vault-backed settings."
+        )
+
     if command == "arm-deployments":
         deployments = payload.get("deployments", [])
         findings = payload.get("findings", [])
@@ -804,6 +842,45 @@ def _app_service_posture_context(item: dict) -> str:
         parts.append(f"ftps={item.get('ftps_state')}")
     if item.get("client_cert_enabled"):
         parts.append("client-cert=yes")
+    return "; ".join(parts)
+
+
+def _function_runtime_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("runtime_stack"):
+        parts.append(str(item.get("runtime_stack")))
+    if item.get("functions_extension_version"):
+        parts.append(f"functions={item.get('functions_extension_version')}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _function_deployment_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("azure_webjobs_storage_value_type"):
+        parts.append(f"storage={item.get('azure_webjobs_storage_value_type')}")
+    if item.get("run_from_package") is True:
+        parts.append("package=yes")
+    elif item.get("run_from_package") is False:
+        parts.append("package=disabled")
+    if item.get("key_vault_reference_count") is not None:
+        parts.append(f"kv-refs={item.get('key_vault_reference_count')}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _function_posture_context(item: dict) -> str:
+    parts = [f"https={'yes' if item.get('https_only') else 'no'}"]
+    if item.get("min_tls_version"):
+        parts.append(f"tls={item.get('min_tls_version')}")
+    if item.get("ftps_state"):
+        parts.append(f"ftps={item.get('ftps_state')}")
+    if item.get("always_on") is True:
+        parts.append("always-on=yes")
+    elif item.get("always_on") is False:
+        parts.append("always-on=no")
     return "; ".join(parts)
 
 

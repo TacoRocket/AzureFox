@@ -88,6 +88,7 @@ def _to_csv(command: str, payload: dict) -> str:
         "whoami": None,
         "inventory": None,
         "app-services": "app_services",
+        "functions": "function_apps",
         "arm-deployments": "deployments",
         "endpoints": "endpoints",
         "env-vars": "env_vars",

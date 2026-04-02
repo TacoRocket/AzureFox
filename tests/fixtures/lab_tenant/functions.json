@@ -1,0 +1,39 @@
+{
+  "function_apps": [
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders",
+      "name": "func-orders",
+      "resource_group": "rg-apps",
+      "location": "eastus",
+      "state": "Running",
+      "default_hostname": "func-orders.azurewebsites.net",
+      "app_service_plan_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/serverfarms/asp-functions",
+      "public_network_access": "Enabled",
+      "https_only": true,
+      "client_cert_enabled": false,
+      "min_tls_version": "1.2",
+      "ftps_state": "Disabled",
+      "runtime_stack": "PYTHON|3.11",
+      "functions_extension_version": "~4",
+      "always_on": true,
+      "workload_identity_type": "SystemAssigned, UserAssigned",
+      "workload_principal_id": "cccc2222-2222-2222-2222-222222222222",
+      "workload_client_id": "dddd2222-2222-2222-2222-222222222222",
+      "workload_identity_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-orders"
+      ],
+      "azure_webjobs_storage_value_type": "plain-text",
+      "azure_webjobs_storage_reference_target": null,
+      "run_from_package": null,
+      "key_vault_reference_count": 1,
+      "summary": "Function App 'func-orders' publishes hostname 'func-orders.azurewebsites.net', runs runtime 'PYTHON|3.11', targets Functions runtime '~4', and uses managed identity (SystemAssigned, UserAssigned). Deployment signals: AzureWebJobsStorage as plain-text app setting, 1 Key Vault-backed setting(s). Visible posture: public network access Enabled, HTTPS-only enabled, TLS 1.2, FTPS Disabled, Always On enabled.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders",
+        "cccc2222-2222-2222-2222-222222222222",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-orders",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/serverfarms/asp-functions"
+      ]
+    }
+  ],
+  "issues": []
+}

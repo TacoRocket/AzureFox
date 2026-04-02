@@ -317,6 +317,34 @@ class AppServiceAsset(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class FunctionAppAsset(BaseModel):
+    id: str
+    name: str
+    resource_group: str | None = None
+    location: str | None = None
+    state: str | None = None
+    default_hostname: str | None = None
+    app_service_plan_id: str | None = None
+    public_network_access: str | None = None
+    https_only: bool = False
+    client_cert_enabled: bool = False
+    min_tls_version: str | None = None
+    ftps_state: str | None = None
+    runtime_stack: str | None = None
+    functions_extension_version: str | None = None
+    always_on: bool | None = None
+    workload_identity_type: str | None = None
+    workload_principal_id: str | None = None
+    workload_client_id: str | None = None
+    workload_identity_ids: list[str] = Field(default_factory=list)
+    azure_webjobs_storage_value_type: str | None = None
+    azure_webjobs_storage_reference_target: str | None = None
+    run_from_package: bool | None = None
+    key_vault_reference_count: int | None = None
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class WebWorkloadSummary(BaseModel):
     asset_id: str
     asset_name: str

@@ -40,6 +40,9 @@ class BaseProvider(ABC):
     def app_services(self) -> dict:
         return {"app_services": [], "issues": []}
 
+    def functions(self) -> dict:
+        return {"function_apps": [], "issues": []}
+
     @abstractmethod
     def env_vars(self) -> dict:
         raise NotImplementedError
@@ -187,6 +190,9 @@ class FixtureProvider(BaseProvider):
 
     def app_services(self) -> dict:
         return self._read("app_services")
+
+    def functions(self) -> dict:
+        return self._read("functions")
 
     def rbac(self) -> dict:
         return self._read("rbac")
@@ -451,6 +457,68 @@ class AzureProvider(BaseProvider):
             )
         )
         return {"app_services": app_services, "issues": issues}
+
+    def functions(self) -> dict:
+        issues: list[dict] = []
+        function_apps: list[dict] = []
+
+        try:
+            iterator = self.clients.web.web_apps.list()
+            for app in iterator:
+                asset_kind = _web_asset_kind(getattr(app, "kind", None))
+                if asset_kind != "FunctionApp":
+                    continue
+
+                config = None
+                settings = None
+                app_id = getattr(app, "id", "") or ""
+                resource_group = _resource_group_from_id(app_id)
+                app_name = getattr(app, "name", None)
+
+                if resource_group and app_name:
+                    try:
+                        config = self.clients.web.web_apps.get_configuration(
+                            resource_group,
+                            app_name,
+                        )
+                    except Exception as exc:
+                        issues.append(
+                            _issue_from_exception(
+                                f"functions[{resource_group}/{app_name}].configuration",
+                                exc,
+                            )
+                        )
+
+                    try:
+                        settings = self.clients.web.web_apps.list_application_settings(
+                            resource_group,
+                            app_name,
+                        )
+                    except Exception as exc:
+                        issues.append(
+                            _issue_from_exception(
+                                f"functions[{resource_group}/{app_name}].app_settings",
+                                exc,
+                            )
+                        )
+
+                function_apps.append(
+                    _function_app_summary(
+                        app,
+                        config,
+                        getattr(settings, "properties", None),
+                    )
+                )
+        except Exception as exc:
+            issues.append(_issue_from_exception("functions.web_apps", exc))
+
+        function_apps.sort(
+            key=lambda item: (
+                not _function_app_exposure_priority(item),
+                item.get("name") or "",
+            )
+        )
+        return {"function_apps": function_apps, "issues": issues}
 
     def web_workloads(self) -> dict:
         issues: list[dict] = []
@@ -2118,6 +2186,103 @@ def _app_service_summary(app: object, config: object | None) -> dict:
     }
 
 
+def _function_app_summary(
+    app: object,
+    config: object | None,
+    settings: dict[str, object] | None,
+) -> dict:
+    app_id = getattr(app, "id", "") or ""
+    app_name = getattr(app, "name", "unknown")
+    identity = getattr(app, "identity", None)
+    public_network_access = _string_value(getattr(app, "public_network_access", None))
+    runtime_stack = _app_service_runtime_stack(config)
+    min_tls_version = _string_value(getattr(config, "min_tls_version", None))
+    ftps_state = _string_value(getattr(config, "ftps_state", None))
+    functions_extension_version = _string_value(
+        getattr(config, "functions_extension_version", None)
+    )
+    always_on = getattr(config, "always_on", None)
+    workload_identity_type = _string_value(getattr(identity, "type", None))
+    workload_principal_id = _string_value(getattr(identity, "principal_id", None))
+    workload_client_id = _string_value(getattr(identity, "client_id", None))
+    workload_identity_ids = sorted(
+        str(identity_id)
+        for identity_id in (getattr(identity, "user_assigned_identities", None) or {}).keys()
+    )
+    settings_readable = settings is not None
+    azure_webjobs_storage_value = settings.get("AzureWebJobsStorage") if settings_readable else None
+    azure_webjobs_storage_value_type = (
+        "missing"
+        if settings_readable and "AzureWebJobsStorage" not in settings
+        else (
+            _env_var_value_type(azure_webjobs_storage_value)
+            if settings_readable
+            else None
+        )
+    )
+    azure_webjobs_storage_reference_target = (
+        _env_var_reference_target(azure_webjobs_storage_value)
+        if azure_webjobs_storage_value_type == "keyvault-ref"
+        else None
+    )
+    run_from_package = _run_from_package_signal(settings)
+    key_vault_reference_count = (
+        sum(_env_var_value_type(value) == "keyvault-ref" for value in settings.values())
+        if settings_readable
+        else None
+    )
+
+    return {
+        "id": app_id or f"/unknown/{app_name}",
+        "name": app_name,
+        "resource_group": _resource_group_from_id(app_id),
+        "location": _string_value(getattr(app, "location", None)),
+        "state": _string_value(getattr(app, "state", None)),
+        "default_hostname": _string_value(getattr(app, "default_host_name", None)),
+        "app_service_plan_id": _string_value(getattr(app, "server_farm_id", None)),
+        "public_network_access": public_network_access,
+        "https_only": bool(getattr(app, "https_only", False)),
+        "client_cert_enabled": bool(getattr(app, "client_cert_enabled", False)),
+        "min_tls_version": min_tls_version,
+        "ftps_state": ftps_state,
+        "runtime_stack": runtime_stack,
+        "functions_extension_version": functions_extension_version,
+        "always_on": bool(always_on) if always_on is not None else None,
+        "workload_identity_type": workload_identity_type,
+        "workload_principal_id": workload_principal_id,
+        "workload_client_id": workload_client_id,
+        "workload_identity_ids": workload_identity_ids,
+        "azure_webjobs_storage_value_type": azure_webjobs_storage_value_type,
+        "azure_webjobs_storage_reference_target": azure_webjobs_storage_reference_target,
+        "run_from_package": run_from_package,
+        "key_vault_reference_count": key_vault_reference_count,
+        "summary": _function_app_operator_summary(
+            app_name=app_name,
+            default_hostname=_string_value(getattr(app, "default_host_name", None)),
+            public_network_access=public_network_access,
+            https_only=bool(getattr(app, "https_only", False)),
+            runtime_stack=runtime_stack,
+            functions_extension_version=functions_extension_version,
+            workload_identity_type=workload_identity_type,
+            azure_webjobs_storage_value_type=azure_webjobs_storage_value_type,
+            azure_webjobs_storage_reference_target=azure_webjobs_storage_reference_target,
+            run_from_package=run_from_package,
+            key_vault_reference_count=key_vault_reference_count,
+            min_tls_version=min_tls_version,
+            ftps_state=ftps_state,
+            always_on=bool(always_on) if always_on is not None else None,
+        ),
+        "related_ids": _dedupe_strings(
+            [
+                app_id,
+                workload_principal_id,
+                *workload_identity_ids,
+                _string_value(getattr(app, "server_farm_id", None)),
+            ]
+        ),
+    }
+
+
 def _env_var_summary(
     app: object,
     *,
@@ -2265,6 +2430,113 @@ def _app_service_exposure_priority(item: dict) -> bool:
     return bool(item.get("default_hostname")) or (
         str(item.get("public_network_access") or "").lower() == "enabled"
     )
+
+
+def _function_app_operator_summary(
+    *,
+    app_name: str,
+    default_hostname: str | None,
+    public_network_access: str | None,
+    https_only: bool,
+    runtime_stack: str | None,
+    functions_extension_version: str | None,
+    workload_identity_type: str | None,
+    azure_webjobs_storage_value_type: str | None,
+    azure_webjobs_storage_reference_target: str | None,
+    run_from_package: bool | None,
+    key_vault_reference_count: int | None,
+    min_tls_version: str | None,
+    ftps_state: str | None,
+    always_on: bool | None,
+) -> str:
+    hostname_phrase = (
+        f"publishes hostname '{default_hostname}'"
+        if default_hostname
+        else "has no default hostname visible from the current read path"
+    )
+    runtime_phrase = (
+        f"runs runtime '{runtime_stack}'"
+        if runtime_stack
+        else "does not expose a readable runtime summary from the current read path"
+    )
+    functions_phrase = (
+        f"targets Functions runtime '{functions_extension_version}'"
+        if functions_extension_version
+        else "does not expose a readable Functions runtime version from the current read path"
+    )
+    identity_phrase = (
+        f"uses managed identity ({workload_identity_type})"
+        if workload_identity_type
+        else "has no managed identity visible from the current read path"
+    )
+
+    deployment_parts: list[str] = []
+    if azure_webjobs_storage_value_type == "keyvault-ref":
+        target = (
+            f" ({azure_webjobs_storage_reference_target})"
+            if azure_webjobs_storage_reference_target
+            else ""
+        )
+        deployment_parts.append(f"AzureWebJobsStorage via Key Vault reference{target}")
+    elif azure_webjobs_storage_value_type == "plain-text":
+        deployment_parts.append("AzureWebJobsStorage as plain-text app setting")
+    elif azure_webjobs_storage_value_type == "empty":
+        deployment_parts.append("AzureWebJobsStorage visible but empty")
+    elif azure_webjobs_storage_value_type == "missing":
+        deployment_parts.append("no AzureWebJobsStorage setting visible")
+
+    if run_from_package is True:
+        deployment_parts.append("run-from-package enabled")
+    elif run_from_package is False:
+        deployment_parts.append("run-from-package disabled")
+
+    if key_vault_reference_count is not None:
+        deployment_parts.append(f"{key_vault_reference_count} Key Vault-backed setting(s)")
+
+    posture_parts = [
+        f"public network access {public_network_access or 'unknown'}",
+        f"HTTPS-only {'enabled' if https_only else 'disabled'}",
+    ]
+    if min_tls_version:
+        posture_parts.append(f"TLS {min_tls_version}")
+    if ftps_state:
+        posture_parts.append(f"FTPS {ftps_state}")
+    if always_on is not None:
+        posture_parts.append(f"Always On {'enabled' if always_on else 'disabled'}")
+
+    deployment_phrase = (
+        f"Deployment signals: {', '.join(deployment_parts)}."
+        if deployment_parts
+        else "Deployment signals are not readable from the current read path."
+    )
+
+    return (
+        f"Function App '{app_name}' {hostname_phrase}, {runtime_phrase}, {functions_phrase}, "
+        f"and {identity_phrase}. {deployment_phrase} Visible posture: "
+        f"{', '.join(posture_parts)}."
+    )
+
+
+def _function_app_exposure_priority(item: dict) -> bool:
+    return bool(item.get("default_hostname")) or (
+        str(item.get("public_network_access") or "").lower() == "enabled"
+    )
+
+
+def _run_from_package_signal(settings: dict[str, object] | None) -> bool | None:
+    if settings is None or "WEBSITE_RUN_FROM_PACKAGE" not in settings:
+        return None
+
+    value = _string_value(settings.get("WEBSITE_RUN_FROM_PACKAGE"))
+    if value is None:
+        return None
+
+    normalized = value.strip().lower()
+    if not normalized:
+        return None
+    if normalized in {"0", "false", "no", "off", "disabled"}:
+        return False
+    return True
 
 
 def _env_var_value_type(value: object) -> str:

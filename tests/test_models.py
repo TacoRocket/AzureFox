@@ -7,6 +7,7 @@ from azurefox.models.common import (
     AuthPolicySummary,
     EndpointSummary,
     EnvVarSummary,
+    FunctionAppAsset,
     ManagedIdentity,
     NetworkPortSummary,
     PermissionSummary,
@@ -44,6 +45,16 @@ def test_app_service_asset_defaults() -> None:
     assert asset.https_only is False
     assert asset.client_cert_enabled is False
     assert asset.workload_identity_ids == []
+    assert asset.related_ids == []
+
+
+def test_function_app_asset_defaults() -> None:
+    asset = FunctionAppAsset(id="func-1", name="func01", summary="test")
+    assert asset.resource_group is None
+    assert asset.functions_extension_version is None
+    assert asset.always_on is None
+    assert asset.azure_webjobs_storage_value_type is None
+    assert asset.run_from_package is None
     assert asset.related_ids == []
 
 

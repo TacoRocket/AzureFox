@@ -13,6 +13,7 @@ from azurefox.models.common import (
     EndpointSummary,
     EnvVarSummary,
     Finding,
+    FunctionAppAsset,
     KeyVaultAsset,
     ManagedIdentity,
     NetworkPortSummary,
@@ -54,6 +55,13 @@ class InventoryOutput(BaseModel):
 class AppServicesOutput(BaseModel):
     metadata: CommandMetadata
     app_services: list[AppServiceAsset] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class FunctionsOutput(BaseModel):
+    metadata: CommandMetadata
+    function_apps: list[FunctionAppAsset] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 

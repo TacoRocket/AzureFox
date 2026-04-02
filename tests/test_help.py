@@ -69,6 +69,16 @@ def test_help_command_app_services_topic() -> None:
     assert "public_network_access" in result.stdout
 
 
+def test_help_command_functions_topic() -> None:
+    result = runner.invoke(app, ["help", "functions"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: functions" in result.stdout
+    assert "Functions runtime" in result.stdout
+    assert "azure_webjobs_storage_value_type" in result.stdout
+    assert "run_from_package" in result.stdout
+
+
 def test_help_command_network_ports_topic() -> None:
     result = runner.invoke(app, ["help", "network-ports"])
 
