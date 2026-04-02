@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from azurefox.models.common import (
     SCHEMA_VERSION,
+    AcrRegistryAsset,
     AksClusterAsset,
     ApiMgmtServiceAsset,
     AppServiceAsset,
@@ -67,6 +68,16 @@ def test_api_mgmt_service_asset_defaults() -> None:
     assert asset.public_ip_addresses == []
     assert asset.api_count is None
     assert asset.gateway_enabled is None
+    assert asset.related_ids == []
+
+
+def test_acr_registry_asset_defaults() -> None:
+    asset = AcrRegistryAsset(id="acr-1", name="acr01", summary="test")
+    assert asset.resource_group is None
+    assert asset.login_server is None
+    assert asset.admin_user_enabled is None
+    assert asset.private_endpoint_connection_count == 0
+    assert asset.workload_identity_ids == []
     assert asset.related_ids == []
 
 

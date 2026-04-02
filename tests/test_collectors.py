@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from azurefox.collectors.commands import (
+    collect_acr,
     collect_aks,
     collect_api_mgmt,
     collect_app_services,
@@ -146,6 +147,20 @@ class PartialAksFixtureProvider(FixtureProvider):
         }
 
 
+class PartialAcrFixtureProvider(FixtureProvider):
+    def acr(self) -> dict:
+        return {
+            "registries": [],
+            "issues": [
+                {
+                    "kind": "permission_denied",
+                    "message": "acr.registries: 403 Forbidden",
+                    "context": {"collector": "acr.registries"},
+                }
+            ],
+        }
+
+
 def test_collect_whoami(fixture_provider, options) -> None:
     output = collect_whoami(fixture_provider, options)
     assert output.principal is not None
@@ -198,6 +213,30 @@ def test_collect_app_services(fixture_provider, options) -> None:
     assert output.app_services[0].runtime_stack == "DOTNETCORE|8.0"
     assert output.app_services[0].https_only is False
     assert output.app_services[1].client_cert_enabled is True
+
+
+def test_collect_acr(fixture_provider, options) -> None:
+    output = collect_acr(fixture_provider, options)
+    assert len(output.registries) == 2
+    assert len(output.findings) == 0
+    assert output.registries[0].name == "acr-public-legacy"
+    assert output.registries[0].admin_user_enabled is True
+    assert output.registries[0].anonymous_pull_enabled is True
+    assert output.registries[1].name == "acr-ops-01"
+    assert output.registries[1].private_endpoint_connection_count == 1
+    assert output.registries[1].workload_identity_type == "SystemAssigned"
+
+
+def test_collect_acr_keeps_command_level_issue_explicit(
+    fixture_dir: Path, options
+) -> None:
+    provider = PartialAcrFixtureProvider(fixture_dir)
+
+    output = collect_acr(provider, options)
+
+    assert output.registries == []
+    assert output.issues[0].kind == "permission_denied"
+    assert output.issues[0].context["collector"] == "acr.registries"
 
 
 def test_collect_aks(fixture_provider, options) -> None:

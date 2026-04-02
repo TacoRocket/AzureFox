@@ -93,6 +93,36 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox app-services --output table",
     ),
+    "acr": CommandHelpTopic(
+        name="acr",
+        section="resource",
+        summary=(
+            "Summarize Azure Container Registry login servers, auth posture, and network "
+            "exposure."
+        ),
+        offensive_question=(
+            "Which container registries expose the most interesting login, auth, and network "
+            "posture for operator follow-up?"
+        ),
+        cloudfox_frame=(
+            "Azure-native container registry census that stays at management-plane posture: "
+            "login server visibility, broad auth switches, and network boundary signals before "
+            "any repository-content or data-plane analysis."
+        ),
+        output_highlights=(
+            "login_server",
+            "public_network_access",
+            "network_rule_default_action",
+            "admin_user_enabled",
+            "anonymous_pull_enabled",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Discovery", "Container and Resource Discovery"),
+            AttackLead("Collection", "Data from Information Repositories"),
+        ),
+        example="azurefox acr --output table",
+    ),
     "functions": CommandHelpTopic(
         name="functions",
         section="compute",

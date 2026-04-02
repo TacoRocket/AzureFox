@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from azurefox.collectors.commands import (
+    collect_acr,
     collect_aks,
     collect_api_mgmt,
     collect_app_services,
@@ -66,6 +67,7 @@ COMMAND_SPECS: tuple[CommandSpec, ...] = (
     CommandSpec("functions", "compute", collect_functions),
     CommandSpec("aks", "compute", collect_aks),
     CommandSpec("api-mgmt", "resource", collect_api_mgmt),
+    CommandSpec("acr", "resource", collect_acr),
     CommandSpec("vms", "compute", collect_vms),
 )
 

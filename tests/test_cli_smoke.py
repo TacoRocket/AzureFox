@@ -17,6 +17,7 @@ def test_cli_smoke_all_commands(tmp_path: Path) -> None:
         "whoami",
         "inventory",
         "app-services",
+        "acr",
         "aks",
         "api-mgmt",
         "functions",
@@ -64,7 +65,7 @@ def test_cli_smoke_all_checks_json_summary(tmp_path: Path) -> None:
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["metadata"]["command"] == "all-checks"
-    assert len(payload["results"]) == 24
+    assert len(payload["results"]) == 25
     assert (tmp_path / "run-summary.json").exists()
 
 
@@ -166,7 +167,7 @@ def test_cli_smoke_section_filter_resource(tmp_path: Path) -> None:
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     commands = {item["command"] for item in payload["results"]}
-    assert commands == {"api-mgmt", "resource-trusts"}
+    assert commands == {"acr", "api-mgmt", "resource-trusts"}
 
 
 def test_cli_smoke_section_filter_network(tmp_path: Path) -> None:

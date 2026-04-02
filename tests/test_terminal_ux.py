@@ -80,6 +80,32 @@ def test_app_services_table_mode_surfaces_runtime_and_posture(tmp_path: Path) ->
     ) in result.stdout
 
 
+def test_acr_table_mode_surfaces_login_server_and_posture(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "acr"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Reviewing Azure Container Registry login servers, auth posture, and network exposure."
+        in result.stdout
+    )
+    assert "registry" in result.stdout
+    assert "acr-public-legacy" in result.stdout
+    assert "login server" in result.stdout
+    assert "acr-ops-01.azurecr.io" in result.stdout
+    assert "admin=yes" in result.stdout
+    assert "anon-pull=yes" in result.stdout
+    assert "public=Enabled" in result.stdout
+    assert "pe=1" in result.stdout
+    assert (
+        "Takeaway: 2 registries visible; 1 keep public network access enabled, "
+        "1 allow admin-user auth, and 1 permit anonymous pull."
+    ) in result.stdout
+
+
 def test_aks_table_mode_surfaces_endpoint_and_auth_posture(tmp_path: Path) -> None:
     result = runner.invoke(
         app,
@@ -358,6 +384,27 @@ def test_app_services_partial_read_surfaces_collection_issue() -> None:
     assert "Collection issues:" in rendered
     assert "permission_denied" in rendered
     assert "app_services[rg-apps/app-empty-mi].configuration" in rendered
+
+
+def test_acr_collection_issue_surfaces_in_table_output() -> None:
+    payload = {
+        "metadata": {"command": "acr"},
+        "registries": [],
+        "findings": [],
+        "issues": [
+            {
+                "kind": "permission_denied",
+                "message": "acr.registries: 403 Forbidden",
+                "context": {"collector": "acr.registries"},
+            }
+        ],
+    }
+    rendered = render_table("acr", payload)
+
+    assert "No records" in rendered
+    assert "Collection issues:" in rendered
+    assert "permission_denied" in rendered
+    assert "acr.registries" in rendered
 
 
 def test_functions_partial_read_surfaces_collection_issue() -> None:
