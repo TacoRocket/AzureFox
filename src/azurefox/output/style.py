@@ -10,6 +10,7 @@ from azurefox.models.common import OutputMode
 COMMAND_NARRATION = {
     "whoami": "Checking caller context and active subscription scope.",
     "inventory": "Scoping the visible Azure resource footprint.",
+    "app-services": "Reviewing App Service runtime, hostname, identity, and hardening posture.",
     "arm-deployments": "Reviewing ARM deployment history for config exposure and linked content.",
     "endpoints": "Mapping reachable IP and hostname surfaces from compute and web workloads.",
     "env-vars": "Reviewing App Service and Function App settings for exposed config paths.",

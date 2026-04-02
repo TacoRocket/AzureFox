@@ -1,0 +1,55 @@
+{
+  "app_services": [
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-empty-mi",
+      "name": "app-empty-mi",
+      "resource_group": "rg-apps",
+      "location": "eastus",
+      "state": "Running",
+      "default_hostname": "app-empty-mi.azurewebsites.net",
+      "app_service_plan_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/serverfarms/asp-linux",
+      "public_network_access": "Enabled",
+      "https_only": false,
+      "client_cert_enabled": false,
+      "min_tls_version": "1.0",
+      "ftps_state": "AllAllowed",
+      "runtime_stack": "DOTNETCORE|8.0",
+      "workload_identity_type": "SystemAssigned",
+      "workload_principal_id": "eeee3333-3333-3333-3333-333333333333",
+      "workload_client_id": "ffff3333-3333-3333-3333-333333333333",
+      "workload_identity_ids": [],
+      "summary": "App Service 'app-empty-mi' publishes hostname 'app-empty-mi.azurewebsites.net', runs runtime 'DOTNETCORE|8.0', and uses managed identity (SystemAssigned). Visible posture: public network access Enabled, HTTPS-only disabled, TLS 1.0, FTPS AllAllowed.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-empty-mi",
+        "eeee3333-3333-3333-3333-333333333333",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/serverfarms/asp-linux"
+      ]
+    },
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api",
+      "name": "app-public-api",
+      "resource_group": "rg-apps",
+      "location": "eastus",
+      "state": "Running",
+      "default_hostname": "app-public-api.azurewebsites.net",
+      "app_service_plan_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/serverfarms/asp-linux",
+      "public_network_access": "Enabled",
+      "https_only": true,
+      "client_cert_enabled": true,
+      "min_tls_version": "1.2",
+      "ftps_state": "Disabled",
+      "runtime_stack": "NODE|20-lts",
+      "workload_identity_type": "SystemAssigned",
+      "workload_principal_id": "aaaa1111-1111-1111-1111-111111111111",
+      "workload_client_id": "bbbb1111-1111-1111-1111-111111111111",
+      "workload_identity_ids": [],
+      "summary": "App Service 'app-public-api' publishes hostname 'app-public-api.azurewebsites.net', runs runtime 'NODE|20-lts', and uses managed identity (SystemAssigned). Visible posture: public network access Enabled, HTTPS-only enabled, TLS 1.2, FTPS Disabled.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api",
+        "aaaa1111-1111-1111-1111-111111111111",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/serverfarms/asp-linux"
+      ]
+    }
+  ],
+  "issues": []
+}

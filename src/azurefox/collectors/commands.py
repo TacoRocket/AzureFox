@@ -13,6 +13,7 @@ from azurefox.correlation.findings import (
     build_vm_findings,
 )
 from azurefox.models.commands import (
+    AppServicesOutput,
     ArmDeploymentsOutput,
     AuthPoliciesOutput,
     EndpointsOutput,
@@ -52,6 +53,17 @@ def collect_inventory(provider: BaseProvider, options: GlobalOptions) -> Invento
     data = provider.inventory()
     return InventoryOutput.model_validate(
         {"metadata": _metadata(provider, "inventory", options), **data}
+    )
+
+
+def collect_app_services(provider: BaseProvider, options: GlobalOptions) -> AppServicesOutput:
+    data = provider.app_services()
+    return AppServicesOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "app-services", options),
+            "findings": [],
+            **data,
+        }
     )
 
 

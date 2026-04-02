@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from azurefox.models.common import (
     SCHEMA_VERSION,
+    AppServiceAsset,
     ArmDeploymentSummary,
     AuthPolicySummary,
     EndpointSummary,
@@ -34,6 +35,16 @@ def test_arm_deployment_summary_defaults() -> None:
     assert deployment.resource_group is None
     assert deployment.providers == []
     assert deployment.related_ids == []
+
+
+def test_app_service_asset_defaults() -> None:
+    asset = AppServiceAsset(id="app-1", name="app01", summary="test")
+    assert asset.resource_group is None
+    assert asset.default_hostname is None
+    assert asset.https_only is False
+    assert asset.client_cert_enabled is False
+    assert asset.workload_identity_ids == []
+    assert asset.related_ids == []
 
 
 def test_env_var_summary_defaults() -> None:

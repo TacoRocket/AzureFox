@@ -101,6 +101,31 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "app-services":
+        return (
+            [
+                ("name", "app service"),
+                ("default_hostname", "hostname"),
+                ("runtime_stack", "runtime"),
+                ("identity", "identity"),
+                ("exposure", "exposure"),
+                ("posture", "posture"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "name": item.get("name"),
+                    "default_hostname": item.get("default_hostname"),
+                    "runtime_stack": item.get("runtime_stack") or "-",
+                    "identity": _app_service_identity_context(item),
+                    "exposure": _app_service_exposure_context(item),
+                    "posture": _app_service_posture_context(item),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("app_services", [])
+            ],
+        )
+
     if command == "arm-deployments":
         return (
             [
@@ -611,6 +636,20 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             f"{payload.get('resource_group_count', 0)} resource groups."
         )
 
+    if command == "app-services":
+        app_services = payload.get("app_services", [])
+        https_only = sum(bool(item.get("https_only")) for item in app_services)
+        public_network = sum(
+            str(item.get("public_network_access") or "").lower() == "enabled"
+            for item in app_services
+        )
+        identities = sum(bool(item.get("workload_identity_type")) for item in app_services)
+        return (
+            f"{len(app_services)} App Service apps visible; {public_network} keep public "
+            f"network access enabled, {https_only} enforce HTTPS-only, and {identities} carry "
+            "managed identity context."
+        )
+
     if command == "arm-deployments":
         deployments = payload.get("deployments", [])
         findings = payload.get("findings", [])
@@ -732,6 +771,39 @@ def _env_var_signal(item: dict) -> str:
         parts.append(str(item.get("reference_target")))
     if not parts:
         return "-"
+    return "; ".join(parts)
+
+
+def _app_service_identity_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("workload_identity_type"):
+        parts.append(str(item.get("workload_identity_type")))
+    if item.get("workload_identity_ids"):
+        parts.append(f"user-assigned={len(item.get('workload_identity_ids', []))}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _app_service_exposure_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("default_hostname"):
+        parts.append("hostname")
+    if item.get("public_network_access"):
+        parts.append(f"public={item.get('public_network_access')}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _app_service_posture_context(item: dict) -> str:
+    parts = [f"https={'yes' if item.get('https_only') else 'no'}"]
+    if item.get("min_tls_version"):
+        parts.append(f"tls={item.get('min_tls_version')}")
+    if item.get("ftps_state"):
+        parts.append(f"ftps={item.get('ftps_state')}")
+    if item.get("client_cert_enabled"):
+        parts.append("client-cert=yes")
     return "; ".join(parts)
 
 

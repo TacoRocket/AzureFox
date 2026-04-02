@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from azurefox.collectors.commands import (
+    collect_app_services,
     collect_arm_deployments,
     collect_auth_policies,
     collect_endpoints,
@@ -76,6 +77,21 @@ class PartialAuthPoliciesFixtureProvider(FixtureProvider):
         }
 
 
+class PartialAppServicesFixtureProvider(FixtureProvider):
+    def app_services(self) -> dict:
+        data = self._read("app_services")
+        return {
+            "app_services": [data["app_services"][0]],
+            "issues": [
+                {
+                    "kind": "permission_denied",
+                    "message": "app_services[rg-apps/app-empty-mi].configuration: 403 Forbidden",
+                    "context": {"collector": "app_services[rg-apps/app-empty-mi].configuration"},
+                }
+            ],
+        }
+
+
 def test_collect_whoami(fixture_provider, options) -> None:
     output = collect_whoami(fixture_provider, options)
     assert output.principal is not None
@@ -118,6 +134,32 @@ def test_collect_inventory(fixture_provider, options) -> None:
     output = collect_inventory(fixture_provider, options)
     assert output.resource_group_count == 4
     assert output.resource_count == 27
+
+
+def test_collect_app_services(fixture_provider, options) -> None:
+    output = collect_app_services(fixture_provider, options)
+    assert len(output.app_services) == 2
+    assert len(output.findings) == 0
+    assert output.app_services[0].name == "app-empty-mi"
+    assert output.app_services[0].runtime_stack == "DOTNETCORE|8.0"
+    assert output.app_services[0].https_only is False
+    assert output.app_services[1].client_cert_enabled is True
+
+
+def test_collect_app_services_keeps_partial_visibility_explicit(
+    fixture_dir: Path, options
+) -> None:
+    provider = PartialAppServicesFixtureProvider(fixture_dir)
+
+    output = collect_app_services(provider, options)
+
+    assert len(output.app_services) == 1
+    assert output.app_services[0].name == "app-empty-mi"
+    assert output.app_services[0].runtime_stack == "DOTNETCORE|8.0"
+    assert output.issues[0].kind == "permission_denied"
+    assert output.issues[0].context["collector"] == (
+        "app_services[rg-apps/app-empty-mi].configuration"
+    )
 
 
 def test_collect_arm_deployments(fixture_provider, options) -> None:
