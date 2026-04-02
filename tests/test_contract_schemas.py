@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from azurefox.models.commands import (
+    ApiMgmtOutput,
     AppServicesOutput,
     ArmDeploymentsOutput,
     AuthPoliciesOutput,
@@ -32,6 +33,7 @@ MODEL_MAP = {
     "whoami": WhoAmIOutput,
     "inventory": InventoryOutput,
     "app-services": AppServicesOutput,
+    "api-mgmt": ApiMgmtOutput,
     "functions": FunctionsOutput,
     "arm-deployments": ArmDeploymentsOutput,
     "endpoints": EndpointsOutput,

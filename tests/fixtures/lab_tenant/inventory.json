@@ -5,7 +5,7 @@
     "state": "Enabled"
   },
   "resource_group_count": 4,
-  "resource_count": 27,
+  "resource_count": 28,
   "top_resource_types": {
     "Microsoft.Network/networkInterfaces": 6,
     "Microsoft.Compute/virtualMachines": 3,

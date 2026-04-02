@@ -40,6 +40,9 @@ class BaseProvider(ABC):
     def app_services(self) -> dict:
         return {"app_services": [], "issues": []}
 
+    def api_mgmt(self) -> dict:
+        return {"api_management_services": [], "issues": []}
+
     def functions(self) -> dict:
         return {"function_apps": [], "issues": []}
 
@@ -190,6 +193,9 @@ class FixtureProvider(BaseProvider):
 
     def app_services(self) -> dict:
         return self._read("app_services")
+
+    def api_mgmt(self) -> dict:
+        return self._read("api_mgmt")
 
     def functions(self) -> dict:
         return self._read("functions")
@@ -457,6 +463,78 @@ class AzureProvider(BaseProvider):
             )
         )
         return {"app_services": app_services, "issues": issues}
+
+    def api_mgmt(self) -> dict:
+        issues: list[dict] = []
+        services: list[dict] = []
+
+        try:
+            iterator = self.clients.api_management.api_management_service.list()
+            for service in iterator:
+                apis = None
+                backends = None
+                named_values = None
+                service_id = getattr(service, "id", "") or ""
+                resource_group = _resource_group_from_id(service_id)
+                service_name = getattr(service, "name", None)
+
+                if resource_group and service_name:
+                    try:
+                        apis = list(
+                            self.clients.api_management.api.list_by_service(
+                                resource_group,
+                                service_name,
+                            )
+                        )
+                    except Exception as exc:
+                        issues.append(
+                            _issue_from_exception(
+                                f"api_mgmt[{resource_group}/{service_name}].apis",
+                                exc,
+                            )
+                        )
+
+                    try:
+                        backends = list(
+                            self.clients.api_management.backend.list_by_service(
+                                resource_group,
+                                service_name,
+                            )
+                        )
+                    except Exception as exc:
+                        issues.append(
+                            _issue_from_exception(
+                                f"api_mgmt[{resource_group}/{service_name}].backends",
+                                exc,
+                            )
+                        )
+
+                    try:
+                        named_values = list(
+                            self.clients.api_management.named_value.list_by_service(
+                                resource_group,
+                                service_name,
+                            )
+                        )
+                    except Exception as exc:
+                        issues.append(
+                            _issue_from_exception(
+                                f"api_mgmt[{resource_group}/{service_name}].named_values",
+                                exc,
+                            )
+                        )
+
+                services.append(_api_mgmt_service_summary(service, apis, backends, named_values))
+        except Exception as exc:
+            issues.append(_issue_from_exception("api_mgmt.services", exc))
+
+        services.sort(
+            key=lambda item: (
+                not _api_mgmt_exposure_priority(item),
+                item.get("name") or "",
+            )
+        )
+        return {"api_management_services": services, "issues": issues}
 
     def functions(self) -> dict:
         issues: list[dict] = []
@@ -2186,6 +2264,98 @@ def _app_service_summary(app: object, config: object | None) -> dict:
     }
 
 
+def _api_mgmt_service_summary(
+    service: object,
+    apis: list[object] | None,
+    backends: list[object] | None,
+    named_values: list[object] | None,
+) -> dict:
+    service_id = getattr(service, "id", "") or ""
+    service_name = getattr(service, "name", "unknown")
+    identity = getattr(service, "identity", None)
+    sku = getattr(service, "sku", None)
+    hostname_configurations = getattr(service, "hostname_configurations", None) or []
+    gateway_hostnames, management_hostnames, portal_hostnames = _api_mgmt_hostnames(
+        service,
+        hostname_configurations,
+    )
+    public_ip_address_id = _string_value(getattr(service, "public_ip_address_id", None))
+    public_ip_addresses = _dedupe_strings(
+        [str(item) for item in (getattr(service, "public_ip_addresses", None) or []) if item]
+    )
+    private_ip_addresses = _dedupe_strings(
+        [str(item) for item in (getattr(service, "private_ip_addresses", None) or []) if item]
+    )
+    workload_identity_ids = sorted(
+        str(identity_id)
+        for identity_id in (getattr(identity, "user_assigned_identities", None) or {}).keys()
+    )
+    workload_identity_type = _string_value(getattr(identity, "type", None))
+    workload_principal_id = _string_value(getattr(identity, "principal_id", None))
+    workload_client_id = _string_value(getattr(identity, "client_id", None))
+    api_count = len(apis) if apis is not None else None
+    backend_count = len(backends) if backends is not None else None
+    named_value_count = len(named_values) if named_values is not None else None
+    gateway_enabled = (
+        None
+        if getattr(service, "disable_gateway", None) is None
+        else not bool(getattr(service, "disable_gateway", False))
+    )
+
+    return {
+        "id": service_id or f"/unknown/{service_name}",
+        "name": service_name,
+        "resource_group": _resource_group_from_id(service_id),
+        "location": _string_value(getattr(service, "location", None)),
+        "state": _string_value(getattr(service, "provisioning_state", None)),
+        "sku_name": _string_value(getattr(sku, "name", None)),
+        "sku_capacity": getattr(sku, "capacity", None),
+        "public_network_access": _string_value(getattr(service, "public_network_access", None)),
+        "virtual_network_type": _string_value(getattr(service, "virtual_network_type", None)),
+        "public_ip_address_id": public_ip_address_id,
+        "public_ip_addresses": public_ip_addresses,
+        "private_ip_addresses": private_ip_addresses,
+        "gateway_hostnames": gateway_hostnames,
+        "management_hostnames": management_hostnames,
+        "portal_hostnames": portal_hostnames,
+        "workload_identity_type": workload_identity_type,
+        "workload_principal_id": workload_principal_id,
+        "workload_client_id": workload_client_id,
+        "workload_identity_ids": workload_identity_ids,
+        "gateway_enabled": gateway_enabled,
+        "developer_portal_status": _string_value(getattr(service, "developer_portal_status", None)),
+        "legacy_portal_status": _string_value(getattr(service, "legacy_portal_status", None)),
+        "api_count": api_count,
+        "backend_count": backend_count,
+        "named_value_count": named_value_count,
+        "summary": _api_mgmt_operator_summary(
+            service_name=service_name,
+            gateway_hostnames=gateway_hostnames,
+            management_hostnames=management_hostnames,
+            portal_hostnames=portal_hostnames,
+            public_network_access=_string_value(getattr(service, "public_network_access", None)),
+            virtual_network_type=_string_value(getattr(service, "virtual_network_type", None)),
+            sku_name=_string_value(getattr(sku, "name", None)),
+            workload_identity_type=workload_identity_type,
+            api_count=api_count,
+            backend_count=backend_count,
+            named_value_count=named_value_count,
+            gateway_enabled=gateway_enabled,
+            developer_portal_status=_string_value(
+                getattr(service, "developer_portal_status", None)
+            ),
+        ),
+        "related_ids": _dedupe_strings(
+            [
+                service_id,
+                workload_principal_id,
+                *workload_identity_ids,
+                public_ip_address_id,
+            ]
+        ),
+    }
+
+
 def _function_app_summary(
     app: object,
     config: object | None,
@@ -2428,6 +2598,124 @@ def _app_service_operator_summary(
 
 def _app_service_exposure_priority(item: dict) -> bool:
     return bool(item.get("default_hostname")) or (
+        str(item.get("public_network_access") or "").lower() == "enabled"
+    )
+
+
+def _api_mgmt_operator_summary(
+    *,
+    service_name: str,
+    gateway_hostnames: list[str],
+    management_hostnames: list[str],
+    portal_hostnames: list[str],
+    public_network_access: str | None,
+    virtual_network_type: str | None,
+    sku_name: str | None,
+    workload_identity_type: str | None,
+    api_count: int | None,
+    backend_count: int | None,
+    named_value_count: int | None,
+    gateway_enabled: bool | None,
+    developer_portal_status: str | None,
+) -> str:
+    host_parts: list[str] = []
+    if gateway_hostnames:
+        host_parts.append(f"gateway hostnames {', '.join(gateway_hostnames)}")
+    if management_hostnames:
+        host_parts.append(f"management hostnames {', '.join(management_hostnames)}")
+    if portal_hostnames:
+        host_parts.append(f"portal hostnames {', '.join(portal_hostnames)}")
+    host_phrase = (
+        f"publishes {'; '.join(host_parts)}"
+        if host_parts
+        else "does not expose readable gateway or portal hostnames from the current read path"
+    )
+
+    inventory_parts: list[str] = []
+    if api_count is not None:
+        inventory_parts.append(f"{api_count} APIs")
+    if backend_count is not None:
+        inventory_parts.append(f"{backend_count} backends")
+    if named_value_count is not None:
+        inventory_parts.append(f"{named_value_count} named values")
+    inventory_phrase = (
+        f"Visible inventory: {', '.join(inventory_parts)}."
+        if inventory_parts
+        else "Inventory counts are not fully readable from the current read path."
+    )
+
+    posture_parts = [
+        f"public network access {public_network_access or 'unknown'}",
+        f"virtual network type {virtual_network_type or 'none'}",
+    ]
+    if sku_name:
+        posture_parts.append(f"SKU {sku_name}")
+    if gateway_enabled is not None:
+        posture_parts.append(f"gateway {'enabled' if gateway_enabled else 'disabled'}")
+    if developer_portal_status:
+        posture_parts.append(f"developer portal {developer_portal_status}")
+
+    identity_phrase = (
+        f"uses managed identity ({workload_identity_type})"
+        if workload_identity_type
+        else "has no managed identity visible from the current read path"
+    )
+
+    return (
+        f"API Management service '{service_name}' {host_phrase} and {identity_phrase}. "
+        f"{inventory_phrase} Visible posture: {', '.join(posture_parts)}."
+    )
+
+
+def _api_mgmt_hostnames(
+    service: object,
+    hostname_configurations: list[object],
+) -> tuple[list[str], list[str], list[str]]:
+    gateway = _dedupe_strings(
+        [
+            *[
+                _string_value(getattr(item, "host_name", None))
+                for item in hostname_configurations
+                if str(getattr(item, "type", "")).lower() == "proxy"
+            ],
+            _hostname_from_url(_string_value(getattr(service, "gateway_url", None))),
+        ]
+    )
+    management = _dedupe_strings(
+        [
+            *[
+                _string_value(getattr(item, "host_name", None))
+                for item in hostname_configurations
+                if str(getattr(item, "type", "")).lower() == "management"
+            ],
+            _hostname_from_url(_string_value(getattr(service, "management_api_url", None))),
+        ]
+    )
+    portal = _dedupe_strings(
+        [
+            *[
+                _string_value(getattr(item, "host_name", None))
+                for item in hostname_configurations
+                if str(getattr(item, "type", "")).lower() in {"portal", "developerportal"}
+            ],
+            _hostname_from_url(_string_value(getattr(service, "portal_url", None))),
+            _hostname_from_url(_string_value(getattr(service, "developer_portal_url", None))),
+        ]
+    )
+    return gateway, management, portal
+
+
+def _hostname_from_url(value: str | None) -> str | None:
+    if not value:
+        return None
+    parsed = urlparse(value)
+    if parsed.hostname:
+        return parsed.hostname
+    return value
+
+
+def _api_mgmt_exposure_priority(item: dict) -> bool:
+    return bool(item.get("gateway_hostnames")) or (
         str(item.get("public_network_access") or "").lower() == "enabled"
     )
 

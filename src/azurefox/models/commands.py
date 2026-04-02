@@ -5,6 +5,7 @@ from collections import Counter
 from pydantic import BaseModel, Field
 
 from azurefox.models.common import (
+    ApiMgmtServiceAsset,
     AppServiceAsset,
     ArmDeploymentSummary,
     AuthPolicySummary,
@@ -55,6 +56,13 @@ class InventoryOutput(BaseModel):
 class AppServicesOutput(BaseModel):
     metadata: CommandMetadata
     app_services: list[AppServiceAsset] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class ApiMgmtOutput(BaseModel):
+    metadata: CommandMetadata
+    api_management_services: list[ApiMgmtServiceAsset] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 

@@ -56,6 +56,29 @@ Why it should wait:
 
 - it needs the shared network vocabulary from `nics` and `endpoints` first
 
+### `api-mgmt-depth`
+
+Why it is grounded now:
+
+- the roadmap already includes `api-mgmt` as a Phase 3 service slice
+- once AzureFox lands a first API Management foothold, the repo can reuse that client and
+  service-level inventory path for narrower follow-on depth
+
+Why it should be separate:
+
+- API Management subscriptions, named-value secret handling, and policy-body inspection can easily
+  overwhelm a first operator-first service census
+- those areas deserve a later evidence-based follow-on once the initial gateway, hostname,
+  identity, and inventory posture command settles
+
+What this future follow-on could absorb:
+
+- subscription inventory and operator risk cues
+- named-value secret posture beyond simple counts
+- Key Vault-backed named-value depth
+- policy-body collection or policy-shape summaries
+- backend URL and trust-path deepening where the first `api-mgmt` slice stays intentionally narrow
+
 ### `network-effective`
 
 Why it is grounded now:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from azurefox.collectors.commands import (
+    collect_api_mgmt,
     collect_app_services,
     collect_arm_deployments,
     collect_auth_policies,
@@ -113,6 +114,23 @@ class PartialFunctionsFixtureProvider(FixtureProvider):
         }
 
 
+class PartialApiMgmtFixtureProvider(FixtureProvider):
+    def api_mgmt(self) -> dict:
+        data = self._read("api_mgmt")
+        row = dict(data["api_management_services"][0])
+        row["api_count"] = None
+        return {
+            "api_management_services": [row],
+            "issues": [
+                {
+                    "kind": "permission_denied",
+                    "message": "api_mgmt[rg-apps/apim-edge-01].apis: 403 Forbidden",
+                    "context": {"collector": "api_mgmt[rg-apps/apim-edge-01].apis"},
+                }
+            ],
+        }
+
+
 def test_collect_whoami(fixture_provider, options) -> None:
     output = collect_whoami(fixture_provider, options)
     assert output.principal is not None
@@ -154,7 +172,7 @@ def test_principal_from_claims_keeps_app_tokens_as_service_principals() -> None:
 def test_collect_inventory(fixture_provider, options) -> None:
     output = collect_inventory(fixture_provider, options)
     assert output.resource_group_count == 4
-    assert output.resource_count == 27
+    assert output.resource_count == 28
 
 
 def test_collect_app_services(fixture_provider, options) -> None:
@@ -165,6 +183,37 @@ def test_collect_app_services(fixture_provider, options) -> None:
     assert output.app_services[0].runtime_stack == "DOTNETCORE|8.0"
     assert output.app_services[0].https_only is False
     assert output.app_services[1].client_cert_enabled is True
+
+
+def test_collect_api_mgmt(fixture_provider, options) -> None:
+    output = collect_api_mgmt(fixture_provider, options)
+    assert len(output.api_management_services) == 1
+    assert len(output.findings) == 0
+    assert output.api_management_services[0].name == "apim-edge-01"
+    assert output.api_management_services[0].api_count == 2
+    assert output.api_management_services[0].named_value_count == 2
+    assert (
+        output.api_management_services[0].public_ip_address_id
+        == (
+            "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/"
+            "providers/Microsoft.Network/publicIPAddresses/pip-apim-edge-01"
+        )
+    )
+    assert output.api_management_services[0].public_ip_addresses == ["52.170.20.30"]
+
+
+def test_collect_api_mgmt_keeps_partial_visibility_explicit(
+    fixture_dir: Path, options
+) -> None:
+    provider = PartialApiMgmtFixtureProvider(fixture_dir)
+
+    output = collect_api_mgmt(provider, options)
+
+    assert len(output.api_management_services) == 1
+    assert output.api_management_services[0].name == "apim-edge-01"
+    assert output.api_management_services[0].api_count is None
+    assert output.issues[0].kind == "permission_denied"
+    assert output.issues[0].context["collector"] == "api_mgmt[rg-apps/apim-edge-01].apis"
 
 
 def test_collect_app_services_keeps_partial_visibility_explicit(

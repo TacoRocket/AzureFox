@@ -11,6 +11,9 @@ COMMAND_NARRATION = {
     "whoami": "Checking caller context and active subscription scope.",
     "inventory": "Scoping the visible Azure resource footprint.",
     "app-services": "Reviewing App Service runtime, hostname, identity, and hardening posture.",
+    "api-mgmt": (
+        "Reviewing API Management gateway hostnames, identity, and service posture."
+    ),
     "functions": (
         "Reviewing Function App runtime, storage binding, identity, and deployment posture."
     ),

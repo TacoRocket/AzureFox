@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from azurefox.models.common import (
     SCHEMA_VERSION,
+    ApiMgmtServiceAsset,
     AppServiceAsset,
     ArmDeploymentSummary,
     AuthPolicySummary,
@@ -45,6 +46,17 @@ def test_app_service_asset_defaults() -> None:
     assert asset.https_only is False
     assert asset.client_cert_enabled is False
     assert asset.workload_identity_ids == []
+    assert asset.related_ids == []
+
+
+def test_api_mgmt_service_asset_defaults() -> None:
+    asset = ApiMgmtServiceAsset(id="apim-1", name="apim01", summary="test")
+    assert asset.resource_group is None
+    assert asset.gateway_hostnames == []
+    assert asset.public_ip_address_id is None
+    assert asset.public_ip_addresses == []
+    assert asset.api_count is None
+    assert asset.gateway_enabled is None
     assert asset.related_ids == []
 
 

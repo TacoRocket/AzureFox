@@ -1,0 +1,56 @@
+{
+  "api_management_services": [
+    {
+      "api_count": 2,
+      "backend_count": 1,
+      "developer_portal_status": "Enabled",
+      "gateway_enabled": true,
+      "gateway_hostnames": [
+        "apim-edge-01.azure-api.net",
+        "api.contoso.com"
+      ],
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.ApiManagement/service/apim-edge-01",
+      "legacy_portal_status": "Disabled",
+      "location": "eastus",
+      "management_hostnames": [
+        "apim-edge-01.management.azure-api.net"
+      ],
+      "name": "apim-edge-01",
+      "named_value_count": 2,
+      "portal_hostnames": [
+        "portal.apim-edge-01.contoso.com"
+      ],
+      "public_ip_address_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Network/publicIPAddresses/pip-apim-edge-01",
+      "private_ip_addresses": [],
+      "public_ip_addresses": [
+        "52.170.20.30"
+      ],
+      "public_network_access": "Enabled",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.ApiManagement/service/apim-edge-01",
+        "99990000-0000-0000-0000-000000000001",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Network/publicIPAddresses/pip-apim-edge-01"
+      ],
+      "resource_group": "rg-apps",
+      "sku_capacity": 1,
+      "sku_name": "Developer",
+      "state": "Succeeded",
+      "summary": "API Management service 'apim-edge-01' publishes gateway hostnames apim-edge-01.azure-api.net, api.contoso.com; management hostnames apim-edge-01.management.azure-api.net; portal hostnames portal.apim-edge-01.contoso.com and uses managed identity (SystemAssigned). Visible inventory: 2 APIs, 1 backends, 2 named values. Visible posture: public network access Enabled, virtual network type External, SKU Developer, gateway enabled, developer portal Enabled.",
+      "virtual_network_type": "External",
+      "workload_client_id": "99990000-0000-0000-0000-000000000002",
+      "workload_identity_ids": [],
+      "workload_identity_type": "SystemAssigned",
+      "workload_principal_id": "99990000-0000-0000-0000-000000000001"
+    }
+  ],
+  "findings": [],
+  "issues": [],
+  "metadata": {
+    "command": "api-mgmt",
+    "generated_at": "<generated_at>",
+    "schema_version": "1.0.0",
+    "subscription_id": "22222222-2222-2222-2222-222222222222",
+    "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "token_source": null
+  }
+}

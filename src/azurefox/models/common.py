@@ -345,6 +345,36 @@ class FunctionAppAsset(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class ApiMgmtServiceAsset(BaseModel):
+    id: str
+    name: str
+    resource_group: str | None = None
+    location: str | None = None
+    state: str | None = None
+    sku_name: str | None = None
+    sku_capacity: int | None = None
+    public_network_access: str | None = None
+    virtual_network_type: str | None = None
+    public_ip_address_id: str | None = None
+    public_ip_addresses: list[str] = Field(default_factory=list)
+    private_ip_addresses: list[str] = Field(default_factory=list)
+    gateway_hostnames: list[str] = Field(default_factory=list)
+    management_hostnames: list[str] = Field(default_factory=list)
+    portal_hostnames: list[str] = Field(default_factory=list)
+    workload_identity_type: str | None = None
+    workload_principal_id: str | None = None
+    workload_client_id: str | None = None
+    workload_identity_ids: list[str] = Field(default_factory=list)
+    gateway_enabled: bool | None = None
+    developer_portal_status: str | None = None
+    legacy_portal_status: str | None = None
+    api_count: int | None = None
+    backend_count: int | None = None
+    named_value_count: int | None = None
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class WebWorkloadSummary(BaseModel):
     asset_id: str
     asset_name: str
