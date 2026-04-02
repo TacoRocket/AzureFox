@@ -69,6 +69,16 @@ def test_help_command_app_services_topic() -> None:
     assert "public_network_access" in result.stdout
 
 
+def test_help_command_acr_topic() -> None:
+    result = runner.invoke(app, ["help", "acr"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: acr" in result.stdout
+    assert "login_server" in result.stdout
+    assert "admin_user_enabled" in result.stdout
+    assert "network_rule_default_action" in result.stdout
+
+
 def test_help_command_functions_topic() -> None:
     result = runner.invoke(app, ["help", "functions"])
 

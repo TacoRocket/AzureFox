@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from azurefox.collectors.commands import (
+    collect_acr,
     collect_aks,
     collect_api_mgmt,
     collect_app_services,
@@ -45,6 +46,7 @@ def test_golden_outputs(fixture_provider, options) -> None:
         "whoami": collect_whoami,
         "inventory": collect_inventory,
         "app-services": collect_app_services,
+        "acr": collect_acr,
         "aks": collect_aks,
         "api-mgmt": collect_api_mgmt,
         "functions": collect_functions,

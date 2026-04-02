@@ -403,6 +403,29 @@ class ApiMgmtServiceAsset(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class AcrRegistryAsset(BaseModel):
+    id: str
+    name: str
+    resource_group: str | None = None
+    location: str | None = None
+    state: str | None = None
+    login_server: str | None = None
+    sku_name: str | None = None
+    public_network_access: str | None = None
+    network_rule_default_action: str | None = None
+    network_rule_bypass_options: str | None = None
+    admin_user_enabled: bool | None = None
+    anonymous_pull_enabled: bool | None = None
+    data_endpoint_enabled: bool | None = None
+    private_endpoint_connection_count: int = 0
+    workload_identity_type: str | None = None
+    workload_principal_id: str | None = None
+    workload_client_id: str | None = None
+    workload_identity_ids: list[str] = Field(default_factory=list)
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class WebWorkloadSummary(BaseModel):
     asset_id: str
     asset_name: str

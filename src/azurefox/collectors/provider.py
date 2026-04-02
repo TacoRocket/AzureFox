@@ -40,6 +40,9 @@ class BaseProvider(ABC):
     def app_services(self) -> dict:
         return {"app_services": [], "issues": []}
 
+    def acr(self) -> dict:
+        return {"registries": [], "issues": []}
+
     def aks(self) -> dict:
         return {"aks_clusters": [], "issues": []}
 
@@ -196,6 +199,9 @@ class FixtureProvider(BaseProvider):
 
     def app_services(self) -> dict:
         return self._read("app_services")
+
+    def acr(self) -> dict:
+        return self._read("acr")
 
     def aks(self) -> dict:
         return self._read("aks")
@@ -469,6 +475,25 @@ class AzureProvider(BaseProvider):
             )
         )
         return {"app_services": app_services, "issues": issues}
+
+    def acr(self) -> dict:
+        issues: list[dict] = []
+        registries: list[dict] = []
+
+        try:
+            iterator = self.clients.container_registry.registries.list()
+            for registry in iterator:
+                registries.append(_acr_registry_summary(registry))
+        except Exception as exc:
+            issues.append(_issue_from_exception("acr.registries", exc))
+
+        registries.sort(
+            key=lambda item: (
+                not _acr_exposure_priority(item),
+                item.get("name") or "",
+            )
+        )
+        return {"registries": registries, "issues": issues}
 
     def aks(self) -> dict:
         issues: list[dict] = []
@@ -2624,6 +2649,155 @@ def _app_service_operator_summary(
 def _app_service_exposure_priority(item: dict) -> bool:
     return bool(item.get("default_hostname")) or (
         str(item.get("public_network_access") or "").lower() == "enabled"
+    )
+
+
+def _acr_registry_summary(registry: object) -> dict:
+    registry_id = getattr(registry, "id", "") or ""
+    registry_name = getattr(registry, "name", "unknown")
+    identity = getattr(registry, "identity", None)
+    sku = getattr(registry, "sku", None)
+    network_rule_set = getattr(registry, "network_rule_set", None)
+    private_endpoint_connections = getattr(registry, "private_endpoint_connections", None) or []
+    workload_identity_ids = sorted(
+        str(identity_id)
+        for identity_id in (getattr(identity, "user_assigned_identities", None) or {}).keys()
+    )
+    workload_identity_type = _string_value(getattr(identity, "type", None))
+    workload_principal_id = _string_value(getattr(identity, "principal_id", None))
+    workload_client_id = _string_value(getattr(identity, "client_id", None))
+    public_network_access = _string_value(getattr(registry, "public_network_access", None))
+    network_rule_default_action = _string_value(
+        getattr(network_rule_set, "default_action", None)
+    )
+    network_rule_bypass_options = _string_value(
+        getattr(registry, "network_rule_bypass_options", None)
+    )
+    admin_user_enabled = getattr(registry, "admin_user_enabled", None)
+    anonymous_pull_enabled = getattr(registry, "anonymous_pull_enabled", None)
+    data_endpoint_enabled = getattr(registry, "data_endpoint_enabled", None)
+    private_endpoint_connection_count = len(private_endpoint_connections)
+    login_server = _string_value(getattr(registry, "login_server", None))
+    sku_name = _string_value(getattr(sku, "name", None))
+
+    return {
+        "id": registry_id or f"/unknown/{registry_name}",
+        "name": registry_name,
+        "resource_group": _resource_group_from_id(registry_id),
+        "location": _string_value(getattr(registry, "location", None)),
+        "state": _string_value(getattr(registry, "provisioning_state", None)),
+        "login_server": login_server,
+        "sku_name": sku_name,
+        "public_network_access": public_network_access,
+        "network_rule_default_action": network_rule_default_action,
+        "network_rule_bypass_options": network_rule_bypass_options,
+        "admin_user_enabled": admin_user_enabled,
+        "anonymous_pull_enabled": anonymous_pull_enabled,
+        "data_endpoint_enabled": data_endpoint_enabled,
+        "private_endpoint_connection_count": private_endpoint_connection_count,
+        "workload_identity_type": workload_identity_type,
+        "workload_principal_id": workload_principal_id,
+        "workload_client_id": workload_client_id,
+        "workload_identity_ids": workload_identity_ids,
+        "summary": _acr_operator_summary(
+            registry_name=registry_name,
+            login_server=login_server,
+            workload_identity_type=workload_identity_type,
+            public_network_access=public_network_access,
+            network_rule_default_action=network_rule_default_action,
+            network_rule_bypass_options=network_rule_bypass_options,
+            admin_user_enabled=admin_user_enabled,
+            anonymous_pull_enabled=anonymous_pull_enabled,
+            data_endpoint_enabled=data_endpoint_enabled,
+            private_endpoint_connection_count=private_endpoint_connection_count,
+            sku_name=sku_name,
+        ),
+        "related_ids": _dedupe_strings(
+            [
+                registry_id,
+                workload_principal_id,
+                *workload_identity_ids,
+            ]
+        ),
+    }
+
+
+def _acr_operator_summary(
+    *,
+    registry_name: str,
+    login_server: str | None,
+    workload_identity_type: str | None,
+    public_network_access: str | None,
+    network_rule_default_action: str | None,
+    network_rule_bypass_options: str | None,
+    admin_user_enabled: bool | None,
+    anonymous_pull_enabled: bool | None,
+    data_endpoint_enabled: bool | None,
+    private_endpoint_connection_count: int,
+    sku_name: str | None,
+) -> str:
+    login_phrase = (
+        f"publishes login server '{login_server}'"
+        if login_server
+        else "does not expose a readable login server from the current read path"
+    )
+    identity_phrase = (
+        f"uses managed identity ({workload_identity_type})"
+        if workload_identity_type
+        else "has no managed identity visible from the current read path"
+    )
+
+    auth_parts: list[str] = []
+    if admin_user_enabled is True:
+        auth_parts.append("admin user enabled")
+    elif admin_user_enabled is False:
+        auth_parts.append("admin user disabled")
+    if anonymous_pull_enabled is True:
+        auth_parts.append("anonymous pull enabled")
+    elif anonymous_pull_enabled is False:
+        auth_parts.append("anonymous pull disabled")
+
+    network_parts = [f"public network access {public_network_access or 'unknown'}"]
+    if network_rule_default_action:
+        network_parts.append(f"default action {network_rule_default_action}")
+    if network_rule_bypass_options:
+        network_parts.append(f"bypass {network_rule_bypass_options}")
+    if private_endpoint_connection_count > 0:
+        network_parts.append(f"{private_endpoint_connection_count} private endpoint(s)")
+    else:
+        network_parts.append("no private endpoints visible")
+
+    service_parts: list[str] = []
+    if sku_name:
+        service_parts.append(f"SKU {sku_name}")
+    if data_endpoint_enabled is True:
+        service_parts.append("data endpoint enabled")
+    elif data_endpoint_enabled is False:
+        service_parts.append("data endpoint disabled")
+
+    auth_phrase = (
+        f"Visible auth posture: {', '.join(auth_parts)}."
+        if auth_parts
+        else "Auth posture is not fully readable from the current read path."
+    )
+    service_phrase = (
+        f"Visible service shape: {', '.join(service_parts)}."
+        if service_parts
+        else "Service shape is not fully readable from the current read path."
+    )
+
+    return (
+        f"Container Registry '{registry_name}' {login_phrase} and {identity_phrase}. "
+        f"{auth_phrase} Visible network posture: {', '.join(network_parts)}. "
+        f"{service_phrase}"
+    )
+
+
+def _acr_exposure_priority(item: dict) -> bool:
+    return (
+        str(item.get("public_network_access") or "").lower() == "enabled"
+        or item.get("admin_user_enabled") is True
+        or item.get("anonymous_pull_enabled") is True
     )
 
 

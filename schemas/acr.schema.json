@@ -1,0 +1,9 @@
+{
+  "model": "AcrOutput",
+  "top_level_fields": [
+    "metadata",
+    "registries",
+    "findings",
+    "issues"
+  ]
+}

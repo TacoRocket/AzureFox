@@ -1,0 +1,63 @@
+{
+  "findings": [],
+  "issues": [],
+  "metadata": {
+    "command": "acr",
+    "generated_at": "<generated_at>",
+    "schema_version": "1.0.0",
+    "subscription_id": "22222222-2222-2222-2222-222222222222",
+    "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "token_source": null
+  },
+  "registries": [
+    {
+      "admin_user_enabled": true,
+      "anonymous_pull_enabled": true,
+      "data_endpoint_enabled": true,
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.ContainerRegistry/registries/acr-public-legacy",
+      "location": "eastus",
+      "login_server": "acr-public-legacy.azurecr.io",
+      "name": "acr-public-legacy",
+      "network_rule_bypass_options": "AzureServices",
+      "network_rule_default_action": "Allow",
+      "private_endpoint_connection_count": 0,
+      "public_network_access": "Enabled",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.ContainerRegistry/registries/acr-public-legacy"
+      ],
+      "resource_group": "rg-containers",
+      "sku_name": "Standard",
+      "state": "Succeeded",
+      "summary": "Container Registry 'acr-public-legacy' publishes login server 'acr-public-legacy.azurecr.io' and has no managed identity visible from the current read path. Visible auth posture: admin user enabled, anonymous pull enabled. Visible network posture: public network access Enabled, default action Allow, bypass AzureServices, no private endpoints visible. Visible service shape: SKU Standard, data endpoint enabled.",
+      "workload_client_id": null,
+      "workload_identity_ids": [],
+      "workload_identity_type": null,
+      "workload_principal_id": null
+    },
+    {
+      "admin_user_enabled": false,
+      "anonymous_pull_enabled": false,
+      "data_endpoint_enabled": false,
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.ContainerRegistry/registries/acr-ops-01",
+      "location": "eastus2",
+      "login_server": "acr-ops-01.azurecr.io",
+      "name": "acr-ops-01",
+      "network_rule_bypass_options": "None",
+      "network_rule_default_action": "Deny",
+      "private_endpoint_connection_count": 1,
+      "public_network_access": "Disabled",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.ContainerRegistry/registries/acr-ops-01",
+        "99990000-0000-0000-0000-000000000031"
+      ],
+      "resource_group": "rg-containers",
+      "sku_name": "Premium",
+      "state": "Succeeded",
+      "summary": "Container Registry 'acr-ops-01' publishes login server 'acr-ops-01.azurecr.io' and uses managed identity (SystemAssigned). Visible auth posture: admin user disabled, anonymous pull disabled. Visible network posture: public network access Disabled, default action Deny, bypass None, 1 private endpoint(s). Visible service shape: SKU Premium, data endpoint disabled.",
+      "workload_client_id": "99990000-0000-0000-0000-000000000032",
+      "workload_identity_ids": [],
+      "workload_identity_type": "SystemAssigned",
+      "workload_principal_id": "99990000-0000-0000-0000-000000000031"
+    }
+  ]
+}

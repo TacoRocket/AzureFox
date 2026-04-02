@@ -13,6 +13,7 @@ from azurefox.correlation.findings import (
     build_vm_findings,
 )
 from azurefox.models.commands import (
+    AcrOutput,
     AksOutput,
     ApiMgmtOutput,
     AppServicesOutput,
@@ -64,6 +65,17 @@ def collect_app_services(provider: BaseProvider, options: GlobalOptions) -> AppS
     return AppServicesOutput.model_validate(
         {
             "metadata": _metadata(provider, "app-services", options),
+            "findings": [],
+            **data,
+        }
+    )
+
+
+def collect_acr(provider: BaseProvider, options: GlobalOptions) -> AcrOutput:
+    data = provider.acr()
+    return AcrOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "acr", options),
             "findings": [],
             **data,
         }

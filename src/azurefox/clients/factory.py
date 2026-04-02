@@ -14,6 +14,7 @@ class AzureClients:
     resource: object
     authorization: object
     web: object
+    container_registry: object
     containerservice: object
     api_management: object
     keyvault: object
@@ -27,6 +28,7 @@ def build_clients(session: AuthSession, requested_subscription: str | None) -> A
         from azure.mgmt.apimanagement import ApiManagementClient
         from azure.mgmt.authorization import AuthorizationManagementClient
         from azure.mgmt.compute import ComputeManagementClient
+        from azure.mgmt.containerregistry import ContainerRegistryManagementClient
         from azure.mgmt.containerservice import ContainerServiceClient
         from azure.mgmt.keyvault import KeyVaultManagementClient
         from azure.mgmt.network import NetworkManagementClient
@@ -77,6 +79,7 @@ def build_clients(session: AuthSession, requested_subscription: str | None) -> A
         resource=ResourceManagementClient(session.credential, subscription_id),
         authorization=AuthorizationManagementClient(session.credential, subscription_id),
         web=WebSiteManagementClient(session.credential, subscription_id),
+        container_registry=ContainerRegistryManagementClient(session.credential, subscription_id),
         containerservice=ContainerServiceClient(session.credential, subscription_id),
         api_management=ApiManagementClient(session.credential, subscription_id),
         keyvault=KeyVaultManagementClient(session.credential, subscription_id),

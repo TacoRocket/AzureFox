@@ -126,6 +126,31 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "acr":
+        return (
+            [
+                ("name", "registry"),
+                ("login_server", "login server"),
+                ("identity", "identity"),
+                ("auth", "auth"),
+                ("exposure", "exposure"),
+                ("posture", "posture"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "name": item.get("name"),
+                    "login_server": item.get("login_server"),
+                    "identity": _app_service_identity_context(item),
+                    "auth": _acr_auth_context(item),
+                    "exposure": _acr_exposure_context(item),
+                    "posture": _acr_posture_context(item),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("registries", [])
+            ],
+        )
+
     if command == "aks":
         return (
             [
@@ -725,6 +750,20 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             "managed identity context."
         )
 
+    if command == "acr":
+        registries = payload.get("registries", [])
+        public_network = sum(
+            str(item.get("public_network_access") or "").lower() == "enabled"
+            for item in registries
+        )
+        admin_auth = sum(item.get("admin_user_enabled") is True for item in registries)
+        anonymous_pull = sum(item.get("anonymous_pull_enabled") is True for item in registries)
+        return (
+            f"{len(registries)} registries visible; {public_network} keep public network access "
+            f"enabled, {admin_auth} allow admin-user auth, and {anonymous_pull} permit "
+            "anonymous pull."
+        )
+
     if command == "aks":
         clusters = payload.get("aks_clusters", [])
         private_clusters = sum(item.get("private_cluster_enabled") is True for item in clusters)
@@ -932,6 +971,46 @@ def _app_service_posture_context(item: dict) -> str:
         parts.append(f"ftps={item.get('ftps_state')}")
     if item.get("client_cert_enabled"):
         parts.append("client-cert=yes")
+    return "; ".join(parts)
+
+
+def _acr_auth_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("admin_user_enabled") is True:
+        parts.append("admin=yes")
+    elif item.get("admin_user_enabled") is False:
+        parts.append("admin=no")
+    if item.get("anonymous_pull_enabled") is True:
+        parts.append("anon-pull=yes")
+    elif item.get("anonymous_pull_enabled") is False:
+        parts.append("anon-pull=no")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _acr_exposure_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("public_network_access"):
+        parts.append(f"public={item.get('public_network_access')}")
+    if item.get("network_rule_default_action"):
+        parts.append(f"default={item.get('network_rule_default_action')}")
+    parts.append(f"pe={item.get('private_endpoint_connection_count', 0)}")
+    return "; ".join(parts)
+
+
+def _acr_posture_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("sku_name"):
+        parts.append(str(item.get("sku_name")))
+    if item.get("network_rule_bypass_options"):
+        parts.append(f"bypass={item.get('network_rule_bypass_options')}")
+    if item.get("data_endpoint_enabled") is True:
+        parts.append("data-endpoint=yes")
+    elif item.get("data_endpoint_enabled") is False:
+        parts.append("data-endpoint=no")
+    if not parts:
+        return "-"
     return "; ".join(parts)
 
 

@@ -102,6 +102,28 @@ What this future follow-on could absorb:
 - kubelet identity, addon profile, or maintenance configuration review
 - cluster credential and Kubernetes-object follow-up once scope is explicitly chosen
 
+### `acr-depth`
+
+Why it is grounded now:
+
+- the roadmap already includes `acr` as a Phase 3 service slice
+- once AzureFox lands a first ACR foothold, the repo can reuse that client and registry-level
+  posture path for narrower follow-on depth
+
+Why it should be separate:
+
+- repository enumeration, webhook review, task analysis, and connected-registry follow-on work can
+  easily overwhelm a first operator-first ACR census
+- those areas deserve a later evidence-based follow-on once the initial login-server, auth, and
+  network-posture command settles
+
+What this future follow-on could absorb:
+
+- repository and artifact inventory with management-plane-safe scope
+- webhook, task, and connected-registry relationships
+- retention, quarantine, trust, export, and content-trust policy depth
+- scope-map, token, and other registry-auth surface review once boundaries are explicit
+
 ### `network-effective`
 
 Why it is grounded now:
