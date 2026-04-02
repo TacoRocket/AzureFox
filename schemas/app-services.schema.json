@@ -1,0 +1,9 @@
+{
+  "model": "AppServicesOutput",
+  "top_level_fields": [
+    "metadata",
+    "app_services",
+    "findings",
+    "issues"
+  ]
+}

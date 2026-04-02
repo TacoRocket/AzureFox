@@ -62,6 +62,37 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox inventory --output table",
     ),
+    "app-services": CommandHelpTopic(
+        name="app-services",
+        section="compute",
+        summary=(
+            "Deepen App Service runtime, hostname, identity, and basic deployment-posture "
+            "visibility."
+        ),
+        offensive_question=(
+            "Which App Service apps expose the most interesting runtime, identity, and ingress "
+            "posture for operator follow-up?"
+        ),
+        cloudfox_frame=(
+            "Azure-native App Service review that goes deeper than workload census by surfacing "
+            "runtime stack, hostname, identity, and basic hardening posture without duplicating "
+            "app-setting or function-specific analysis."
+        ),
+        output_highlights=(
+            "default_hostname",
+            "runtime_stack",
+            "workload_identity_type",
+            "public_network_access",
+            "https_only",
+            "ftps_state",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Discovery", "Network Service Discovery"),
+            AttackLead("Initial Access", "Exploit Public-Facing Application"),
+        ),
+        example="azurefox app-services --output table",
+    ),
     "arm-deployments": CommandHelpTopic(
         name="arm-deployments",
         section="config",
@@ -496,8 +527,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="workloads",
         section="compute",
         summary=(
-            "Build a joined workload census across compute, web apps, identities, and "
-            "endpoints."
+            "Build a joined workload census across compute, web apps, identities, and endpoints."
         ),
         offensive_question=(
             "Which workloads are worth operator follow-up first once I join identity-bearing "

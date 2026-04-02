@@ -87,6 +87,7 @@ def _to_csv(command: str, payload: dict) -> str:
     key_mapping = {
         "whoami": None,
         "inventory": None,
+        "app-services": "app_services",
         "arm-deployments": "deployments",
         "endpoints": "endpoints",
         "env-vars": "env_vars",

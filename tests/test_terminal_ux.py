@@ -58,6 +58,28 @@ def test_keyvault_table_mode_labels_implicit_open_acl(tmp_path: Path) -> None:
     assert "implicit allow (ACL omitted)" in result.stdout
 
 
+def test_app_services_table_mode_surfaces_runtime_and_posture(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "app-services"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Reviewing App Service runtime, hostname, identity, and hardening posture." in result.stdout
+    )
+    assert "app service" in result.stdout
+    assert "DOTNETCORE|8.0" in result.stdout
+    assert "hostname; public=Enabled" in result.stdout
+    assert "https=no" in result.stdout
+    assert "ftps=AllAllowed" in result.stdout
+    assert (
+        "Takeaway: 2 App Service apps visible; 2 keep public network access enabled, "
+        "1 enforce HTTPS-only, and 2 carry managed identity context."
+    ) in result.stdout
+
+
 def test_nics_table_mode_surfaces_network_context(tmp_path: Path) -> None:
     result = runner.invoke(
         app,
@@ -230,3 +252,36 @@ def test_auth_policies_partial_read_surfaces_collection_issue() -> None:
     assert "Collection issues:" in rendered
     assert "permission_denied" in rendered
     assert "auth_policies.security_defaults" in rendered
+
+
+def test_app_services_partial_read_surfaces_collection_issue() -> None:
+    payload = {
+        "metadata": {"command": "app-services"},
+        "app_services": [
+            {
+                "name": "app-empty-mi",
+                "default_hostname": "app-empty-mi.azurewebsites.net",
+                "runtime_stack": "DOTNETCORE|8.0",
+                "workload_identity_type": "SystemAssigned",
+                "public_network_access": "Enabled",
+                "https_only": False,
+                "min_tls_version": None,
+                "ftps_state": None,
+                "client_cert_enabled": False,
+                "summary": "test",
+            }
+        ],
+        "findings": [],
+        "issues": [
+            {
+                "kind": "permission_denied",
+                "message": "app_services[rg-apps/app-empty-mi].configuration: 403 Forbidden",
+                "context": {"collector": "app_services[rg-apps/app-empty-mi].configuration"},
+            }
+        ],
+    }
+    rendered = render_table("app-services", payload)
+
+    assert "Collection issues:" in rendered
+    assert "permission_denied" in rendered
+    assert "app_services.configuration" in rendered

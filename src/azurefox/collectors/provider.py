@@ -37,6 +37,9 @@ class BaseProvider(ABC):
     def arm_deployments(self) -> dict:
         raise NotImplementedError
 
+    def app_services(self) -> dict:
+        return {"app_services": [], "issues": []}
+
     @abstractmethod
     def env_vars(self) -> dict:
         raise NotImplementedError
@@ -181,6 +184,9 @@ class FixtureProvider(BaseProvider):
 
     def arm_deployments(self) -> dict:
         return self._read("arm_deployments")
+
+    def app_services(self) -> dict:
+        return self._read("app_services")
 
     def rbac(self) -> dict:
         return self._read("rbac")
@@ -403,6 +409,48 @@ class AzureProvider(BaseProvider):
             issues.append(_issue_from_exception("env_vars.web_apps", exc))
 
         return {"env_vars": env_vars, "issues": issues}
+
+    def app_services(self) -> dict:
+        issues: list[dict] = []
+        app_services: list[dict] = []
+
+        try:
+            iterator = self.clients.web.web_apps.list()
+            for app in iterator:
+                asset_kind = _web_asset_kind(getattr(app, "kind", None))
+                if asset_kind != "AppService":
+                    continue
+
+                config = None
+                app_id = getattr(app, "id", "") or ""
+                resource_group = _resource_group_from_id(app_id)
+                app_name = getattr(app, "name", None)
+
+                if resource_group and app_name:
+                    try:
+                        config = self.clients.web.web_apps.get_configuration(
+                            resource_group,
+                            app_name,
+                        )
+                    except Exception as exc:
+                        issues.append(
+                            _issue_from_exception(
+                                f"app_services[{resource_group}/{app_name}].configuration",
+                                exc,
+                            )
+                        )
+
+                app_services.append(_app_service_summary(app, config))
+        except Exception as exc:
+            issues.append(_issue_from_exception("app_services.web_apps", exc))
+
+        app_services.sort(
+            key=lambda item: (
+                not _app_service_exposure_priority(item),
+                item.get("name") or "",
+            )
+        )
+        return {"app_services": app_services, "issues": issues}
 
     def web_workloads(self) -> dict:
         issues: list[dict] = []
@@ -2015,6 +2063,61 @@ def _web_workload_summary(app: object, *, asset_kind: str) -> dict:
     }
 
 
+def _app_service_summary(app: object, config: object | None) -> dict:
+    app_id = getattr(app, "id", "") or ""
+    app_name = getattr(app, "name", "unknown")
+    identity = getattr(app, "identity", None)
+    public_network_access = _string_value(getattr(app, "public_network_access", None))
+    runtime_stack = _app_service_runtime_stack(config)
+    min_tls_version = _string_value(getattr(config, "min_tls_version", None))
+    ftps_state = _string_value(getattr(config, "ftps_state", None))
+    workload_identity_type = _string_value(getattr(identity, "type", None))
+    workload_principal_id = _string_value(getattr(identity, "principal_id", None))
+    workload_client_id = _string_value(getattr(identity, "client_id", None))
+    workload_identity_ids = sorted(
+        str(identity_id)
+        for identity_id in (getattr(identity, "user_assigned_identities", None) or {}).keys()
+    )
+
+    return {
+        "id": app_id or f"/unknown/{app_name}",
+        "name": app_name,
+        "resource_group": _resource_group_from_id(app_id),
+        "location": _string_value(getattr(app, "location", None)),
+        "state": _string_value(getattr(app, "state", None)),
+        "default_hostname": _string_value(getattr(app, "default_host_name", None)),
+        "app_service_plan_id": _string_value(getattr(app, "server_farm_id", None)),
+        "public_network_access": public_network_access,
+        "https_only": bool(getattr(app, "https_only", False)),
+        "client_cert_enabled": bool(getattr(app, "client_cert_enabled", False)),
+        "min_tls_version": min_tls_version,
+        "ftps_state": ftps_state,
+        "runtime_stack": runtime_stack,
+        "workload_identity_type": workload_identity_type,
+        "workload_principal_id": workload_principal_id,
+        "workload_client_id": workload_client_id,
+        "workload_identity_ids": workload_identity_ids,
+        "summary": _app_service_operator_summary(
+            app_name=app_name,
+            default_hostname=_string_value(getattr(app, "default_host_name", None)),
+            public_network_access=public_network_access,
+            https_only=bool(getattr(app, "https_only", False)),
+            runtime_stack=runtime_stack,
+            workload_identity_type=workload_identity_type,
+            min_tls_version=min_tls_version,
+            ftps_state=ftps_state,
+        ),
+        "related_ids": _dedupe_strings(
+            [
+                app_id,
+                workload_principal_id,
+                *workload_identity_ids,
+                _string_value(getattr(app, "server_farm_id", None)),
+            ]
+        ),
+    }
+
+
 def _env_var_summary(
     app: object,
     *,
@@ -2084,6 +2187,84 @@ def _web_asset_kind(kind: object) -> str | None:
     if not value or "app" in value:
         return "AppService"
     return None
+
+
+def _app_service_runtime_stack(config: object | None) -> str | None:
+    if config is None:
+        return None
+
+    linux_fx_version = _string_value(getattr(config, "linux_fx_version", None))
+    if linux_fx_version:
+        return linux_fx_version
+
+    windows_fx_version = _string_value(getattr(config, "windows_fx_version", None))
+    if windows_fx_version:
+        return windows_fx_version
+
+    runtime_parts: list[str] = []
+    for attr_name, label in (
+        ("python_version", "python"),
+        ("node_version", "node"),
+        ("power_shell_version", "powershell"),
+        ("java_version", "java"),
+        ("php_version", "php"),
+        ("net_framework_version", ".net"),
+    ):
+        value = _string_value(getattr(config, attr_name, None))
+        if value:
+            runtime_parts.append(f"{label}={value}")
+
+    if runtime_parts:
+        return "; ".join(runtime_parts)
+    return None
+
+
+def _app_service_operator_summary(
+    *,
+    app_name: str,
+    default_hostname: str | None,
+    public_network_access: str | None,
+    https_only: bool,
+    runtime_stack: str | None,
+    workload_identity_type: str | None,
+    min_tls_version: str | None,
+    ftps_state: str | None,
+) -> str:
+    hostname_phrase = (
+        f"publishes hostname '{default_hostname}'"
+        if default_hostname
+        else "has no default hostname visible from the current read path"
+    )
+    runtime_phrase = (
+        f"runs runtime '{runtime_stack}'"
+        if runtime_stack
+        else "does not expose a readable runtime summary from the current read path"
+    )
+    identity_phrase = (
+        f"uses managed identity ({workload_identity_type})"
+        if workload_identity_type
+        else "has no managed identity visible from the current read path"
+    )
+
+    posture_parts = [
+        f"public network access {public_network_access or 'unknown'}",
+        f"HTTPS-only {'enabled' if https_only else 'disabled'}",
+    ]
+    if min_tls_version:
+        posture_parts.append(f"TLS {min_tls_version}")
+    if ftps_state:
+        posture_parts.append(f"FTPS {ftps_state}")
+
+    return (
+        f"App Service '{app_name}' {hostname_phrase}, {runtime_phrase}, and {identity_phrase}. "
+        f"Visible posture: {', '.join(posture_parts)}."
+    )
+
+
+def _app_service_exposure_priority(item: dict) -> bool:
+    return bool(item.get("default_hostname")) or (
+        str(item.get("public_network_access") or "").lower() == "enabled"
+    )
 
 
 def _env_var_value_type(value: object) -> str:

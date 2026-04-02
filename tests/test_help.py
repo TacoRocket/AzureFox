@@ -59,6 +59,16 @@ def test_help_command_endpoints_topic() -> None:
     assert "ingress_path" in result.stdout
 
 
+def test_help_command_app_services_topic() -> None:
+    result = runner.invoke(app, ["help", "app-services"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: app-services" in result.stdout
+    assert "runtime stack" in result.stdout
+    assert "workload_identity_type" in result.stdout
+    assert "public_network_access" in result.stdout
+
+
 def test_help_command_network_ports_topic() -> None:
     result = runner.invoke(app, ["help", "network-ports"])
 

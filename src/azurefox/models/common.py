@@ -295,6 +295,28 @@ class WorkloadSummary(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class AppServiceAsset(BaseModel):
+    id: str
+    name: str
+    resource_group: str | None = None
+    location: str | None = None
+    state: str | None = None
+    default_hostname: str | None = None
+    app_service_plan_id: str | None = None
+    public_network_access: str | None = None
+    https_only: bool = False
+    client_cert_enabled: bool = False
+    min_tls_version: str | None = None
+    ftps_state: str | None = None
+    runtime_stack: str | None = None
+    workload_identity_type: str | None = None
+    workload_principal_id: str | None = None
+    workload_client_id: str | None = None
+    workload_identity_ids: list[str] = Field(default_factory=list)
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class WebWorkloadSummary(BaseModel):
     asset_id: str
     asset_name: str
