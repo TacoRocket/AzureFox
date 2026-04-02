@@ -123,6 +123,36 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox acr --output table",
     ),
+    "databases": CommandHelpTopic(
+        name="databases",
+        section="resource",
+        summary=(
+            "Summarize Azure SQL server endpoint, network posture, identity context, and visible "
+            "user-database inventory."
+        ),
+        offensive_question=(
+            "Which Azure SQL servers expose the most interesting endpoint, network posture, and "
+            "visible database inventory for operator follow-up?"
+        ),
+        cloudfox_frame=(
+            "Azure-native database census that starts with Azure SQL management-plane posture: "
+            "server endpoint visibility, public network stance, managed identity context, and "
+            "user-database inventory before any broader multi-engine or data-plane analysis."
+        ),
+        output_highlights=(
+            "fully_qualified_domain_name",
+            "public_network_access",
+            "minimal_tls_version",
+            "database_count",
+            "user_database_names",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Collection", "Data from Information Repositories"),
+            AttackLead("Initial Access", "Exploit Public-Facing Application"),
+        ),
+        example="azurefox databases --output table",
+    ),
     "functions": CommandHelpTopic(
         name="functions",
         section="compute",

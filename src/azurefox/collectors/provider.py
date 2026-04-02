@@ -43,6 +43,9 @@ class BaseProvider(ABC):
     def acr(self) -> dict:
         return {"registries": [], "issues": []}
 
+    def databases(self) -> dict:
+        return {"database_servers": [], "issues": []}
+
     def aks(self) -> dict:
         return {"aks_clusters": [], "issues": []}
 
@@ -202,6 +205,9 @@ class FixtureProvider(BaseProvider):
 
     def acr(self) -> dict:
         return self._read("acr")
+
+    def databases(self) -> dict:
+        return self._read("databases")
 
     def aks(self) -> dict:
         return self._read("aks")
@@ -494,6 +500,46 @@ class AzureProvider(BaseProvider):
             )
         )
         return {"registries": registries, "issues": issues}
+
+    def databases(self) -> dict:
+        issues: list[dict] = []
+        database_servers: list[dict] = []
+
+        try:
+            iterator = self.clients.sql.servers.list()
+            for server in iterator:
+                server_id = getattr(server, "id", "") or ""
+                resource_group = _resource_group_from_id(server_id)
+                server_name = getattr(server, "name", None)
+                databases = None
+
+                if resource_group and server_name:
+                    try:
+                        databases = list(
+                            self.clients.sql.databases.list_by_server(
+                                resource_group,
+                                server_name,
+                            )
+                        )
+                    except Exception as exc:
+                        issues.append(
+                            _issue_from_exception(
+                                f"databases[{resource_group}/{server_name}].databases",
+                                exc,
+                            )
+                        )
+
+                database_servers.append(_database_server_summary(server, databases))
+        except Exception as exc:
+            issues.append(_issue_from_exception("databases.sql_servers", exc))
+
+        database_servers.sort(
+            key=lambda item: (
+                not _database_exposure_priority(item),
+                item.get("name") or "",
+            )
+        )
+        return {"database_servers": database_servers, "issues": issues}
 
     def aks(self) -> dict:
         issues: list[dict] = []
@@ -2798,6 +2844,136 @@ def _acr_exposure_priority(item: dict) -> bool:
         str(item.get("public_network_access") or "").lower() == "enabled"
         or item.get("admin_user_enabled") is True
         or item.get("anonymous_pull_enabled") is True
+    )
+
+
+def _database_server_summary(
+    server: object,
+    databases: list[object] | None,
+) -> dict:
+    server_id = getattr(server, "id", "") or ""
+    server_name = getattr(server, "name", "unknown")
+    identity = getattr(server, "identity", None)
+    user_databases = _visible_user_databases(databases)
+    user_database_names = sorted(
+        str(getattr(database, "name", "") or "")
+        for database in user_databases
+        if getattr(database, "name", None)
+    )
+    workload_identity_ids = sorted(
+        str(identity_id)
+        for identity_id in (getattr(identity, "user_assigned_identities", None) or {}).keys()
+    )
+    workload_identity_type = _string_value(getattr(identity, "type", None))
+    workload_principal_id = _string_value(getattr(identity, "principal_id", None))
+    workload_client_id = _string_value(getattr(identity, "client_id", None))
+    fully_qualified_domain_name = _string_value(
+        getattr(server, "fully_qualified_domain_name", None)
+    )
+    public_network_access = _string_value(getattr(server, "public_network_access", None))
+    minimal_tls_version = _string_value(getattr(server, "minimal_tls_version", None))
+    server_version = _string_value(getattr(server, "version", None))
+    database_count = len(user_databases) if databases is not None else None
+
+    return {
+        "id": server_id or f"/unknown/{server_name}",
+        "name": server_name,
+        "resource_group": _resource_group_from_id(server_id),
+        "location": _string_value(getattr(server, "location", None)),
+        "state": _string_value(getattr(server, "state", None)),
+        "engine": "AzureSql",
+        "fully_qualified_domain_name": fully_qualified_domain_name,
+        "server_version": server_version,
+        "public_network_access": public_network_access,
+        "minimal_tls_version": minimal_tls_version,
+        "database_count": database_count,
+        "user_database_names": user_database_names,
+        "workload_identity_type": workload_identity_type,
+        "workload_principal_id": workload_principal_id,
+        "workload_client_id": workload_client_id,
+        "workload_identity_ids": workload_identity_ids,
+        "summary": _database_server_operator_summary(
+            server_name=server_name,
+            fully_qualified_domain_name=fully_qualified_domain_name,
+            workload_identity_type=workload_identity_type,
+            public_network_access=public_network_access,
+            minimal_tls_version=minimal_tls_version,
+            server_version=server_version,
+            database_count=database_count,
+            user_database_names=user_database_names,
+        ),
+        "related_ids": _dedupe_strings(
+            [
+                server_id,
+                workload_principal_id,
+                *workload_identity_ids,
+            ]
+        ),
+    }
+
+
+def _database_server_operator_summary(
+    *,
+    server_name: str,
+    fully_qualified_domain_name: str | None,
+    workload_identity_type: str | None,
+    public_network_access: str | None,
+    minimal_tls_version: str | None,
+    server_version: str | None,
+    database_count: int | None,
+    user_database_names: list[str],
+) -> str:
+    endpoint_phrase = (
+        f"publishes endpoint '{fully_qualified_domain_name}'"
+        if fully_qualified_domain_name
+        else "does not expose a readable SQL endpoint from the current read path"
+    )
+    identity_phrase = (
+        f"uses managed identity ({workload_identity_type})"
+        if workload_identity_type
+        else "has no managed identity visible from the current read path"
+    )
+
+    inventory_parts: list[str] = []
+    if database_count is not None:
+        inventory_parts.append(f"{database_count} user database(s)")
+    if user_database_names:
+        inventory_parts.append(f"names: {', '.join(user_database_names)}")
+
+    posture_parts = [f"public network access {public_network_access or 'unknown'}"]
+    if minimal_tls_version:
+        posture_parts.append(f"minimal TLS {minimal_tls_version}")
+    if server_version:
+        posture_parts.append(f"server version {server_version}")
+
+    inventory_phrase = (
+        f"Visible inventory: {', '.join(inventory_parts)}."
+        if inventory_parts
+        else "Database inventory is not fully readable from the current read path."
+    )
+
+    return (
+        f"Azure SQL server '{server_name}' {endpoint_phrase} and {identity_phrase}. "
+        f"{inventory_phrase} Visible posture: {', '.join(posture_parts)}."
+    )
+
+
+def _visible_user_databases(databases: list[object] | None) -> list[object]:
+    if databases is None:
+        return []
+
+    visible: list[object] = []
+    for database in databases:
+        database_name = str(getattr(database, "name", "") or "").lower()
+        if database_name == "master":
+            continue
+        visible.append(database)
+    return visible
+
+
+def _database_exposure_priority(item: dict) -> bool:
+    return bool(item.get("fully_qualified_domain_name")) or (
+        str(item.get("public_network_access") or "").lower() == "enabled"
     )
 
 

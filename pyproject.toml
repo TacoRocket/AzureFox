@@ -25,6 +25,7 @@ azure = [
   "azure-mgmt-storage>=21.2,<22",
   "azure-mgmt-compute>=33.0,<34",
   "azure-mgmt-network>=26.0,<27",
+  "azure-mgmt-sql>=4.0,<5",
   "azure-mgmt-web>=7.3,<8",
   "azure-mgmt-apimanagement>=5.0,<6",
   "azure-mgmt-containerregistry>=13.0,<14",

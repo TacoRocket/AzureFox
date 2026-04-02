@@ -1,0 +1,64 @@
+{
+  "database_servers": [
+    {
+      "database_count": 2,
+      "engine": "AzureSql",
+      "fully_qualified_domain_name": "sql-public-legacy.database.windows.net",
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.Sql/servers/sql-public-legacy",
+      "location": "eastus",
+      "minimal_tls_version": "1.2",
+      "name": "sql-public-legacy",
+      "public_network_access": "Enabled",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.Sql/servers/sql-public-legacy"
+      ],
+      "resource_group": "rg-data",
+      "server_version": "12.0",
+      "state": "Ready",
+      "summary": "Azure SQL server 'sql-public-legacy' publishes endpoint 'sql-public-legacy.database.windows.net' and has no managed identity visible from the current read path. Visible inventory: 2 user database(s), names: orders, reporting. Visible posture: public network access Enabled, minimal TLS 1.2, server version 12.0.",
+      "user_database_names": [
+        "orders",
+        "reporting"
+      ],
+      "workload_client_id": null,
+      "workload_identity_ids": [],
+      "workload_identity_type": null,
+      "workload_principal_id": null
+    },
+    {
+      "database_count": 1,
+      "engine": "AzureSql",
+      "fully_qualified_domain_name": "sql-ops-01.database.windows.net",
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.Sql/servers/sql-ops-01",
+      "location": "centralus",
+      "minimal_tls_version": "1.2",
+      "name": "sql-ops-01",
+      "public_network_access": "Disabled",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.Sql/servers/sql-ops-01",
+        "99990000-0000-0000-0000-000000000041"
+      ],
+      "resource_group": "rg-data",
+      "server_version": "12.0",
+      "state": "Ready",
+      "summary": "Azure SQL server 'sql-ops-01' publishes endpoint 'sql-ops-01.database.windows.net' and uses managed identity (SystemAssigned). Visible inventory: 1 user database(s), names: appdb. Visible posture: public network access Disabled, minimal TLS 1.2, server version 12.0.",
+      "user_database_names": [
+        "appdb"
+      ],
+      "workload_client_id": "99990000-0000-0000-0000-000000000042",
+      "workload_identity_ids": [],
+      "workload_identity_type": "SystemAssigned",
+      "workload_principal_id": "99990000-0000-0000-0000-000000000041"
+    }
+  ],
+  "findings": [],
+  "issues": [],
+  "metadata": {
+    "command": "databases",
+    "generated_at": "<generated_at>",
+    "schema_version": "1.0.0",
+    "subscription_id": "22222222-2222-2222-2222-222222222222",
+    "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "token_source": null
+  }
+}

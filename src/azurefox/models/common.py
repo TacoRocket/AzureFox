@@ -426,6 +426,27 @@ class AcrRegistryAsset(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class DatabaseServerAsset(BaseModel):
+    id: str
+    name: str
+    resource_group: str | None = None
+    location: str | None = None
+    state: str | None = None
+    engine: str
+    fully_qualified_domain_name: str | None = None
+    server_version: str | None = None
+    public_network_access: str | None = None
+    minimal_tls_version: str | None = None
+    database_count: int | None = None
+    user_database_names: list[str] = Field(default_factory=list)
+    workload_identity_type: str | None = None
+    workload_principal_id: str | None = None
+    workload_client_id: str | None = None
+    workload_identity_ids: list[str] = Field(default_factory=list)
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class WebWorkloadSummary(BaseModel):
     asset_id: str
     asset_name: str

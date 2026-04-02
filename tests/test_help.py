@@ -79,6 +79,16 @@ def test_help_command_acr_topic() -> None:
     assert "network_rule_default_action" in result.stdout
 
 
+def test_help_command_databases_topic() -> None:
+    result = runner.invoke(app, ["help", "databases"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: databases" in result.stdout
+    assert "fully_qualified_domain_name" in result.stdout
+    assert "database_count" in result.stdout
+    assert "minimal_tls_version" in result.stdout
+
+
 def test_help_command_functions_topic() -> None:
     result = runner.invoke(app, ["help", "functions"])
 

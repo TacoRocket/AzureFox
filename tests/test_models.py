@@ -8,6 +8,7 @@ from azurefox.models.common import (
     AppServiceAsset,
     ArmDeploymentSummary,
     AuthPolicySummary,
+    DatabaseServerAsset,
     EndpointSummary,
     EnvVarSummary,
     FunctionAppAsset,
@@ -77,6 +78,16 @@ def test_acr_registry_asset_defaults() -> None:
     assert asset.login_server is None
     assert asset.admin_user_enabled is None
     assert asset.private_endpoint_connection_count == 0
+    assert asset.workload_identity_ids == []
+    assert asset.related_ids == []
+
+
+def test_database_server_asset_defaults() -> None:
+    asset = DatabaseServerAsset(id="sql-1", name="sql01", engine="AzureSql", summary="test")
+    assert asset.resource_group is None
+    assert asset.fully_qualified_domain_name is None
+    assert asset.database_count is None
+    assert asset.user_database_names == []
     assert asset.workload_identity_ids == []
     assert asset.related_ids == []
 
