@@ -8,7 +8,8 @@ version = "0.1.0"
 description = "AzureFox - offensive-focused Azure situational awareness CLI"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "AzureFox Contributors" }]
 dependencies = [
   "pydantic>=2.8,<3",
@@ -25,7 +26,7 @@ azure = [
   "azure-mgmt-storage>=21.2,<22",
   "azure-mgmt-compute>=33.0,<34",
   "azure-mgmt-network>=26.0,<27",
-  "azure-mgmt-sql>=4.0,<5",
+  "azure-mgmt-sql>=3.0,<4",
   "azure-mgmt-web>=7.3,<8",
   "azure-mgmt-apimanagement>=5.0,<6",
   "azure-mgmt-containerregistry>=13.0,<14",
@@ -33,6 +34,7 @@ azure = [
   "certifi>=2024.2,<2027",
 ]
 dev = [
+  "build>=1.2,<2",
   "pytest>=8.3,<9",
   "pytest-cov>=5.0,<6",
   "ruff>=0.6,<1",
@@ -44,7 +46,6 @@ azurefox = "azurefox.cli:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
-license-files = ["LICENSE"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

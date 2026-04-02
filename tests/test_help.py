@@ -16,6 +16,7 @@ def test_help_command_generic() -> None:
     assert (
         "permissions: Triage which visible principals hold high-impact RBAC roles."
     ) in result.stdout
+    assert "all-checks: Run the implemented AzureFox commands" in result.stdout
 
 
 def test_help_command_section() -> None:
@@ -137,6 +138,15 @@ def test_help_command_network_ports_topic() -> None:
     assert "NIC-backed public endpoints" in result.stdout
     assert "allow_source_summary" in result.stdout
     assert "exposure_confidence" in result.stdout
+
+
+def test_help_command_all_checks_topic_sets_runtime_expectations() -> None:
+    result = runner.invoke(app, ["help", "all-checks"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: all-checks" in result.stdout
+    assert "materially longer than a single command" in result.stdout
+    assert "grouped results" in result.stdout
 
 
 def test_help_command_env_vars_topic() -> None:

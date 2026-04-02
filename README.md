@@ -51,10 +51,31 @@ Fox.
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .[dev,azure]
+pip install -e '.[azure]'
 azurefox --outdir /tmp/azurefox-demo whoami --output table
 azurefox --outdir /tmp/azurefox-demo all-checks --output table
 ```
+
+## Install Profiles
+
+AzureFox keeps a small core package and uses extras for live Azure collection and contributor
+tooling.
+
+- `pip install -e .`
+  installs the core CLI only; this is mostly useful for help output, packaging work, or
+  fixture-based local development
+- `pip install -e '.[azure]'`
+  installs the Azure SDK dependencies required for live Azure command execution; most operators
+  should use this profile
+- `pip install -e '.[dev]'`
+  installs lint, test, and type-check tooling for contributors working without live Azure SDK
+  dependencies
+- `pip install -e '.[dev,azure]'`
+  installs both contributor tooling and the live Azure SDK bundle; this is the normal repo
+  development profile
+
+The current `azure` extra intentionally installs the full SDK bundle used by the implemented live
+commands rather than splitting dependencies per-command.
 
 ## Auth Precedence
 
@@ -116,6 +137,10 @@ azurefox all-checks --section network
 azurefox all-checks --section storage
 azurefox all-checks --section compute
 ```
+
+Treat `all-checks` as a broader validation pass rather than a quick spot check. It can take
+materially longer than a single command, especially when a full section is producing grouped
+artifacts across multiple commands.
 
 Current section mappings:
 

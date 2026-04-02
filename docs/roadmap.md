@@ -44,6 +44,18 @@ AzureFox should provide:
 - `databases`
 - `dns`
 
+Grounded Phase 3 follow-on depth is intentionally parked separately in
+`docs/future-phase-candidates.md` so the current shipped boundary stays clear:
+
+- `public-ips`
+- `load-balancers`
+- `network-effective`
+- `api-mgmt-depth`
+- `aks-depth`
+- `acr-depth`
+- `databases-relational-depth`
+- `dns-depth`
+
 ## Phase 4: Azure-Only Coverage
 
 - `cross-tenant`

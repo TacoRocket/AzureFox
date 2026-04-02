@@ -886,6 +886,73 @@ def test_network_ports_does_not_claim_missing_nsg_when_subnet_nsg_is_visible() -
     assert output["network_ports"] == []
 
 
+def test_network_ports_joins_arm_ids_case_insensitively() -> None:
+    provider = object.__new__(AzureProvider)
+    provider.endpoints = lambda: {
+        "endpoints": [
+            {
+                "endpoint": "172.202.2.192",
+                "endpoint_type": "ip",
+                "source_asset_id": (
+                    "/subscriptions/test/resourceGroups/RG-WORKLOAD/providers/"
+                    "Microsoft.Compute/virtualMachines/vm-web-01"
+                ),
+                "source_asset_name": "vm-web-01",
+                "source_asset_kind": "VM",
+                "exposure_family": "public-ip",
+                "ingress_path": "direct-vm-ip",
+                "summary": "test",
+                "related_ids": [],
+            }
+        ],
+        "issues": [],
+    }
+    provider.nics = lambda: {
+        "nic_assets": [
+            {
+                "id": (
+                    "/subscriptions/test/resourceGroups/rg-workload/providers/"
+                    "Microsoft.Network/networkInterfaces/nic-web-01"
+                ),
+                "name": "nic-web-01",
+                "attached_asset_id": (
+                    "/subscriptions/test/resourceGroups/rg-workload/providers/"
+                    "Microsoft.Compute/virtualMachines/vm-web-01"
+                ),
+                "attached_asset_name": "vm-web-01",
+                "private_ips": ["10.0.0.4"],
+                "public_ip_ids": [],
+                "subnet_ids": [],
+                "vnet_ids": [],
+                "network_security_group_id": (
+                    "/subscriptions/test/resourceGroups/rg-workload/providers/"
+                    "Microsoft.Network/networkSecurityGroups/nsg-web"
+                ),
+            }
+        ],
+        "issues": [],
+    }
+    provider._resolve_subnet_nsg_id = lambda subnet_id, cache: (None, [])
+    provider._resolve_nsg_inbound_allow_rules = lambda nsg_id, cache: (
+        [
+            {
+                "name": "allow-ssh-internet",
+                "protocol": "TCP",
+                "ports": ["22"],
+                "sources": ["Any"],
+            }
+        ],
+        [],
+    )
+
+    output = AzureProvider.network_ports(provider)
+
+    assert output["issues"] == []
+    assert len(output["network_ports"]) == 1
+    assert output["network_ports"][0]["asset_name"] == "vm-web-01"
+    assert output["network_ports"][0]["port"] == "22"
+
+
 def test_network_scope_label_includes_resource_group() -> None:
     label = _network_scope_label(
         "subnet",
