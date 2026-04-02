@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from azurefox.collectors.commands import (
+    collect_aks,
     collect_api_mgmt,
     collect_app_services,
     collect_arm_deployments,
@@ -131,6 +132,20 @@ class PartialApiMgmtFixtureProvider(FixtureProvider):
         }
 
 
+class PartialAksFixtureProvider(FixtureProvider):
+    def aks(self) -> dict:
+        return {
+            "aks_clusters": [],
+            "issues": [
+                {
+                    "kind": "permission_denied",
+                    "message": "aks.managed_clusters: 403 Forbidden",
+                    "context": {"collector": "aks.managed_clusters"},
+                }
+            ],
+        }
+
+
 def test_collect_whoami(fixture_provider, options) -> None:
     output = collect_whoami(fixture_provider, options)
     assert output.principal is not None
@@ -172,7 +187,7 @@ def test_principal_from_claims_keeps_app_tokens_as_service_principals() -> None:
 def test_collect_inventory(fixture_provider, options) -> None:
     output = collect_inventory(fixture_provider, options)
     assert output.resource_group_count == 4
-    assert output.resource_count == 28
+    assert output.resource_count == 30
 
 
 def test_collect_app_services(fixture_provider, options) -> None:
@@ -183,6 +198,31 @@ def test_collect_app_services(fixture_provider, options) -> None:
     assert output.app_services[0].runtime_stack == "DOTNETCORE|8.0"
     assert output.app_services[0].https_only is False
     assert output.app_services[1].client_cert_enabled is True
+
+
+def test_collect_aks(fixture_provider, options) -> None:
+    output = collect_aks(fixture_provider, options)
+    assert len(output.aks_clusters) == 2
+    assert len(output.findings) == 0
+    assert output.aks_clusters[0].name == "aks-public-legacy"
+    assert output.aks_clusters[0].cluster_identity_type == "ServicePrincipal"
+    assert output.aks_clusters[0].cluster_client_id == "99990000-0000-0000-0000-000000000021"
+    assert output.aks_clusters[1].name == "aks-ops-01"
+    assert output.aks_clusters[1].private_cluster_enabled is True
+    assert output.aks_clusters[1].azure_rbac_enabled is True
+    assert output.aks_clusters[1].agent_pool_count == 2
+
+
+def test_collect_aks_keeps_command_level_issue_explicit(
+    fixture_dir: Path, options
+) -> None:
+    provider = PartialAksFixtureProvider(fixture_dir)
+
+    output = collect_aks(provider, options)
+
+    assert output.aks_clusters == []
+    assert output.issues[0].kind == "permission_denied"
+    assert output.issues[0].context["collector"] == "aks.managed_clusters"
 
 
 def test_collect_api_mgmt(fixture_provider, options) -> None:

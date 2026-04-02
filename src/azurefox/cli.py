@@ -71,6 +71,11 @@ def functions(ctx: typer.Context) -> None:
     _run_single(ctx, "functions")
 
 
+@app.command("aks")
+def aks(ctx: typer.Context) -> None:
+    _run_single(ctx, "aks")
+
+
 @app.command("api-mgmt")
 def api_mgmt(ctx: typer.Context) -> None:
     _run_single(ctx, "api-mgmt")

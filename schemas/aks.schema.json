@@ -1,0 +1,9 @@
+{
+  "model": "AksOutput",
+  "top_level_fields": [
+    "metadata",
+    "aks_clusters",
+    "findings",
+    "issues"
+  ]
+}

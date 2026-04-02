@@ -79,6 +79,29 @@ What this future follow-on could absorb:
 - policy-body collection or policy-shape summaries
 - backend URL and trust-path deepening where the first `api-mgmt` slice stays intentionally narrow
 
+### `aks-depth`
+
+Why it is grounded now:
+
+- the roadmap already includes `aks` as a Phase 3 service slice
+- once AzureFox lands a first AKS foothold, the repo can reuse that client and cluster-level
+  posture path for narrower follow-on depth
+
+Why it should be separate:
+
+- Kubernetes-specific, node-pool-specific, and ingress-specific follow-on work can easily
+  overwhelm a first operator-first AKS census
+- those areas deserve a later evidence-based follow-on once the initial control-plane endpoint,
+  identity, auth, and network shape command settles
+
+What this future follow-on could absorb:
+
+- node-pool posture and system-versus-user pool distinctions
+- OIDC issuer and workload identity depth beyond simple cluster posture
+- ingress, internal load balancer, and private DNS path deepening
+- kubelet identity, addon profile, or maintenance configuration review
+- cluster credential and Kubernetes-object follow-up once scope is explicitly chosen
+
 ### `network-effective`
 
 Why it is grounded now:

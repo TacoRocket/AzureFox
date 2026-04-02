@@ -124,6 +124,36 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox functions --output table",
     ),
+    "aks": CommandHelpTopic(
+        name="aks",
+        section="compute",
+        summary=(
+            "Summarize AKS cluster endpoint, identity, auth posture, and basic network shape."
+        ),
+        offensive_question=(
+            "Which AKS clusters expose the most interesting control-plane endpoint, identity, "
+            "and auth posture for operator follow-up?"
+        ),
+        cloudfox_frame=(
+            "Azure-native AKS census that stays at management-plane cluster posture: API endpoint "
+            "visibility, identity context, auth controls, and network shape before deeper "
+            "Kubernetes or node-pool analysis."
+        ),
+        output_highlights=(
+            "kubernetes_version",
+            "fqdn",
+            "private_cluster_enabled",
+            "cluster_identity_type",
+            "azure_rbac_enabled",
+            "network_plugin",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Discovery", "Network Service Discovery"),
+            AttackLead("Discovery", "Container and Resource Discovery"),
+        ),
+        example="azurefox aks --output table",
+    ),
     "api-mgmt": CommandHelpTopic(
         name="api-mgmt",
         section="resource",

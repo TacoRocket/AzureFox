@@ -8,7 +8,7 @@
     "tenant_id": "11111111-1111-1111-1111-111111111111",
     "token_source": null
   },
-  "resource_count": 28,
+  "resource_count": 30,
   "resource_group_count": 4,
   "subscription": {
     "display_name": "azurefox-lab-sub",
@@ -16,6 +16,7 @@
     "state": "Enabled"
   },
   "top_resource_types": {
+    "Microsoft.ContainerService/managedClusters": 2,
     "Microsoft.Compute/virtualMachines": 3,
     "Microsoft.Network/networkInterfaces": 6,
     "Microsoft.Storage/storageAccounts": 2

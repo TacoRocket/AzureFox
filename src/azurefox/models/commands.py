@@ -5,6 +5,7 @@ from collections import Counter
 from pydantic import BaseModel, Field
 
 from azurefox.models.common import (
+    AksClusterAsset,
     ApiMgmtServiceAsset,
     AppServiceAsset,
     ArmDeploymentSummary,
@@ -56,6 +57,13 @@ class InventoryOutput(BaseModel):
 class AppServicesOutput(BaseModel):
     metadata: CommandMetadata
     app_services: list[AppServiceAsset] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class AksOutput(BaseModel):
+    metadata: CommandMetadata
+    aks_clusters: list[AksClusterAsset] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 

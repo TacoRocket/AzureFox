@@ -80,6 +80,32 @@ def test_app_services_table_mode_surfaces_runtime_and_posture(tmp_path: Path) ->
     ) in result.stdout
 
 
+def test_aks_table_mode_surfaces_endpoint_and_auth_posture(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "aks"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Reviewing AKS control-plane endpoint, identity, auth posture, and network shape."
+        in result.stdout
+    )
+    assert "cluster" in result.stdout
+    assert "aks-public-legacy" in result.stdout
+    assert "aks-ops-01" in result.stdout
+    assert "k8s=1.29.4" in result.stdout
+    assert "private-api=yes" in result.stdout
+    assert "ServicePrincipal" in result.stdout
+    assert "azure-rbac=yes" in result.stdout
+    assert "plugin=azure" in result.stdout
+    assert (
+        "Takeaway: 2 AKS clusters visible; 1 use private API endpoints, "
+        "2 expose cluster identity context, and 1 enable Azure RBAC."
+    ) in result.stdout
+
+
 def test_api_mgmt_table_mode_surfaces_gateway_and_inventory(tmp_path: Path) -> None:
     result = runner.invoke(
         app,
@@ -407,3 +433,24 @@ def test_api_mgmt_partial_read_surfaces_collection_issue() -> None:
     assert "api_mgmt[rg-apps/apim-edge-01].named_values" in rendered
     assert "named value visibility is unreadable" in rendered
     assert "at least one visible service" in rendered
+
+
+def test_aks_collection_issue_surfaces_in_table_output() -> None:
+    payload = {
+        "metadata": {"command": "aks"},
+        "aks_clusters": [],
+        "findings": [],
+        "issues": [
+            {
+                "kind": "permission_denied",
+                "message": "aks.managed_clusters: 403 Forbidden",
+                "context": {"collector": "aks.managed_clusters"},
+            }
+        ],
+    }
+    rendered = render_table("aks", payload)
+
+    assert "No records" in rendered
+    assert "Collection issues:" in rendered
+    assert "permission_denied" in rendered
+    assert "aks.managed_clusters" in rendered
