@@ -124,6 +124,29 @@ What this future follow-on could absorb:
 - retention, quarantine, trust, export, and content-trust policy depth
 - scope-map, token, and other registry-auth surface review once boundaries are explicit
 
+### `databases-relational-depth`
+
+Why it is grounded now:
+
+- the public roadmap already lists `databases`, while the current sequencing note keeps it as a
+  later Phase 3 service slice after the shared network and compute foundation
+- once AzureFox lands a first Azure SQL foothold, the repo can reuse that command shape for
+  adjacent relational services that expose similar management-plane posture
+
+Why it should be separate:
+
+- PostgreSQL and MySQL flexible-server inventory adds more service-specific posture, SKU, HA, and
+  network differences than a first narrow Azure SQL pass should absorb
+- those engines deserve a later evidence-based expansion once the initial SQL server and visible
+  database census settles
+
+What this future follow-on could absorb:
+
+- PostgreSQL flexible server posture and visible database inventory
+- MySQL flexible server posture and visible database inventory
+- cross-engine normalization of endpoint, public-network, and TLS posture where the first
+  `databases` slice stays intentionally Azure SQL-first
+
 ### `network-effective`
 
 Why it is grounded now:
@@ -187,6 +210,9 @@ collector adjacency for them:
 - data, analytics, and search platforms
   Synapse, Data Explorer, Log Analytics, and search-oriented operator surfaces that do not fit
   cleanly under broad `databases`
+- non-relational and cache-backed database platforms
+  Cosmos DB, Redis, and other multi-model data services that should wait until AzureFox has a
+  clearer management-plane foothold and command boundary for them
 - governance metadata
   tags, labels, and other governance-oriented enumeration surfaces
 - directory-services-specific coverage

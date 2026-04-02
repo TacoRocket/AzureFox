@@ -13,6 +13,7 @@ from azurefox.models.common import (
     AuthPolicySummary,
     CollectionIssue,
     CommandMetadata,
+    DatabaseServerAsset,
     EndpointSummary,
     EnvVarSummary,
     Finding,
@@ -65,6 +66,13 @@ class AppServicesOutput(BaseModel):
 class AcrOutput(BaseModel):
     metadata: CommandMetadata
     registries: list[AcrRegistryAsset] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class DatabasesOutput(BaseModel):
+    metadata: CommandMetadata
+    database_servers: list[DatabaseServerAsset] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 

@@ -19,6 +19,7 @@ from azurefox.models.commands import (
     AppServicesOutput,
     ArmDeploymentsOutput,
     AuthPoliciesOutput,
+    DatabasesOutput,
     EndpointsOutput,
     EnvVarsOutput,
     FunctionsOutput,
@@ -76,6 +77,17 @@ def collect_acr(provider: BaseProvider, options: GlobalOptions) -> AcrOutput:
     return AcrOutput.model_validate(
         {
             "metadata": _metadata(provider, "acr", options),
+            "findings": [],
+            **data,
+        }
+    )
+
+
+def collect_databases(provider: BaseProvider, options: GlobalOptions) -> DatabasesOutput:
+    data = provider.databases()
+    return DatabasesOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "databases", options),
             "findings": [],
             **data,
         }

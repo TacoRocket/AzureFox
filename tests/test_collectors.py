@@ -9,6 +9,7 @@ from azurefox.collectors.commands import (
     collect_app_services,
     collect_arm_deployments,
     collect_auth_policies,
+    collect_databases,
     collect_endpoints,
     collect_env_vars,
     collect_functions,
@@ -161,6 +162,26 @@ class PartialAcrFixtureProvider(FixtureProvider):
         }
 
 
+class PartialDatabasesFixtureProvider(FixtureProvider):
+    def databases(self) -> dict:
+        data = self._read("databases")
+        row = dict(data["database_servers"][0])
+        row["database_count"] = None
+        row["user_database_names"] = []
+        return {
+            "database_servers": [row],
+            "issues": [
+                {
+                    "kind": "permission_denied",
+                    "message": "databases[rg-data/sql-public-legacy].databases: 403 Forbidden",
+                    "context": {
+                        "collector": "databases[rg-data/sql-public-legacy].databases"
+                    },
+                }
+            ],
+        }
+
+
 def test_collect_whoami(fixture_provider, options) -> None:
     output = collect_whoami(fixture_provider, options)
     assert output.principal is not None
@@ -225,6 +246,34 @@ def test_collect_acr(fixture_provider, options) -> None:
     assert output.registries[1].name == "acr-ops-01"
     assert output.registries[1].private_endpoint_connection_count == 1
     assert output.registries[1].workload_identity_type == "SystemAssigned"
+
+
+def test_collect_databases(fixture_provider, options) -> None:
+    output = collect_databases(fixture_provider, options)
+    assert len(output.database_servers) == 2
+    assert len(output.findings) == 0
+    assert output.database_servers[0].name == "sql-public-legacy"
+    assert output.database_servers[0].database_count == 2
+    assert output.database_servers[0].public_network_access == "Enabled"
+    assert output.database_servers[1].name == "sql-ops-01"
+    assert output.database_servers[1].workload_identity_type == "SystemAssigned"
+    assert output.database_servers[1].user_database_names == ["appdb"]
+
+
+def test_collect_databases_keeps_nested_inventory_issue_explicit(
+    fixture_dir: Path, options
+) -> None:
+    provider = PartialDatabasesFixtureProvider(fixture_dir)
+
+    output = collect_databases(provider, options)
+
+    assert len(output.database_servers) == 1
+    assert output.database_servers[0].database_count is None
+    assert output.issues[0].kind == "permission_denied"
+    assert (
+        output.issues[0].context["collector"]
+        == "databases[rg-data/sql-public-legacy].databases"
+    )
 
 
 def test_collect_acr_keeps_command_level_issue_explicit(

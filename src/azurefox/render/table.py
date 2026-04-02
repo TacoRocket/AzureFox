@@ -151,6 +151,33 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "databases":
+        return (
+            [
+                ("name", "server"),
+                ("engine", "engine"),
+                ("endpoint", "endpoint"),
+                ("identity", "identity"),
+                ("inventory", "inventory"),
+                ("exposure", "exposure"),
+                ("posture", "posture"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "name": item.get("name"),
+                    "engine": item.get("engine"),
+                    "endpoint": item.get("fully_qualified_domain_name"),
+                    "identity": _app_service_identity_context(item),
+                    "inventory": _database_inventory_context(item),
+                    "exposure": _database_exposure_context(item),
+                    "posture": _database_posture_context(item),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("database_servers", [])
+            ],
+        )
+
     if command == "aks":
         return (
             [
@@ -764,6 +791,33 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             "anonymous pull."
         )
 
+    if command == "databases":
+        database_servers = payload.get("database_servers", [])
+        public_servers = sum(
+            str(item.get("public_network_access") or "").lower() == "enabled"
+            for item in database_servers
+        )
+        identities = sum(bool(item.get("workload_identity_type")) for item in database_servers)
+        database_counts = [item.get("database_count") for item in database_servers]
+        readable_databases = sum(count for count in database_counts if isinstance(count, int))
+        if database_counts and any(count is None for count in database_counts):
+            if readable_databases:
+                database_phrase = (
+                    f"at least {readable_databases} user databases are visible, with some "
+                    "servers unreadable"
+                )
+            else:
+                database_phrase = (
+                    "database visibility is unreadable from at least one visible server"
+                )
+        else:
+            database_phrase = f"{readable_databases} user databases are visible"
+        return (
+            f"{len(database_servers)} Azure SQL servers visible; {public_servers} keep public "
+            f"network access enabled, {identities} carry managed identity context, and "
+            f"{database_phrase}."
+        )
+
     if command == "aks":
         clusters = payload.get("aks_clusters", [])
         private_clusters = sum(item.get("private_cluster_enabled") is True for item in clusters)
@@ -1009,6 +1063,41 @@ def _acr_posture_context(item: dict) -> str:
         parts.append("data-endpoint=yes")
     elif item.get("data_endpoint_enabled") is False:
         parts.append("data-endpoint=no")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _database_inventory_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("database_count") is not None:
+        parts.append(f"dbs={item.get('database_count')}")
+    if item.get("user_database_names"):
+        parts.append(",".join(item.get("user_database_names", [])))
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _database_exposure_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("fully_qualified_domain_name"):
+        parts.append("fqdn")
+    if item.get("public_network_access"):
+        parts.append(f"public={item.get('public_network_access')}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _database_posture_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("minimal_tls_version"):
+        parts.append(f"tls={item.get('minimal_tls_version')}")
+    if item.get("server_version"):
+        parts.append(f"version={item.get('server_version')}")
+    if item.get("state"):
+        parts.append(f"state={item.get('state')}")
     if not parts:
         return "-"
     return "; ".join(parts)

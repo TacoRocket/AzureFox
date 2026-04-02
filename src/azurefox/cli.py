@@ -71,6 +71,11 @@ def acr(ctx: typer.Context) -> None:
     _run_single(ctx, "acr")
 
 
+@app.command("databases")
+def databases(ctx: typer.Context) -> None:
+    _run_single(ctx, "databases")
+
+
 @app.command("functions")
 def functions(ctx: typer.Context) -> None:
     _run_single(ctx, "functions")

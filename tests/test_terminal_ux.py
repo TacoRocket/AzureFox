@@ -106,6 +106,31 @@ def test_acr_table_mode_surfaces_login_server_and_posture(tmp_path: Path) -> Non
     ) in result.stdout
 
 
+def test_databases_table_mode_surfaces_server_inventory_and_posture(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "databases"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Reviewing Azure SQL server posture and visible user-database inventory."
+        in result.stdout
+    )
+    assert "server" in result.stdout
+    assert "sql-public-legacy" in result.stdout
+    assert "AzureSql" in result.stdout
+    assert "dbs=2" in result.stdout
+    assert "orders,reporting" in result.stdout
+    assert "public=Enabled" in result.stdout
+    assert "tls=1.2" in result.stdout
+    assert (
+        "Takeaway: 2 Azure SQL servers visible; 1 keep public network access enabled, "
+        "1 carry managed identity context, and 3 user databases are visible."
+    ) in result.stdout
+
+
 def test_aks_table_mode_surfaces_endpoint_and_auth_posture(tmp_path: Path) -> None:
     result = runner.invoke(
         app,
@@ -405,6 +430,42 @@ def test_acr_collection_issue_surfaces_in_table_output() -> None:
     assert "Collection issues:" in rendered
     assert "permission_denied" in rendered
     assert "acr.registries" in rendered
+
+
+def test_databases_partial_read_surfaces_collection_issue() -> None:
+    payload = {
+        "metadata": {"command": "databases"},
+        "database_servers": [
+            {
+                "name": "sql-public-legacy",
+                "engine": "AzureSql",
+                "fully_qualified_domain_name": "sql-public-legacy.database.windows.net",
+                "workload_identity_type": None,
+                "database_count": None,
+                "user_database_names": [],
+                "public_network_access": "Enabled",
+                "minimal_tls_version": "1.2",
+                "server_version": "12.0",
+                "state": "Ready",
+                "summary": "test",
+            }
+        ],
+        "findings": [],
+        "issues": [
+            {
+                "kind": "permission_denied",
+                "message": "databases[rg-data/sql-public-legacy].databases: 403 Forbidden",
+                "context": {"collector": "databases[rg-data/sql-public-legacy].databases"},
+            }
+        ],
+    }
+    rendered = render_table("databases", payload)
+
+    assert "Collection issues:" in rendered
+    assert "permission_denied" in rendered
+    assert "databases[rg-data/sql-public-legacy].databases" in rendered
+    assert "database visibility is unreadable from at" in rendered
+    assert "least one visible server" in rendered
 
 
 def test_functions_partial_read_surfaces_collection_issue() -> None:

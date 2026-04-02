@@ -1,0 +1,9 @@
+{
+  "model": "DatabasesOutput",
+  "top_level_fields": [
+    "metadata",
+    "database_servers",
+    "findings",
+    "issues"
+  ]
+}

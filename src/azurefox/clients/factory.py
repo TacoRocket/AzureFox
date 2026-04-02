@@ -17,6 +17,7 @@ class AzureClients:
     container_registry: object
     containerservice: object
     api_management: object
+    sql: object
     keyvault: object
     storage: object
     compute: object
@@ -33,6 +34,7 @@ def build_clients(session: AuthSession, requested_subscription: str | None) -> A
         from azure.mgmt.keyvault import KeyVaultManagementClient
         from azure.mgmt.network import NetworkManagementClient
         from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient
+        from azure.mgmt.sql import SqlManagementClient
         from azure.mgmt.storage import StorageManagementClient
         from azure.mgmt.web import WebSiteManagementClient
     except ImportError as exc:  # pragma: no cover - dependency surface
@@ -82,6 +84,7 @@ def build_clients(session: AuthSession, requested_subscription: str | None) -> A
         container_registry=ContainerRegistryManagementClient(session.credential, subscription_id),
         containerservice=ContainerServiceClient(session.credential, subscription_id),
         api_management=ApiManagementClient(session.credential, subscription_id),
+        sql=SqlManagementClient(session.credential, subscription_id),
         keyvault=KeyVaultManagementClient(session.credential, subscription_id),
         storage=StorageManagementClient(session.credential, subscription_id),
         compute=ComputeManagementClient(session.credential, subscription_id),
