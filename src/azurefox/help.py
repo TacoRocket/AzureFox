@@ -302,10 +302,10 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         section="network",
         summary=(
             "Correlate public IPs and Azure-managed hostnames into an operator-first "
-            "reachability view."
+            "ingress triage view."
         ),
         offensive_question=(
-            "Which IPs or hostnames can I likely touch first, and which assets do those ingress "
+            "Which IPs or hostnames should I triage first, and which assets do those ingress "
             "paths belong to?"
         ),
         cloudfox_frame=(
@@ -522,9 +522,9 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "trust paths I should review first?"
         ),
         cloudfox_frame=(
-            "Azure-native analogue to trust-relationship triage, centered on app "
-            "registrations, service principals, federated credentials, ownership, and "
-            "app-role assignment metadata rather than delegated or admin consent grants."
+            "Azure-native trust-edge triage across readable app registrations, service "
+            "principals, federated credentials, ownership, and app-role assignments rather "
+            "than delegated or admin consent grants."
         ),
         output_highlights=(
             "trust_type",
@@ -553,8 +553,8 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         cloudfox_frame=(
             "Azure-native auth-control triage for tenant-wide identity policy surfaces "
-            "such as security defaults, authorization policy, and Conditional Access, with "
-            "partial-read gaps kept explicit."
+            "such as security defaults, authorization policy, and Conditional Access. "
+            "Unreadable policy surfaces stay explicit instead of being treated as a negative state."
         ),
         output_highlights=(
             "policy_type",
@@ -712,7 +712,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         cloudfox_frame=(
             "Azure-native workload census that joins compute assets and web workloads with "
-            "reachable endpoint and managed identity context before deeper service-specific "
+            "visible endpoint paths and managed identity context before deeper service-specific "
             "review."
         ),
         output_highlights=(

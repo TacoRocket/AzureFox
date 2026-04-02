@@ -262,7 +262,7 @@ def test_workloads_table_mode_surfaces_joined_workload_context(tmp_path: Path) -
     assert "UserAssigned" in result.stdout
     assert "vm-web-01" in result.stdout
     assert (
-        "Takeaway: 5 workloads visible; 4 with reachable endpoints, 4 with identity context, "
+        "Takeaway: 5 workloads visible; 4 with visible endpoint paths, 4 with identity context, "
         "across 2 compute and 3 web assets." in result.stdout
     )
 

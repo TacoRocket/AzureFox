@@ -590,7 +590,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     "private_endpoint_enabled": _bool_text(
                         item.get("private_endpoint_enabled", False)
                     ),
-                    "container_count": item.get("container_count", 0),
+                    "container_count": _optional_count_text(item.get("container_count")),
                 }
                 for item in payload.get("storage_assets", [])
             ],
@@ -768,7 +768,7 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         compute_assets = sum(item.get("asset_kind") in {"VM", "VMSS"} for item in workloads)
         web_assets = len(workloads) - compute_assets
         return (
-            f"{len(workloads)} workloads visible; {exposed} with reachable endpoints, "
+            f"{len(workloads)} workloads visible; {exposed} with visible endpoint paths, "
             f"{identity_bearing} with identity context, across {compute_assets} compute and "
             f"{web_assets} web assets."
         )
@@ -1059,6 +1059,12 @@ def _app_service_exposure_context(item: dict) -> str:
     if not parts:
         return "-"
     return "; ".join(parts)
+
+
+def _optional_count_text(value: object) -> str:
+    if value is None:
+        return "unknown"
+    return str(value)
 
 
 def _app_service_posture_context(item: dict) -> str:

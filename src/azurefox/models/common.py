@@ -223,10 +223,10 @@ class StorageAsset(BaseModel):
     anonymous_access_indicators: list[str] = Field(default_factory=list)
     network_default_action: str | None = None
     private_endpoint_enabled: bool = False
-    container_count: int = 0
-    file_share_count: int = 0
-    queue_count: int = 0
-    table_count: int = 0
+    container_count: int | None = None
+    file_share_count: int | None = None
+    queue_count: int | None = None
+    table_count: int | None = None
 
 
 class EndpointSummary(BaseModel):

@@ -16,6 +16,8 @@
 ## Assumptions
 
 - Storage account management-plane metadata is primary in Milestone 1.
+- Optional child counts should stay explicit when unreadable instead of silently collapsing to
+  zero.
 
 ## Blind Spots
 

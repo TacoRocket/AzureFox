@@ -40,6 +40,8 @@ gain consented access?"
 - Summarize Conditional Access scope and grant controls without pretending to fully simulate policy
 - Generate findings only for explicit permissive or missing baseline signals
 - Keep unreadable policy surfaces explicit in `issues` instead of implying a negative state
+- Only claim that no active auth enforcement is visible when the Conditional Access read path is
+  actually readable
 
 ## Output Shape
 

@@ -54,7 +54,7 @@ def test_help_command_endpoints_topic() -> None:
 
     assert result.exit_code == 0
     assert "AzureFox Help :: endpoints" in result.stdout
-    assert "reachability view" in result.stdout
+    assert "ingress triage view" in result.stdout
     assert "exposure_family" in result.stdout
     assert "ingress_path" in result.stdout
 
@@ -184,7 +184,7 @@ def test_help_command_auth_policies_topic() -> None:
     assert "AzureFox Help :: auth-policies" in result.stdout
     assert "Conditional Access" in result.stdout
     assert "sign-in, consent, and identity hardening" in result.stdout
-    assert "partial-read gaps kept explicit" in result.stdout
+    assert "Unreadable policy surfaces stay explicit" in result.stdout
     assert "issues" in result.stdout
 
 
