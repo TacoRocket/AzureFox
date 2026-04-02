@@ -5,6 +5,8 @@
 </p>
 
 AzureFox is a Python CLI for offensive-focused Azure situational awareness.
+It is designed to help operators and testers quickly build a truthful picture of Azure identity,
+resource, network, secrets, and workload attack surface from management-plane read paths.
 
 ## Attribution
 
@@ -51,22 +53,30 @@ Fox.
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e '.[azure]'
+pip install 'azurefox[azure]'
 azurefox --outdir /tmp/azurefox-demo whoami --output table
 azurefox --outdir /tmp/azurefox-demo all-checks --output table
 ```
+
+For local source-based development, use `pip install -e '.[dev,azure]'`.
 
 ## Install Profiles
 
 AzureFox keeps a small core package and uses extras for live Azure collection and contributor
 tooling.
 
+- `pip install azurefox`
+  installs the core CLI from PyPI without live Azure SDK dependencies; this is mostly useful for
+  help output, packaging work, or fixture-based local development
 - `pip install -e .`
   installs the core CLI only; this is mostly useful for help output, packaging work, or
   fixture-based local development
+- `pip install 'azurefox[azure]'`
+  installs the published AzureFox package plus the Azure SDK dependencies required for live Azure
+  command execution; most operators should use this profile
 - `pip install -e '.[azure]'`
   installs the Azure SDK dependencies required for live Azure command execution; most operators
-  should use this profile
+  should use this profile when working from a local checkout
 - `pip install -e '.[dev]'`
   installs lint, test, and type-check tooling for contributors working without live Azure SDK
   dependencies

@@ -37,4 +37,10 @@ Use semantic versioning (`MAJOR.MINOR.PATCH`).
    git tag v<version>
    git push origin v<version>
    ```
-8. Publish package artifact once the registry target is selected.
+8. Let `.github/workflows/release.yml` publish the built artifacts:
+   - to GitHub Releases with the tag name as the release title
+   - to PyPI via Trusted Publishing from the `pypi` GitHub Actions environment
+9. Keep PyPI publishing tokenless:
+   - configure the PyPI trusted publisher for owner `TacoRocket`, repo `AzureFox`,
+     workflow `release.yml`, and environment `pypi`
+   - add protection rules to the `pypi` GitHub environment so publish approval stays explicit
