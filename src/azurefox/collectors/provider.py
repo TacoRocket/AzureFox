@@ -1613,9 +1613,9 @@ class AzureProvider(BaseProvider):
 
         nic_by_asset: dict[str, list[dict]] = {}
         for nic in nic_data.get("nic_assets", []):
-            attached_asset_id = nic.get("attached_asset_id")
-            if attached_asset_id:
-                nic_by_asset.setdefault(str(attached_asset_id), []).append(nic)
+            attached_asset_key = _arm_id_join_key(nic.get("attached_asset_id"))
+            if attached_asset_key:
+                nic_by_asset.setdefault(attached_asset_key, []).append(nic)
 
         subnet_cache: dict[str, str | None] = {}
         nsg_cache: dict[str, list[dict]] = {}
@@ -1628,7 +1628,10 @@ class AzureProvider(BaseProvider):
             if endpoint.get("exposure_family") != "public-ip":
                 continue
 
-            asset_nics = nic_by_asset.get(str(endpoint.get("source_asset_id") or ""), [])
+            asset_nics = nic_by_asset.get(
+                _arm_id_join_key(endpoint.get("source_asset_id")) or "",
+                [],
+            )
             for nic in asset_nics:
                 rows: list[dict] = []
                 visible_nsg = False
@@ -2081,6 +2084,13 @@ _HIGH_IMPACT_ROLE_NAMES = {
     "contributor",
     "user access administrator",
 }
+
+
+def _arm_id_join_key(resource_id: object | None) -> str | None:
+    text = str(resource_id or "").strip()
+    if not text:
+        return None
+    return text.rstrip("/").lower()
 
 
 def _resource_group_from_id(resource_id: str) -> str | None:
@@ -3708,10 +3718,10 @@ def _endpoints_from_web_workloads(workloads: list[dict]) -> list[dict]:
 def _endpoints_by_asset(endpoints: list[dict]) -> dict[str, list[dict]]:
     endpoints_by_asset: dict[str, list[dict]] = {}
     for endpoint in endpoints:
-        source_asset_id = endpoint.get("source_asset_id")
-        if not source_asset_id:
+        source_asset_key = _arm_id_join_key(endpoint.get("source_asset_id"))
+        if not source_asset_key:
             continue
-        endpoints_by_asset.setdefault(str(source_asset_id), []).append(endpoint)
+        endpoints_by_asset.setdefault(source_asset_key, []).append(endpoint)
     return endpoints_by_asset
 
 
@@ -3725,7 +3735,10 @@ def _workload_rows_from_vms(
         asset_id = item.get("id")
         asset_name = item.get("name") or asset_id or "unknown"
         normalized_asset_id = str(asset_id or f"/unknown/{asset_name}")
-        asset_endpoints = endpoints_by_asset.get(normalized_asset_id, [])
+        asset_endpoints = endpoints_by_asset.get(
+            _arm_id_join_key(asset_id or f"/unknown/{asset_name}") or "",
+            [],
+        )
         identity_ids = _dedupe_strings(item.get("identity_ids", []))
         identity_type = _vm_identity_type(identity_ids)
         endpoints = _dedupe_strings([endpoint.get("endpoint") for endpoint in asset_endpoints])
@@ -3786,7 +3799,10 @@ def _workload_rows_from_web_workloads(
         asset_kind = str(item.get("asset_kind") or "WebWorkload")
         identity_ids = _dedupe_strings(item.get("workload_identity_ids", []))
         identity_type = item.get("workload_identity_type")
-        asset_endpoints = endpoints_by_asset.get(normalized_asset_id, [])
+        asset_endpoints = endpoints_by_asset.get(
+            _arm_id_join_key(asset_id or f"/unknown/{asset_name}") or "",
+            [],
+        )
         endpoints = _dedupe_strings([endpoint.get("endpoint") for endpoint in asset_endpoints])
         ingress_paths = _dedupe_strings(
             [endpoint.get("ingress_path") for endpoint in asset_endpoints]

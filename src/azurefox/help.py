@@ -749,9 +749,13 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
     "all-checks": CommandHelpTopic(
         name="all-checks",
         section="orchestration",
-        summary="Run the implemented AzureFox commands in a stable operator-first sequence.",
+        summary=(
+            "Run the implemented AzureFox commands in a stable operator-first sequence. "
+            "This broader pass can take materially longer than a single command."
+        ),
         offensive_question=(
-            "What is the fastest broad sweep I can run right now for this tenant or section?"
+            "What is the cleanest broad sweep I can run right now for this tenant or section "
+            "when I want grouped results and can wait on a longer pass?"
         ),
         cloudfox_frame="Direct AzureFox analogue to a CloudFox grouped recon pass.",
         output_highlights=("results", "run-summary.json", "section filtering"),
@@ -918,6 +922,11 @@ def render_help(topic: str | None = None) -> str:
 
 
 def _render_root_help() -> str:
+    command_names = [spec.name for spec in get_command_specs()]
+    for name in COMMAND_HELP:
+        if name not in command_names:
+            command_names.append(name)
+
     lines = [
         "AzureFox Help",
         "",
@@ -939,9 +948,9 @@ def _render_root_help() -> str:
         lines.append(f"  {section}: {summary}")
 
     lines.extend(["", "Commands:"])
-    for spec in get_command_specs():
-        summary = COMMAND_HELP[spec.name].summary
-        lines.append(f"  {spec.name}: {summary}")
+    for name in command_names:
+        summary = COMMAND_HELP[name].summary
+        lines.append(f"  {name}: {summary}")
 
     lines.extend(
         [
