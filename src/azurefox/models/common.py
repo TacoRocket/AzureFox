@@ -345,6 +345,34 @@ class FunctionAppAsset(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class AksClusterAsset(BaseModel):
+    id: str
+    name: str
+    resource_group: str | None = None
+    location: str | None = None
+    provisioning_state: str | None = None
+    kubernetes_version: str | None = None
+    sku_tier: str | None = None
+    node_resource_group: str | None = None
+    fqdn: str | None = None
+    private_fqdn: str | None = None
+    private_cluster_enabled: bool | None = None
+    public_fqdn_enabled: bool | None = None
+    cluster_identity_type: str | None = None
+    cluster_principal_id: str | None = None
+    cluster_client_id: str | None = None
+    cluster_identity_ids: list[str] = Field(default_factory=list)
+    aad_managed: bool | None = None
+    azure_rbac_enabled: bool | None = None
+    local_accounts_disabled: bool | None = None
+    network_plugin: str | None = None
+    network_policy: str | None = None
+    outbound_type: str | None = None
+    agent_pool_count: int | None = None
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class ApiMgmtServiceAsset(BaseModel):
     id: str
     name: str

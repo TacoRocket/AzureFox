@@ -5,8 +5,9 @@
     "state": "Enabled"
   },
   "resource_group_count": 4,
-  "resource_count": 28,
+  "resource_count": 30,
   "top_resource_types": {
+    "Microsoft.ContainerService/managedClusters": 2,
     "Microsoft.Network/networkInterfaces": 6,
     "Microsoft.Compute/virtualMachines": 3,
     "Microsoft.Storage/storageAccounts": 2

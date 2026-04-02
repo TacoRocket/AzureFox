@@ -40,6 +40,9 @@ class BaseProvider(ABC):
     def app_services(self) -> dict:
         return {"app_services": [], "issues": []}
 
+    def aks(self) -> dict:
+        return {"aks_clusters": [], "issues": []}
+
     def api_mgmt(self) -> dict:
         return {"api_management_services": [], "issues": []}
 
@@ -193,6 +196,9 @@ class FixtureProvider(BaseProvider):
 
     def app_services(self) -> dict:
         return self._read("app_services")
+
+    def aks(self) -> dict:
+        return self._read("aks")
 
     def api_mgmt(self) -> dict:
         return self._read("api_mgmt")
@@ -463,6 +469,25 @@ class AzureProvider(BaseProvider):
             )
         )
         return {"app_services": app_services, "issues": issues}
+
+    def aks(self) -> dict:
+        issues: list[dict] = []
+        clusters: list[dict] = []
+
+        try:
+            iterator = self.clients.containerservice.managed_clusters.list()
+            for cluster in iterator:
+                clusters.append(_aks_cluster_summary(cluster))
+        except Exception as exc:
+            issues.append(_issue_from_exception("aks.managed_clusters", exc))
+
+        clusters.sort(
+            key=lambda item: (
+                not _aks_exposure_priority(item),
+                item.get("name") or "",
+            )
+        )
+        return {"aks_clusters": clusters, "issues": issues}
 
     def api_mgmt(self) -> dict:
         issues: list[dict] = []
@@ -2600,6 +2625,186 @@ def _app_service_exposure_priority(item: dict) -> bool:
     return bool(item.get("default_hostname")) or (
         str(item.get("public_network_access") or "").lower() == "enabled"
     )
+
+
+def _aks_cluster_summary(cluster: object) -> dict:
+    cluster_id = getattr(cluster, "id", "") or ""
+    cluster_name = getattr(cluster, "name", "unknown")
+    identity = getattr(cluster, "identity", None)
+    service_principal_profile = getattr(cluster, "service_principal_profile", None)
+    aad_profile = getattr(cluster, "aad_profile", None)
+    api_server_access_profile = getattr(cluster, "api_server_access_profile", None)
+    network_profile = getattr(cluster, "network_profile", None)
+    sku = getattr(cluster, "sku", None)
+    agent_pool_profiles = getattr(cluster, "agent_pool_profiles", None) or []
+
+    cluster_identity_ids = sorted(
+        str(identity_id)
+        for identity_id in (getattr(identity, "user_assigned_identities", None) or {}).keys()
+    )
+    cluster_identity_type = _string_value(getattr(identity, "type", None))
+    cluster_principal_id = _string_value(getattr(identity, "principal_id", None))
+    cluster_client_id = _string_value(getattr(identity, "client_id", None))
+    if not cluster_identity_type:
+        service_principal_client_id = _string_value(
+            getattr(service_principal_profile, "client_id", None)
+        )
+        if service_principal_client_id:
+            cluster_identity_type = "ServicePrincipal"
+            cluster_client_id = service_principal_client_id
+    private_cluster_enabled = getattr(api_server_access_profile, "enable_private_cluster", None)
+    public_fqdn_enabled = getattr(
+        api_server_access_profile,
+        "enable_private_cluster_public_fqdn",
+        None,
+    )
+    aad_managed = getattr(aad_profile, "managed", None)
+    azure_rbac_enabled = getattr(aad_profile, "enable_azure_rbac", None)
+    local_accounts_disabled = getattr(cluster, "disable_local_accounts", None)
+    agent_pool_count = len(agent_pool_profiles)
+
+    return {
+        "id": cluster_id or f"/unknown/{cluster_name}",
+        "name": cluster_name,
+        "resource_group": _resource_group_from_id(cluster_id),
+        "location": _string_value(getattr(cluster, "location", None)),
+        "provisioning_state": _string_value(getattr(cluster, "provisioning_state", None)),
+        "kubernetes_version": _string_value(getattr(cluster, "kubernetes_version", None)),
+        "sku_tier": _string_value(getattr(sku, "tier", None)),
+        "node_resource_group": _string_value(getattr(cluster, "node_resource_group", None)),
+        "fqdn": _string_value(getattr(cluster, "fqdn", None)),
+        "private_fqdn": _string_value(getattr(cluster, "private_fqdn", None)),
+        "private_cluster_enabled": private_cluster_enabled,
+        "public_fqdn_enabled": public_fqdn_enabled,
+        "cluster_identity_type": cluster_identity_type,
+        "cluster_principal_id": cluster_principal_id,
+        "cluster_client_id": cluster_client_id,
+        "cluster_identity_ids": cluster_identity_ids,
+        "aad_managed": aad_managed,
+        "azure_rbac_enabled": azure_rbac_enabled,
+        "local_accounts_disabled": local_accounts_disabled,
+        "network_plugin": _string_value(getattr(network_profile, "network_plugin", None)),
+        "network_policy": _string_value(getattr(network_profile, "network_policy", None)),
+        "outbound_type": _string_value(getattr(network_profile, "outbound_type", None)),
+        "agent_pool_count": agent_pool_count,
+        "summary": _aks_operator_summary(
+            cluster_name=cluster_name,
+            kubernetes_version=_string_value(getattr(cluster, "kubernetes_version", None)),
+            fqdn=_string_value(getattr(cluster, "fqdn", None)),
+            private_fqdn=_string_value(getattr(cluster, "private_fqdn", None)),
+            private_cluster_enabled=private_cluster_enabled,
+            public_fqdn_enabled=public_fqdn_enabled,
+            cluster_identity_type=cluster_identity_type,
+            cluster_client_id=cluster_client_id,
+            aad_managed=aad_managed,
+            azure_rbac_enabled=azure_rbac_enabled,
+            local_accounts_disabled=local_accounts_disabled,
+            network_plugin=_string_value(getattr(network_profile, "network_plugin", None)),
+            network_policy=_string_value(getattr(network_profile, "network_policy", None)),
+            outbound_type=_string_value(getattr(network_profile, "outbound_type", None)),
+            agent_pool_count=agent_pool_count,
+        ),
+        "related_ids": _dedupe_strings(
+            [cluster_id, cluster_principal_id, *cluster_identity_ids]
+        ),
+    }
+
+
+def _aks_operator_summary(
+    *,
+    cluster_name: str,
+    kubernetes_version: str | None,
+    fqdn: str | None,
+    private_fqdn: str | None,
+    private_cluster_enabled: bool | None,
+    public_fqdn_enabled: bool | None,
+    cluster_identity_type: str | None,
+    cluster_client_id: str | None,
+    aad_managed: bool | None,
+    azure_rbac_enabled: bool | None,
+    local_accounts_disabled: bool | None,
+    network_plugin: str | None,
+    network_policy: str | None,
+    outbound_type: str | None,
+    agent_pool_count: int | None,
+) -> str:
+    if private_cluster_enabled is True and private_fqdn and public_fqdn_enabled and fqdn:
+        endpoint_phrase = (
+            f"uses private API endpoint '{private_fqdn}' and keeps public FQDN '{fqdn}' enabled"
+        )
+    elif private_cluster_enabled is True and private_fqdn:
+        endpoint_phrase = f"uses private API endpoint '{private_fqdn}'"
+    elif fqdn:
+        endpoint_phrase = f"publishes API endpoint '{fqdn}'"
+    else:
+        endpoint_phrase = "does not expose a readable API endpoint from the current read path"
+
+    if cluster_identity_type == "ServicePrincipal":
+        if cluster_client_id:
+            identity_phrase = f"uses service principal client '{cluster_client_id}'"
+        else:
+            identity_phrase = "uses service principal-backed cluster credentials"
+    elif cluster_identity_type:
+        identity_phrase = f"uses cluster identity ({cluster_identity_type})"
+    else:
+        identity_phrase = "has no cluster identity context visible from the current read path"
+
+    auth_parts: list[str] = []
+    if aad_managed is True:
+        auth_parts.append("AAD-managed auth")
+    elif aad_managed is False:
+        auth_parts.append("AAD profile not managed")
+    if azure_rbac_enabled is True:
+        auth_parts.append("Azure RBAC enabled")
+    elif azure_rbac_enabled is False:
+        auth_parts.append("Azure RBAC disabled")
+    if local_accounts_disabled is True:
+        auth_parts.append("local accounts disabled")
+    elif local_accounts_disabled is False:
+        auth_parts.append("local accounts enabled")
+
+    network_parts: list[str] = []
+    if private_cluster_enabled is True:
+        network_parts.append("private cluster enabled")
+    elif private_cluster_enabled is False:
+        network_parts.append("private cluster disabled")
+    if network_plugin:
+        network_parts.append(f"network plugin {network_plugin}")
+    if network_policy:
+        network_parts.append(f"network policy {network_policy}")
+    if outbound_type:
+        network_parts.append(f"outbound {outbound_type}")
+
+    inventory_parts: list[str] = []
+    if kubernetes_version:
+        inventory_parts.append(f"Kubernetes {kubernetes_version}")
+    if agent_pool_count is not None:
+        inventory_parts.append(f"{agent_pool_count} agent pool(s)")
+
+    auth_phrase = (
+        f"Visible auth posture: {', '.join(auth_parts)}."
+        if auth_parts
+        else "Auth posture is not fully readable from the current read path."
+    )
+    network_phrase = (
+        f"Visible network shape: {', '.join(network_parts)}."
+        if network_parts
+        else "Network shape is not fully readable from the current read path."
+    )
+    inventory_phrase = (
+        f"Visible inventory: {', '.join(inventory_parts)}."
+        if inventory_parts
+        else "Cluster version and pool counts are not fully readable from the current read path."
+    )
+
+    return (
+        f"AKS cluster '{cluster_name}' {endpoint_phrase} and {identity_phrase}. "
+        f"{inventory_phrase} {auth_phrase} {network_phrase}"
+    )
+
+
+def _aks_exposure_priority(item: dict) -> bool:
+    return bool(item.get("fqdn")) and item.get("private_cluster_enabled") is not True
 
 
 def _api_mgmt_operator_summary(

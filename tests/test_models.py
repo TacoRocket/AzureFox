@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from azurefox.models.common import (
     SCHEMA_VERSION,
+    AksClusterAsset,
     ApiMgmtServiceAsset,
     AppServiceAsset,
     ArmDeploymentSummary,
@@ -46,6 +47,15 @@ def test_app_service_asset_defaults() -> None:
     assert asset.https_only is False
     assert asset.client_cert_enabled is False
     assert asset.workload_identity_ids == []
+    assert asset.related_ids == []
+
+
+def test_aks_cluster_asset_defaults() -> None:
+    asset = AksClusterAsset(id="aks-1", name="aks01", summary="test")
+    assert asset.resource_group is None
+    assert asset.private_cluster_enabled is None
+    assert asset.cluster_identity_ids == []
+    assert asset.agent_pool_count is None
     assert asset.related_ids == []
 
 

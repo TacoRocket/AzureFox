@@ -1,5 +1,9 @@
 # AzureFox
 
+<p align="center">
+  <img src="docs/branding/azurefox-logo-concept.svg" alt="AzureFox logo concept" width="220" />
+</p>
+
 AzureFox is a Python CLI for offensive-focused Azure situational awareness.
 
 ## Attribution
@@ -15,6 +19,14 @@ Fox.
 
 - `whoami`
 - `inventory`
+- `nics`
+- `endpoints`
+- `network-ports`
+- `workloads`
+- `app-services`
+- `functions`
+- `aks`
+- `api-mgmt`
 - `arm-deployments`
 - `env-vars`
 - `tokens-credentials`
@@ -106,9 +118,10 @@ Current section mappings:
 - `identity`: `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `auth-policies`, `managed-identities`
 - `config`: `arm-deployments`, `env-vars`
 - `secrets`: `keyvault`, `tokens-credentials`
-- `resource`: `resource-trusts`
+- `resource`: `api-mgmt`, `resource-trusts`
 - `storage`: `storage`
-- `compute`: `vms`
+- `network`: `nics`, `endpoints`, `network-ports`
+- `compute`: `workloads`, `app-services`, `functions`, `aks`, `vms`
 - `core`: `inventory`
 
 ## Help

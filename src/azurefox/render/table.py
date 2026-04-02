@@ -126,6 +126,31 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "aks":
+        return (
+            [
+                ("name", "cluster"),
+                ("version", "version"),
+                ("endpoint", "endpoint"),
+                ("identity", "identity"),
+                ("auth", "auth"),
+                ("network", "network"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "name": item.get("name"),
+                    "version": _aks_version_context(item),
+                    "endpoint": _aks_endpoint_context(item),
+                    "identity": _aks_identity_context(item),
+                    "auth": _aks_auth_context(item),
+                    "network": _aks_network_context(item),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("aks_clusters", [])
+            ],
+        )
+
     if command == "api-mgmt":
         return (
             [
@@ -700,6 +725,17 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             "managed identity context."
         )
 
+    if command == "aks":
+        clusters = payload.get("aks_clusters", [])
+        private_clusters = sum(item.get("private_cluster_enabled") is True for item in clusters)
+        identities = sum(bool(item.get("cluster_identity_type")) for item in clusters)
+        azure_rbac = sum(item.get("azure_rbac_enabled") is True for item in clusters)
+        return (
+            f"{len(clusters)} AKS clusters visible; {private_clusters} use private API "
+            f"endpoints, {identities} expose cluster identity context, and {azure_rbac} enable "
+            "Azure RBAC."
+        )
+
     if command == "api-mgmt":
         services = payload.get("api_management_services", [])
         public_network = sum(
@@ -896,6 +932,85 @@ def _app_service_posture_context(item: dict) -> str:
         parts.append(f"ftps={item.get('ftps_state')}")
     if item.get("client_cert_enabled"):
         parts.append("client-cert=yes")
+    return "; ".join(parts)
+
+
+def _aks_version_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("kubernetes_version"):
+        parts.append(f"k8s={item.get('kubernetes_version')}")
+    if item.get("agent_pool_count") is not None:
+        parts.append(f"pools={item.get('agent_pool_count')}")
+    if item.get("sku_tier"):
+        parts.append(f"tier={item.get('sku_tier')}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _aks_identity_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("cluster_identity_type"):
+        parts.append(str(item.get("cluster_identity_type")))
+    if item.get("cluster_identity_ids"):
+        parts.append(f"user-assigned={len(item.get('cluster_identity_ids', []))}")
+    if item.get("cluster_identity_type") == "ServicePrincipal" and item.get("cluster_client_id"):
+        parts.append("client-id=yes")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _aks_endpoint_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("private_cluster_enabled") is True:
+        parts.append("private-api=yes")
+    elif item.get("private_cluster_enabled") is False:
+        parts.append("private-api=no")
+    if item.get("fqdn"):
+        parts.append("fqdn")
+    if item.get("private_fqdn"):
+        parts.append("private-fqdn")
+    if item.get("public_fqdn_enabled") is True:
+        parts.append("public-fqdn=yes")
+    elif item.get("public_fqdn_enabled") is False and item.get("private_cluster_enabled") is True:
+        parts.append("public-fqdn=no")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _aks_auth_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("aad_managed") is True:
+        parts.append("aad=yes")
+    elif item.get("aad_managed") is False:
+        parts.append("aad=no")
+    if item.get("azure_rbac_enabled") is True:
+        parts.append("azure-rbac=yes")
+    elif item.get("azure_rbac_enabled") is False:
+        parts.append("azure-rbac=no")
+    if item.get("local_accounts_disabled") is True:
+        parts.append("local-accounts=disabled")
+    elif item.get("local_accounts_disabled") is False:
+        parts.append("local-accounts=enabled")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _aks_network_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("network_plugin"):
+        parts.append(f"plugin={item.get('network_plugin')}")
+    if item.get("network_policy"):
+        parts.append(f"policy={item.get('network_policy')}")
+    if item.get("outbound_type"):
+        parts.append(f"outbound={item.get('outbound_type')}")
+    if item.get("node_resource_group"):
+        parts.append(f"node-rg={item.get('node_resource_group')}")
+    if not parts:
+        return "-"
     return "; ".join(parts)
 
 

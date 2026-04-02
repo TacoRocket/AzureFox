@@ -79,6 +79,17 @@ def test_help_command_functions_topic() -> None:
     assert "run_from_package" in result.stdout
 
 
+def test_help_command_aks_topic() -> None:
+    result = runner.invoke(app, ["help", "aks"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: aks" in result.stdout
+    assert "private_cluster_enabled" in result.stdout
+    assert "cluster_identity_type" in result.stdout
+    assert "azure_rbac_enabled" in result.stdout
+    assert "network_plugin" in result.stdout
+
+
 def test_help_command_api_mgmt_topic() -> None:
     result = runner.invoke(app, ["help", "api-mgmt"])
 
