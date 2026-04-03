@@ -15,6 +15,11 @@ class OutputMode(StrEnum):
     CSV = "csv"
 
 
+class RoleTrustsMode(StrEnum):
+    FAST = "fast"
+    FULL = "full"
+
+
 class CommandMetadata(BaseModel):
     schema_version: str = SCHEMA_VERSION
     command: str

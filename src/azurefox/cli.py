@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import typer
@@ -9,7 +10,7 @@ from azurefox.collectors.provider import get_provider
 from azurefox.config import GlobalOptions
 from azurefox.errors import AzureFoxError
 from azurefox.help import render_help
-from azurefox.models.common import OutputMode
+from azurefox.models.common import OutputMode, RoleTrustsMode
 from azurefox.models.run import AllChecksSummary, RunCommandResult
 from azurefox.output.style import (
     emit_artifact_paths,
@@ -26,6 +27,16 @@ SUBSCRIPTION_OPTION = typer.Option(None, "--subscription", help="Azure subscript
 OUTPUT_OPTION = typer.Option(OutputMode.TABLE, "--output", help="Output format")
 OUTDIR_OPTION = typer.Option(Path("."), "--outdir", help="Output directory")
 DEBUG_OPTION = typer.Option(False, "--debug", help="Enable verbose error output")
+ROLE_TRUSTS_MODE_OPTION = typer.Option(
+    RoleTrustsMode.FAST,
+    "--mode",
+    help="role-trusts collection mode: fast (default) or full",
+)
+ALL_CHECKS_ROLE_TRUSTS_MODE_OPTION = typer.Option(
+    RoleTrustsMode.FAST,
+    "--role-trusts-mode",
+    help="role-trusts collection mode used inside all-checks: fast (default) or full",
+)
 HELP_FLAGS = {"-h", "--help"}
 GLOBAL_OPTIONS_WITH_VALUES = {"--tenant", "--subscription", "--output", "--outdir"}
 GLOBAL_FLAG_OPTIONS = {"--debug"}
@@ -135,8 +146,15 @@ def privesc(ctx: typer.Context) -> None:
 
 
 @app.command("role-trusts")
-def role_trusts(ctx: typer.Context) -> None:
-    _run_single(ctx, "role-trusts")
+def role_trusts(
+    ctx: typer.Context,
+    mode: RoleTrustsMode = ROLE_TRUSTS_MODE_OPTION,
+) -> None:
+    _run_single(
+        ctx,
+        "role-trusts",
+        replace(ctx.obj, role_trusts_mode=mode),
+    )
 
 
 @app.command("auth-policies")
@@ -193,6 +211,7 @@ def vms(ctx: typer.Context) -> None:
 def all_checks(
     ctx: typer.Context,
     section: str | None = SECTION_OPTION,
+    role_trusts_mode: RoleTrustsMode = ALL_CHECKS_ROLE_TRUSTS_MODE_OPTION,
 ) -> None:
     options: GlobalOptions = ctx.obj
     if section is not None and section not in SECTION_NAMES:
@@ -211,8 +230,11 @@ def all_checks(
     results: list[RunCommandResult] = []
     for spec in specs:
         emit_command_intro(spec.name, err=options.output == OutputMode.JSON)
+        command_options = options
+        if spec.name == "role-trusts":
+            command_options = replace(options, role_trusts_mode=role_trusts_mode)
         try:
-            model = spec.collector(provider, options)
+            model = spec.collector(provider, command_options)
             artifact_paths = emit_output(spec.name, model, options, emit_stdout=False)
             emit_artifact_paths(spec.name, artifact_paths, options)
             results.append(
@@ -277,8 +299,12 @@ def help_command(topic: str | None = typer.Argument(None)) -> None:
         raise typer.Exit(code=2) from exc
 
 
-def _run_single(ctx: typer.Context, command: str) -> None:
-    options: GlobalOptions = ctx.obj
+def _run_single(
+    ctx: typer.Context,
+    command: str,
+    options: GlobalOptions | None = None,
+) -> None:
+    options = options or ctx.obj
     try:
         provider = get_provider(options)
         spec = next(spec for spec in get_command_specs() if spec.name == command)

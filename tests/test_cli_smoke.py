@@ -53,6 +53,8 @@ def test_cli_smoke_all_commands(tmp_path: Path) -> None:
         assert result.exit_code == 0
         payload = json.loads(result.stdout)
         assert payload["metadata"]["command"] == command
+        if command == "role-trusts":
+            assert payload["mode"] == "fast"
         assert (tmp_path / "loot" / f"{command}.json").exists()
 
 
@@ -125,6 +127,46 @@ def test_cli_smoke_section_filter(tmp_path: Path) -> None:
         "auth-policies",
         "managed-identities",
     }
+
+
+def test_cli_smoke_role_trusts_full_mode(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "json", "role-trusts", "--mode", "full"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["metadata"]["command"] == "role-trusts"
+    assert payload["mode"] == "full"
+
+
+def test_cli_smoke_all_checks_identity_full_role_trusts_mode(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    result = runner.invoke(
+        app,
+        [
+            "--outdir",
+            str(tmp_path),
+            "--output",
+            "json",
+            "all-checks",
+            "--section",
+            "identity",
+            "--role-trusts-mode",
+            "full",
+        ],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    commands = {item["command"] for item in payload["results"]}
+    assert "role-trusts" in commands
 
 
 def test_cli_smoke_section_filter_config(tmp_path: Path) -> None:

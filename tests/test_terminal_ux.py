@@ -28,8 +28,8 @@ def test_role_trusts_table_mode_includes_narration_and_takeaway(tmp_path: Path) 
         in result.stdout
     )
     assert "why it matters" in result.stdout
-    assert "Takeaway: 4 trust edges surfaced" in result.stdout
-    assert "Delegated and admin consent grants" in result.stdout
+    assert "Takeaway: 4 trust edges surfaced in fast mode" in result.stdout
+    assert "Delegated and admin" in result.stdout
     assert "out of scope for this command." in result.stdout
 
 

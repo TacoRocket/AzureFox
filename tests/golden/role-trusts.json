@@ -8,6 +8,7 @@
     "tenant_id": "11111111-1111-1111-1111-111111111111",
     "token_source": null
   },
+  "mode": "fast",
   "trusts": [
     {
       "confidence": "confirmed",
