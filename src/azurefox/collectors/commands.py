@@ -263,9 +263,13 @@ def collect_privesc(provider: BaseProvider, options: GlobalOptions) -> PrivescOu
 
 
 def collect_role_trusts(provider: BaseProvider, options: GlobalOptions) -> RoleTrustsOutput:
-    data = provider.role_trusts()
+    data = provider.role_trusts(options.role_trusts_mode)
     return RoleTrustsOutput.model_validate(
-        {"metadata": _metadata(provider, "role-trusts", options), **data}
+        {
+            "metadata": _metadata(provider, "role-trusts", options),
+            "mode": options.role_trusts_mode,
+            **data,
+        }
     )
 
 

@@ -29,6 +29,7 @@ from azurefox.models.common import (
     PrivescPathSummary,
     ResourceTrustSummary,
     RoleAssignment,
+    RoleTrustsMode,
     RoleTrustSummary,
     ScopeRef,
     StorageAsset,
@@ -140,6 +141,7 @@ class PrivescOutput(BaseModel):
 
 class RoleTrustsOutput(BaseModel):
     metadata: CommandMetadata
+    mode: RoleTrustsMode = RoleTrustsMode.FAST
     trusts: list[RoleTrustSummary] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 

@@ -16,6 +16,7 @@ from azurefox.errors import AzureFoxError, ErrorKind, classify_exception
 from azurefox.models.common import (
     Principal,
     RoleAssignment,
+    RoleTrustsMode,
     ScopeRef,
     is_private_network_prefix,
 )
@@ -152,7 +153,7 @@ class BaseProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def role_trusts(self) -> dict:
+    def role_trusts(self, mode: RoleTrustsMode = RoleTrustsMode.FAST) -> dict:
         raise NotImplementedError
 
     @abstractmethod
@@ -236,7 +237,7 @@ class FixtureProvider(BaseProvider):
     def privesc(self) -> dict:
         return self._read("privesc")
 
-    def role_trusts(self) -> dict:
+    def role_trusts(self, mode: RoleTrustsMode = RoleTrustsMode.FAST) -> dict:
         return self._read("role_trusts")
 
     def resource_trusts(self) -> dict:
@@ -1023,7 +1024,7 @@ class AzureProvider(BaseProvider):
         ]
         return {"paths": paths, "issues": issues}
 
-    def role_trusts(self) -> dict:
+    def role_trusts(self, mode: RoleTrustsMode = RoleTrustsMode.FAST) -> dict:
         issues: list[dict] = []
         trusts: list[dict] = []
 
@@ -1042,23 +1043,24 @@ class AzureProvider(BaseProvider):
         applications: list[dict] = []
         application_by_app_id: dict[str, dict] = {}
 
-        try:
-            applications = self.graph.list_applications()
-        except Exception as exc:
-            issues.append(_issue_from_exception("role_trusts.applications", exc))
-            applications = []
+        if mode == RoleTrustsMode.FULL:
+            try:
+                applications = self.graph.list_applications()
+            except Exception as exc:
+                issues.append(_issue_from_exception("role_trusts.applications", exc))
+                applications = []
 
         for application in applications:
             app_id = application.get("appId")
             if app_id:
                 application_by_app_id[app_id] = application
 
-        missing_app_ids = sorted(
+        seeded_app_ids = sorted(
             app_id
             for app_id in service_principal_by_app_id
             if app_id and app_id not in application_by_app_id
         )
-        for app_id in missing_app_ids:
+        for app_id in seeded_app_ids:
             try:
                 application = self.graph.get_application_by_app_id(app_id)
             except Exception as exc:

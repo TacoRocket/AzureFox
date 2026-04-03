@@ -701,10 +701,12 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
 
     if command == "role-trusts":
         trusts = payload.get("trusts", [])
+        mode = payload.get("mode") or "fast"
         families = Counter(item.get("trust_type") or "unknown" for item in trusts)
         counts = ", ".join(f"{count} {name}" for name, count in sorted(families.items()))
         return (
-            f"{len(trusts)} trust edges surfaced; {counts or 'no trust edges visible'}. "
+            f"{len(trusts)} trust edges surfaced in {mode} mode; "
+            f"{counts or 'no trust edges visible'}. "
             "Delegated and admin consent grants are out of scope for this command."
         )
 

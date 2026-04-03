@@ -6,7 +6,7 @@ import pytest
 
 from azurefox.collectors.provider import FixtureProvider
 from azurefox.config import GlobalOptions
-from azurefox.models.common import OutputMode
+from azurefox.models.common import OutputMode, RoleTrustsMode
 
 
 @pytest.fixture()
@@ -27,4 +27,5 @@ def options(tmp_path: Path) -> GlobalOptions:
         output=OutputMode.JSON,
         outdir=tmp_path,
         debug=False,
+        role_trusts_mode=RoleTrustsMode.FAST,
     )

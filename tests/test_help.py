@@ -186,6 +186,7 @@ def test_help_command_role_trusts_topic() -> None:
     assert "Trusted Relationship" in result.stdout
     assert "federated credentials" in result.stdout
     assert "delegated or admin consent grants" in result.stdout
+    assert "Fast mode is the default" in result.stdout
 
 
 def test_help_command_auth_policies_topic() -> None:

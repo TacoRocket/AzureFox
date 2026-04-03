@@ -40,7 +40,7 @@ from azurefox.collectors.provider import (
     _web_asset_kind,
 )
 from azurefox.config import GlobalOptions
-from azurefox.models.common import OutputMode
+from azurefox.models.common import OutputMode, RoleTrustsMode
 
 
 class MetadataFixtureProvider(FixtureProvider):
@@ -156,6 +156,12 @@ class FakeRoleTrustsGraph:
         ]
 
     def get_application_by_app_id(self, app_id: str) -> dict | None:
+        if app_id == "55555555-5555-5555-5555-555555555550":
+            return {
+                "id": "55555555-5555-5555-5555-555555555555",
+                "appId": "55555555-5555-5555-5555-555555555550",
+                "displayName": "build-app",
+            }
         return None
 
     def list_application_federated_credentials(self, application_id: str) -> list[dict]:
@@ -653,6 +659,7 @@ def test_collect_inventory_metadata_falls_back_to_provider_context(
         output=OutputMode.JSON,
         outdir=tmp_path,
         debug=False,
+        role_trusts_mode=RoleTrustsMode.FAST,
     )
 
     output = collect_inventory(provider, options)
@@ -729,6 +736,7 @@ def test_collect_privesc(fixture_provider, options) -> None:
 
 def test_collect_role_trusts(fixture_provider, options) -> None:
     output = collect_role_trusts(fixture_provider, options)
+    assert output.mode == "fast"
     assert len(output.trusts) == 4
     assert output.trusts[0].trust_type == "app-owner"
     assert output.trusts[2].evidence_type == "graph-federated-credential"
@@ -749,6 +757,86 @@ def test_collect_role_trusts_enumerates_graph_edges_without_principal_seed(optio
     assert any(item.source_name == "build-app" for item in output.trusts)
     assert any(item.source_name == "reporting-sp" for item in output.trusts)
     assert any(item.target_name == "Microsoft Graph" for item in output.trusts)
+
+
+class FakeRoleTrustsFullGraph(FakeRoleTrustsGraph):
+    def list_applications(self) -> list[dict]:
+        return [
+            *super().list_applications(),
+            {
+                "id": "12121212-1212-1212-1212-121212121212",
+                "appId": "12121212-1212-1212-1212-121212121210",
+                "displayName": "orphan-build-app",
+            },
+        ]
+
+    def get_application_by_app_id(self, app_id: str) -> dict | None:
+        if app_id == "12121212-1212-1212-1212-121212121210":
+            return {
+                "id": "12121212-1212-1212-1212-121212121212",
+                "appId": "12121212-1212-1212-1212-121212121210",
+                "displayName": "orphan-build-app",
+            }
+        return super().get_application_by_app_id(app_id)
+
+    def list_application_federated_credentials(self, application_id: str) -> list[dict]:
+        if application_id == "12121212-1212-1212-1212-121212121212":
+            return [
+                {
+                    "id": "fic-orphan-prod",
+                    "issuer": "https://token.actions.githubusercontent.com",
+                    "subject": "repo:TacoRocket/legacy-ci:environment:prod",
+                }
+            ]
+        return super().list_application_federated_credentials(application_id)
+
+    def list_application_owners(self, application_id: str) -> list[dict]:
+        if application_id == "12121212-1212-1212-1212-121212121212":
+            return [
+                {
+                    "id": "13131313-1313-1313-1313-131313131313",
+                    "userPrincipalName": "ops-admin@lab.local",
+                    "@odata.type": "#microsoft.graph.user",
+                }
+            ]
+        return super().list_application_owners(application_id)
+
+
+def test_collect_role_trusts_full_mode_surfaces_extra_application_edges(options) -> None:
+    provider = object.__new__(AzureProvider)
+    provider.graph = FakeRoleTrustsFullGraph()
+    provider.metadata_context = lambda: {
+        "tenant_id": "tenant-from-provider",
+        "subscription_id": "subscription-from-provider",
+        "token_source": "azure_cli",
+    }
+
+    fast_options = GlobalOptions(
+        tenant=options.tenant,
+        subscription=options.subscription,
+        output=options.output,
+        outdir=options.outdir,
+        debug=options.debug,
+        role_trusts_mode=RoleTrustsMode.FAST,
+    )
+    full_options = GlobalOptions(
+        tenant=options.tenant,
+        subscription=options.subscription,
+        output=options.output,
+        outdir=options.outdir,
+        debug=options.debug,
+        role_trusts_mode=RoleTrustsMode.FULL,
+    )
+
+    fast_output = collect_role_trusts(provider, fast_options)
+    full_output = collect_role_trusts(provider, full_options)
+
+    assert fast_output.mode == "fast"
+    assert full_output.mode == "full"
+    assert len(fast_output.trusts) == 4
+    assert len(full_output.trusts) == 6
+    assert not any(item.target_name == "orphan-build-app" for item in fast_output.trusts)
+    assert any(item.target_name == "orphan-build-app" for item in full_output.trusts)
 
 
 def test_collect_managed_identities(fixture_provider, options) -> None:

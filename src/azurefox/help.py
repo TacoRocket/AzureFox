@@ -524,7 +524,8 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         cloudfox_frame=(
             "Azure-native trust-edge triage across readable app registrations, service "
             "principals, federated credentials, ownership, and app-role assignments rather "
-            "than delegated or admin consent grants."
+            "than delegated or admin consent grants. Fast mode is the default; full mode is "
+            "the explicit slower tenant-wide sweep."
         ),
         output_highlights=(
             "trust_type",
@@ -541,7 +542,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             ),
             AttackLead("Privilege Escalation", "Account Manipulation: Additional Cloud Roles"),
         ),
-        example="azurefox role-trusts --output table",
+        example="azurefox role-trusts --mode full --output table",
     ),
     "auth-policies": CommandHelpTopic(
         name="auth-policies",
