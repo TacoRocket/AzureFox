@@ -8,6 +8,30 @@ AzureFox is a Python CLI for offensive-focused Azure situational awareness.
 It helps operators and testers figure out what Azure identity, network, secrets, and workload
 exposure they can actually see from management-plane read paths.
 
+## Quickstart
+
+```bash
+pip install azurefox
+```
+
+By default, AzureFox writes artifacts into your current directory. If you want them somewhere
+else, pass `--outdir`:
+
+```bash
+azurefox --outdir /tmp/azurefox-demo whoami --output table
+azurefox --outdir /tmp/azurefox-demo all-checks --output table
+```
+
+If you prefer an isolated virtual environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install azurefox
+```
+
+For local source-based development, use `pip install -e '.[dev]'`.
+
 ## Need A Test Lab?
 
 Don't have an Azure environment handy? The companion repo
@@ -46,30 +70,6 @@ Use a disposable subscription you control. It is risky on purpose.
 - `storage`
 - `vms`
 - `all-checks`
-
-## Quickstart
-
-```bash
-pip install azurefox
-```
-
-By default, AzureFox writes artifacts into your current directory. If you want them somewhere
-else, pass `--outdir`:
-
-```bash
-azurefox --outdir /tmp/azurefox-demo whoami --output table
-azurefox --outdir /tmp/azurefox-demo all-checks --output table
-```
-
-If you prefer an isolated virtual environment:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install azurefox
-```
-
-For local source-based development, use `pip install -e '.[dev]'`.
 
 ## CLI Invocation
 
