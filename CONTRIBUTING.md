@@ -5,7 +5,7 @@
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .[dev,azure]
+pip install -e '.[dev]'
 bash scripts/setup_local_guardrails.sh
 ```
 

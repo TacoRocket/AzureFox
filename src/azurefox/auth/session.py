@@ -24,7 +24,10 @@ def build_auth_session(tenant_id: str | None) -> AuthSession:
     except ImportError as exc:  # pragma: no cover - dependency surface
         raise AzureFoxError(
             ErrorKind.DEPENDENCY_MISSING,
-            "Missing Azure dependencies. Install with: pip install -e '.[azure]'",
+            (
+                "Missing Azure dependencies. Install AzureFox with its default dependencies. "
+                "From a local checkout, run: pip install -e ."
+            ),
         ) from exc
 
     cli_credential = AzureCliCredential(tenant_id=tenant_id)
