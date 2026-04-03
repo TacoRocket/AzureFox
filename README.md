@@ -50,11 +50,23 @@ Use a disposable subscription you control. It is risky on purpose.
 ## Quickstart
 
 ```bash
+pip install azurefox
+```
+
+By default, AzureFox writes artifacts into your current directory. If you want them somewhere
+else, pass `--outdir`:
+
+```bash
+azurefox --outdir /tmp/azurefox-demo whoami --output table
+azurefox --outdir /tmp/azurefox-demo all-checks --output table
+```
+
+If you prefer an isolated virtual environment:
+
+```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install azurefox
-azurefox --outdir /tmp/azurefox-demo whoami --output table
-azurefox --outdir /tmp/azurefox-demo all-checks --output table
 ```
 
 For local source-based development, use `pip install -e '.[dev]'`.
