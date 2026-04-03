@@ -13,6 +13,7 @@ def test_help_command_generic() -> None:
     assert result.exit_code == 0
     assert "AzureFox Help" in result.stdout
     assert "azurefox -h <section>" in result.stdout
+    assert "azurefox <command> --help" in result.stdout
     assert (
         "permissions: Triage which visible principals hold high-impact RBAC roles."
     ) in result.stdout
@@ -249,4 +250,44 @@ def test_normalize_argv_help_shorthand() -> None:
         "azurefox",
         "help",
         "permissions",
+    ]
+    assert _normalize_argv(["azurefox", "dns", "--help"]) == ["azurefox", "help", "dns"]
+    assert _normalize_argv(["azurefox", "dns", "-h"]) == ["azurefox", "help", "dns"]
+
+
+def test_normalize_argv_command_level_global_options() -> None:
+    assert _normalize_argv(["azurefox", "dns", "--output", "json"]) == [
+        "azurefox",
+        "--output",
+        "json",
+        "dns",
+    ]
+    assert _normalize_argv(
+        [
+            "azurefox",
+            "whoami",
+            "--tenant",
+            "tenant-1",
+            "--subscription",
+            "sub-1",
+            "--debug",
+        ]
+    ) == [
+        "azurefox",
+        "--tenant",
+        "tenant-1",
+        "--subscription",
+        "sub-1",
+        "--debug",
+        "whoami",
+    ]
+    assert _normalize_argv(
+        ["azurefox", "all-checks", "--section", "identity", "--output", "json"]
+    ) == [
+        "azurefox",
+        "--output",
+        "json",
+        "all-checks",
+        "--section",
+        "identity",
     ]

@@ -938,6 +938,7 @@ def _render_root_help() -> str:
         "  azurefox help <command>",
         "  azurefox -h <section>",
         "  azurefox -h <command>",
+        "  azurefox <command> --help",
         "",
         "Sections:",
     ]
@@ -956,6 +957,10 @@ def _render_root_help() -> str:
         [
             "",
             "Notes:",
+            (
+                "  - Shared flags such as --tenant, --subscription, --output, and --outdir "
+                "work before or after the command."
+            ),
             "  - Command help includes ATT&CK cloud leads to guide investigation.",
             "  - ATT&CK references are investigative context, not proof that a technique occurred.",
         ]

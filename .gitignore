@@ -10,6 +10,7 @@ venv/
 dist/
 build/
 *.egg-info/
+.DS_Store
 loot/
 json/
 table/

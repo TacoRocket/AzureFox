@@ -1,21 +1,20 @@
 # AzureFox
 
 <p align="center">
-  <img src="docs/branding/azurefox-logo-concept.svg" alt="AzureFox logo concept" width="220" />
+  <img src="docs/branding/azurefox-logo.png" alt="AzureFox logo" width="180" />
 </p>
 
 AzureFox is a Python CLI for offensive-focused Azure situational awareness.
-It is designed to help operators and testers quickly build a truthful picture of Azure identity,
-resource, network, secrets, and workload attack surface from management-plane read paths.
+It helps operators and testers figure out what Azure identity, network, secrets, and workload
+exposure they can actually see from management-plane read paths.
 
-## Attribution
+## Need A Test Lab?
 
-AzureFox is inspired by [CloudFox](https://github.com/BishopFox/cloudfox), created by Bishop Fox.
-The command model and operator workflow goals in this project are heavily informed by CloudFox's
-approach to cloud situational awareness and attack-path-focused enumeration.
+Don't have an Azure environment handy? The companion repo
+[AzureFox OpenTofu Proof Lab](https://github.com/TacoRocket/terraform-labs-for-azurefox) spins up
+a deliberately insecure Azure lab for demos, validation, and practice.
 
-This project is an independent implementation and is not affiliated with or endorsed by Bishop
-Fox.
+Use a disposable subscription you control. It is risky on purpose.
 
 ## Currently Supported Azure Commands
 
@@ -60,32 +59,43 @@ azurefox --outdir /tmp/azurefox-demo all-checks --output table
 
 For local source-based development, use `pip install -e '.[dev,azure]'`.
 
+## CLI Invocation
+
+Shared flags like `--tenant`, `--subscription`, `--output`, `--outdir`, and `--debug` work before
+or after the command.
+
+These forms are equivalent:
+
+```bash
+azurefox dns --output json --outdir /tmp/azurefox-demo
+azurefox --output json --outdir /tmp/azurefox-demo dns
+```
+
+Use `azurefox <command> --help` or `azurefox help <command>` for command-specific help.
+
 ## Install Profiles
 
-AzureFox keeps a small core package and uses extras for live Azure collection and contributor
+AzureFox keeps the base install small and uses extras for live Azure collection and contributor
 tooling.
 
 - `pip install azurefox`
-  installs the core CLI from PyPI without live Azure SDK dependencies; this is mostly useful for
-  help output, packaging work, or fixture-based local development
+  installs the core CLI from PyPI without the live Azure SDK dependencies; useful for help output,
+  packaging work, or fixture-based development
 - `pip install -e .`
-  installs the core CLI only; this is mostly useful for help output, packaging work, or
-  fixture-based local development
+  installs the core CLI only; useful for help output, packaging work, or fixture-based development
 - `pip install 'azurefox[azure]'`
-  installs the published AzureFox package plus the Azure SDK dependencies required for live Azure
-  command execution; most operators should use this profile
+  installs AzureFox plus the Azure SDK dependencies needed for live Azure command execution; this
+  is the normal operator profile
 - `pip install -e '.[azure]'`
-  installs the Azure SDK dependencies required for live Azure command execution; most operators
-  should use this profile when working from a local checkout
+  installs the Azure SDK dependencies needed for live Azure command execution from a local checkout
 - `pip install -e '.[dev]'`
-  installs lint, test, and type-check tooling for contributors working without live Azure SDK
-  dependencies
+  installs lint, test, and type-check tooling without the live Azure SDK dependencies
 - `pip install -e '.[dev,azure]'`
   installs both contributor tooling and the live Azure SDK bundle; this is the normal repo
   development profile
 
-The current `azure` extra intentionally installs the full SDK bundle used by the implemented live
-commands rather than splitting dependencies per-command.
+The current `azure` extra installs the full SDK bundle used by the implemented live commands rather
+than splitting dependencies per command.
 
 ## Auth Precedence
 
@@ -148,9 +158,8 @@ azurefox all-checks --section storage
 azurefox all-checks --section compute
 ```
 
-Treat `all-checks` as a broader validation pass rather than a quick spot check. It can take
-materially longer than a single command, especially when a full section is producing grouped
-artifacts across multiple commands.
+Treat `all-checks` as a broader validation pass, not a quick spot check. It can take much longer
+than a single command, especially when a full section is writing grouped artifacts.
 
 Current section mappings:
 
@@ -171,13 +180,16 @@ AzureFox supports generic and scoped help:
 azurefox help
 azurefox help identity
 azurefox help permissions
+azurefox dns --help
 azurefox -h identity
 azurefox -h permissions
 ```
 
-Command help includes ATT&CK cloud leads as investigative context so users can map the output to likely tactics and techniques without treating the help text as proof that a technique occurred.
+Command help includes ATT&CK cloud leads as investigation prompts, not proof that a technique
+occurred.
 
-For ad hoc demos or local exploration, prefer `--outdir /tmp/<name>` so generated artifacts do not accumulate in the repo root.
+For ad hoc demos or local testing, use `--outdir /tmp/<name>` so artifacts do not pile up in the
+repo root.
 
 ## Fixture Mode
 
@@ -195,7 +207,16 @@ ruff check .
 pytest
 ```
 
-CI enforces lint + unit/contract/smoke tests. Integration tests are opt-in.
+CI runs lint plus unit, contract, and smoke tests. Integration tests are opt-in.
+
+## Attribution
+
+AzureFox is inspired by [CloudFox](https://github.com/BishopFox/cloudfox), created by Bishop Fox.
+The command model and operator workflow goals in this project are heavily shaped by CloudFox's
+approach to cloud situational awareness and attack-path-focused enumeration.
+
+This project is an independent implementation and is not affiliated with or endorsed by Bishop
+Fox.
 
 ## License
 
