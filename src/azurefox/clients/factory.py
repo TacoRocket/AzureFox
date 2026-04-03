@@ -40,7 +40,10 @@ def build_clients(session: AuthSession, requested_subscription: str | None) -> A
     except ImportError as exc:  # pragma: no cover - dependency surface
         raise AzureFoxError(
             ErrorKind.DEPENDENCY_MISSING,
-            "Missing Azure management SDK dependencies. Install with: pip install -e '.[azure]'",
+            (
+                "Missing Azure management SDK dependencies. Install AzureFox with its default "
+                "dependencies. From a local checkout, run: pip install -e ."
+            ),
         ) from exc
 
     sub_client = SubscriptionClient(session.credential)

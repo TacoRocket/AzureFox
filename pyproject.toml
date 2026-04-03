@@ -15,10 +15,6 @@ dependencies = [
   "pydantic>=2.8,<3",
   "typer>=0.12,<1",
   "rich>=13.7,<15",
-]
-
-[project.optional-dependencies]
-azure = [
   "azure-identity>=1.17,<2",
   "azure-mgmt-resource>=23.1,<24",
   "azure-mgmt-authorization>=4.0,<5",
@@ -33,6 +29,8 @@ azure = [
   "azure-mgmt-containerservice>=31.0,<32",
   "certifi>=2024.2,<2027",
 ]
+
+[project.optional-dependencies]
 dev = [
   "build>=1.2,<2",
   "pytest>=8.3,<9",

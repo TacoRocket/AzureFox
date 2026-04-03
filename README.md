@@ -52,12 +52,12 @@ Use a disposable subscription you control. It is risky on purpose.
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install 'azurefox[azure]'
+pip install azurefox
 azurefox --outdir /tmp/azurefox-demo whoami --output table
 azurefox --outdir /tmp/azurefox-demo all-checks --output table
 ```
 
-For local source-based development, use `pip install -e '.[dev,azure]'`.
+For local source-based development, use `pip install -e '.[dev]'`.
 
 ## CLI Invocation
 
@@ -75,27 +75,17 @@ Use `azurefox <command> --help` or `azurefox help <command>` for command-specifi
 
 ## Install Profiles
 
-AzureFox keeps the base install small and uses extras for live Azure collection and contributor
-tooling.
+AzureFox installs the live Azure runtime dependencies by default so `pip install azurefox` is ready
+for real Azure command execution.
 
 - `pip install azurefox`
-  installs the core CLI from PyPI without the live Azure SDK dependencies; useful for help output,
-  packaging work, or fixture-based development
+  installs the normal operator profile from PyPI, including the Azure SDK dependencies used by the
+  implemented live commands
 - `pip install -e .`
-  installs the core CLI only; useful for help output, packaging work, or fixture-based development
-- `pip install 'azurefox[azure]'`
-  installs AzureFox plus the Azure SDK dependencies needed for live Azure command execution; this
-  is the normal operator profile
-- `pip install -e '.[azure]'`
-  installs the Azure SDK dependencies needed for live Azure command execution from a local checkout
+  installs the same live Azure command profile from a local checkout
 - `pip install -e '.[dev]'`
-  installs lint, test, and type-check tooling without the live Azure SDK dependencies
-- `pip install -e '.[dev,azure]'`
-  installs both contributor tooling and the live Azure SDK bundle; this is the normal repo
-  development profile
-
-The current `azure` extra installs the full SDK bundle used by the implemented live commands rather
-than splitting dependencies per command.
+  installs contributor tooling on top of the default live Azure dependencies; this is the normal
+  repo development profile
 
 ## Auth Precedence
 
@@ -202,7 +192,7 @@ AZUREFOX_FIXTURE_DIR=tests/fixtures/lab_tenant azurefox rbac --output json
 ## Development
 
 ```bash
-pip install -e .[dev,azure]
+pip install -e '.[dev]'
 ruff check .
 pytest
 ```

@@ -29,7 +29,7 @@ Use semantic versioning (`MAJOR.MINOR.PATCH`).
 6. Optionally smoke-test the live Azure dependency profile from source:
    ```bash
    python3 -m venv /tmp/azurefox-release-live-venv
-   /tmp/azurefox-release-live-venv/bin/pip install -e '.[azure]'
+   /tmp/azurefox-release-live-venv/bin/pip install -e .
    /tmp/azurefox-release-live-venv/bin/azurefox help
    ```
 7. Tag release:

@@ -13,12 +13,12 @@
 - Hardened truthfulness across trust, workload, endpoint, and storage outputs so commands do not
   imply stronger proof than the current read path supports.
 - Improved `all-checks` help and README guidance to set longer-runtime expectations clearly.
-- Tightened release packaging metadata and install guidance for the public `azure` dependency
-  profile.
+- Tightened release packaging metadata and install guidance for the public Azure runtime
+  dependencies.
 
 ### Fixed
 - Normalized ARM ID joins used by `network-ports`, `workloads`, and related endpoint correlation
   so live joins stay stable across casing differences.
-- Corrected the Azure extras packaging constraint for `azure-mgmt-sql` so fresh
-  `pip install -e '.[azure]'` installs succeed on the stable package index.
+- Corrected the Azure runtime packaging constraint for `azure-mgmt-sql` so fresh installs succeed
+  on the stable package index.
 - Added CI gitleaks scanning and tokenless Trusted Publishing workflow support.
