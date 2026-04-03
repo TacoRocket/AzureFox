@@ -14,7 +14,7 @@ authors = [{ name = "AzureFox Contributors" }]
 dependencies = [
   "pydantic>=2.8,<3",
   "typer>=0.12,<1",
-  "rich>=13.7,<14",
+  "rich>=13.7,<15",
 ]
 
 [project.optional-dependencies]
