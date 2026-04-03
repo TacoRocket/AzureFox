@@ -50,7 +50,11 @@ Why it should be separate:
 
 What this future follow-on could absorb:
 
-- an explicit `role-trusts` collection mode split such as broad/default versus seeded/fast
+- an explicit `role-trusts` collection mode split such as seeded/fast by default versus
+  broad/explicit for slower full trust-edge enumeration
+- alignment between single-command and orchestration behavior so `azurefox role-trusts` and
+  `azurefox all-checks --section identity` can both stay on the quicker seeded sweep unless the
+  operator explicitly asks for the broader pass
 - clearer large-tenant handling for Graph pagination, throttling, and wait behavior
 - more explicit issue surfacing when broad trust enumeration is only partially readable
 - operator-facing wording that makes the coverage tradeoff obvious when a narrower mode is chosen
@@ -231,6 +235,28 @@ Why it is not a near-term priority:
 
 - current evidence is still operator-signal metadata, not content analysis
 - broadening this too early risks duplicating or overcomplicating the Phase 2 deployment slices
+
+### `cross-platform-ux`
+
+Why it is grounded now:
+
+- AzureFox itself is Python-first and mostly uses portable path handling and file I/O already
+- the current product can be run from non-Mac environments even though most authoring and examples
+  have been Mac/Linux oriented so far
+
+Why it should be separate:
+
+- this is mostly a packaging, docs, and operator-expectation follow-on rather than a new command
+  surface
+- the immediate value is clearer platform compatibility signaling, not expanding Azure coverage
+
+What this future follow-on could absorb:
+
+- clearer operator-facing wording about what AzureFox supports across macOS, Linux, and Windows
+- documentation examples for Windows shell and temp-path equivalents where helpful
+- a lightweight compatibility note that separates repo-maintainer workflows from end-user CLI
+  portability
+- targeted cleanup of any accidental machine-specific assumptions that show up during live usage
 
 ## Candidates To Leave Out For Now
 

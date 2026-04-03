@@ -26,6 +26,9 @@ SUBSCRIPTION_OPTION = typer.Option(None, "--subscription", help="Azure subscript
 OUTPUT_OPTION = typer.Option(OutputMode.TABLE, "--output", help="Output format")
 OUTDIR_OPTION = typer.Option(Path("."), "--outdir", help="Output directory")
 DEBUG_OPTION = typer.Option(False, "--debug", help="Enable verbose error output")
+HELP_FLAGS = {"-h", "--help"}
+GLOBAL_OPTIONS_WITH_VALUES = {"--tenant", "--subscription", "--output", "--outdir"}
+GLOBAL_FLAG_OPTIONS = {"--debug"}
 SECTION_OPTION = typer.Option(
     None,
     "--section",
@@ -313,9 +316,69 @@ def _normalize_argv(argv: list[str]) -> list[str]:
     if len(argv) < 2:
         return argv
 
-    if argv[1] in {"-h", "--help"}:
+    if argv[1] in HELP_FLAGS:
         if len(argv) == 2:
             return [argv[0], "help"]
         return [argv[0], "help", argv[2]]
 
+    if len(argv) >= 3 and argv[2] in HELP_FLAGS and _is_help_topic(argv[1]):
+        return [argv[0], "help", argv[1]]
+
+    if argv[1] in _command_names():
+        return _normalize_command_global_options(argv)
+
     return argv
+
+
+def _normalize_command_global_options(argv: list[str]) -> list[str]:
+    normalized = [argv[0]]
+    global_args: list[str] = []
+    command_args = [argv[1]]
+    moved_global = False
+    index = 2
+
+    while index < len(argv):
+        arg = argv[index]
+
+        if arg in GLOBAL_FLAG_OPTIONS:
+            global_args.append(arg)
+            moved_global = True
+            index += 1
+            continue
+
+        if arg in GLOBAL_OPTIONS_WITH_VALUES:
+            if index + 1 >= len(argv):
+                return argv
+            global_args.extend([arg, argv[index + 1]])
+            moved_global = True
+            index += 2
+            continue
+
+        matched_value_option = False
+        for option in GLOBAL_OPTIONS_WITH_VALUES:
+            if arg.startswith(f"{option}="):
+                global_args.append(arg)
+                moved_global = True
+                index += 1
+                matched_value_option = True
+                break
+        if matched_value_option:
+            continue
+
+        command_args.append(arg)
+        index += 1
+
+    if not moved_global:
+        return argv
+
+    normalized.extend(global_args)
+    normalized.extend(command_args)
+    return normalized
+
+
+def _command_names() -> set[str]:
+    return {spec.name for spec in get_command_specs()} | {"all-checks"}
+
+
+def _is_help_topic(token: str) -> bool:
+    return token in _command_names() or token in SECTION_NAMES
