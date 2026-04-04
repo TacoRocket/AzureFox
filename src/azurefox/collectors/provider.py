@@ -686,6 +686,62 @@ class AzureProvider(BaseProvider):
         except Exception as exc:
             issues.append(_issue_from_exception("dns.resources", exc))
 
+        private_zone_reference_ids: dict[str, set[str]] = {}
+        try:
+            for private_endpoint in self.clients.network.private_endpoints.list_by_subscription():
+                private_endpoint_id = getattr(private_endpoint, "id", "") or ""
+                private_endpoint_name = getattr(private_endpoint, "name", None)
+                resource_group = _resource_group_from_id(private_endpoint_id)
+                if not private_endpoint_name or not resource_group:
+                    continue
+
+                try:
+                    for zone_group in self.clients.network.private_dns_zone_groups.list(
+                        private_endpoint_name,
+                        resource_group,
+                    ):
+                        for zone_config in (
+                            getattr(zone_group, "private_dns_zone_configs", None) or []
+                        ):
+                            zone_id = _arm_id_join_key(
+                                getattr(zone_config, "private_dns_zone_id", None)
+                            )
+                            if not zone_id:
+                                continue
+                            private_zone_reference_ids.setdefault(zone_id, set()).add(
+                                private_endpoint_id
+                            )
+                except Exception as exc:
+                    issues.append(
+                        _issue_from_exception(
+                            f"dns.private_dns_zone_groups[{resource_group}/{private_endpoint_name}]",
+                            exc,
+                        )
+                    )
+        except Exception as exc:
+            issues.append(_issue_from_exception("dns.private_endpoints", exc))
+
+        for zone in dns_zones:
+            if zone.get("zone_kind") != "private":
+                continue
+            zone_id = _arm_id_join_key(zone.get("id"))
+            private_endpoint_ids = sorted(private_zone_reference_ids.get(zone_id, set()))
+            zone["private_endpoint_reference_count"] = len(private_endpoint_ids)
+            zone["summary"] = _dns_zone_operator_summary(
+                zone_name=str(zone.get("name") or "unknown"),
+                zone_kind="private",
+                record_set_count=zone.get("record_set_count"),
+                name_server_count=len(zone.get("name_servers", [])),
+                linked_virtual_network_count=zone.get("linked_virtual_network_count"),
+                registration_virtual_network_count=zone.get(
+                    "registration_virtual_network_count"
+                ),
+                private_endpoint_reference_count=zone.get("private_endpoint_reference_count"),
+            )
+            zone["related_ids"] = _dedupe_strings(
+                [*zone.get("related_ids", []), *private_endpoint_ids]
+            )
+
         dns_zones.sort(
             key=lambda item: (
                 item.get("zone_kind") != "public",
@@ -1656,8 +1712,32 @@ class AzureProvider(BaseProvider):
                         "location": getattr(account, "location", None),
                         "public_access": public_access,
                         "anonymous_access_indicators": indicators,
+                        "public_network_access": _string_value(
+                            getattr(account, "public_network_access", None)
+                        ),
                         "network_default_action": default_action,
                         "private_endpoint_enabled": len(private_endpoints) > 0,
+                        "allow_shared_key_access": _bool_or_none(
+                            getattr(account, "allow_shared_key_access", None)
+                        ),
+                        "minimum_tls_version": _string_value(
+                            getattr(account, "minimum_tls_version", None)
+                        ),
+                        "https_traffic_only_enabled": _bool_or_none(
+                            getattr(account, "enable_https_traffic_only", None)
+                        ),
+                        "is_hns_enabled": _bool_or_none(
+                            getattr(account, "is_hns_enabled", None)
+                        ),
+                        "is_sftp_enabled": _bool_or_none(
+                            getattr(account, "is_sftp_enabled", None)
+                        ),
+                        "nfs_v3_enabled": _bool_or_none(
+                            getattr(account, "enable_nfs_v3", None)
+                        ),
+                        "dns_endpoint_type": _string_value(
+                            getattr(account, "dns_endpoint_type", None)
+                        ),
                         "container_count": container_count,
                         "file_share_count": share_count,
                         "queue_count": queue_count,
@@ -2305,6 +2385,12 @@ def _string_value(value: object) -> str | None:
     if value is None:
         return None
     return str(getattr(value, "value", value))
+
+
+def _bool_or_none(value: object) -> bool | None:
+    if value is None:
+        return None
+    return bool(value)
 
 
 def _normalized_arm_enum(value: object) -> str | None:
@@ -3453,6 +3539,7 @@ def _dns_zone_summary(resource: object, *, zone_kind: str) -> dict:
         "name_servers": name_servers,
         "linked_virtual_network_count": linked_virtual_network_count,
         "registration_virtual_network_count": registration_virtual_network_count,
+        "private_endpoint_reference_count": None,
         "summary": _dns_zone_operator_summary(
             zone_name=zone_name,
             zone_kind=zone_kind,
@@ -3460,6 +3547,7 @@ def _dns_zone_summary(resource: object, *, zone_kind: str) -> dict:
             name_server_count=len(name_servers),
             linked_virtual_network_count=linked_virtual_network_count,
             registration_virtual_network_count=registration_virtual_network_count,
+            private_endpoint_reference_count=None,
         ),
         "related_ids": [resource_id] if resource_id else [],
     }
@@ -3473,6 +3561,7 @@ def _dns_zone_operator_summary(
     name_server_count: int,
     linked_virtual_network_count: int | None,
     registration_virtual_network_count: int | None,
+    private_endpoint_reference_count: int | None,
 ) -> str:
     inventory_phrase = (
         f"shows {record_set_count} visible record set(s)"
@@ -3494,6 +3583,10 @@ def _dns_zone_operator_summary(
     if registration_virtual_network_count is not None:
         link_parts.append(
             f"{registration_virtual_network_count} registration-enabled link(s)"
+        )
+    if private_endpoint_reference_count is not None:
+        link_parts.append(
+            f"{private_endpoint_reference_count} visible private endpoint reference(s)"
         )
 
     namespace_phrase = (

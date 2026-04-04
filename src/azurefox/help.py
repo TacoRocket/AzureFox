@@ -181,6 +181,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "name_servers",
             "linked_virtual_network_count",
             "registration_virtual_network_count",
+            "private_endpoint_reference_count",
         ),
         attack_leads=(
             AttackLead("Discovery", "Cloud Service Discovery"),
@@ -709,13 +710,18 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "look for accessible data next?"
         ),
         cloudfox_frame=(
-            "CloudFox-style storage triage with Azure storage-specific exposure signals."
+            "CloudFox-style storage triage with Azure storage-specific exposure, auth, and "
+            "transport posture signals."
         ),
         output_highlights=(
             "public_access",
+            "public_network_access",
             "network_default_action",
+            "allow_shared_key_access",
+            "minimum_tls_version",
+            "https_traffic_only_enabled",
             "private_endpoint_enabled",
-            "findings",
+            "is_hns_enabled",
         ),
         attack_leads=(
             AttackLead("Discovery", "Cloud Storage Object Discovery"),

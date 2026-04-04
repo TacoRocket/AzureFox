@@ -164,8 +164,10 @@ def test_dns_table_mode_surfaces_zone_inventory_and_namespace_context(tmp_path: 
     assert "records=9/10000" in result.stdout
     assert "ns=4" in result.stdout
     assert "vnet-links=2" in result.stdout
+    assert "pe-refs=2" in result.stdout
     assert (
-        "Takeaway: 3 DNS zones visible; 2 public, 1 private, and 19 record sets are visible."
+        "Takeaway: 3 DNS zones visible; 2 public, 1 private, 1 private zone(s) show visible "
+        "private endpoint references, and 19 record sets are visible."
         in result.stdout
     )
 
@@ -604,6 +606,71 @@ def test_dns_collection_issue_surfaces_in_table_output() -> None:
     assert "Collection issues:" in rendered
     assert "permission_denied" in rendered
     assert "dns.resources" in rendered
+
+
+def test_dns_table_surfaces_private_endpoint_reference_count() -> None:
+    payload = {
+        "metadata": {"command": "dns"},
+        "dns_zones": [
+            {
+                "name": "privatelink.database.windows.net",
+                "zone_kind": "private",
+                "record_set_count": 6,
+                "max_record_set_count": 25000,
+                "linked_virtual_network_count": 2,
+                "registration_virtual_network_count": 1,
+                "private_endpoint_reference_count": 2,
+                "summary": "test",
+            }
+        ],
+        "findings": [],
+        "issues": [],
+    }
+    rendered = render_table("dns", payload)
+
+    assert "namespace" in rendered
+    assert "pe-refs=2" in rendered
+    assert "private zone(s) show visible private endpoint references" in rendered
+
+
+def test_storage_table_surfaces_depth_columns() -> None:
+    payload = {
+        "metadata": {"command": "storage"},
+        "storage_assets": [
+            {
+                "name": "stlabpub01",
+                "resource_group": "rg-data",
+                "public_access": True,
+                "public_network_access": "Enabled",
+                "network_default_action": "Allow",
+                "private_endpoint_enabled": False,
+                "allow_shared_key_access": True,
+                "minimum_tls_version": "TLS1_0",
+                "https_traffic_only_enabled": False,
+                "is_hns_enabled": False,
+                "is_sftp_enabled": False,
+                "nfs_v3_enabled": False,
+                "dns_endpoint_type": "Standard",
+                "container_count": 3,
+                "file_share_count": 1,
+                "queue_count": 2,
+                "table_count": 0,
+            }
+        ],
+        "findings": [],
+        "issues": [],
+    }
+    rendered = render_table("storage", payload)
+
+    assert "auth / transport" in rendered
+    assert "protocols" in rendered
+    assert "blob-public=yes" in rendered
+    assert "public-net=enabled" in rendered
+    assert "shared-key=yes" in rendered
+    assert "https-only=no" in rendered
+    assert "dns=standard" in rendered
+    assert "blob=3" in rendered
+    assert "allow shared-key access" in rendered
 
 
 def test_functions_partial_read_surfaces_collection_issue() -> None:

@@ -103,6 +103,18 @@ def test_help_command_dns_topic() -> None:
     assert "private VNet-linked namespace context" in result.stdout
     assert "name_servers" in result.stdout
     assert "registration_virtual_network_count" in result.stdout
+    assert "private_endpoint_reference_count" in result.stdout
+
+
+def test_help_command_storage_topic() -> None:
+    result = runner.invoke(app, ["help", "storage"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: storage" in result.stdout
+    assert "public_network_access" in result.stdout
+    assert "allow_shared_key_access" in result.stdout
+    assert "minimum_tls_version" in result.stdout
+    assert "https_traffic_only_enabled" in result.stdout
 
 
 def test_help_command_network_effective_topic() -> None:

@@ -591,6 +591,7 @@ def test_collect_dns(fixture_provider, options) -> None:
     assert output.dns_zones[2].zone_kind == "private"
     assert output.dns_zones[2].linked_virtual_network_count == 2
     assert output.dns_zones[2].registration_virtual_network_count == 1
+    assert output.dns_zones[2].private_endpoint_reference_count == 2
 
 
 def test_collect_dns_keeps_command_level_issue_explicit(
@@ -1299,6 +1300,10 @@ def test_collect_resource_trusts(fixture_provider, options) -> None:
 def test_collect_storage(fixture_provider, options) -> None:
     output = collect_storage(fixture_provider, options)
     assert len(output.storage_assets) == 2
+    assert output.storage_assets[0].public_network_access == "Disabled"
+    assert output.storage_assets[0].allow_shared_key_access is False
+    assert output.storage_assets[1].public_network_access == "Enabled"
+    assert output.storage_assets[1].minimum_tls_version == "TLS1_0"
     assert len(output.findings) == 2
 
 
@@ -1314,6 +1319,8 @@ def test_collect_storage_keeps_child_enumeration_failures_explicit(options) -> N
     output = collect_storage(provider, options)
 
     assert len(output.storage_assets) == 1
+    assert output.storage_assets[0].public_network_access is None
+    assert output.storage_assets[0].allow_shared_key_access is None
     assert output.storage_assets[0].container_count is None
     assert output.storage_assets[0].file_share_count is None
     assert len(output.issues) == 4

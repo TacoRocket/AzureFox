@@ -578,21 +578,19 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             [
                 ("name", "account"),
                 ("resource_group", "resource group"),
-                ("public_access", "public"),
-                ("network_default_action", "default action"),
-                ("private_endpoint_enabled", "private endpoint"),
-                ("container_count", "containers"),
+                ("exposure", "exposure"),
+                ("auth", "auth / transport"),
+                ("protocols", "protocols"),
+                ("inventory", "inventory"),
             ],
             [
                 {
                     "name": item.get("name"),
                     "resource_group": item.get("resource_group"),
-                    "public_access": _bool_text(item.get("public_access", False)),
-                    "network_default_action": item.get("network_default_action"),
-                    "private_endpoint_enabled": _bool_text(
-                        item.get("private_endpoint_enabled", False)
-                    ),
-                    "container_count": _optional_count_text(item.get("container_count")),
+                    "exposure": _storage_exposure_context(item),
+                    "auth": _storage_auth_context(item),
+                    "protocols": _storage_protocol_context(item),
+                    "inventory": _storage_inventory_context(item),
                 }
                 for item in payload.get("storage_assets", [])
             ],
@@ -766,9 +764,15 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
     if command == "storage":
         assets = payload.get("storage_assets", [])
         public_assets = sum(bool(item.get("public_access")) for item in assets)
+        public_network_assets = sum(
+            str(item.get("public_network_access") or "").lower() == "enabled"
+            for item in assets
+        )
+        shared_key_assets = sum(item.get("allow_shared_key_access") is True for item in assets)
         return (
             f"{len(assets)} storage accounts visible; "
-            f"{public_assets} have public blob access enabled."
+            f"{public_assets} allow public blob access, {public_network_assets} keep public "
+            f"network access enabled, and {shared_key_assets} allow shared-key access."
         )
 
     if command == "keyvault":
@@ -906,6 +910,9 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         dns_zones = payload.get("dns_zones", [])
         public_zones = sum(item.get("zone_kind") == "public" for item in dns_zones)
         private_zones = sum(item.get("zone_kind") == "private" for item in dns_zones)
+        private_endpoint_linked = sum(
+            (item.get("private_endpoint_reference_count") or 0) > 0 for item in dns_zones
+        )
         record_counts = [item.get("record_set_count") for item in dns_zones]
         readable_records = sum(count for count in record_counts if isinstance(count, int))
         if record_counts and any(count is None for count in record_counts):
@@ -922,7 +929,8 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             record_phrase = f"{readable_records} record sets are visible"
         return (
             f"{len(dns_zones)} DNS zones visible; {public_zones} public, {private_zones} "
-            f"private, and {record_phrase}."
+            f"private, {private_endpoint_linked} private zone(s) show visible private endpoint "
+            f"references, and {record_phrase}."
         )
 
     if command == "network-effective":
@@ -1311,6 +1319,72 @@ def _dns_namespace_context(item: dict) -> str:
         parts.append(f"vnet-links={item.get('linked_virtual_network_count')}")
     if item.get("registration_virtual_network_count") is not None:
         parts.append(f"reg-links={item.get('registration_virtual_network_count')}")
+    if item.get("private_endpoint_reference_count") is not None:
+        parts.append(f"pe-refs={item.get('private_endpoint_reference_count')}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _storage_exposure_context(item: dict) -> str:
+    parts = [f"blob-public={'yes' if item.get('public_access') else 'no'}"]
+    if item.get("public_network_access"):
+        parts.append(f"public-net={str(item.get('public_network_access')).lower()}")
+    if item.get("network_default_action"):
+        parts.append(f"default={item.get('network_default_action')}")
+    parts.append(f"private-endpoint={'yes' if item.get('private_endpoint_enabled') else 'no'}")
+    return "; ".join(parts)
+
+
+def _storage_auth_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("allow_shared_key_access") is True:
+        parts.append("shared-key=yes")
+    elif item.get("allow_shared_key_access") is False:
+        parts.append("shared-key=no")
+    if item.get("minimum_tls_version"):
+        parts.append(f"tls={item.get('minimum_tls_version')}")
+    if item.get("https_traffic_only_enabled") is True:
+        parts.append("https-only=yes")
+    elif item.get("https_traffic_only_enabled") is False:
+        parts.append("https-only=no")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _storage_protocol_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("is_hns_enabled") is True:
+        parts.append("hns=yes")
+    elif item.get("is_hns_enabled") is False:
+        parts.append("hns=no")
+    if item.get("is_sftp_enabled") is True:
+        parts.append("sftp=yes")
+    elif item.get("is_sftp_enabled") is False:
+        parts.append("sftp=no")
+    if item.get("nfs_v3_enabled") is True:
+        parts.append("nfs=yes")
+    elif item.get("nfs_v3_enabled") is False:
+        parts.append("nfs=no")
+    if item.get("dns_endpoint_type"):
+        parts.append(f"dns={str(item.get('dns_endpoint_type')).lower()}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _storage_inventory_context(item: dict) -> str:
+    parts: list[str] = []
+    for key, label in (
+        ("container_count", "blob"),
+        ("file_share_count", "file"),
+        ("queue_count", "queue"),
+        ("table_count", "table"),
+    ):
+        value = item.get(key)
+        if value is not None:
+            parts.append(f"{label}={value}")
     if not parts:
         return "-"
     return "; ".join(parts)

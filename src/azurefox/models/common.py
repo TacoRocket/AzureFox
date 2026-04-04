@@ -226,8 +226,16 @@ class StorageAsset(BaseModel):
     location: str | None = None
     public_access: bool = False
     anonymous_access_indicators: list[str] = Field(default_factory=list)
+    public_network_access: str | None = None
     network_default_action: str | None = None
     private_endpoint_enabled: bool = False
+    allow_shared_key_access: bool | None = None
+    minimum_tls_version: str | None = None
+    https_traffic_only_enabled: bool | None = None
+    is_hns_enabled: bool | None = None
+    is_sftp_enabled: bool | None = None
+    nfs_v3_enabled: bool | None = None
+    dns_endpoint_type: str | None = None
     container_count: int | None = None
     file_share_count: int | None = None
     queue_count: int | None = None
@@ -502,6 +510,7 @@ class DnsZoneAsset(BaseModel):
     name_servers: list[str] = Field(default_factory=list)
     linked_virtual_network_count: int | None = None
     registration_virtual_network_count: int | None = None
+    private_endpoint_reference_count: int | None = None
     summary: str
     related_ids: list[str] = Field(default_factory=list)
 
