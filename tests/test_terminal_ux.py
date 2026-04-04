@@ -197,6 +197,34 @@ def test_dns_table_mode_surfaces_zone_inventory_and_namespace_context(tmp_path: 
     )
 
 
+def test_vmss_table_mode_surfaces_identity_and_frontend_cues(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "vmss"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Reviewing Virtual Machine Scale Sets (VMSS) for fleet posture, identity, and "
+        "frontend network cues."
+        in result.stdout
+    )
+    assert "scale set" in result.stdout
+    assert "location" in result.stdout
+    assert "vmss-edge-01" in result.stdout
+    assert "eastus" in result.stdout
+    assert "instances=6" in result.stdout
+    assert "Uniform" in result.stdout
+    assert "public-ip=1" in result.stdout
+    assert "subnet=app" in result.stdout
+    normalized_output = " ".join(result.stdout.split())
+    assert (
+        "Takeaway: 2 VM scale sets visible; 1 show public frontend cues, 1 carry managed "
+        "identity context, and 8 configured instances are visible."
+    ) in normalized_output
+
+
 def test_aks_table_mode_surfaces_endpoint_and_auth_posture(tmp_path: Path) -> None:
     result = runner.invoke(
         app,
@@ -320,8 +348,8 @@ def test_workloads_table_mode_surfaces_joined_workload_context(tmp_path: Path) -
     assert "UserAssigned" in result.stdout
     assert "vm-web-01" in result.stdout
     assert (
-        "Takeaway: 5 workloads visible; 4 with visible endpoint paths, 4 with identity context, "
-        "across 2 compute and 3 web assets." in result.stdout
+        "Takeaway: 6 workloads visible; 4 with visible endpoint paths, 5 with identity context, "
+        "across 3 compute and 3 web assets." in result.stdout
     )
 
 
@@ -459,7 +487,7 @@ def test_tokens_credentials_table_mode_surfaces_findings_and_takeaway(tmp_path: 
     assert "operator signal" in result.stdout
     assert "plain-text-secret" in result.stdout
     assert "deployment-history" in result.stdout
-    assert "Takeaway: 11 token or credential surfaces across 6 assets;" in result.stdout
+    assert "Takeaway: 12 token or credential surfaces across 7 assets;" in result.stdout
 
 
 def test_auth_policies_partial_read_surfaces_collection_issue() -> None:

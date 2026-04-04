@@ -331,6 +331,33 @@ class VmAsset(BaseModel):
     nic_ids: list[str] = Field(default_factory=list)
 
 
+class VmssAsset(BaseModel):
+    id: str
+    name: str
+    resource_group: str | None = None
+    location: str | None = None
+    sku_name: str | None = None
+    instance_count: int | None = None
+    orchestration_mode: str | None = None
+    upgrade_mode: str | None = None
+    overprovision: bool | None = None
+    single_placement_group: bool | None = None
+    zone_balance: bool | None = None
+    zones: list[str] = Field(default_factory=list)
+    identity_type: str | None = None
+    principal_id: str | None = None
+    client_id: str | None = None
+    identity_ids: list[str] = Field(default_factory=list)
+    subnet_ids: list[str] = Field(default_factory=list)
+    nic_configuration_count: int = 0
+    public_ip_configuration_count: int = 0
+    load_balancer_backend_pool_count: int = 0
+    application_gateway_backend_pool_count: int = 0
+    inbound_nat_pool_count: int = 0
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class WorkloadSummary(BaseModel):
     asset_id: str
     asset_name: str

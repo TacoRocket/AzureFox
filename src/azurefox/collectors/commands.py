@@ -40,6 +40,7 @@ from azurefox.models.commands import (
     StorageOutput,
     TokensCredentialsOutput,
     VmsOutput,
+    VmssOutput,
     WhoAmIOutput,
     WorkloadsOutput,
 )
@@ -103,6 +104,11 @@ def collect_dns(provider: BaseProvider, options: GlobalOptions) -> DnsOutput:
         data.get("dns_zones", []),
         key=lambda item: (
             item.get("zone_kind") != "public",
+            -_int_or_zero(len(item.get("name_servers", []) or [])),
+            -_int_or_zero(item.get("private_endpoint_reference_count")),
+            -_int_or_zero(item.get("linked_virtual_network_count")),
+            -_int_or_zero(item.get("registration_virtual_network_count")),
+            -_int_or_zero(item.get("record_set_count")),
             item.get("name") or "",
         ),
     )
@@ -152,11 +158,23 @@ def collect_aks(provider: BaseProvider, options: GlobalOptions) -> AksOutput:
 
 def collect_api_mgmt(provider: BaseProvider, options: GlobalOptions) -> ApiMgmtOutput:
     data = provider.api_mgmt()
+    api_management_services = sorted(
+        data.get("api_management_services", []),
+        key=lambda item: (
+            not _api_mgmt_priority(item),
+            -_int_or_zero(item.get("named_value_secret_count")),
+            -_int_or_zero(item.get("named_value_key_vault_count")),
+            -_int_or_zero(item.get("subscription_count")),
+            -len(item.get("backend_hostnames", []) or []),
+            item.get("name") or "",
+        ),
+    )
     return ApiMgmtOutput.model_validate(
         {
             "metadata": _metadata(provider, "api-mgmt", options),
             "findings": [],
             **data,
+            "api_management_services": api_management_services,
         }
     )
 
@@ -339,6 +357,15 @@ def collect_managed_identities(
 
 def collect_keyvault(provider: BaseProvider, options: GlobalOptions) -> KeyVaultOutput:
     data = provider.keyvault()
+    key_vaults = sorted(
+        data.get("key_vaults", []),
+        key=lambda item: (
+            _keyvault_priority_rank(item),
+            item.get("name") or "",
+            item.get("id") or "",
+        ),
+    )
+    data = {**data, "key_vaults": key_vaults}
     findings = build_keyvault_findings(data.get("key_vaults", []))
     return KeyVaultOutput.model_validate(
         {"metadata": _metadata(provider, "keyvault", options), "findings": findings, **data}
@@ -431,6 +458,30 @@ def collect_vms(provider: BaseProvider, options: GlobalOptions) -> VmsOutput:
     )
 
 
+def collect_vmss(provider: BaseProvider, options: GlobalOptions) -> VmssOutput:
+    data = provider.vmss()
+    vmss_assets = sorted(
+        data.get("vmss_assets", []),
+        key=lambda item: (
+            not _vmss_has_frontend_priority(item),
+            not bool(item.get("identity_type")),
+            -_int_or_zero(item.get("public_ip_configuration_count")),
+            -_int_or_zero(item.get("instance_count")),
+            _vmss_orchestration_rank(item.get("orchestration_mode")),
+            _vmss_upgrade_rank(item.get("upgrade_mode")),
+            item.get("name") or "",
+        ),
+    )
+    return VmssOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "vmss", options),
+            "findings": [],
+            **data,
+            "vmss_assets": vmss_assets,
+        }
+    )
+
+
 def _metadata(
     provider: BaseProvider,
     command: str,
@@ -463,3 +514,54 @@ def _priority_sort_value(item: dict) -> int:
     if item.get("asset_kind") == "snapshot":
         score -= 1
     return score
+
+
+def _keyvault_priority_rank(item: dict) -> tuple[int, int, int]:
+    public_enabled = str(item.get("public_network_access") or "").lower() == "enabled"
+    default_action = str(item.get("network_default_action") or "").lower()
+    private_endpoint_enabled = bool(item.get("private_endpoint_enabled"))
+
+    if public_enabled and not default_action and not private_endpoint_enabled:
+        exposure_rank = 0
+    elif public_enabled and default_action == "allow":
+        exposure_rank = 1
+    elif public_enabled and not private_endpoint_enabled:
+        exposure_rank = 2
+    elif public_enabled:
+        exposure_rank = 3
+    else:
+        exposure_rank = 4
+
+    purge_rank = 0 if item.get("purge_protection_enabled") is False else 1
+    auth_rank = 0 if item.get("enable_rbac_authorization") is False else 1
+    return exposure_rank, purge_rank, auth_rank
+
+
+def _api_mgmt_priority(item: dict) -> bool:
+    return bool(item.get("gateway_hostnames")) or (
+        str(item.get("public_network_access") or "").lower() == "enabled"
+    )
+
+
+def _vmss_has_frontend_priority(item: dict) -> bool:
+    return any(
+        _int_or_zero(item.get(key)) > 0
+        for key in (
+            "public_ip_configuration_count",
+            "inbound_nat_pool_count",
+            "load_balancer_backend_pool_count",
+            "application_gateway_backend_pool_count",
+        )
+    )
+
+
+def _vmss_orchestration_rank(value: object) -> int:
+    return {"Flexible": 0, "Uniform": 1}.get(str(value or ""), 9)
+
+
+def _vmss_upgrade_rank(value: object) -> int:
+    return {"Manual": 0, "Rolling": 1, "Automatic": 2}.get(str(value or ""), 9)
+
+
+def _int_or_zero(value: object) -> int:
+    return value if isinstance(value, int) else 0

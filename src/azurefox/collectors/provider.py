@@ -200,6 +200,10 @@ class BaseProvider(ABC):
     def vms(self) -> dict:
         raise NotImplementedError
 
+    @abstractmethod
+    def vmss(self) -> dict:
+        raise NotImplementedError
+
 
 class FixtureProvider(BaseProvider):
     def __init__(self, fixture_dir: Path) -> None:
@@ -308,6 +312,9 @@ class FixtureProvider(BaseProvider):
 
     def vms(self) -> dict:
         return self._read("vms")
+
+    def vmss(self) -> dict:
+        return self._read("vmss")
 
 
 class AzureProvider(BaseProvider):
@@ -1976,6 +1983,20 @@ class AzureProvider(BaseProvider):
             issues.append(_issue_from_exception("vms", exc))
 
         return {"vm_assets": vm_assets, "issues": issues}
+
+    def vmss(self) -> dict:
+        vmss_assets: list[dict] = []
+        issues: list[dict] = []
+
+        try:
+            for vmss in self.clients.compute.virtual_machine_scale_sets.list_all():
+                vmss_asset, vmss_issues = _vmss_summary(vmss)
+                vmss_assets.append(vmss_asset)
+                issues.extend(vmss_issues)
+        except Exception as exc:
+            issues.append(_issue_from_exception("vmss", exc))
+
+        return {"vmss_assets": vmss_assets, "issues": issues}
 
     def nics(self) -> dict:
         nic_assets: list[dict] = []
@@ -5369,3 +5390,361 @@ def _extract_power_state(vm: object) -> str | None:
         if isinstance(code, str) and code.startswith("PowerState/"):
             return code.replace("PowerState/", "", 1)
     return None
+
+
+def _vmss_summary(vmss: object) -> tuple[dict, list[dict]]:
+    vmss_id = getattr(vmss, "id", "") or ""
+    vmss_name = getattr(vmss, "name", "unknown")
+    identity = getattr(vmss, "identity", None)
+    sku = getattr(vmss, "sku", None)
+    upgrade_policy = getattr(vmss, "upgrade_policy", None)
+
+    identity_ids: list[str] = []
+    if identity is not None:
+        if getattr(identity, "principal_id", None):
+            identity_ids.append(f"{vmss_id}/identities/system")
+        user_assigned = getattr(identity, "user_assigned_identities", None) or {}
+        identity_ids.extend(user_assigned.keys())
+
+    network_cues = _vmss_network_cues(vmss, vmss_id=vmss_id, vmss_name=vmss_name)
+    zones = _dedupe_strings(getattr(vmss, "zones", None) or [])
+    sku_name = _string_value(getattr(sku, "name", None))
+    instance_count = _int_value(getattr(sku, "capacity", None))
+    orchestration_mode = _string_value(getattr(vmss, "orchestration_mode", None))
+    upgrade_mode = _string_value(getattr(upgrade_policy, "mode", None))
+    identity_type = _string_value(getattr(identity, "type", None))
+    principal_id = _string_value(getattr(identity, "principal_id", None))
+    client_id = _string_value(getattr(identity, "client_id", None))
+
+    summary = _vmss_operator_summary(
+        vmss_name=vmss_name,
+        sku_name=sku_name,
+        instance_count=instance_count,
+        orchestration_mode=orchestration_mode,
+        upgrade_mode=upgrade_mode,
+        overprovision=_bool_or_none(getattr(vmss, "overprovision", None)),
+        single_placement_group=_bool_or_none(getattr(vmss, "single_placement_group", None)),
+        zone_balance=_bool_or_none(getattr(vmss, "zone_balance", None)),
+        zones=zones,
+        identity_type=identity_type,
+        nic_configuration_count=network_cues["nic_configuration_count"],
+        subnet_ids=network_cues["subnet_ids"],
+        public_ip_configuration_count=network_cues["public_ip_configuration_count"],
+        load_balancer_backend_pool_count=network_cues["load_balancer_backend_pool_count"],
+        application_gateway_backend_pool_count=network_cues[
+            "application_gateway_backend_pool_count"
+        ],
+        inbound_nat_pool_count=network_cues["inbound_nat_pool_count"],
+        network_detail_complete=bool(network_cues["network_detail_complete"]),
+    )
+
+    return (
+        {
+            "id": vmss_id or f"/unknown/{vmss_name}",
+            "name": vmss_name,
+            "resource_group": _resource_group_from_id(vmss_id),
+            "location": getattr(vmss, "location", None),
+            "sku_name": sku_name,
+            "instance_count": instance_count,
+            "orchestration_mode": orchestration_mode,
+            "upgrade_mode": upgrade_mode,
+            "overprovision": _bool_or_none(getattr(vmss, "overprovision", None)),
+            "single_placement_group": _bool_or_none(
+                getattr(vmss, "single_placement_group", None)
+            ),
+            "zone_balance": _bool_or_none(getattr(vmss, "zone_balance", None)),
+            "zones": zones,
+            "identity_type": identity_type,
+            "principal_id": principal_id,
+            "client_id": client_id,
+            "identity_ids": _dedupe_strings(identity_ids),
+            "subnet_ids": network_cues["subnet_ids"],
+            "nic_configuration_count": network_cues["nic_configuration_count"],
+            "public_ip_configuration_count": network_cues["public_ip_configuration_count"],
+            "load_balancer_backend_pool_count": network_cues[
+                "load_balancer_backend_pool_count"
+            ],
+            "application_gateway_backend_pool_count": network_cues[
+                "application_gateway_backend_pool_count"
+            ],
+            "inbound_nat_pool_count": network_cues["inbound_nat_pool_count"],
+            "summary": summary,
+            "related_ids": _dedupe_strings(
+                [
+                    vmss_id,
+                    principal_id,
+                    *identity_ids,
+                    *network_cues["subnet_ids"],
+                    *network_cues["load_balancer_backend_pool_ids"],
+                    *network_cues["application_gateway_backend_pool_ids"],
+                    *network_cues["inbound_nat_pool_ids"],
+                ]
+            ),
+        },
+        list(network_cues["issues"]),
+    )
+
+
+def _vmss_network_cues(vmss: object, *, vmss_id: str, vmss_name: str) -> dict[str, object]:
+    virtual_machine_profile = getattr(vmss, "virtual_machine_profile", None)
+    if virtual_machine_profile is None:
+        return {
+            "subnet_ids": [],
+            "nic_configuration_count": 0,
+            "public_ip_configuration_count": 0,
+            "load_balancer_backend_pool_count": 0,
+            "application_gateway_backend_pool_count": 0,
+            "inbound_nat_pool_count": 0,
+            "load_balancer_backend_pool_ids": [],
+            "application_gateway_backend_pool_ids": [],
+            "inbound_nat_pool_ids": [],
+            "network_detail_complete": False,
+            "issues": [
+                _partial_collection_issue(
+                    "vmss.network_profile",
+                    (
+                        "VM scale set frontend and subnet details were not returned by the "
+                        "current SDK list response; frontend counts may be incomplete."
+                    ),
+                    asset_id=vmss_id,
+                    asset_name=vmss_name,
+                )
+            ],
+        }
+
+    network_profile = getattr(virtual_machine_profile, "network_profile", None)
+    if network_profile is None:
+        return {
+            "subnet_ids": [],
+            "nic_configuration_count": 0,
+            "public_ip_configuration_count": 0,
+            "load_balancer_backend_pool_count": 0,
+            "application_gateway_backend_pool_count": 0,
+            "inbound_nat_pool_count": 0,
+            "load_balancer_backend_pool_ids": [],
+            "application_gateway_backend_pool_ids": [],
+            "inbound_nat_pool_ids": [],
+            "network_detail_complete": False,
+            "issues": [
+                _partial_collection_issue(
+                    "vmss.network_profile",
+                    (
+                        "VM scale set network profile details were not returned by the current "
+                        "SDK list response; frontend counts may be incomplete."
+                    ),
+                    asset_id=vmss_id,
+                    asset_name=vmss_name,
+                )
+            ],
+        }
+
+    nic_configs_raw = getattr(network_profile, "network_interface_configurations", None)
+    if nic_configs_raw is None:
+        return {
+            "subnet_ids": [],
+            "nic_configuration_count": 0,
+            "public_ip_configuration_count": 0,
+            "load_balancer_backend_pool_count": 0,
+            "application_gateway_backend_pool_count": 0,
+            "inbound_nat_pool_count": 0,
+            "load_balancer_backend_pool_ids": [],
+            "application_gateway_backend_pool_ids": [],
+            "inbound_nat_pool_ids": [],
+            "network_detail_complete": False,
+            "issues": [
+                _partial_collection_issue(
+                    "vmss.network_interface_configurations",
+                    (
+                        "VM scale set NIC configuration details were not returned by the current "
+                        "SDK list response; subnet and frontend counts may be incomplete."
+                    ),
+                    asset_id=vmss_id,
+                    asset_name=vmss_name,
+                )
+            ],
+        }
+
+    nic_configs = nic_configs_raw or []
+
+    subnet_ids: list[str] = []
+    load_balancer_backend_pool_ids: list[str] = []
+    application_gateway_backend_pool_ids: list[str] = []
+    inbound_nat_pool_ids: list[str] = []
+    public_ip_configuration_count = 0
+
+    for nic_config in nic_configs:
+        ip_configs_raw = getattr(nic_config, "ip_configurations", None)
+        if ip_configs_raw is None:
+            return {
+                "subnet_ids": [],
+                "nic_configuration_count": len(nic_configs),
+                "public_ip_configuration_count": 0,
+                "load_balancer_backend_pool_count": 0,
+                "application_gateway_backend_pool_count": 0,
+                "inbound_nat_pool_count": 0,
+                "load_balancer_backend_pool_ids": [],
+                "application_gateway_backend_pool_ids": [],
+                "inbound_nat_pool_ids": [],
+                "network_detail_complete": False,
+                "issues": [
+                _partial_collection_issue(
+                    "vmss.ip_configurations",
+                    (
+                        "VM scale set IP configuration details were not returned by the "
+                        "current SDK list response; subnet and frontend counts may be "
+                        "incomplete."
+                    ),
+                    asset_id=vmss_id,
+                    asset_name=vmss_name,
+                )
+                ],
+            }
+
+        ip_configs = ip_configs_raw or []
+        for ip_config in ip_configs:
+            subnet = getattr(ip_config, "subnet", None)
+            subnet_id = _string_value(getattr(subnet, "id", None))
+            if subnet_id:
+                subnet_ids.append(subnet_id)
+
+            for pool in getattr(ip_config, "load_balancer_backend_address_pools", None) or []:
+                pool_id = _string_value(getattr(pool, "id", None))
+                if pool_id:
+                    load_balancer_backend_pool_ids.append(pool_id)
+
+            for pool in (
+                getattr(ip_config, "application_gateway_backend_address_pools", None) or []
+            ):
+                pool_id = _string_value(getattr(pool, "id", None))
+                if pool_id:
+                    application_gateway_backend_pool_ids.append(pool_id)
+
+            for pool in getattr(ip_config, "load_balancer_inbound_nat_pools", None) or []:
+                pool_id = _string_value(getattr(pool, "id", None))
+                if pool_id:
+                    inbound_nat_pool_ids.append(pool_id)
+
+            if getattr(ip_config, "public_ip_configuration", None) is not None:
+                public_ip_configuration_count += 1
+
+    return {
+        "subnet_ids": _dedupe_strings(subnet_ids),
+        "nic_configuration_count": len(nic_configs),
+        "public_ip_configuration_count": public_ip_configuration_count,
+        "load_balancer_backend_pool_count": len(_dedupe_strings(load_balancer_backend_pool_ids)),
+        "application_gateway_backend_pool_count": len(
+            _dedupe_strings(application_gateway_backend_pool_ids)
+        ),
+        "inbound_nat_pool_count": len(_dedupe_strings(inbound_nat_pool_ids)),
+        "load_balancer_backend_pool_ids": _dedupe_strings(load_balancer_backend_pool_ids),
+        "application_gateway_backend_pool_ids": _dedupe_strings(
+            application_gateway_backend_pool_ids
+        ),
+        "inbound_nat_pool_ids": _dedupe_strings(inbound_nat_pool_ids),
+        "network_detail_complete": True,
+        "issues": [],
+    }
+
+
+def _vmss_operator_summary(
+    *,
+    vmss_name: str,
+    sku_name: str | None,
+    instance_count: int | None,
+    orchestration_mode: str | None,
+    upgrade_mode: str | None,
+    overprovision: bool | None,
+    single_placement_group: bool | None,
+    zone_balance: bool | None,
+    zones: list[str],
+    identity_type: str | None,
+    nic_configuration_count: int,
+    subnet_ids: list[str],
+    public_ip_configuration_count: int,
+    load_balancer_backend_pool_count: int,
+    application_gateway_backend_pool_count: int,
+    inbound_nat_pool_count: int,
+    network_detail_complete: bool,
+) -> str:
+    identity_phrase = (
+        f"uses managed identity ({identity_type})"
+        if identity_type
+        else "has no managed identity visible from the current read path"
+    )
+
+    footprint_parts: list[str] = []
+    if sku_name:
+        footprint_parts.append(f"SKU {sku_name}")
+    if instance_count is not None:
+        footprint_parts.append(f"{instance_count} configured instance(s)")
+    if not footprint_parts:
+        footprint_parts.append("instance footprint unreadable")
+
+    network_parts: list[str] = []
+    if public_ip_configuration_count:
+        network_parts.append(f"{public_ip_configuration_count} public IP config(s)")
+    if inbound_nat_pool_count:
+        network_parts.append(f"{inbound_nat_pool_count} inbound NAT pool ref(s)")
+    if load_balancer_backend_pool_count:
+        network_parts.append(f"{load_balancer_backend_pool_count} LB backend pool ref(s)")
+    if application_gateway_backend_pool_count:
+        network_parts.append(
+            f"{application_gateway_backend_pool_count} App Gateway backend ref(s)"
+        )
+    if nic_configuration_count:
+        network_parts.append(f"{nic_configuration_count} NIC config(s)")
+    if subnet_ids:
+        network_parts.append(f"{len(subnet_ids)} subnet ref(s)")
+    network_phrase = (
+        "Visible frontend or network cues: " + ", ".join(network_parts) + "."
+        if network_parts
+        else (
+            "Frontend and subnet cues were not fully returned by the current SDK response."
+            if not network_detail_complete
+            else "No frontend or subnet cues are configured."
+        )
+    )
+
+    posture_parts: list[str] = []
+    if orchestration_mode:
+        posture_parts.append(f"orchestration {orchestration_mode}")
+    if upgrade_mode:
+        posture_parts.append(f"upgrade {upgrade_mode}")
+    if single_placement_group is not None:
+        posture_parts.append(
+            f"single-placement-group {'yes' if single_placement_group else 'no'}"
+        )
+    if overprovision is not None:
+        posture_parts.append(f"overprovision {'yes' if overprovision else 'no'}")
+    if zone_balance is not None:
+        posture_parts.append(f"zone-balance {'yes' if zone_balance else 'no'}")
+    if zones:
+        posture_parts.append(f"zones {','.join(zones)}")
+
+    posture_phrase = (
+        f" Visible posture: {', '.join(posture_parts)}." if posture_parts else ""
+    )
+
+    return (
+        f"Virtual Machine Scale Sets (VMSS) asset '{vmss_name}' carries "
+        f"{', '.join(footprint_parts)} and {identity_phrase}. {network_phrase}{posture_phrase}"
+    )
+
+
+def _partial_collection_issue(
+    area: str,
+    message: str,
+    *,
+    asset_id: str | None = None,
+    asset_name: str | None = None,
+) -> dict:
+    context = {"collector": area}
+    if asset_id:
+        context["asset_id"] = asset_id
+    if asset_name:
+        context["asset_name"] = asset_name
+    return {
+        "kind": ErrorKind.PARTIAL_COLLECTION.value,
+        "message": f"{area}: {message}",
+        "context": context,
+    }

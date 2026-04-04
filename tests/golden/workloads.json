@@ -115,11 +115,32 @@
       ]
     },
     {
-      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-api",
-      "asset_name": "vmss-api",
+      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-edge-01",
+      "asset_name": "vmss-edge-01",
       "asset_kind": "VMSS",
       "resource_group": "rg-workload",
       "location": "eastus",
+      "identity_type": "SystemAssigned",
+      "identity_principal_id": null,
+      "identity_client_id": null,
+      "identity_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-edge-01/identities/system"
+      ],
+      "endpoints": [],
+      "ingress_paths": [],
+      "exposure_families": [],
+      "summary": "VMSS 'vmss-edge-01' has no visible endpoint path from the current read path and carries managed identity context (SystemAssigned). Use this as a quick workload census pivot before deeper service-specific review.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-edge-01",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-edge-01/identities/system"
+      ]
+    },
+    {
+      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-batch/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-batch-01",
+      "asset_name": "vmss-batch-01",
+      "asset_kind": "VMSS",
+      "resource_group": "rg-batch",
+      "location": "centralus",
       "identity_type": null,
       "identity_principal_id": null,
       "identity_client_id": null,
@@ -127,9 +148,9 @@
       "endpoints": [],
       "ingress_paths": [],
       "exposure_families": [],
-      "summary": "VMSS 'vmss-api' has no visible endpoint path from the current read path and has no managed identity context visible from the current read path. Use this as a quick workload census pivot before deeper service-specific review.",
+      "summary": "VMSS 'vmss-batch-01' has no visible endpoint path from the current read path and has no managed identity context visible from the current read path. Use this as a quick workload census pivot before deeper service-specific review.",
       "related_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-api"
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-batch/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-batch-01"
       ]
     }
   ],

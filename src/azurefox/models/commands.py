@@ -38,6 +38,7 @@ from azurefox.models.common import (
     SubscriptionRef,
     TokenCredentialSurfaceSummary,
     VmAsset,
+    VmssAsset,
     WorkloadSummary,
 )
 
@@ -243,6 +244,13 @@ class NicsOutput(BaseModel):
 class VmsOutput(BaseModel):
     metadata: CommandMetadata
     vm_assets: list[VmAsset] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class VmssOutput(BaseModel):
+    metadata: CommandMetadata
+    vmss_assets: list[VmssAsset] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 

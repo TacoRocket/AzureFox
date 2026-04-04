@@ -30,6 +30,7 @@ from azurefox.collectors.commands import (
     collect_storage,
     collect_tokens_credentials,
     collect_vms,
+    collect_vmss,
     collect_whoami,
     collect_workloads,
 )
@@ -44,6 +45,7 @@ from azurefox.collectors.provider import (
     _network_scope_label,
     _normalized_arm_enum,
     _principal_from_claims,
+    _vmss_summary,
     _web_asset_kind,
 )
 from azurefox.config import GlobalOptions
@@ -1034,12 +1036,13 @@ def test_collect_env_vars(fixture_provider, options) -> None:
 
 def test_collect_tokens_credentials(fixture_provider, options) -> None:
     output = collect_tokens_credentials(fixture_provider, options)
-    assert len(output.surfaces) == 11
-    assert len(output.findings) == 11
+    assert len(output.surfaces) == 12
+    assert len(output.findings) == 12
     assert len({finding.id for finding in output.findings}) == len(output.findings)
     assert output.surfaces[0].surface_type == "plain-text-secret"
     assert output.surfaces[1].operator_signal == "setting=AzureWebJobsStorage"
     assert any(item.asset_name == "app-empty-mi" for item in output.surfaces)
+    assert any(item.asset_name == "vmss-edge-01" for item in output.surfaces)
     assert any(
         item.surface_type == "managed-identity-token" and item.access_path == "imds"
         for item in output.surfaces
@@ -1274,6 +1277,7 @@ def test_collect_keyvault(fixture_provider, options) -> None:
     assert len(output.findings) == 4
     assert output.key_vaults[0].public_network_access == "Enabled"
     assert output.key_vaults[0].network_default_action is None
+    assert output.key_vaults[1].name == "kvlabdeny01"
     assert output.findings[0].id.startswith("keyvault-public-network-open-")
     assert output.findings[2].id.startswith("keyvault-public-network-enabled-")
     assert output.findings[3].id.startswith("keyvault-public-network-with-private-endpoint-")
@@ -1482,16 +1486,85 @@ def test_network_scope_label_includes_resource_group() -> None:
 
 def test_collect_vms(fixture_provider, options) -> None:
     output = collect_vms(fixture_provider, options)
-    assert len(output.vm_assets) == 2
+    assert len(output.vm_assets) == 3
+    assert output.vm_assets[1].name == "vmss-edge-01"
+    assert output.vm_assets[2].name == "vmss-batch-01"
     assert len(output.findings) == 1
+
+
+def test_collect_vmss(fixture_provider, options) -> None:
+    output = collect_vmss(fixture_provider, options)
+    assert len(output.vmss_assets) == 2
+    assert output.issues == []
+    assert output.vmss_assets[0].name == "vmss-edge-01"
+    assert output.vmss_assets[0].public_ip_configuration_count == 1
+    assert output.vmss_assets[0].identity_type == "SystemAssigned"
+    assert output.vmss_assets[1].name == "vmss-batch-01"
+
+
+def test_vmss_summary_emits_partial_issue_when_network_profile_is_missing() -> None:
+    vmss = SimpleNamespace(
+        id=(
+            "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/"
+            "virtualMachineScaleSets/vmss-partial"
+        ),
+        name="vmss-partial",
+        location="eastus",
+        sku=SimpleNamespace(name="Standard_D2s_v5", capacity=3),
+        identity=None,
+        upgrade_policy=SimpleNamespace(mode="Manual"),
+        orchestration_mode="Flexible",
+        overprovision=False,
+        single_placement_group=True,
+        zone_balance=False,
+        zones=[],
+        virtual_machine_profile=None,
+    )
+
+    asset, issues = _vmss_summary(vmss)
+
+    assert asset["name"] == "vmss-partial"
+    assert "Frontend and subnet cues were not fully returned" in asset["summary"]
+    assert issues[0]["kind"] == "partial_collection"
+    assert issues[0]["context"]["asset_name"] == "vmss-partial"
+
+
+def test_vmss_summary_emits_partial_issue_when_nic_configs_are_missing() -> None:
+    vmss = SimpleNamespace(
+        id=(
+            "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/"
+            "virtualMachineScaleSets/vmss-partial-nics"
+        ),
+        name="vmss-partial-nics",
+        location="eastus",
+        sku=SimpleNamespace(name="Standard_D2s_v5", capacity=3),
+        identity=None,
+        upgrade_policy=SimpleNamespace(mode="Manual"),
+        orchestration_mode="Flexible",
+        overprovision=False,
+        single_placement_group=True,
+        zone_balance=False,
+        zones=[],
+        virtual_machine_profile=SimpleNamespace(
+            network_profile=SimpleNamespace(network_interface_configurations=None)
+        ),
+    )
+
+    asset, issues = _vmss_summary(vmss)
+
+    assert asset["name"] == "vmss-partial-nics"
+    assert "Frontend and subnet cues were not fully returned" in asset["summary"]
+    assert issues[0]["kind"] == "partial_collection"
+    assert issues[0]["context"]["collector"] == "vmss.network_interface_configurations"
 
 
 def test_collect_workloads(fixture_provider, options) -> None:
     output = collect_workloads(fixture_provider, options)
-    assert len(output.workloads) == 5
+    assert len(output.workloads) == 6
     assert len(output.findings) == 0
     assert output.workloads[0].asset_name == "vm-web-01"
     assert output.workloads[0].identity_type == "UserAssigned"
     assert output.workloads[0].endpoints == ["52.160.10.20"]
-    assert output.workloads[-1].asset_name == "vmss-api"
+    assert output.workloads[-2].asset_name == "vmss-edge-01"
+    assert output.workloads[-1].asset_name == "vmss-batch-01"
     assert output.workloads[-1].endpoints == []

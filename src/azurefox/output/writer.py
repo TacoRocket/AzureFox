@@ -113,6 +113,7 @@ def _to_csv(command: str, payload: dict) -> str:
         "nics": "nic_assets",
         "workloads": "workloads",
         "vms": "vm_assets",
+        "vmss": "vmss_assets",
     }
 
     key = key_mapping.get(command)

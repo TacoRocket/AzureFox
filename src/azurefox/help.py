@@ -97,8 +97,8 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="acr",
         section="resource",
         summary=(
-            "Summarize Azure Container Registry login, auth, network, webhook, replication, "
-            "and policy posture."
+            "Summarize Azure Container Registry (ACR) login, auth, network, webhook, "
+            "replication, and policy posture."
         ),
         offensive_question=(
             "Which container registries expose the most interesting login, auth, network, "
@@ -165,7 +165,10 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
     "dns": CommandHelpTopic(
         name="dns",
         section="network",
-        summary="Summarize public and private DNS zone inventory and namespace boundaries.",
+        summary=(
+            "Summarize public and private Domain Name System (DNS) zone inventory and "
+            "namespace boundaries."
+        ),
         offensive_question=(
             "Which DNS zones reveal public delegation or private VNet-linked namespace context "
             "worth operator follow-up first?"
@@ -225,7 +228,8 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="aks",
         section="compute",
         summary=(
-            "Summarize AKS cluster endpoint, identity, auth posture, and Azure-native depth cues."
+            "Summarize Azure Kubernetes Service (AKS) cluster endpoint, identity, auth posture, "
+            "and Azure-native depth cues."
         ),
         offensive_question=(
             "Which AKS clusters expose the most interesting control-plane endpoint, identity, "
@@ -259,8 +263,8 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="api-mgmt",
         section="resource",
         summary=(
-            "Summarize API Management gateway, hostname, identity, and narrow "
-            "service-depth posture."
+            "Summarize Application Programming Interface (API) Management gateway, hostname, "
+            "identity, and narrow service-depth posture."
         ),
         offensive_question=(
             "Which API Management services expose the most interesting gateway, subscription, "
@@ -468,9 +472,15 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
     "rbac": CommandHelpTopic(
         name="rbac",
         section="identity",
-        summary="Enumerate raw RBAC assignments across the current subscription scope.",
+        summary=(
+            "Enumerate raw Role-Based Access Control (RBAC) assignments across the current "
+            "subscription scope."
+        ),
         offensive_question="Which principals have role assignments here, and at what scopes?",
-        cloudfox_frame="Closest AzureFox equivalent to a raw cloud permission-assignment dump.",
+        cloudfox_frame=(
+            "Closest AzureFox equivalent to a raw cloud permission-assignment dump for Azure "
+            "Role-Based Access Control (RBAC)."
+        ),
         output_highlights=("role_assignments", "principals", "scopes"),
         attack_leads=(
             AttackLead("Discovery", "Permission Groups Discovery: Cloud Groups"),
@@ -763,7 +773,9 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
     "nics": CommandHelpTopic(
         name="nics",
         section="network",
-        summary="Enumerate NICs with attachment, IP, subnet, and NSG context.",
+        summary=(
+            "Enumerate network interfaces (NICs) with attachment, IP, subnet, and NSG context."
+        ),
         offensive_question=(
             "Which NICs anchor workload network placement, public IP references, and basic "
             "security-boundary context worth operator review first?"
@@ -816,10 +828,45 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox workloads --output table",
     ),
+    "vmss": CommandHelpTopic(
+        name="vmss",
+        section="compute",
+        summary=(
+            "Review Virtual Machine Scale Sets (VMSS) for identity, rollout, and frontend "
+            "network posture."
+        ),
+        offensive_question=(
+            "Which scale sets look most worth follow-up once I combine identity, fleet size, "
+            "and visible frontend network cues?"
+        ),
+        cloudfox_frame=(
+            "Azure-native scale-set triage that keeps VMSS posture first-class instead of "
+            "burying it inside the broader compute census."
+        ),
+        output_highlights=(
+            "sku_name",
+            "instance_count",
+            "orchestration_mode",
+            "upgrade_mode",
+            "public_ip_configuration_count",
+            "subnet_ids",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Infrastructure Discovery"),
+            AttackLead("Discovery", "Network Service Discovery"),
+            AttackLead(
+                "Credential Access",
+                "Use Alternate Authentication Material: Application Access Token",
+            ),
+        ),
+        example="azurefox vmss --output table",
+    ),
     "vms": CommandHelpTopic(
         name="vms",
         section="compute",
-        summary="Summarize virtual machines and scale sets with network and identity context.",
+        summary=(
+            "Summarize virtual machines (VMs) and scale sets with network and identity context."
+        ),
         offensive_question=(
             "Which compute assets are reachable, and which of them "
             "expose useful identity or ingress paths?"

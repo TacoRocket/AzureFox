@@ -1,0 +1,9 @@
+{
+  "model": "VmssOutput",
+  "top_level_fields": [
+    "metadata",
+    "vmss_assets",
+    "findings",
+    "issues"
+  ]
+}

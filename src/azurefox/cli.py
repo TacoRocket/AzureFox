@@ -224,6 +224,11 @@ def vms(ctx: typer.Context) -> None:
     _run_single(ctx, "vms")
 
 
+@app.command("vmss")
+def vmss(ctx: typer.Context) -> None:
+    _run_single(ctx, "vmss")
+
+
 @app.command("all-checks")
 def all_checks(
     ctx: typer.Context,

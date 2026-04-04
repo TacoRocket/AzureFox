@@ -76,6 +76,7 @@ def test_help_command_acr_topic() -> None:
 
     assert result.exit_code == 0
     assert "AzureFox Help :: acr" in result.stdout
+    assert "Azure Container Registry (ACR)" in result.stdout
     assert "login_server" in result.stdout
     assert "admin_user_enabled" in result.stdout
     assert "webhook_count" in result.stdout
@@ -152,6 +153,7 @@ def test_help_command_aks_topic() -> None:
 
     assert result.exit_code == 0
     assert "AzureFox Help :: aks" in result.stdout
+    assert "Azure Kubernetes Service" in result.stdout
     assert "private_cluster_enabled" in result.stdout
     assert "cluster_identity_type" in result.stdout
     assert "azure_rbac_enabled" in result.stdout
@@ -164,10 +166,22 @@ def test_help_command_api_mgmt_topic() -> None:
 
     assert result.exit_code == 0
     assert "AzureFox Help :: api-mgmt" in result.stdout
+    assert "Application Programming Interface (API) Management" in result.stdout
     assert "gateway_hostnames" in result.stdout
     assert "virtual_network_type" in result.stdout
     assert "active_subscription_count" in result.stdout
     assert "named_value_secret_count" in result.stdout
+
+
+def test_help_command_vmss_topic() -> None:
+    result = runner.invoke(app, ["help", "vmss"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: vmss" in result.stdout
+    assert "Virtual Machine Scale Sets" in result.stdout
+    assert "instance_count" in result.stdout
+    assert "orchestration_mode" in result.stdout
+    assert "public_ip_configuration_count" in result.stdout
 
 
 def test_help_command_network_ports_topic() -> None:
@@ -178,6 +192,35 @@ def test_help_command_network_ports_topic() -> None:
     assert "NIC-backed public endpoints" in result.stdout
     assert "allow_source_summary" in result.stdout
     assert "exposure_confidence" in result.stdout
+
+
+def test_help_command_rbac_topic() -> None:
+    result = runner.invoke(app, ["help", "rbac"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: rbac" in result.stdout
+    assert "Role-Based Access Control (RBAC)" in result.stdout
+    assert "role_assignments" in result.stdout
+
+
+def test_help_command_nics_topic() -> None:
+    result = runner.invoke(app, ["help", "nics"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: nics" in result.stdout
+    assert "network interfaces (NICs)" in result.stdout
+    assert "attached_asset_name" in result.stdout
+    assert "public IP references" in result.stdout
+    assert "network_security_group_id" in result.stdout
+
+
+def test_help_command_vms_topic() -> None:
+    result = runner.invoke(app, ["help", "vms"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: vms" in result.stdout
+    assert "virtual machines (VMs)" in result.stdout
+    assert "public_ips" in result.stdout
 
 
 def test_help_command_all_checks_topic_sets_runtime_expectations() -> None:
@@ -256,15 +299,6 @@ def test_help_command_resource_trusts_topic() -> None:
     assert "AzureFox Help :: resource-trusts" in result.stdout
     assert "public network paths" in result.stdout
     assert "resource_type" in result.stdout
-
-
-def test_help_command_nics_topic() -> None:
-    result = runner.invoke(app, ["help", "nics"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: nics" in result.stdout
-    assert "public IP references" in result.stdout
-    assert "network_security_group_id" in result.stdout
 
 
 def test_help_command_workloads_topic() -> None:

@@ -31,6 +31,7 @@ from azurefox.collectors.commands import (
     collect_storage,
     collect_tokens_credentials,
     collect_vms,
+    collect_vmss,
     collect_whoami,
     collect_workloads,
 )
@@ -76,6 +77,7 @@ COMMAND_SPECS: tuple[CommandSpec, ...] = (
     CommandSpec("acr", "resource", collect_acr),
     CommandSpec("databases", "resource", collect_databases),
     CommandSpec("vms", "compute", collect_vms),
+    CommandSpec("vmss", "compute", collect_vmss),
     CommandSpec("snapshots-disks", "compute", collect_snapshots_disks),
 )
 
