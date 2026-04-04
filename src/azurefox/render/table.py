@@ -692,6 +692,33 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "vmss":
+        return (
+            [
+                ("name", "scale set"),
+                ("location", "location"),
+                ("sku_capacity", "sku / capacity"),
+                ("orchestration", "orchestration"),
+                ("identity", "identity"),
+                ("frontend", "frontend"),
+                ("network", "network"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "name": item.get("name"),
+                    "location": item.get("location"),
+                    "sku_capacity": _vmss_capacity_context(item),
+                    "orchestration": _vmss_rollout_context(item),
+                    "identity": _vmss_identity_context(item),
+                    "frontend": _vmss_frontend_context(item),
+                    "network": _vmss_network_context(item),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("vmss_assets", [])
+            ],
+        )
+
     if command == "vms":
         return (
             [
@@ -849,6 +876,23 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         vm_assets = payload.get("vm_assets", [])
         public_assets = sum(1 for item in vm_assets if item.get("public_ips"))
         return f"{len(vm_assets)} compute assets visible; {public_assets} have public IP exposure."
+
+    if command == "vmss":
+        vmss_assets = payload.get("vmss_assets", [])
+        identity_assets = sum(bool(item.get("identity_type")) for item in vmss_assets)
+        public_frontend_assets = sum(
+            (item.get("public_ip_configuration_count") or 0) > 0 for item in vmss_assets
+        )
+        configured_instances = sum(
+            item.get("instance_count", 0)
+            for item in vmss_assets
+            if isinstance(item.get("instance_count"), int)
+        )
+        return (
+            f"{len(vmss_assets)} VM scale sets visible; {public_frontend_assets} show public "
+            f"frontend cues, {identity_assets} carry managed identity context, and "
+            f"{configured_instances} configured instances are visible."
+        )
 
     if command == "inventory":
         return (
@@ -1711,6 +1755,76 @@ def _workload_identity_context(item: dict) -> str:
         parts.append(str(item.get("identity_type")))
     if item.get("identity_ids"):
         parts.append(f"ids={len(item.get('identity_ids', []))}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _vmss_capacity_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("sku_name"):
+        parts.append(str(item.get("sku_name")))
+    if item.get("instance_count") is not None:
+        parts.append(f"instances={item.get('instance_count')}")
+    if item.get("zones"):
+        parts.append(f"zones={len(item.get('zones', []))}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _vmss_rollout_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("orchestration_mode"):
+        parts.append(str(item.get("orchestration_mode")))
+    if item.get("upgrade_mode"):
+        parts.append(f"upgrade={item.get('upgrade_mode')}")
+    if item.get("single_placement_group") is not None:
+        parts.append(
+            "spg=yes" if item.get("single_placement_group") else "spg=no"
+        )
+    if item.get("overprovision") is not None:
+        parts.append("overprov=yes" if item.get("overprovision") else "overprov=no")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _vmss_identity_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("identity_type"):
+        parts.append(str(item.get("identity_type")))
+    if item.get("identity_ids"):
+        parts.append(f"ids={len(item.get('identity_ids', []))}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _vmss_frontend_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("public_ip_configuration_count"):
+        parts.append(f"public-ip={item.get('public_ip_configuration_count')}")
+    if item.get("inbound_nat_pool_count"):
+        parts.append(f"nat-pools={item.get('inbound_nat_pool_count')}")
+    if item.get("load_balancer_backend_pool_count"):
+        parts.append(f"lb-backends={item.get('load_balancer_backend_pool_count')}")
+    if item.get("application_gateway_backend_pool_count"):
+        parts.append(f"appgw={item.get('application_gateway_backend_pool_count')}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _vmss_network_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("nic_configuration_count"):
+        parts.append(f"nic-configs={item.get('nic_configuration_count')}")
+    subnet_names = _display_resource_refs(item.get("subnet_ids"))
+    if subnet_names:
+        parts.append(f"subnet={','.join(subnet_names)}")
+    if item.get("zone_balance") is not None:
+        parts.append("zone-balance=yes" if item.get("zone_balance") else "zone-balance=no")
     if not parts:
         return "-"
     return "; ".join(parts)

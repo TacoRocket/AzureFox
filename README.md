@@ -62,7 +62,7 @@ Use a disposable subscription you control. It is risky on purpose.
 | `resource` | `acr`, `api-mgmt`, `databases`, `resource-trusts` |
 | `storage` | `storage` |
 | `network` | `nics`, `dns`, `endpoints`, `network-effective`, `network-ports` |
-| `compute` | `workloads`, `app-services`, `functions`, `aks`, `vms`, `snapshots-disks` |
+| `compute` | `workloads`, `app-services`, `functions`, `aks`, `vms`, `vmss`, `snapshots-disks` |
 | orchestration | `all-checks` |
 
 ## CLI Invocation
@@ -174,7 +174,7 @@ Current section mappings:
 - `resource`: `acr`, `api-mgmt`, `databases`, `resource-trusts`
 - `storage`: `storage`
 - `network`: `nics`, `dns`, `endpoints`, `network-effective`, `network-ports`
-- `compute`: `workloads`, `app-services`, `functions`, `aks`, `vms`, `snapshots-disks`
+- `compute`: `workloads`, `app-services`, `functions`, `aks`, `vms`, `vmss`, `snapshots-disks`
 - `core`: `inventory`
 
 ## Help

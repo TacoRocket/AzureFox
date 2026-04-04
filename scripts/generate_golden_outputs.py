@@ -14,7 +14,9 @@ from azurefox.collectors.commands import (
     collect_resource_trusts,
     collect_storage,
     collect_vms,
+    collect_vmss,
     collect_whoami,
+    collect_workloads,
 )
 from azurefox.collectors.provider import FixtureProvider
 from azurefox.config import GlobalOptions
@@ -49,6 +51,8 @@ def main() -> None:
         "resource-trusts": collect_resource_trusts,
         "storage": collect_storage,
         "vms": collect_vms,
+        "vmss": collect_vmss,
+        "workloads": collect_workloads,
     }
 
     outdir = Path("tests/golden")

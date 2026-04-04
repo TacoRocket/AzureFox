@@ -1,0 +1,85 @@
+{
+  "metadata": {
+    "schema_version": "1.1.0",
+    "command": "vmss",
+    "generated_at": "<generated_at>",
+    "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "subscription_id": "22222222-2222-2222-2222-222222222222",
+    "token_source": null
+  },
+  "vmss_assets": [
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-edge-01",
+      "name": "vmss-edge-01",
+      "resource_group": "rg-workload",
+      "location": "eastus",
+      "sku_name": "Standard_D4s_v5",
+      "instance_count": 6,
+      "orchestration_mode": "Uniform",
+      "upgrade_mode": "Rolling",
+      "overprovision": true,
+      "single_placement_group": false,
+      "zone_balance": true,
+      "zones": [
+        "1",
+        "2"
+      ],
+      "identity_type": "SystemAssigned",
+      "principal_id": "77770000-0000-0000-0000-000000000001",
+      "client_id": "77770000-0000-0000-0000-000000000002",
+      "identity_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-edge-01/identities/system"
+      ],
+      "subnet_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-network/providers/Microsoft.Network/virtualNetworks/vnet-edge/subnets/app"
+      ],
+      "nic_configuration_count": 1,
+      "public_ip_configuration_count": 1,
+      "load_balancer_backend_pool_count": 1,
+      "application_gateway_backend_pool_count": 0,
+      "inbound_nat_pool_count": 1,
+      "summary": "Virtual Machine Scale Sets (VMSS) asset 'vmss-edge-01' carries SKU Standard_D4s_v5, 6 configured instance(s) and uses managed identity (SystemAssigned). Visible frontend or network cues: 1 public IP config(s), 1 inbound NAT pool ref(s), 1 LB backend pool ref(s), 1 NIC config(s), 1 subnet ref(s). Visible posture: orchestration Uniform, upgrade Rolling, single-placement-group no, overprovision yes, zone-balance yes, zones 1,2.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-edge-01",
+        "77770000-0000-0000-0000-000000000001",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-edge-01/identities/system",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-network/providers/Microsoft.Network/virtualNetworks/vnet-edge/subnets/app",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-network/providers/Microsoft.Network/loadBalancers/lb-edge/backendAddressPools/web",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-network/providers/Microsoft.Network/loadBalancers/lb-edge/inboundNatPools/ssh"
+      ]
+    },
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-batch/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-batch-01",
+      "name": "vmss-batch-01",
+      "resource_group": "rg-batch",
+      "location": "centralus",
+      "sku_name": "Standard_D2s_v5",
+      "instance_count": 2,
+      "orchestration_mode": "Flexible",
+      "upgrade_mode": "Manual",
+      "overprovision": false,
+      "single_placement_group": true,
+      "zone_balance": false,
+      "zones": [],
+      "identity_type": null,
+      "principal_id": null,
+      "client_id": null,
+      "identity_ids": [],
+      "subnet_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-network/providers/Microsoft.Network/virtualNetworks/vnet-batch/subnets/workers"
+      ],
+      "nic_configuration_count": 1,
+      "public_ip_configuration_count": 0,
+      "load_balancer_backend_pool_count": 0,
+      "application_gateway_backend_pool_count": 0,
+      "inbound_nat_pool_count": 0,
+      "summary": "Virtual Machine Scale Sets (VMSS) asset 'vmss-batch-01' carries SKU Standard_D2s_v5, 2 configured instance(s) and has no managed identity visible from the current read path. Visible frontend or network cues: 1 NIC config(s), 1 subnet ref(s). Visible posture: orchestration Flexible, upgrade Manual, single-placement-group yes, overprovision no, zone-balance no.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-batch/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-batch-01",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-network/providers/Microsoft.Network/virtualNetworks/vnet-batch/subnets/workers"
+      ]
+    }
+  ],
+  "findings": [],
+  "issues": []
+}

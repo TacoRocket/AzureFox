@@ -1,115 +1,115 @@
 {
-  "findings": [
-    {
-      "description": "Key Vault 'kvlabopen01' has public network access enabled, Azure omitted the network ACL object, and no private endpoint is visible. Azure can return that shape for a fully open vault. Review whether that secret-management surface is intentionally internet reachable.",
-      "id": "keyvault-public-network-open-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabopen01",
-      "related_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabopen01"
-      ],
-      "severity": "high",
-      "title": "Key Vault is broadly reachable on the public network"
-    },
-    {
-      "description": "Key Vault 'kvlabopen01' does not have purge protection enabled. Validate whether destructive recovery protections are intentionally absent.",
-      "id": "keyvault-purge-protection-disabled-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabopen01",
-      "related_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabopen01"
-      ],
-      "severity": "medium",
-      "title": "Key Vault purge protection is disabled"
-    },
-    {
-      "description": "Key Vault 'kvlabdeny01' keeps public network access enabled with default network action 'Deny' and no private endpoint visible. Review whether that public path is still intended.",
-      "id": "keyvault-public-network-enabled-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabdeny01",
-      "related_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabdeny01"
-      ],
-      "severity": "medium",
-      "title": "Key Vault remains reachable through a public network path"
-    },
-    {
-      "description": "Key Vault 'kvlabhybrid01' has public network access enabled while a private endpoint is also present. Validate whether the public path is still required.",
-      "id": "keyvault-public-network-with-private-endpoint-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabhybrid01",
-      "related_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabhybrid01"
-      ],
-      "severity": "low",
-      "title": "Key Vault keeps a public network path alongside Private Link"
-    }
-  ],
-  "issues": [],
-  "key_vaults": [
-    {
-      "access_policy_count": 2,
-      "enable_rbac_authorization": false,
-      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabopen01",
-      "location": "eastus",
-      "name": "kvlabopen01",
-      "network_default_action": null,
-      "private_endpoint_enabled": false,
-      "public_network_access": "Enabled",
-      "purge_protection_enabled": false,
-      "resource_group": "rg-secrets",
-      "sku_name": "standard",
-      "soft_delete_enabled": true,
-      "tenant_id": "11111111-1111-1111-1111-111111111111",
-      "vault_uri": "https://kvlabopen01.vault.azure.net/"
-    },
-    {
-      "access_policy_count": 0,
-      "enable_rbac_authorization": true,
-      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabpriv01",
-      "location": "eastus",
-      "name": "kvlabpriv01",
-      "network_default_action": "Deny",
-      "private_endpoint_enabled": true,
-      "public_network_access": "Disabled",
-      "purge_protection_enabled": true,
-      "resource_group": "rg-secrets",
-      "sku_name": "premium",
-      "soft_delete_enabled": true,
-      "tenant_id": "11111111-1111-1111-1111-111111111111",
-      "vault_uri": "https://kvlabpriv01.vault.azure.net/"
-    },
-    {
-      "access_policy_count": 1,
-      "enable_rbac_authorization": true,
-      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabdeny01",
-      "location": "eastus",
-      "name": "kvlabdeny01",
-      "network_default_action": "Deny",
-      "private_endpoint_enabled": false,
-      "public_network_access": "Enabled",
-      "purge_protection_enabled": true,
-      "resource_group": "rg-secrets",
-      "sku_name": "standard",
-      "soft_delete_enabled": true,
-      "tenant_id": "11111111-1111-1111-1111-111111111111",
-      "vault_uri": "https://kvlabdeny01.vault.azure.net/"
-    },
-    {
-      "access_policy_count": 0,
-      "enable_rbac_authorization": true,
-      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabhybrid01",
-      "location": "eastus",
-      "name": "kvlabhybrid01",
-      "network_default_action": "Deny",
-      "private_endpoint_enabled": true,
-      "public_network_access": "Enabled",
-      "purge_protection_enabled": true,
-      "resource_group": "rg-secrets",
-      "sku_name": "premium",
-      "soft_delete_enabled": true,
-      "tenant_id": "11111111-1111-1111-1111-111111111111",
-      "vault_uri": "https://kvlabhybrid01.vault.azure.net/"
-    }
-  ],
   "metadata": {
+    "schema_version": "1.1.0",
     "command": "keyvault",
     "generated_at": "<generated_at>",
-    "schema_version": "1.1.0",
-    "subscription_id": "22222222-2222-2222-2222-222222222222",
     "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "subscription_id": "22222222-2222-2222-2222-222222222222",
     "token_source": null
-  }
+  },
+  "key_vaults": [
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabopen01",
+      "name": "kvlabopen01",
+      "resource_group": "rg-secrets",
+      "location": "eastus",
+      "vault_uri": "https://kvlabopen01.vault.azure.net/",
+      "tenant_id": "11111111-1111-1111-1111-111111111111",
+      "sku_name": "standard",
+      "public_network_access": "Enabled",
+      "network_default_action": null,
+      "private_endpoint_enabled": false,
+      "purge_protection_enabled": false,
+      "soft_delete_enabled": true,
+      "enable_rbac_authorization": false,
+      "access_policy_count": 2
+    },
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabdeny01",
+      "name": "kvlabdeny01",
+      "resource_group": "rg-secrets",
+      "location": "eastus",
+      "vault_uri": "https://kvlabdeny01.vault.azure.net/",
+      "tenant_id": "11111111-1111-1111-1111-111111111111",
+      "sku_name": "standard",
+      "public_network_access": "Enabled",
+      "network_default_action": "Deny",
+      "private_endpoint_enabled": false,
+      "purge_protection_enabled": true,
+      "soft_delete_enabled": true,
+      "enable_rbac_authorization": true,
+      "access_policy_count": 1
+    },
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabhybrid01",
+      "name": "kvlabhybrid01",
+      "resource_group": "rg-secrets",
+      "location": "eastus",
+      "vault_uri": "https://kvlabhybrid01.vault.azure.net/",
+      "tenant_id": "11111111-1111-1111-1111-111111111111",
+      "sku_name": "premium",
+      "public_network_access": "Enabled",
+      "network_default_action": "Deny",
+      "private_endpoint_enabled": true,
+      "purge_protection_enabled": true,
+      "soft_delete_enabled": true,
+      "enable_rbac_authorization": true,
+      "access_policy_count": 0
+    },
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabpriv01",
+      "name": "kvlabpriv01",
+      "resource_group": "rg-secrets",
+      "location": "eastus",
+      "vault_uri": "https://kvlabpriv01.vault.azure.net/",
+      "tenant_id": "11111111-1111-1111-1111-111111111111",
+      "sku_name": "premium",
+      "public_network_access": "Disabled",
+      "network_default_action": "Deny",
+      "private_endpoint_enabled": true,
+      "purge_protection_enabled": true,
+      "soft_delete_enabled": true,
+      "enable_rbac_authorization": true,
+      "access_policy_count": 0
+    }
+  ],
+  "findings": [
+    {
+      "id": "keyvault-public-network-open-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabopen01",
+      "severity": "high",
+      "title": "Key Vault is broadly reachable on the public network",
+      "description": "Key Vault 'kvlabopen01' has public network access enabled, Azure omitted the network ACL object, and no private endpoint is visible. Azure can return that shape for a fully open vault. Review whether that secret-management surface is intentionally internet reachable.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabopen01"
+      ]
+    },
+    {
+      "id": "keyvault-purge-protection-disabled-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabopen01",
+      "severity": "medium",
+      "title": "Key Vault purge protection is disabled",
+      "description": "Key Vault 'kvlabopen01' does not have purge protection enabled. Validate whether destructive recovery protections are intentionally absent.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabopen01"
+      ]
+    },
+    {
+      "id": "keyvault-public-network-enabled-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabdeny01",
+      "severity": "medium",
+      "title": "Key Vault remains reachable through a public network path",
+      "description": "Key Vault 'kvlabdeny01' keeps public network access enabled with default network action 'Deny' and no private endpoint visible. Review whether that public path is still intended.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabdeny01"
+      ]
+    },
+    {
+      "id": "keyvault-public-network-with-private-endpoint-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabhybrid01",
+      "severity": "low",
+      "title": "Key Vault keeps a public network path alongside Private Link",
+      "description": "Key Vault 'kvlabhybrid01' has public network access enabled while a private endpoint is also present. Validate whether the public path is still required.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kvlabhybrid01"
+      ]
+    }
+  ],
+  "issues": []
 }
