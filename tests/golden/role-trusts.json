@@ -12,19 +12,20 @@
   "trusts": [
     {
       "confidence": "confirmed",
-      "evidence_type": "graph-owner",
+      "evidence_type": "graph-federated-credential",
       "related_ids": [
-        "77777777-7777-7777-7777-777777777777",
-        "55555555-5555-5555-5555-555555555555"
+        "55555555-5555-5555-5555-555555555555",
+        "fic-build-main",
+        "66666666-6666-6666-6666-666666666666"
       ],
-      "source_name": "ci-admin@lab.local",
-      "source_object_id": "77777777-7777-7777-7777-777777777777",
-      "source_type": "User",
-      "summary": "Owner 'ci-admin@lab.local' can modify application 'build-app'.",
-      "target_name": "build-app",
-      "target_object_id": "55555555-5555-5555-5555-555555555555",
-      "target_type": "Application",
-      "trust_type": "app-owner"
+      "source_name": "build-app",
+      "source_object_id": "55555555-5555-5555-5555-555555555555",
+      "source_type": "Application",
+      "summary": "Application 'build-app' trusts federated subject 'repo:TacoRocket/AzureFox:ref:refs/heads/main' from issuer 'https://token.actions.githubusercontent.com'.",
+      "target_name": "build-sp",
+      "target_object_id": "66666666-6666-6666-6666-666666666666",
+      "target_type": "ServicePrincipal",
+      "trust_type": "federated-credential"
     },
     {
       "confidence": "confirmed",
@@ -44,20 +45,19 @@
     },
     {
       "confidence": "confirmed",
-      "evidence_type": "graph-federated-credential",
+      "evidence_type": "graph-owner",
       "related_ids": [
-        "55555555-5555-5555-5555-555555555555",
-        "fic-build-main",
-        "66666666-6666-6666-6666-666666666666"
+        "77777777-7777-7777-7777-777777777777",
+        "55555555-5555-5555-5555-555555555555"
       ],
-      "source_name": "build-app",
-      "source_object_id": "55555555-5555-5555-5555-555555555555",
-      "source_type": "Application",
-      "summary": "Application 'build-app' trusts federated subject 'repo:TacoRocket/AzureFox:ref:refs/heads/main' from issuer 'https://token.actions.githubusercontent.com'.",
-      "target_name": "build-sp",
-      "target_object_id": "66666666-6666-6666-6666-666666666666",
-      "target_type": "ServicePrincipal",
-      "trust_type": "federated-credential"
+      "source_name": "ci-admin@lab.local",
+      "source_object_id": "77777777-7777-7777-7777-777777777777",
+      "source_type": "User",
+      "summary": "Owner 'ci-admin@lab.local' can modify application 'build-app'.",
+      "target_name": "build-app",
+      "target_object_id": "55555555-5555-5555-5555-555555555555",
+      "target_type": "Application",
+      "trust_type": "app-owner"
     },
     {
       "confidence": "confirmed",

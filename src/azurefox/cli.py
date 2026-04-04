@@ -164,6 +164,11 @@ def role_trusts(
     )
 
 
+@app.command("lighthouse")
+def lighthouse(ctx: typer.Context) -> None:
+    _run_single(ctx, "lighthouse")
+
+
 @app.command("auth-policies")
 def auth_policies(ctx: typer.Context) -> None:
     _run_single(ctx, "auth-policies")

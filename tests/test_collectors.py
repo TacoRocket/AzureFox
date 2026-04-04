@@ -17,6 +17,7 @@ from azurefox.collectors.commands import (
     collect_functions,
     collect_inventory,
     collect_keyvault,
+    collect_lighthouse,
     collect_managed_identities,
     collect_network_effective,
     collect_network_ports,
@@ -1100,6 +1101,9 @@ def test_collect_auth_policies(fixture_provider, options) -> None:
     assert len(output.auth_policies) == 4
     assert len(output.findings) == 5
     assert output.auth_policies[0].policy_type == "security-defaults"
+    assert output.auth_policies[1].policy_type == "authorization-policy"
+    assert output.auth_policies[2].name == "CA002: Block legacy auth"
+    assert output.auth_policies[3].name == "CA001: Require multi-factor authentication for admins"
 
 
 def test_collect_auth_policies_keeps_partial_visibility_explicit(
@@ -1164,8 +1168,9 @@ def test_collect_role_trusts(fixture_provider, options) -> None:
     output = collect_role_trusts(fixture_provider, options)
     assert output.mode == "fast"
     assert len(output.trusts) == 4
-    assert output.trusts[0].trust_type == "app-owner"
-    assert output.trusts[2].evidence_type == "graph-federated-credential"
+    assert output.trusts[0].trust_type == "federated-credential"
+    assert output.trusts[1].trust_type == "service-principal-owner"
+    assert output.trusts[2].trust_type == "app-owner"
 
 
 def test_collect_role_trusts_enumerates_graph_edges_without_principal_seed(options) -> None:
@@ -1304,10 +1309,11 @@ def test_collect_resource_trusts(fixture_provider, options) -> None:
 def test_collect_storage(fixture_provider, options) -> None:
     output = collect_storage(fixture_provider, options)
     assert len(output.storage_assets) == 2
-    assert output.storage_assets[0].public_network_access == "Disabled"
-    assert output.storage_assets[0].allow_shared_key_access is False
-    assert output.storage_assets[1].public_network_access == "Enabled"
-    assert output.storage_assets[1].minimum_tls_version == "TLS1_0"
+    assert output.storage_assets[0].name == "stlabpub01"
+    assert output.storage_assets[0].public_network_access == "Enabled"
+    assert output.storage_assets[0].allow_shared_key_access is True
+    assert output.storage_assets[1].name == "stlabpriv01"
+    assert output.storage_assets[1].minimum_tls_version == "TLS1_2"
     assert len(output.findings) == 2
 
 
@@ -1500,6 +1506,17 @@ def test_collect_vmss(fixture_provider, options) -> None:
     assert output.vmss_assets[0].public_ip_configuration_count == 1
     assert output.vmss_assets[0].identity_type == "SystemAssigned"
     assert output.vmss_assets[1].name == "vmss-batch-01"
+
+
+def test_collect_lighthouse(fixture_provider, options) -> None:
+    output = collect_lighthouse(fixture_provider, options)
+    assert len(output.lighthouse_delegations) == 3
+    assert output.issues == []
+    assert output.lighthouse_delegations[0].scope_type == "subscription"
+    assert output.lighthouse_delegations[0].strongest_role_name == "Owner"
+    assert output.lighthouse_delegations[0].managed_by_tenant_name == "Contoso Corp."
+    assert output.lighthouse_delegations[1].scope_type == "resource_group"
+    assert output.lighthouse_delegations[2].strongest_role_name == "Reader"
 
 
 def test_vmss_summary_emits_partial_issue_when_network_profile_is_missing() -> None:

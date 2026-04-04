@@ -1,0 +1,9 @@
+{
+  "model": "LighthouseOutput",
+  "top_level_fields": [
+    "metadata",
+    "lighthouse_delegations",
+    "findings",
+    "issues"
+  ]
+}

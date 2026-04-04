@@ -1,0 +1,122 @@
+{
+  "lighthouse_delegations": [
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-logging/providers/Microsoft.ManagedServices/registrationAssignments/lh-rg-logging-reader",
+      "name": "lh-rg-logging-reader",
+      "scope_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-logging",
+      "scope_type": "resource_group",
+      "scope_display_name": "rg-logging",
+      "resource_group": "rg-logging",
+      "managed_by_tenant_id": "55555555-5555-5555-5555-555555555555",
+      "managed_by_tenant_name": "Northwind MSP",
+      "managee_tenant_id": "11111111-1111-1111-1111-111111111111",
+      "managee_tenant_name": "AzureFox Lab Tenant",
+      "registration_definition_id": "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationDefinitions/lh-def-logging-reader",
+      "registration_definition_name": "Northwind logging review",
+      "description": "Northwind logging review",
+      "authorization_count": 1,
+      "eligible_authorization_count": 0,
+      "principal_count": 1,
+      "eligible_principal_count": 0,
+      "role_names": [
+        "Reader"
+      ],
+      "eligible_role_names": [],
+      "strongest_role_name": "Reader",
+      "has_user_access_administrator": false,
+      "has_owner_role": false,
+      "has_delegated_role_assignments": false,
+      "provisioning_state": "Succeeded",
+      "definition_provisioning_state": "Succeeded",
+      "plan_name": null,
+      "plan_product": null,
+      "plan_publisher": null,
+      "summary": "managed by Northwind MSP; strongest role Reader",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-logging/providers/Microsoft.ManagedServices/registrationAssignments/lh-rg-logging-reader",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-logging",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationDefinitions/lh-def-logging-reader"
+      ]
+    },
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationAssignments/lh-sub-contoso",
+      "name": "lh-sub-contoso",
+      "scope_id": "/subscriptions/22222222-2222-2222-2222-222222222222",
+      "scope_type": "subscription",
+      "scope_display_name": "22222222-2222-2222-2222-222222222222",
+      "resource_group": null,
+      "managed_by_tenant_id": "33333333-3333-3333-3333-333333333333",
+      "managed_by_tenant_name": "Contoso Corp.",
+      "managee_tenant_id": "11111111-1111-1111-1111-111111111111",
+      "managee_tenant_name": "AzureFox Lab Tenant",
+      "registration_definition_id": "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationDefinitions/lh-def-contoso-sub",
+      "registration_definition_name": "Contoso baseline ops",
+      "description": "Contoso subscription delegation",
+      "authorization_count": 2,
+      "eligible_authorization_count": 1,
+      "principal_count": 2,
+      "eligible_principal_count": 1,
+      "role_names": [
+        "Owner",
+        "User Access Administrator"
+      ],
+      "eligible_role_names": [
+        "Contributor"
+      ],
+      "strongest_role_name": "Owner",
+      "has_user_access_administrator": true,
+      "has_owner_role": true,
+      "has_delegated_role_assignments": true,
+      "provisioning_state": "Succeeded",
+      "definition_provisioning_state": "Succeeded",
+      "plan_name": "contoso-plan",
+      "plan_product": "ops",
+      "plan_publisher": "contoso",
+      "summary": "managed by Contoso Corp.; strongest role Owner; 1 eligible authorization(s)",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationAssignments/lh-sub-contoso",
+        "/subscriptions/22222222-2222-2222-2222-222222222222",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationDefinitions/lh-def-contoso-sub"
+      ]
+    },
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-platform/providers/Microsoft.ManagedServices/registrationAssignments/lh-rg-platform-contrib",
+      "name": "lh-rg-platform-contrib",
+      "scope_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-platform",
+      "scope_type": "resource_group",
+      "scope_display_name": "rg-platform",
+      "resource_group": "rg-platform",
+      "managed_by_tenant_id": "44444444-4444-4444-4444-444444444444",
+      "managed_by_tenant_name": "Fabrikam Ops",
+      "managee_tenant_id": "11111111-1111-1111-1111-111111111111",
+      "managee_tenant_name": "AzureFox Lab Tenant",
+      "registration_definition_id": "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationDefinitions/lh-def-fabrikam-rg",
+      "registration_definition_name": "Fabrikam platform support",
+      "description": "Fabrikam platform support delegation",
+      "authorization_count": 1,
+      "eligible_authorization_count": 0,
+      "principal_count": 1,
+      "eligible_principal_count": 0,
+      "role_names": [
+        "Contributor"
+      ],
+      "eligible_role_names": [],
+      "strongest_role_name": "Contributor",
+      "has_user_access_administrator": false,
+      "has_owner_role": false,
+      "has_delegated_role_assignments": false,
+      "provisioning_state": "Succeeded",
+      "definition_provisioning_state": "Succeeded",
+      "plan_name": null,
+      "plan_product": null,
+      "plan_publisher": null,
+      "summary": "managed by Fabrikam Ops; strongest role Contributor",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-platform/providers/Microsoft.ManagedServices/registrationAssignments/lh-rg-platform-contrib",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-platform",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationDefinitions/lh-def-fabrikam-rg"
+      ]
+    }
+  ],
+  "issues": []
+}

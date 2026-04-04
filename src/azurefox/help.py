@@ -603,6 +603,36 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox role-trusts --mode full --output table",
     ),
+    "lighthouse": CommandHelpTopic(
+        name="lighthouse",
+        section="identity",
+        summary=(
+            "Review Azure Lighthouse delegated management scope, outside-tenant access shape, "
+            "and stronger standing or eligible role cues."
+        ),
+        offensive_question=(
+            "Which subscriptions or resource groups are delegated to another tenant through "
+            "Azure Lighthouse, and which delegations deserve review first?"
+        ),
+        cloudfox_frame=(
+            "Azure-native delegated resource management triage that keeps Azure Lighthouse "
+            "separate from local RBAC and identity trust-edge review."
+        ),
+        output_highlights=(
+            "scope_type",
+            "managed_by_tenant_name",
+            "strongest_role_name",
+            "authorization_count",
+            "eligible_authorization_count",
+            "provisioning_state",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Initial Access", "Trusted Relationship"),
+            AttackLead("Privilege Escalation", "Temporary Elevated Cloud Access"),
+        ),
+        example="azurefox lighthouse --output table",
+    ),
     "auth-policies": CommandHelpTopic(
         name="auth-policies",
         section="identity",
