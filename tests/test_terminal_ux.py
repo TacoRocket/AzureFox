@@ -147,6 +147,31 @@ def test_databases_table_mode_surfaces_server_inventory_and_posture(tmp_path: Pa
     ) in normalized_output
 
 
+def test_snapshots_disks_table_mode_surfaces_priority_first_targets(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "snapshots-disks"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Reviewing managed disks and snapshots for offline-copy, sharing/export, and "
+        "encryption posture with highest-value targets first."
+        in result.stdout
+    )
+    assert "priority" in result.stdout
+    assert "data-detached-legacy" in result.stdout
+    assert "detached" in result.stdout
+    assert "allow-all" in result.stdout
+    assert "disk-access" in result.stdout
+    normalized_output = " ".join(result.stdout.split())
+    assert (
+        "Takeaway: 4 disk-backed assets visible; 2 snapshots, 1 detached disk, and 2 show "
+        "broader sharing or export posture."
+    ) in normalized_output
+
+
 def test_dns_table_mode_surfaces_zone_inventory_and_namespace_context(tmp_path: Path) -> None:
     result = runner.invoke(
         app,

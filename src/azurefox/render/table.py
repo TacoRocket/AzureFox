@@ -596,6 +596,31 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "snapshots-disks":
+        return (
+            [
+                ("name", "asset"),
+                ("asset_kind", "kind"),
+                ("priority", "priority"),
+                ("attachment_source", "attachment / source"),
+                ("sharing_export", "sharing / export"),
+                ("encryption", "encryption"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "name": item.get("name"),
+                    "asset_kind": item.get("asset_kind"),
+                    "priority": _snapshot_disk_priority_context(item),
+                    "attachment_source": _snapshot_disk_attachment_context(item),
+                    "sharing_export": _snapshot_disk_sharing_context(item),
+                    "encryption": _snapshot_disk_encryption_context(item),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("snapshot_disk_assets", [])
+            ],
+        )
+
     if command == "nics":
         return (
             [
@@ -773,6 +798,22 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             f"{len(assets)} storage accounts visible; "
             f"{public_assets} allow public blob access, {public_network_assets} keep public "
             f"network access enabled, and {shared_key_assets} allow shared-key access."
+        )
+
+    if command == "snapshots-disks":
+        assets = payload.get("snapshot_disk_assets", [])
+        snapshots = sum(item.get("asset_kind") == "snapshot" for item in assets)
+        detached = sum(item.get("attachment_state") == "detached" for item in assets)
+        broad_access = sum(
+            str(item.get("public_network_access") or "").lower() == "enabled"
+            or str(item.get("network_access_policy") or "").lower() == "allowall"
+            or item.get("max_shares") not in (None, 1)
+            for item in assets
+        )
+        detached_label = "disk" if detached == 1 else "disks"
+        return (
+            f"{len(assets)} disk-backed assets visible; {snapshots} snapshots, {detached} "
+            f"detached {detached_label}, and {broad_access} show broader sharing or export posture."
         )
 
     if command == "keyvault":
@@ -1387,6 +1428,70 @@ def _storage_inventory_context(item: dict) -> str:
             parts.append(f"{label}={value}")
     if not parts:
         return "-"
+    return "; ".join(parts)
+
+
+def _snapshot_disk_priority_context(item: dict) -> str:
+    reasons: list[str] = []
+    if item.get("attachment_state") == "detached":
+        reasons.append("detached")
+    if item.get("asset_kind") == "snapshot":
+        reasons.append("offline-copy")
+    if str(item.get("public_network_access") or "").lower() == "enabled":
+        reasons.append("public-net")
+    if str(item.get("network_access_policy") or "").lower() == "allowall":
+        reasons.append("allow-all")
+    if item.get("max_shares") not in (None, 1):
+        reasons.append(f"shared={item.get('max_shares')}")
+    if item.get("disk_access_id"):
+        reasons.append("disk-access")
+    if not reasons:
+        return "baseline"
+    return ", ".join(reasons)
+
+
+def _snapshot_disk_attachment_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("attachment_state") == "snapshot":
+        parts.append(f"source={item.get('source_resource_name') or '-'}")
+        if item.get("incremental") is True:
+            parts.append("incremental=yes")
+    elif item.get("attached_to_name"):
+        parts.append(f"attached={item.get('attached_to_name')}")
+        if item.get("disk_role"):
+            parts.append(f"role={item.get('disk_role')}")
+    else:
+        parts.append("detached")
+    return "; ".join(parts)
+
+
+def _snapshot_disk_sharing_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("network_access_policy"):
+        parts.append(f"policy={item.get('network_access_policy')}")
+    if item.get("public_network_access"):
+        parts.append(f"public={item.get('public_network_access')}")
+    if item.get("max_shares") is not None:
+        parts.append(f"max-shares={item.get('max_shares')}")
+    if item.get("disk_access_id"):
+        parts.append("disk-access=yes")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _snapshot_disk_encryption_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("encryption_type"):
+        parts.append(f"type={item.get('encryption_type')}")
+    if item.get("disk_encryption_set_id"):
+        parts.append("des=yes")
+    else:
+        parts.append("des=no")
+    if item.get("os_type"):
+        parts.append(f"os={item.get('os_type')}")
+    if item.get("size_gb") is not None:
+        parts.append(f"size={item.get('size_gb')}g")
     return "; ".join(parts)
 
 

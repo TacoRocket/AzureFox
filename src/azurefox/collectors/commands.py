@@ -36,6 +36,7 @@ from azurefox.models.commands import (
     RbacOutput,
     ResourceTrustsOutput,
     RoleTrustsOutput,
+    SnapshotsDisksOutput,
     StorageOutput,
     TokensCredentialsOutput,
     VmsOutput,
@@ -364,6 +365,33 @@ def collect_storage(provider: BaseProvider, options: GlobalOptions) -> StorageOu
     )
 
 
+def collect_snapshots_disks(
+    provider: BaseProvider,
+    options: GlobalOptions,
+) -> SnapshotsDisksOutput:
+    data = provider.snapshots_disks()
+    snapshot_disk_assets = sorted(
+        data.get("snapshot_disk_assets", []),
+        key=lambda item: (
+            item.get("attachment_state") != "detached",
+            item.get("asset_kind") != "snapshot",
+            str(item.get("public_network_access") or "").lower() != "enabled",
+            _priority_sort_value(item),
+            item.get("attached_to_name") or "",
+            item.get("source_resource_name") or "",
+            item.get("name") or "",
+        ),
+    )
+    return SnapshotsDisksOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "snapshots-disks", options),
+            "findings": [],
+            **data,
+            "snapshot_disk_assets": snapshot_disk_assets,
+        }
+    )
+
+
 def collect_nics(provider: BaseProvider, options: GlobalOptions) -> NicsOutput:
     data = provider.nics()
     nic_assets = sorted(
@@ -416,3 +444,22 @@ def _metadata(
         subscription_id=options.subscription or context.get("subscription_id"),
         token_source=token_source or context.get("token_source"),
     )
+
+
+def _priority_sort_value(item: dict) -> int:
+    score = 0
+    if item.get("disk_access_id"):
+        score -= 2
+    if item.get("max_shares") not in (None, 1):
+        score -= 2
+    if str(item.get("network_access_policy") or "").lower() == "allowall":
+        score -= 2
+    if str(item.get("public_network_access") or "").lower() == "enabled":
+        score -= 1
+    if item.get("disk_encryption_set_id") is None:
+        score -= 1
+    if item.get("attachment_state") == "detached":
+        score -= 2
+    if item.get("asset_kind") == "snapshot":
+        score -= 1
+    return score

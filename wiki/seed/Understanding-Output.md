@@ -47,7 +47,7 @@ It is not a separate evidence source.
 - Table output should not invent fields that are absent from the JSON contract.
 - Schema files under `schemas/` and snapshots under `tests/golden/` are the regression baseline.
 
-If you need the versioned contract details, use the repo docs rather than the wiki:
+If you need deeper reference or planning material outside a live operator run, use:
 
 - `docs/output-contracts.md`
-- `docs/api-mapping/`
+- `wiki/planning/api-mapping/`

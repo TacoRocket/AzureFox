@@ -33,6 +33,7 @@ from azurefox.models.common import (
     RoleTrustsMode,
     RoleTrustSummary,
     ScopeRef,
+    SnapshotDiskAsset,
     StorageAsset,
     SubscriptionRef,
     TokenCredentialSurfaceSummary,
@@ -221,6 +222,13 @@ class KeyVaultOutput(BaseModel):
 class StorageOutput(BaseModel):
     metadata: CommandMetadata
     storage_assets: list[StorageAsset] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class SnapshotsDisksOutput(BaseModel):
+    metadata: CommandMetadata
+    snapshot_disk_assets: list[SnapshotDiskAsset] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 

@@ -189,6 +189,11 @@ def storage(ctx: typer.Context) -> None:
     _run_single(ctx, "storage")
 
 
+@app.command("snapshots-disks")
+def snapshots_disks(ctx: typer.Context) -> None:
+    _run_single(ctx, "snapshots-disks")
+
+
 @app.command("nics")
 def nics(ctx: typer.Context) -> None:
     _run_single(ctx, "nics")

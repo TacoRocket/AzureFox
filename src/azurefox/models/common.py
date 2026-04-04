@@ -242,6 +242,33 @@ class StorageAsset(BaseModel):
     table_count: int | None = None
 
 
+class SnapshotDiskAsset(BaseModel):
+    id: str
+    name: str
+    asset_kind: str
+    resource_group: str | None = None
+    location: str | None = None
+    disk_role: str | None = None
+    attachment_state: str | None = None
+    attached_to_id: str | None = None
+    attached_to_name: str | None = None
+    source_resource_id: str | None = None
+    source_resource_name: str | None = None
+    source_resource_kind: str | None = None
+    os_type: str | None = None
+    size_gb: int | None = None
+    time_created: str | None = None
+    incremental: bool | None = None
+    network_access_policy: str | None = None
+    public_network_access: str | None = None
+    disk_access_id: str | None = None
+    max_shares: int | None = None
+    encryption_type: str | None = None
+    disk_encryption_set_id: str | None = None
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class EndpointSummary(BaseModel):
     endpoint: str
     endpoint_type: str

@@ -729,6 +729,37 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox storage --output table",
     ),
+    "snapshots-disks": CommandHelpTopic(
+        name="snapshots-disks",
+        section="compute",
+        summary=(
+            "Prioritize managed disks and snapshots that look easiest to review or copy offline."
+        ),
+        offensive_question=(
+            "Which visible disks or snapshots should I review first because attachment state, "
+            "sharing/export posture, or encryption context make them the highest-value targets?"
+        ),
+        cloudfox_frame=(
+            "Azure-native disk and snapshot triage that keeps one operator-first row per "
+            "disk-backed asset and sorts the highest-value offline-copy targets first."
+        ),
+        output_highlights=(
+            "asset_kind",
+            "attachment_state",
+            "source_resource_name",
+            "network_access_policy",
+            "public_network_access",
+            "max_shares",
+            "disk_encryption_set_id",
+            "summary",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Infrastructure Discovery"),
+            AttackLead("Collection", "Data from Information Repositories"),
+            AttackLead("Impact", "Data Destruction"),
+        ),
+        example="azurefox snapshots-disks --output table",
+    ),
     "nics": CommandHelpTopic(
         name="nics",
         section="network",
@@ -930,17 +961,6 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
         attack_lenses=(
             AttackLead("Discovery", "Network Service Discovery"),
             AttackLead("Lateral Movement", "Remote Services: Direct Cloud VM Connections"),
-        ),
-    ),
-    "azure-only": SectionHelpTopic(
-        name="azure-only",
-        summary="Reserved for Azure-native trust and control-plane abuse paths.",
-        operator_goal=(
-            "Highlight Azure-specific surfaces that do not map cleanly to AWS or GCP workflows."
-        ),
-        attack_lenses=(
-            AttackLead("Initial Access", "Trusted Relationship"),
-            AttackLead("Privilege Escalation", "Account Manipulation: Additional Cloud Roles"),
         ),
     ),
     "ai": SectionHelpTopic(

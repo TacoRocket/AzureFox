@@ -39,8 +39,9 @@ AzureFox is intended to work on macOS, Linux, and Windows. The command examples 
 portable relative paths like `./azurefox-demo`; shell syntax mainly differs for virtualenv
 activation and environment-variable export.
 
-For a quick operator-focused summary of what changes across shells and what does not, see
-[`docs/wiki-seed/Platform-Notes.md`](docs/wiki-seed/Platform-Notes.md).
+Live operator guidance is built into `azurefox help` and `azurefox help <command>`.
+Longer-form planning and wiki-source material lives under
+[`wiki/`](https://github.com/TacoRocket/AzureFox/tree/main/wiki).
 
 ## Need A Test Lab?
 
@@ -52,35 +53,17 @@ Use a disposable subscription you control. It is risky on purpose.
 
 ## Currently Supported Azure Commands
 
-- `whoami`
-- `inventory`
-- `nics`
-- `dns`
-- `endpoints`
-- `network-effective`
-- `network-ports`
-- `workloads`
-- `app-services`
-- `functions`
-- `aks`
-- `api-mgmt`
-- `acr`
-- `databases`
-- `arm-deployments`
-- `env-vars`
-- `tokens-credentials`
-- `rbac`
-- `principals`
-- `permissions`
-- `privesc`
-- `role-trusts`
-- `auth-policies`
-- `managed-identities`
-- `keyvault`
-- `resource-trusts`
-- `storage`
-- `vms`
-- `all-checks`
+| Section | Commands |
+| --- | --- |
+| `core` | `inventory` |
+| `identity` | `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `auth-policies`, `managed-identities` |
+| `config` | `arm-deployments`, `env-vars` |
+| `secrets` | `keyvault`, `tokens-credentials` |
+| `resource` | `acr`, `api-mgmt`, `databases`, `resource-trusts` |
+| `storage` | `storage` |
+| `network` | `nics`, `dns`, `endpoints`, `network-effective`, `network-ports` |
+| `compute` | `workloads`, `app-services`, `functions`, `aks`, `vms`, `snapshots-disks` |
+| orchestration | `all-checks` |
 
 ## CLI Invocation
 
@@ -190,8 +173,8 @@ Current section mappings:
 - `secrets`: `keyvault`, `tokens-credentials`
 - `resource`: `acr`, `api-mgmt`, `databases`, `resource-trusts`
 - `storage`: `storage`
-- `network`: `nics`, `dns`, `endpoints`, `network-ports`
-- `compute`: `workloads`, `app-services`, `functions`, `aks`, `vms`
+- `network`: `nics`, `dns`, `endpoints`, `network-effective`, `network-ports`
+- `compute`: `workloads`, `app-services`, `functions`, `aks`, `vms`, `snapshots-disks`
 - `core`: `inventory`
 
 ## Help

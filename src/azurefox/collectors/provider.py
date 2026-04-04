@@ -189,6 +189,10 @@ class BaseProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def snapshots_disks(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
     def nics(self) -> dict:
         raise NotImplementedError
 
@@ -286,6 +290,9 @@ class FixtureProvider(BaseProvider):
 
     def storage(self) -> dict:
         return self._read("storage")
+
+    def snapshots_disks(self) -> dict:
+        return self._read("snapshots_disks")
 
     def nics(self) -> dict:
         return self._read("nics")
@@ -1750,6 +1757,152 @@ class AzureProvider(BaseProvider):
         assets.sort(key=lambda item: ((item.get("name") or ""), item.get("id") or ""))
         return {"storage_assets": assets, "issues": issues}
 
+    def snapshots_disks(self) -> dict:
+        assets: list[dict] = []
+        issues: list[dict] = []
+        attachment_context: dict[str, dict[str, str | None]] = {}
+
+        try:
+            for vm in self.clients.compute.virtual_machines.list_all():
+                vm_id = getattr(vm, "id", "unknown")
+                vm_name = getattr(vm, "name", "unknown")
+                storage_profile = getattr(vm, "storage_profile", None)
+                if storage_profile is None:
+                    continue
+
+                os_disk = getattr(storage_profile, "os_disk", None)
+                os_disk_id = getattr(getattr(os_disk, "managed_disk", None), "id", None)
+                if os_disk_id:
+                    attachment_context[str(os_disk_id)] = {
+                        "attached_to_id": vm_id,
+                        "attached_to_name": vm_name,
+                        "disk_role": "os-disk",
+                    }
+
+                for data_disk in getattr(storage_profile, "data_disks", None) or []:
+                    disk_id = getattr(getattr(data_disk, "managed_disk", None), "id", None)
+                    if not disk_id:
+                        continue
+                    attachment_context[str(disk_id)] = {
+                        "attached_to_id": vm_id,
+                        "attached_to_name": vm_name,
+                        "disk_role": "data-disk",
+                    }
+        except Exception as exc:
+            issues.append(_issue_from_exception("snapshots_disks.vm_attachment_context", exc))
+
+        try:
+            for disk in self.clients.compute.disks.list():
+                disk_id = getattr(disk, "id", "unknown")
+                attachment = attachment_context.get(str(disk_id), {})
+                creation_data = getattr(disk, "creation_data", None)
+                source_resource_id = _string_value(
+                    getattr(creation_data, "source_resource_id", None)
+                )
+                encryption = getattr(disk, "encryption", None)
+                attached_to_id = _string_value(
+                    attachment.get("attached_to_id") or getattr(disk, "managed_by", None)
+                )
+                asset = {
+                    "id": disk_id,
+                    "name": getattr(disk, "name", "unknown"),
+                    "asset_kind": "disk",
+                    "resource_group": _resource_group_from_id(disk_id),
+                    "location": getattr(disk, "location", None),
+                    "disk_role": _string_value(attachment.get("disk_role")),
+                    "attachment_state": "attached" if attached_to_id else "detached",
+                    "attached_to_id": attached_to_id,
+                    "attached_to_name": _string_value(attachment.get("attached_to_name"))
+                    or _resource_name_from_id(attached_to_id),
+                    "source_resource_id": source_resource_id,
+                    "source_resource_name": _resource_name_from_id(source_resource_id),
+                    "source_resource_kind": _snapshot_disk_source_kind(source_resource_id),
+                    "os_type": _string_value(getattr(disk, "os_type", None)),
+                    "size_gb": getattr(disk, "disk_size_gb", None),
+                    "time_created": _datetime_to_string(getattr(disk, "time_created", None)),
+                    "incremental": None,
+                    "network_access_policy": _string_value(
+                        getattr(disk, "network_access_policy", None)
+                    ),
+                    "public_network_access": _string_value(
+                        getattr(disk, "public_network_access", None)
+                    ),
+                    "disk_access_id": _string_value(getattr(disk, "disk_access_id", None)),
+                    "max_shares": getattr(disk, "max_shares", None),
+                    "encryption_type": _string_value(getattr(encryption, "type", None)),
+                    "disk_encryption_set_id": _string_value(
+                        getattr(encryption, "disk_encryption_set_id", None)
+                    ),
+                }
+                asset["summary"] = _snapshot_disk_summary(asset)
+                asset["related_ids"] = [
+                    item
+                    for item in (
+                        asset.get("attached_to_id"),
+                        asset.get("source_resource_id"),
+                        asset.get("disk_access_id"),
+                        asset.get("disk_encryption_set_id"),
+                    )
+                    if item
+                ]
+                assets.append(asset)
+        except Exception as exc:
+            issues.append(_issue_from_exception("snapshots_disks.disks", exc))
+
+        try:
+            for snapshot in self.clients.compute.snapshots.list():
+                snapshot_id = getattr(snapshot, "id", "unknown")
+                creation_data = getattr(snapshot, "creation_data", None)
+                source_resource_id = _string_value(
+                    getattr(creation_data, "source_resource_id", None)
+                )
+                encryption = getattr(snapshot, "encryption", None)
+                asset = {
+                    "id": snapshot_id,
+                    "name": getattr(snapshot, "name", "unknown"),
+                    "asset_kind": "snapshot",
+                    "resource_group": _resource_group_from_id(snapshot_id),
+                    "location": getattr(snapshot, "location", None),
+                    "disk_role": None,
+                    "attachment_state": "snapshot",
+                    "attached_to_id": None,
+                    "attached_to_name": None,
+                    "source_resource_id": source_resource_id,
+                    "source_resource_name": _resource_name_from_id(source_resource_id),
+                    "source_resource_kind": _snapshot_disk_source_kind(source_resource_id),
+                    "os_type": _string_value(getattr(snapshot, "os_type", None)),
+                    "size_gb": getattr(snapshot, "disk_size_gb", None),
+                    "time_created": _datetime_to_string(getattr(snapshot, "time_created", None)),
+                    "incremental": _bool_or_none(getattr(snapshot, "incremental", None)),
+                    "network_access_policy": _string_value(
+                        getattr(snapshot, "network_access_policy", None)
+                    ),
+                    "public_network_access": _string_value(
+                        getattr(snapshot, "public_network_access", None)
+                    ),
+                    "disk_access_id": _string_value(getattr(snapshot, "disk_access_id", None)),
+                    "max_shares": getattr(snapshot, "max_shares", None),
+                    "encryption_type": _string_value(getattr(encryption, "type", None)),
+                    "disk_encryption_set_id": _string_value(
+                        getattr(encryption, "disk_encryption_set_id", None)
+                    ),
+                }
+                asset["summary"] = _snapshot_disk_summary(asset)
+                asset["related_ids"] = [
+                    item
+                    for item in (
+                        asset.get("source_resource_id"),
+                        asset.get("disk_access_id"),
+                        asset.get("disk_encryption_set_id"),
+                    )
+                    if item
+                ]
+                assets.append(asset)
+        except Exception as exc:
+            issues.append(_issue_from_exception("snapshots_disks.snapshots", exc))
+
+        return {"snapshot_disk_assets": assets, "issues": issues}
+
     def vms(self) -> dict:
         vm_assets: list[dict] = []
         issues: list[dict] = []
@@ -2352,6 +2505,62 @@ def _resource_name_from_id(resource_id: str | None) -> str | None:
     if not parts:
         return None
     return parts[-1]
+
+
+def _snapshot_disk_source_kind(resource_id: str | None) -> str | None:
+    if not resource_id:
+        return None
+    normalized = resource_id.lower()
+    if "/providers/microsoft.compute/disks/" in normalized:
+        return "disk"
+    if "/providers/microsoft.compute/snapshots/" in normalized:
+        return "snapshot"
+    return "resource"
+
+
+def _datetime_to_string(value: object) -> str | None:
+    if value is None:
+        return None
+    isoformat = getattr(value, "isoformat", None)
+    if callable(isoformat):
+        return str(isoformat())
+    return str(value)
+
+
+def _snapshot_disk_summary(item: dict) -> str:
+    parts: list[str] = []
+
+    if item.get("asset_kind") == "snapshot":
+        parts.append(f"Snapshot of {item.get('source_resource_name') or 'source resource'}")
+        if item.get("incremental") is True:
+            parts.append("incremental copy path visible")
+    elif item.get("attached_to_name"):
+        role = item.get("disk_role") or "managed disk"
+        parts.append(f"Attached {role} for {item.get('attached_to_name')}")
+    else:
+        parts.append("Detached managed disk")
+
+    posture_bits: list[str] = []
+    if item.get("public_network_access"):
+        posture_bits.append(f"public network {item.get('public_network_access')}")
+    if item.get("network_access_policy"):
+        posture_bits.append(f"network access {item.get('network_access_policy')}")
+    if item.get("max_shares") not in (None, 1):
+        posture_bits.append(f"max shares {item.get('max_shares')}")
+    if item.get("disk_access_id"):
+        posture_bits.append("disk access resource visible")
+    if posture_bits:
+        parts.append(", ".join(posture_bits))
+
+    encryption_bits: list[str] = []
+    if item.get("encryption_type"):
+        encryption_bits.append(str(item.get("encryption_type")))
+    if item.get("disk_encryption_set_id"):
+        encryption_bits.append("disk encryption set linked")
+    if encryption_bits:
+        parts.append(f"encryption posture: {', '.join(encryption_bits)}")
+
+    return "; ".join(parts) + "."
 
 
 def _subnet_components_from_id(subnet_id: str) -> tuple[str | None, str | None, str | None]:
