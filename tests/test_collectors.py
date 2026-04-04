@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 from azurefox.collectors.commands import (
     collect_acr,
@@ -35,6 +36,7 @@ from azurefox.collectors.commands import (
 from azurefox.collectors.provider import (
     AzureProvider,
     FixtureProvider,
+    _aks_cluster_summary,
     _env_var_reference_target,
     _network_effective_row_from_endpoint,
     _network_scope_label,
@@ -285,6 +287,7 @@ class PartialApiMgmtFixtureProvider(FixtureProvider):
         data = self._read("api_mgmt")
         row = dict(data["api_management_services"][0])
         row["api_count"] = None
+        row["api_subscription_required_count"] = None
         return {
             "api_management_services": [row],
             "issues": [
@@ -579,6 +582,74 @@ def test_collect_aks(fixture_provider, options) -> None:
     assert output.aks_clusters[1].private_cluster_enabled is True
     assert output.aks_clusters[1].azure_rbac_enabled is True
     assert output.aks_clusters[1].agent_pool_count == 2
+    assert output.aks_clusters[1].oidc_issuer_enabled is True
+    assert (
+        output.aks_clusters[1].oidc_issuer_url
+        == "https://oidc.prod-aks.azure.example/aks-ops-01"
+    )
+    assert output.aks_clusters[1].workload_identity_enabled is True
+    assert output.aks_clusters[1].addon_names == ["azureKeyvaultSecretsProvider"]
+    assert output.aks_clusters[1].web_app_routing_enabled is True
+    assert output.aks_clusters[1].web_app_routing_dns_zone_count == 1
+
+
+def test_aks_cluster_summary_rolls_up_azure_native_depth_cues() -> None:
+    cluster = SimpleNamespace(
+        id="/subscriptions/test/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks-01",
+        name="aks-01",
+        location="eastus",
+        provisioning_state="Succeeded",
+        kubernetes_version="1.29.4",
+        sku=SimpleNamespace(tier="Standard"),
+        node_resource_group="MC_rg_aks-01_eastus",
+        fqdn="aks-01.hcp.eastus.azmk8s.io",
+        private_fqdn="aks-01.privatelink.eastus.azmk8s.io",
+        identity=SimpleNamespace(
+            type="SystemAssigned",
+            principal_id="principal-1",
+            client_id="client-1",
+            user_assigned_identities={},
+        ),
+        service_principal_profile=None,
+        aad_profile=SimpleNamespace(managed=True, enable_azure_rbac=True),
+        api_server_access_profile=SimpleNamespace(
+            enable_private_cluster=True,
+            enable_private_cluster_public_fqdn=False,
+        ),
+        network_profile=SimpleNamespace(
+            network_plugin="azure",
+            network_policy="calico",
+            outbound_type="loadBalancer",
+        ),
+        oidc_issuer_profile=SimpleNamespace(
+            enabled=True,
+            issuer_url="https://issuer.example",
+        ),
+        security_profile=SimpleNamespace(
+            workload_identity=SimpleNamespace(enabled=True)
+        ),
+        ingress_profile=SimpleNamespace(
+            web_app_routing=SimpleNamespace(
+                enabled=True,
+                dns_zone_resource_ids=["/dns/zone1"],
+            )
+        ),
+        addon_profiles={
+            "azureKeyvaultSecretsProvider": SimpleNamespace(enabled=True),
+            "httpApplicationRouting": SimpleNamespace(enabled=False),
+        },
+        agent_pool_profiles=[SimpleNamespace(name="systempool")],
+        disable_local_accounts=True,
+    )
+
+    summary = _aks_cluster_summary(cluster)
+
+    assert summary["oidc_issuer_enabled"] is True
+    assert summary["oidc_issuer_url"] == "https://issuer.example"
+    assert summary["workload_identity_enabled"] is True
+    assert summary["addon_names"] == ["azureKeyvaultSecretsProvider"]
+    assert summary["web_app_routing_enabled"] is True
+    assert summary["web_app_routing_dns_zone_count"] == 1
 
 
 def test_collect_aks_keeps_command_level_issue_explicit(
@@ -599,7 +670,15 @@ def test_collect_api_mgmt(fixture_provider, options) -> None:
     assert len(output.findings) == 0
     assert output.api_management_services[0].name == "apim-edge-01"
     assert output.api_management_services[0].api_count == 2
+    assert output.api_management_services[0].api_subscription_required_count == 1
+    assert output.api_management_services[0].subscription_count == 3
+    assert output.api_management_services[0].active_subscription_count == 2
+    assert output.api_management_services[0].backend_hostnames == [
+        "orders-internal.contoso.local"
+    ]
     assert output.api_management_services[0].named_value_count == 2
+    assert output.api_management_services[0].named_value_secret_count == 1
+    assert output.api_management_services[0].named_value_key_vault_count == 1
     assert (
         output.api_management_services[0].public_ip_address_id
         == (
@@ -620,6 +699,7 @@ def test_collect_api_mgmt_keeps_partial_visibility_explicit(
     assert len(output.api_management_services) == 1
     assert output.api_management_services[0].name == "apim-edge-01"
     assert output.api_management_services[0].api_count is None
+    assert output.api_management_services[0].api_subscription_required_count is None
     assert output.issues[0].kind == "permission_denied"
     assert output.issues[0].context["collector"] == "api_mgmt[rg-apps/apim-edge-01].apis"
 

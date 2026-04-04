@@ -2,11 +2,11 @@
 
 ## Slice Goal
 
-Surface operator-first AKS cluster posture before deeper Kubernetes-specific analysis exists.
+Surface operator-first AKS cluster posture with a narrow Azure-native depth pass.
 
-This first version answers:
-"Which AKS clusters expose the most interesting control-plane endpoint, identity context, and auth
-posture for operator follow-up?"
+This version answers:
+"Which AKS clusters expose the most interesting control-plane endpoint, identity context, auth
+posture, and Azure-native federation or addon cues for operator follow-up?"
 
 ## Initial Scope
 
@@ -16,6 +16,8 @@ posture for operator follow-up?"
   service-principal-backed clusters when visible
 - Managed AAD, Azure RBAC, and local-account posture
 - Basic network-shape signals such as plugin, policy, and outbound mode
+- OIDC issuer and workload identity posture
+- Enabled addon names and simple web-app-routing ingress-profile cues
 
 ## Explicit Non-Goals For V1
 
@@ -32,6 +34,8 @@ posture for operator follow-up?"
 
 - Normalize cluster-level control-plane exposure, identity, auth, and network metadata into a
   single operator-first row
+- Add a small amount of Azure-native federation and addon posture without crossing into cluster
+  access or Kubernetes-object collection
 - Keep the slice focused on management-plane cluster posture without implying in-cluster visibility
 
 ## Blind Spots
@@ -39,3 +43,5 @@ posture for operator follow-up?"
 - V1 does not prove Kubernetes API reachability from the current network position
 - Cluster auth posture does not show actual Entra group assignments or in-cluster RBAC objects
 - Network-shape signals do not prove ingress paths to workloads running behind the cluster
+- OIDC, workload identity, and addon cues are management-plane posture hints, not proof of usable
+  cluster access

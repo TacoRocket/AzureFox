@@ -215,16 +215,16 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="aks",
         section="compute",
         summary=(
-            "Summarize AKS cluster endpoint, identity, auth posture, and basic network shape."
+            "Summarize AKS cluster endpoint, identity, auth posture, and Azure-native depth cues."
         ),
         offensive_question=(
             "Which AKS clusters expose the most interesting control-plane endpoint, identity, "
-            "and auth posture for operator follow-up?"
+            "federation, addon, and Azure-side posture for operator follow-up?"
         ),
         cloudfox_frame=(
             "Azure-native AKS census that stays at management-plane cluster posture: API endpoint "
-            "visibility, identity context, auth controls, and network shape before deeper "
-            "Kubernetes or node-pool analysis."
+            "visibility, identity context, auth controls, and a small amount of Azure-native "
+            "federation and addon posture before deeper Kubernetes analysis."
         ),
         output_highlights=(
             "kubernetes_version",
@@ -233,6 +233,10 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "cluster_identity_type",
             "azure_rbac_enabled",
             "network_plugin",
+            "oidc_issuer_enabled",
+            "workload_identity_enabled",
+            "addon_names",
+            "web_app_routing_enabled",
         ),
         attack_leads=(
             AttackLead("Discovery", "Cloud Service Discovery"),
@@ -245,16 +249,17 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="api-mgmt",
         section="resource",
         summary=(
-            "Summarize API Management gateway, hostname, identity, and service-inventory posture."
+            "Summarize API Management gateway, hostname, identity, and narrow "
+            "service-depth posture."
         ),
         offensive_question=(
-            "Which API Management services expose the most interesting gateway, backend, and "
-            "configuration posture for operator follow-up?"
+            "Which API Management services expose the most interesting gateway, subscription, "
+            "backend, and secret posture for operator follow-up?"
         ),
         cloudfox_frame=(
             "Azure-native API Management census that surfaces gateway hostnames, identity "
-            "context, service inventory, and basic exposure posture before deeper policy or "
-            "subscription analysis."
+            "context, service inventory, and a small amount of deeper subscription, backend, "
+            "and named-value posture without turning into a raw APIM dump."
         ),
         output_highlights=(
             "gateway_hostnames",
@@ -262,6 +267,11 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "virtual_network_type",
             "api_count",
             "named_value_count",
+            "api_subscription_required_count",
+            "subscription_count",
+            "named_value_secret_count",
+            "named_value_key_vault_count",
+            "backend_hostnames",
         ),
         attack_leads=(
             AttackLead("Discovery", "Cloud Service Discovery"),

@@ -172,12 +172,18 @@ def test_aks_table_mode_surfaces_endpoint_and_auth_posture(tmp_path: Path) -> No
     assert "k8s=1.29.4" in result.stdout
     assert "private-api=yes" in result.stdout
     assert "ServicePrincipal" in result.stdout
+    assert "workload-id=yes" in result.stdout
     assert "azure-rbac=yes" in result.stdout
+    assert "oidc=yes" in result.stdout
     assert "plugin=azure" in result.stdout
+    assert "addons=1" in result.stdout
+    assert "webapp-routing=yes" in result.stdout
+    normalized_output = " ".join(result.stdout.split())
     assert (
         "Takeaway: 2 AKS clusters visible; 1 use private API endpoints, "
-        "2 expose cluster identity context, and 1 enable Azure RBAC."
-    ) in result.stdout
+        "2 expose cluster identity context, 1 enable Azure RBAC, and 1 show Azure-side "
+        "federation cues."
+    ) in normalized_output
 
 
 def test_api_mgmt_table_mode_surfaces_gateway_and_inventory(tmp_path: Path) -> None:
@@ -194,13 +200,20 @@ def test_api_mgmt_table_mode_surfaces_gateway_and_inventory(tmp_path: Path) -> N
     )
     assert "service" in result.stdout
     assert "apim-edge-01" in result.stdout
+    assert "sub-required=1/2" in result.stdout
+    assert "subs=3" in result.stdout
+    assert "backend-hosts=1" in result.stdout
     assert "named-values=2" in result.stdout
+    assert "named-secrets=1" in result.stdout
+    assert "kv-backed=1" in result.stdout
     assert "gateway=2" in result.stdout
     assert "public=Enabled" in result.stdout
+    normalized_output = " ".join(result.stdout.split())
     assert (
         "Takeaway: 1 API Management services visible; 1 keep public network access enabled, "
-        "1 carry managed identity context, and 2 named values are visible."
-    ) in result.stdout
+        "1 carry managed identity context, and 2 named values are visible, including 1 marked "
+        "secret."
+    ) in normalized_output
 
 
 def test_functions_table_mode_surfaces_runtime_and_deployment(tmp_path: Path) -> None:

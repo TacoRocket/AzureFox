@@ -129,6 +129,7 @@ def test_help_command_aks_topic() -> None:
     assert "cluster_identity_type" in result.stdout
     assert "azure_rbac_enabled" in result.stdout
     assert "network_plugin" in result.stdout
+    assert "oidc_issuer_enabled" in result.stdout
 
 
 def test_help_command_api_mgmt_topic() -> None:
@@ -138,6 +139,7 @@ def test_help_command_api_mgmt_topic() -> None:
     assert "AzureFox Help :: api-mgmt" in result.stdout
     assert "gateway_hostnames" in result.stdout
     assert "virtual_network_type" in result.stdout
+    assert "named_value_secret_count" in result.stdout
 
 
 def test_help_command_network_ports_topic() -> None:

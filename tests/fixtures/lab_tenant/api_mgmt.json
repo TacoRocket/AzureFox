@@ -33,9 +33,17 @@
       "developer_portal_status": "Enabled",
       "legacy_portal_status": "Disabled",
       "api_count": 2,
+      "api_subscription_required_count": 1,
+      "subscription_count": 3,
+      "active_subscription_count": 2,
       "backend_count": 1,
+      "backend_hostnames": [
+        "orders-internal.contoso.local"
+      ],
       "named_value_count": 2,
-      "summary": "API Management service 'apim-edge-01' publishes gateway hostnames apim-edge-01.azure-api.net, api.contoso.com; management hostnames apim-edge-01.management.azure-api.net; portal hostnames portal.apim-edge-01.contoso.com and uses managed identity (SystemAssigned). Visible inventory: 2 APIs, 1 backends, 2 named values. Visible posture: public network access Enabled, virtual network type External, SKU Developer, gateway enabled, developer portal Enabled.",
+      "named_value_secret_count": 1,
+      "named_value_key_vault_count": 1,
+      "summary": "API Management service 'apim-edge-01' publishes gateway hostnames apim-edge-01.azure-api.net, api.contoso.com; management hostnames apim-edge-01.management.azure-api.net; portal hostnames portal.apim-edge-01.contoso.com and uses managed identity (SystemAssigned). Visible inventory: 2 APIs, 1 require subscriptions, 3 subscriptions (2 active), 1 backends, 2 named values. Depth cues: 1 named values marked secret, 1 Key Vault-backed named values, backend hosts orders-internal.contoso.local. Visible posture: public network access Enabled, virtual network type External, SKU Developer, gateway enabled, developer portal Enabled.",
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.ApiManagement/service/apim-edge-01",
         "99990000-0000-0000-0000-000000000001",

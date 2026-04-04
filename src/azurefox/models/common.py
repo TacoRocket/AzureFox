@@ -387,6 +387,12 @@ class AksClusterAsset(BaseModel):
     network_policy: str | None = None
     outbound_type: str | None = None
     agent_pool_count: int | None = None
+    oidc_issuer_enabled: bool | None = None
+    oidc_issuer_url: str | None = None
+    workload_identity_enabled: bool | None = None
+    addon_names: list[str] = Field(default_factory=list)
+    web_app_routing_enabled: bool | None = None
+    web_app_routing_dns_zone_count: int | None = None
     summary: str
     related_ids: list[str] = Field(default_factory=list)
 
@@ -415,8 +421,14 @@ class ApiMgmtServiceAsset(BaseModel):
     developer_portal_status: str | None = None
     legacy_portal_status: str | None = None
     api_count: int | None = None
+    api_subscription_required_count: int | None = None
+    subscription_count: int | None = None
+    active_subscription_count: int | None = None
     backend_count: int | None = None
+    backend_hostnames: list[str] = Field(default_factory=list)
     named_value_count: int | None = None
+    named_value_secret_count: int | None = None
+    named_value_key_vault_count: int | None = None
     summary: str
     related_ids: list[str] = Field(default_factory=list)
 

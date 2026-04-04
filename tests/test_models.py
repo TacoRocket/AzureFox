@@ -60,6 +60,12 @@ def test_aks_cluster_asset_defaults() -> None:
     assert asset.private_cluster_enabled is None
     assert asset.cluster_identity_ids == []
     assert asset.agent_pool_count is None
+    assert asset.oidc_issuer_enabled is None
+    assert asset.oidc_issuer_url is None
+    assert asset.workload_identity_enabled is None
+    assert asset.addon_names == []
+    assert asset.web_app_routing_enabled is None
+    assert asset.web_app_routing_dns_zone_count is None
     assert asset.related_ids == []
 
 
@@ -70,7 +76,13 @@ def test_api_mgmt_service_asset_defaults() -> None:
     assert asset.public_ip_address_id is None
     assert asset.public_ip_addresses == []
     assert asset.api_count is None
+    assert asset.api_subscription_required_count is None
+    assert asset.subscription_count is None
+    assert asset.active_subscription_count is None
     assert asset.gateway_enabled is None
+    assert asset.backend_hostnames == []
+    assert asset.named_value_secret_count is None
+    assert asset.named_value_key_vault_count is None
     assert asset.related_ids == []
 
 

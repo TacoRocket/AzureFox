@@ -609,6 +609,7 @@ class AzureProvider(BaseProvider):
             iterator = self.clients.api_management.api_management_service.list()
             for service in iterator:
                 apis = None
+                subscriptions = None
                 backends = None
                 named_values = None
                 service_id = getattr(service, "id", "") or ""
@@ -627,6 +628,21 @@ class AzureProvider(BaseProvider):
                         issues.append(
                             _issue_from_exception(
                                 f"api_mgmt[{resource_group}/{service_name}].apis",
+                                exc,
+                            )
+                        )
+
+                    try:
+                        subscriptions = list(
+                            self.clients.api_management.subscription.list(
+                                resource_group,
+                                service_name,
+                            )
+                        )
+                    except Exception as exc:
+                        issues.append(
+                            _issue_from_exception(
+                                f"api_mgmt[{resource_group}/{service_name}].subscriptions",
                                 exc,
                             )
                         )
@@ -661,7 +677,15 @@ class AzureProvider(BaseProvider):
                             )
                         )
 
-                services.append(_api_mgmt_service_summary(service, apis, backends, named_values))
+                services.append(
+                    _api_mgmt_service_summary(
+                        service,
+                        apis,
+                        subscriptions,
+                        backends,
+                        named_values,
+                    )
+                )
         except Exception as exc:
             issues.append(_issue_from_exception("api_mgmt.services", exc))
 
@@ -2483,6 +2507,7 @@ def _app_service_summary(app: object, config: object | None) -> dict:
 def _api_mgmt_service_summary(
     service: object,
     apis: list[object] | None,
+    subscriptions: list[object] | None,
     backends: list[object] | None,
     named_values: list[object] | None,
 ) -> dict:
@@ -2510,8 +2535,14 @@ def _api_mgmt_service_summary(
     workload_principal_id = _string_value(getattr(identity, "principal_id", None))
     workload_client_id = _string_value(getattr(identity, "client_id", None))
     api_count = len(apis) if apis is not None else None
+    api_subscription_required_count = _api_mgmt_api_subscription_required_count(apis)
+    subscription_count = len(subscriptions) if subscriptions is not None else None
+    active_subscription_count = _api_mgmt_active_subscription_count(subscriptions)
     backend_count = len(backends) if backends is not None else None
+    backend_hostnames = _api_mgmt_backend_hostnames(backends)
     named_value_count = len(named_values) if named_values is not None else None
+    named_value_secret_count = _api_mgmt_named_value_secret_count(named_values)
+    named_value_key_vault_count = _api_mgmt_named_value_key_vault_count(named_values)
     gateway_enabled = (
         None
         if getattr(service, "disable_gateway", None) is None
@@ -2542,8 +2573,14 @@ def _api_mgmt_service_summary(
         "developer_portal_status": _string_value(getattr(service, "developer_portal_status", None)),
         "legacy_portal_status": _string_value(getattr(service, "legacy_portal_status", None)),
         "api_count": api_count,
+        "api_subscription_required_count": api_subscription_required_count,
+        "subscription_count": subscription_count,
+        "active_subscription_count": active_subscription_count,
         "backend_count": backend_count,
+        "backend_hostnames": backend_hostnames,
         "named_value_count": named_value_count,
+        "named_value_secret_count": named_value_secret_count,
+        "named_value_key_vault_count": named_value_key_vault_count,
         "summary": _api_mgmt_operator_summary(
             service_name=service_name,
             gateway_hostnames=gateway_hostnames,
@@ -2554,8 +2591,14 @@ def _api_mgmt_service_summary(
             sku_name=_string_value(getattr(sku, "name", None)),
             workload_identity_type=workload_identity_type,
             api_count=api_count,
+            api_subscription_required_count=api_subscription_required_count,
+            subscription_count=subscription_count,
+            active_subscription_count=active_subscription_count,
             backend_count=backend_count,
+            backend_hostnames=backend_hostnames,
             named_value_count=named_value_count,
+            named_value_secret_count=named_value_secret_count,
+            named_value_key_vault_count=named_value_key_vault_count,
             gateway_enabled=gateway_enabled,
             developer_portal_status=_string_value(
                 getattr(service, "developer_portal_status", None)
@@ -3199,8 +3242,14 @@ def _aks_cluster_summary(cluster: object) -> dict:
     aad_profile = getattr(cluster, "aad_profile", None)
     api_server_access_profile = getattr(cluster, "api_server_access_profile", None)
     network_profile = getattr(cluster, "network_profile", None)
+    oidc_issuer_profile = getattr(cluster, "oidc_issuer_profile", None)
+    security_profile = getattr(cluster, "security_profile", None)
+    ingress_profile = getattr(cluster, "ingress_profile", None)
+    addon_profiles = getattr(cluster, "addon_profiles", None) or {}
     sku = getattr(cluster, "sku", None)
     agent_pool_profiles = getattr(cluster, "agent_pool_profiles", None) or []
+    workload_identity = getattr(security_profile, "workload_identity", None)
+    web_app_routing = getattr(ingress_profile, "web_app_routing", None)
 
     cluster_identity_ids = sorted(
         str(identity_id)
@@ -3226,6 +3275,19 @@ def _aks_cluster_summary(cluster: object) -> dict:
     azure_rbac_enabled = getattr(aad_profile, "enable_azure_rbac", None)
     local_accounts_disabled = getattr(cluster, "disable_local_accounts", None)
     agent_pool_count = len(agent_pool_profiles)
+    oidc_issuer_enabled = getattr(oidc_issuer_profile, "enabled", None)
+    oidc_issuer_url = _string_value(getattr(oidc_issuer_profile, "issuer_url", None))
+    workload_identity_enabled = getattr(workload_identity, "enabled", None)
+    addon_names = sorted(
+        addon_name
+        for addon_name, addon_profile in addon_profiles.items()
+        if getattr(addon_profile, "enabled", False)
+    )
+    web_app_routing_enabled = getattr(web_app_routing, "enabled", None)
+    web_app_routing_dns_zone_ids = getattr(web_app_routing, "dns_zone_resource_ids", None)
+    web_app_routing_dns_zone_count = (
+        len(web_app_routing_dns_zone_ids) if web_app_routing_dns_zone_ids is not None else None
+    )
 
     return {
         "id": cluster_id or f"/unknown/{cluster_name}",
@@ -3251,6 +3313,12 @@ def _aks_cluster_summary(cluster: object) -> dict:
         "network_policy": _string_value(getattr(network_profile, "network_policy", None)),
         "outbound_type": _string_value(getattr(network_profile, "outbound_type", None)),
         "agent_pool_count": agent_pool_count,
+        "oidc_issuer_enabled": oidc_issuer_enabled,
+        "oidc_issuer_url": oidc_issuer_url,
+        "workload_identity_enabled": workload_identity_enabled,
+        "addon_names": addon_names,
+        "web_app_routing_enabled": web_app_routing_enabled,
+        "web_app_routing_dns_zone_count": web_app_routing_dns_zone_count,
         "summary": _aks_operator_summary(
             cluster_name=cluster_name,
             kubernetes_version=_string_value(getattr(cluster, "kubernetes_version", None)),
@@ -3267,6 +3335,12 @@ def _aks_cluster_summary(cluster: object) -> dict:
             network_policy=_string_value(getattr(network_profile, "network_policy", None)),
             outbound_type=_string_value(getattr(network_profile, "outbound_type", None)),
             agent_pool_count=agent_pool_count,
+            oidc_issuer_enabled=oidc_issuer_enabled,
+            oidc_issuer_url=oidc_issuer_url,
+            workload_identity_enabled=workload_identity_enabled,
+            addon_names=addon_names,
+            web_app_routing_enabled=web_app_routing_enabled,
+            web_app_routing_dns_zone_count=web_app_routing_dns_zone_count,
         ),
         "related_ids": _dedupe_strings(
             [cluster_id, cluster_principal_id, *cluster_identity_ids]
@@ -3291,6 +3365,12 @@ def _aks_operator_summary(
     network_policy: str | None,
     outbound_type: str | None,
     agent_pool_count: int | None,
+    oidc_issuer_enabled: bool | None,
+    oidc_issuer_url: str | None,
+    workload_identity_enabled: bool | None,
+    addon_names: list[str],
+    web_app_routing_enabled: bool | None,
+    web_app_routing_dns_zone_count: int | None,
 ) -> str:
     if private_cluster_enabled is True and private_fqdn and public_fqdn_enabled and fqdn:
         endpoint_phrase = (
@@ -3326,6 +3406,14 @@ def _aks_operator_summary(
         auth_parts.append("local accounts disabled")
     elif local_accounts_disabled is False:
         auth_parts.append("local accounts enabled")
+    if oidc_issuer_enabled is True:
+        auth_parts.append("OIDC issuer enabled")
+    elif oidc_issuer_enabled is False:
+        auth_parts.append("OIDC issuer disabled")
+    if workload_identity_enabled is True:
+        auth_parts.append("workload identity enabled")
+    elif workload_identity_enabled is False:
+        auth_parts.append("workload identity disabled")
 
     network_parts: list[str] = []
     if private_cluster_enabled is True:
@@ -3338,12 +3426,34 @@ def _aks_operator_summary(
         network_parts.append(f"network policy {network_policy}")
     if outbound_type:
         network_parts.append(f"outbound {outbound_type}")
+    if web_app_routing_enabled is True:
+        if web_app_routing_dns_zone_count is not None:
+            network_parts.append(
+                f"web app routing enabled ({web_app_routing_dns_zone_count} DNS zone links)"
+            )
+        else:
+            network_parts.append("web app routing enabled")
+    elif web_app_routing_enabled is False:
+        network_parts.append("web app routing disabled")
 
     inventory_parts: list[str] = []
     if kubernetes_version:
         inventory_parts.append(f"Kubernetes {kubernetes_version}")
     if agent_pool_count is not None:
         inventory_parts.append(f"{agent_pool_count} agent pool(s)")
+    if addon_names:
+        inventory_parts.append(f"addons {', '.join(addon_names)}")
+
+    depth_parts: list[str] = []
+    if oidc_issuer_enabled is True and oidc_issuer_url:
+        depth_parts.append(f"OIDC issuer {oidc_issuer_url}")
+    elif oidc_issuer_enabled is True:
+        depth_parts.append("OIDC issuer enabled")
+    if workload_identity_enabled is True:
+        depth_parts.append("workload identity enabled")
+    if addon_names:
+        depth_parts.append(f"enabled addons {', '.join(addon_names)}")
+    depth_phrase = f" Depth cues: {', '.join(depth_parts)}." if depth_parts else ""
 
     auth_phrase = (
         f"Visible auth posture: {', '.join(auth_parts)}."
@@ -3363,7 +3473,7 @@ def _aks_operator_summary(
 
     return (
         f"AKS cluster '{cluster_name}' {endpoint_phrase} and {identity_phrase}. "
-        f"{inventory_phrase} {auth_phrase} {network_phrase}"
+        f"{inventory_phrase}{depth_phrase} {auth_phrase} {network_phrase}"
     )
 
 
@@ -3382,8 +3492,14 @@ def _api_mgmt_operator_summary(
     sku_name: str | None,
     workload_identity_type: str | None,
     api_count: int | None,
+    api_subscription_required_count: int | None,
+    subscription_count: int | None,
+    active_subscription_count: int | None,
     backend_count: int | None,
+    backend_hostnames: list[str],
     named_value_count: int | None,
+    named_value_secret_count: int | None,
+    named_value_key_vault_count: int | None,
     gateway_enabled: bool | None,
     developer_portal_status: str | None,
 ) -> str:
@@ -3403,6 +3519,20 @@ def _api_mgmt_operator_summary(
     inventory_parts: list[str] = []
     if api_count is not None:
         inventory_parts.append(f"{api_count} APIs")
+    if api_subscription_required_count is not None:
+        if api_count is not None:
+            inventory_parts.append(f"{api_subscription_required_count} require subscriptions")
+        else:
+            inventory_parts.append(
+                f"{api_subscription_required_count} APIs require subscriptions"
+            )
+    if subscription_count is not None:
+        if active_subscription_count is not None:
+            inventory_parts.append(
+                f"{subscription_count} subscriptions ({active_subscription_count} active)"
+            )
+        else:
+            inventory_parts.append(f"{subscription_count} subscriptions")
     if backend_count is not None:
         inventory_parts.append(f"{backend_count} backends")
     if named_value_count is not None:
@@ -3412,6 +3542,15 @@ def _api_mgmt_operator_summary(
         if inventory_parts
         else "Inventory counts are not fully readable from the current read path."
     )
+
+    depth_parts: list[str] = []
+    if named_value_secret_count is not None:
+        depth_parts.append(f"{named_value_secret_count} named values marked secret")
+    if named_value_key_vault_count is not None:
+        depth_parts.append(f"{named_value_key_vault_count} Key Vault-backed named values")
+    if backend_hostnames:
+        depth_parts.append(f"backend hosts {', '.join(backend_hostnames)}")
+    depth_phrase = f" Depth cues: {', '.join(depth_parts)}." if depth_parts else ""
 
     posture_parts = [
         f"public network access {public_network_access or 'unknown'}",
@@ -3432,7 +3571,7 @@ def _api_mgmt_operator_summary(
 
     return (
         f"API Management service '{service_name}' {host_phrase} and {identity_phrase}. "
-        f"{inventory_phrase} Visible posture: {', '.join(posture_parts)}."
+        f"{inventory_phrase}{depth_phrase} Visible posture: {', '.join(posture_parts)}."
     )
 
 
@@ -3486,6 +3625,56 @@ def _hostname_from_url(value: str | None) -> str | None:
 def _api_mgmt_exposure_priority(item: dict) -> bool:
     return bool(item.get("gateway_hostnames")) or (
         str(item.get("public_network_access") or "").lower() == "enabled"
+    )
+
+
+def _api_mgmt_api_subscription_required_count(apis: list[object] | None) -> int | None:
+    if apis is None:
+        return None
+    return sum(bool(getattr(api, "subscription_required", False)) for api in apis)
+
+
+def _api_mgmt_active_subscription_count(subscriptions: list[object] | None) -> int | None:
+    if subscriptions is None:
+        return None
+    return sum(
+        str(getattr(subscription, "state", "")).strip().lower() == "active"
+        for subscription in subscriptions
+    )
+
+
+def _api_mgmt_backend_hostnames(backends: list[object] | None) -> list[str]:
+    if backends is None:
+        return []
+    return _dedupe_strings(
+        [
+            _hostname_from_url(
+                _string_value(
+                    getattr(backend, "url", None)
+                    or getattr(getattr(backend, "properties", None), "url", None)
+                )
+            )
+            for backend in backends
+        ]
+    )
+
+
+def _api_mgmt_named_value_secret_count(named_values: list[object] | None) -> int | None:
+    if named_values is None:
+        return None
+    return sum(bool(getattr(named_value, "secret", False)) for named_value in named_values)
+
+
+def _api_mgmt_named_value_key_vault_count(named_values: list[object] | None) -> int | None:
+    if named_values is None:
+        return None
+    return sum(
+        bool(
+            _string_value(
+                getattr(getattr(named_value, "key_vault", None), "secret_identifier", None)
+            )
+        )
+        for named_value in named_values
     )
 
 
