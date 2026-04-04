@@ -2,6 +2,7 @@
 
 - [Home](Home)
 - [Getting Started](Getting-Started)
+- [Platform Notes](Platform-Notes)
 - [Running Against The Proof Lab](Running-Against-The-Proof-Lab)
 - [Understanding Output](Understanding-Output)
 - Command Guides (coming soon)

@@ -258,6 +258,19 @@ class NetworkPortSummary(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class NetworkEffectiveSummary(BaseModel):
+    asset_id: str
+    asset_name: str
+    endpoint: str
+    endpoint_type: str
+    effective_exposure: str
+    internet_exposed_ports: list[str] = Field(default_factory=list)
+    constrained_ports: list[str] = Field(default_factory=list)
+    observed_paths: list[str] = Field(default_factory=list)
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class NicAsset(BaseModel):
     id: str
     name: str

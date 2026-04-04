@@ -326,6 +326,33 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox endpoints --output table",
     ),
+    "network-effective": CommandHelpTopic(
+        name="network-effective",
+        section="network",
+        summary=(
+            "Summarize likely public-IP reachability by combining endpoint and NSG evidence."
+        ),
+        offensive_question=(
+            "Which public-IP-backed assets look most worth investigating first once I combine "
+            "visible endpoint and inbound-rule evidence?"
+        ),
+        cloudfox_frame=(
+            "Azure-native reachability triage that stays cautious: it combines visible endpoint "
+            "and NSG evidence to help prioritize follow-up, not to prove full effective exposure."
+        ),
+        output_highlights=(
+            "effective_exposure",
+            "internet_exposed_ports",
+            "constrained_ports",
+            "observed_paths",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Network Service Discovery"),
+            AttackLead("Initial Access", "Exploit Public-Facing Application"),
+            AttackLead("Lateral Movement", "Remote Services: Direct Cloud VM Connections"),
+        ),
+        example="azurefox network-effective --output table",
+    ),
     "network-ports": CommandHelpTopic(
         name="network-ports",
         section="network",
@@ -525,7 +552,8 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "Azure-native trust-edge triage across readable app registrations, service "
             "principals, federated credentials, ownership, and app-role assignments rather "
             "than delegated or admin consent grants. Fast mode is the default; full mode is "
-            "the explicit slower tenant-wide sweep."
+            "the explicit slower tenant-wide application sweep that performs per-application "
+            "owner and federated credential lookups."
         ),
         output_highlights=(
             "trust_type",

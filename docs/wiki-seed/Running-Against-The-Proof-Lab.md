@@ -27,25 +27,25 @@ az account set --subscription <lab-subscription-id>
 Confirm identity and visible subscription context:
 
 ```bash
-azurefox --outdir /tmp/azurefox-lab whoami --output table
+azurefox --outdir ./azurefox-lab whoami --output table
 ```
 
 Run an initial census:
 
 ```bash
-azurefox --outdir /tmp/azurefox-lab inventory --output table
+azurefox --outdir ./azurefox-lab inventory --output table
 ```
 
 Run a grouped sweep once the basics look right:
 
 ```bash
-azurefox --outdir /tmp/azurefox-lab all-checks --output table
+azurefox --outdir ./azurefox-lab all-checks --output table
 ```
 
 If you want a narrower pass first:
 
 ```bash
-azurefox --outdir /tmp/azurefox-lab all-checks --section identity --output table
+azurefox --outdir ./azurefox-lab all-checks --section identity --output table
 ```
 
 ## Why The Lab Helps
@@ -56,5 +56,5 @@ azurefox --outdir /tmp/azurefox-lab all-checks --section identity --output table
 
 ## Practical Tip
 
-Use a dedicated `--outdir` like `/tmp/azurefox-lab` so the resulting artifacts stay grouped
+Use a dedicated `--outdir` like `./azurefox-lab` so the resulting artifacts stay grouped
 together while you compare runs.

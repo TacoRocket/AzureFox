@@ -12,7 +12,7 @@ That means the formats are different views of the same collected result, not sep
 Example:
 
 ```bash
-azurefox --outdir /tmp/azurefox-demo whoami --output json
+azurefox --outdir ./azurefox-demo whoami --output json
 ```
 
 ## Artifact Layout

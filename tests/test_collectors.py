@@ -17,6 +17,7 @@ from azurefox.collectors.commands import (
     collect_inventory,
     collect_keyvault,
     collect_managed_identities,
+    collect_network_effective,
     collect_network_ports,
     collect_nics,
     collect_permissions,
@@ -35,6 +36,7 @@ from azurefox.collectors.provider import (
     AzureProvider,
     FixtureProvider,
     _env_var_reference_target,
+    _network_effective_row_from_endpoint,
     _network_scope_label,
     _principal_from_claims,
     _web_asset_kind,
@@ -474,6 +476,84 @@ def test_collect_dns_keeps_command_level_issue_explicit(
     assert output.dns_zones == []
     assert output.issues[0].kind == "permission_denied"
     assert output.issues[0].context["collector"] == "dns.resources"
+
+
+def test_collect_network_effective(fixture_provider, options) -> None:
+    output = collect_network_effective(fixture_provider, options)
+    assert len(output.effective_exposures) == 1
+    assert len(output.findings) == 0
+    assert output.effective_exposures[0].asset_name == "vm-web-01"
+    assert output.effective_exposures[0].effective_exposure == "high"
+    assert output.effective_exposures[0].internet_exposed_ports == ["TCP/22"]
+    assert output.effective_exposures[0].constrained_ports == ["TCP/443", "TCP/8080"]
+
+
+def test_network_effective_no_nsg_observation_stays_cautious() -> None:
+    asset_id = (
+        "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/"
+        "virtualMachines/vm-01"
+    )
+    row = _network_effective_row_from_endpoint(
+        endpoint={
+            "source_asset_id": asset_id,
+            "source_asset_name": "vm-01",
+            "endpoint": "1.2.3.4",
+            "endpoint_type": "ip",
+            "related_ids": [],
+        },
+        network_ports=[
+            {
+                "asset_id": asset_id,
+                "asset_name": "vm-01",
+                "endpoint": "1.2.3.4",
+                "protocol": "any",
+                "port": "any",
+                "allow_source_summary": "no Azure NSG visible on NIC or subnet",
+                "exposure_confidence": "low",
+                "summary": "test",
+                "related_ids": [],
+            }
+        ],
+    )
+
+    assert row["effective_exposure"] == "low"
+    assert row["internet_exposed_ports"] == []
+    assert row["constrained_ports"] == []
+    assert "no Azure NSG was visible" in row["summary"]
+
+
+def test_network_effective_treats_cidr_internet_sources_as_broad() -> None:
+    asset_id = (
+        "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/"
+        "virtualMachines/vm-01"
+    )
+    row = _network_effective_row_from_endpoint(
+        endpoint={
+            "source_asset_id": asset_id,
+            "source_asset_name": "vm-01",
+            "endpoint": "1.2.3.4",
+            "endpoint_type": "ip",
+            "related_ids": [],
+        },
+        network_ports=[
+            {
+                "asset_id": asset_id,
+                "asset_name": "vm-01",
+                "endpoint": "1.2.3.4",
+                "protocol": "tcp",
+                "port": "443",
+                "allow_source_summary": "0.0.0.0/0 via nic-nsg:rg/nsg-web/allow-https",
+                "exposure_confidence": "high",
+                "summary": "test",
+                "related_ids": [],
+            }
+        ],
+    )
+
+    assert row["effective_exposure"] == "high"
+    assert row["internet_exposed_ports"] == ["TCP/443"]
+    assert row["constrained_ports"] == []
+    assert "internet-facing allow evidence on TCP/443" in row["summary"]
 
 
 def test_collect_acr_keeps_command_level_issue_explicit(

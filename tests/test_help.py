@@ -101,6 +101,15 @@ def test_help_command_dns_topic() -> None:
     assert "registration_virtual_network_count" in result.stdout
 
 
+def test_help_command_network_effective_topic() -> None:
+    result = runner.invoke(app, ["help", "network-effective"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: network-effective" in result.stdout
+    assert "public-IP-backed assets" in result.stdout
+    assert "not to prove full effective exposure" in result.stdout
+
+
 def test_help_command_functions_topic() -> None:
     result = runner.invoke(app, ["help", "functions"])
 
@@ -187,6 +196,7 @@ def test_help_command_role_trusts_topic() -> None:
     assert "federated credentials" in result.stdout
     assert "delegated or admin consent grants" in result.stdout
     assert "Fast mode is the default" in result.stdout
+    assert "per-application owner and federated credential lookups" in result.stdout
 
 
 def test_help_command_auth_policies_topic() -> None:

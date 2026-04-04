@@ -6,6 +6,7 @@ Use these pages as the reviewable source for:
 
 - initial wiki structure
 - starter operator walkthroughs
+- lightweight platform guidance
 - example-heavy pages that can later be copied into the live wiki
 
 These files are not meant to replace the repo's versioned source-of-truth docs.

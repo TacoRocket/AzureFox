@@ -1,0 +1,9 @@
+{
+  "model": "NetworkEffectiveOutput",
+  "top_level_fields": [
+    "metadata",
+    "effective_exposures",
+    "findings",
+    "issues"
+  ]
+}

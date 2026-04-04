@@ -14,6 +14,7 @@ from azurefox.models.common import (
     EnvVarSummary,
     FunctionAppAsset,
     ManagedIdentity,
+    NetworkEffectiveSummary,
     NetworkPortSummary,
     PermissionSummary,
     PrincipalSummary,
@@ -155,6 +156,21 @@ def test_network_port_summary_defaults() -> None:
         summary="test",
     )
     assert network_port.related_ids == []
+
+
+def test_network_effective_summary_defaults() -> None:
+    summary = NetworkEffectiveSummary(
+        asset_id="vm-1",
+        asset_name="vm01",
+        endpoint="1.2.3.4",
+        endpoint_type="ip",
+        effective_exposure="medium",
+        summary="test",
+    )
+    assert summary.internet_exposed_ports == []
+    assert summary.constrained_ports == []
+    assert summary.observed_paths == []
+    assert summary.related_ids == []
 
 
 def test_managed_identity_defaults() -> None:
