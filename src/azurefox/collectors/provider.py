@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import json
 import re
+import ssl
 from abc import ABC, abstractmethod
 from collections import Counter
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode, urlparse
+from urllib.request import Request, urlopen
 
-from azurefox.auth.session import build_auth_session, decode_jwt_payload
+import certifi
+
+from azurefox.auth.session import MANAGEMENT_SCOPE, build_auth_session, decode_jwt_payload
 from azurefox.clients.factory import build_clients
 from azurefox.clients.graph import GraphClient
 from azurefox.config import GlobalOptions
@@ -169,6 +174,10 @@ class BaseProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def lighthouse(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
     def resource_trusts(self) -> dict:
         raise NotImplementedError
 
@@ -259,6 +268,9 @@ class FixtureProvider(BaseProvider):
 
     def role_trusts(self, mode: RoleTrustsMode = RoleTrustsMode.FAST) -> dict:
         return self._read("role_trusts")
+
+    def lighthouse(self) -> dict:
+        return self._read("lighthouse")
 
     def resource_trusts(self) -> dict:
         storage_data = self.storage()
@@ -1488,6 +1500,70 @@ class AzureProvider(BaseProvider):
         )
         return {"trusts": trusts, "issues": issues}
 
+    def lighthouse(self) -> dict:
+        issues: list[dict] = []
+        lighthouse_delegations: list[dict] = []
+        role_name_cache: dict[str, str] = {}
+        seen_assignment_ids: set[str] = set()
+        subscription_scope = f"/subscriptions/{self.clients.subscription_id}"
+
+        try:
+            assignments = self._list_managed_services_assignments(subscription_scope)
+            for assignment in assignments:
+                assignment_id = str(assignment.get("id") or "")
+                if assignment_id in seen_assignment_ids:
+                    continue
+                seen_assignment_ids.add(assignment_id)
+                lighthouse_delegations.append(
+                    _lighthouse_delegation_summary(
+                        assignment,
+                        subscription_scope,
+                        lambda scope, role_definition_id: self._resolve_role_name(
+                            scope,
+                            role_definition_id,
+                            role_name_cache,
+                        ),
+                    )
+                )
+        except Exception as exc:
+            issues.append(_issue_from_exception("lighthouse.subscription", exc))
+
+        resource_groups: list[str] = []
+        try:
+            resource_groups = [group.name for group in self.clients.resource.resource_groups.list()]
+        except Exception as exc:
+            issues.append(_issue_from_exception("lighthouse.resource_groups", exc))
+
+        for resource_group in resource_groups:
+            scope = f"{subscription_scope}/resourceGroups/{resource_group}"
+            try:
+                assignments = self._list_managed_services_assignments(scope)
+                for assignment in assignments:
+                    assignment_id = str(assignment.get("id") or "")
+                    if assignment_id in seen_assignment_ids:
+                        continue
+                    seen_assignment_ids.add(assignment_id)
+                    lighthouse_delegations.append(
+                        _lighthouse_delegation_summary(
+                            assignment,
+                            scope,
+                            lambda assignment_scope, role_definition_id: self._resolve_role_name(
+                                assignment_scope,
+                                role_definition_id,
+                                role_name_cache,
+                            ),
+                        )
+                    )
+            except Exception as exc:
+                issues.append(
+                    _issue_from_exception(
+                        f"lighthouse.resource_group[{resource_group}]",
+                        exc,
+                    )
+                )
+
+        return {"lighthouse_delegations": lighthouse_delegations, "issues": issues}
+
     def resource_trusts(self) -> dict:
         storage_data = self.storage()
         keyvault_data = self.keyvault()
@@ -2137,6 +2213,62 @@ class AzureProvider(BaseProvider):
         cache[role_definition_id] = role_name or "Unknown"
         return cache[role_definition_id]
 
+    def _list_managed_services_assignments(self, scope: str) -> list[dict]:
+        return self._arm_list(
+            f"{scope}/providers/Microsoft.ManagedServices/registrationAssignments",
+            params={
+                "api-version": "2022-10-01",
+                "$expandRegistrationDefinition": "true",
+            },
+        )
+
+    def _arm_list(
+        self,
+        path_or_url: str,
+        params: dict[str, str] | None = None,
+    ) -> list[dict[str, object]]:
+        url = path_or_url
+        if not path_or_url.startswith("https://"):
+            url = f"https://management.azure.com{path_or_url}"
+        if params:
+            url = f"{url}?{urlencode(params)}"
+
+        items: list[dict[str, object]] = []
+        next_url: str | None = url
+        while next_url:
+            payload = self._arm_get(next_url)
+            values = payload.get("value", [])
+            if isinstance(values, list):
+                items.extend(item for item in values if isinstance(item, dict))
+            next_link = payload.get("nextLink")
+            next_url = next_link if isinstance(next_link, str) else None
+        return items
+
+    def _arm_get(self, url: str) -> dict[str, object]:
+        token = self.session.credential.get_token(MANAGEMENT_SCOPE).token
+        request = Request(
+            url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json",
+            },
+        )
+        try:
+            with urlopen(request, context=_arm_ssl_context(), timeout=30) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="ignore")
+            raise AzureFoxError(
+                classify_exception(exc),
+                f"ARM request failed for {url}: {exc.code} {exc.reason}",
+                details={"body": body[:500]},
+            ) from exc
+        except URLError as exc:
+            raise AzureFoxError(
+                classify_exception(exc),
+                f"ARM request failed for {url}: {exc.reason}",
+            ) from exc
+
     def _count_storage_children(
         self,
         op_name: str,
@@ -2528,6 +2660,173 @@ def _resource_name_from_id(resource_id: str | None) -> str | None:
     return parts[-1]
 
 
+def _lighthouse_delegation_summary(
+    assignment: dict,
+    scope: str,
+    resolve_role_name,
+) -> dict:
+    assignment_id = str(assignment.get("id") or "")
+    properties = assignment.get("properties", {}) if isinstance(assignment, dict) else {}
+    if not isinstance(properties, dict):
+        properties = {}
+
+    definition = properties.get("registrationDefinition", {})
+    if not isinstance(definition, dict):
+        definition = {}
+    definition_properties = definition.get("properties", {})
+    if not isinstance(definition_properties, dict):
+        definition_properties = {}
+
+    authorizations = definition_properties.get("authorizations", [])
+    if not isinstance(authorizations, list):
+        authorizations = []
+    eligible_authorizations = definition_properties.get("eligibleAuthorizations", [])
+    if not isinstance(eligible_authorizations, list):
+        eligible_authorizations = []
+
+    role_names = _dedupe_strings(
+        [
+            _lighthouse_resolved_role_name(item, scope, resolve_role_name)
+            for item in authorizations
+            if isinstance(item, dict)
+        ]
+    )
+    eligible_role_names = _dedupe_strings(
+        [
+            _lighthouse_resolved_role_name(item, scope, resolve_role_name)
+            for item in eligible_authorizations
+            if isinstance(item, dict)
+        ]
+    )
+
+    principal_ids = {
+        str(item.get("principalId"))
+        for item in authorizations
+        if isinstance(item, dict) and item.get("principalId")
+    }
+    eligible_principal_ids = {
+        str(item.get("principalId"))
+        for item in eligible_authorizations
+        if isinstance(item, dict) and item.get("principalId")
+    }
+
+    strongest_role_name = _lighthouse_strongest_role_name([*role_names, *eligible_role_names])
+    all_role_names = [*role_names, *eligible_role_names]
+    has_owner_role = any(str(name).lower() == "owner" for name in all_role_names)
+    has_user_access_administrator = any(
+        str(name).lower() == "user access administrator" for name in all_role_names
+    )
+    has_delegated_role_assignments = any(
+        isinstance(item, dict) and bool(item.get("delegatedRoleDefinitionIds"))
+        for item in authorizations
+    )
+
+    scope_id = assignment_id.rsplit(
+        "/providers/Microsoft.ManagedServices/registrationAssignments/",
+        1,
+    )[0]
+    if not scope_id:
+        scope_id = scope
+    scope_type = "resource_group" if "/resourcegroups/" in scope_id.lower() else "subscription"
+    resource_group = _resource_group_from_id(scope_id)
+    scope_display_name = resource_group or _resource_name_from_id(scope_id)
+
+    plan = definition.get("plan", {})
+    if not isinstance(plan, dict):
+        plan = {}
+
+    summary_parts: list[str] = []
+    managed_by_name = definition_properties.get("managedByTenantName") or definition_properties.get(
+        "managedByTenantId"
+    )
+    if managed_by_name:
+        summary_parts.append(f"managed by {managed_by_name}")
+    if strongest_role_name:
+        summary_parts.append(f"strongest role {strongest_role_name}")
+    if eligible_authorizations:
+        summary_parts.append(f"{len(eligible_authorizations)} eligible authorization(s)")
+    assignment_state = properties.get("provisioningState")
+    if assignment_state and str(assignment_state).lower() != "succeeded":
+        summary_parts.append(f"assignment state {assignment_state}")
+
+    summary = "; ".join(summary_parts) or "Azure Lighthouse delegation visible at this scope."
+
+    related_ids = [
+        item
+        for item in [assignment_id, scope_id, properties.get("registrationDefinitionId")]
+        if item
+    ]
+
+    return {
+        "id": assignment_id,
+        "name": assignment.get("name") or _resource_name_from_id(assignment_id) or "unknown",
+        "scope_id": scope_id,
+        "scope_type": scope_type,
+        "scope_display_name": scope_display_name,
+        "resource_group": resource_group,
+        "managed_by_tenant_id": definition_properties.get("managedByTenantId"),
+        "managed_by_tenant_name": definition_properties.get("managedByTenantName"),
+        "managee_tenant_id": definition_properties.get("manageeTenantId"),
+        "managee_tenant_name": definition_properties.get("manageeTenantName"),
+        "registration_definition_id": properties.get("registrationDefinitionId"),
+        "registration_definition_name": definition_properties.get("registrationDefinitionName")
+        or definition.get("name"),
+        "description": definition_properties.get("description"),
+        "authorization_count": len(authorizations),
+        "eligible_authorization_count": len(eligible_authorizations),
+        "principal_count": len(principal_ids),
+        "eligible_principal_count": len(eligible_principal_ids),
+        "role_names": role_names,
+        "eligible_role_names": eligible_role_names,
+        "strongest_role_name": strongest_role_name,
+        "has_user_access_administrator": has_user_access_administrator,
+        "has_owner_role": has_owner_role,
+        "has_delegated_role_assignments": has_delegated_role_assignments,
+        "provisioning_state": assignment_state,
+        "definition_provisioning_state": definition_properties.get("provisioningState"),
+        "plan_name": plan.get("name"),
+        "plan_product": plan.get("product"),
+        "plan_publisher": plan.get("publisher"),
+        "summary": summary,
+        "related_ids": related_ids,
+    }
+
+
+def _lighthouse_resolved_role_name(
+    authorization: dict,
+    scope: str,
+    resolve_role_name,
+) -> str | None:
+    role_definition_id = authorization.get("roleDefinitionId")
+    role_name = resolve_role_name(scope, role_definition_id)
+    if role_name and role_name != "Unknown":
+        return role_name
+    if role_definition_id:
+        return str(role_definition_id).rstrip("/").split("/")[-1]
+    return None
+
+
+def _lighthouse_strongest_role_name(role_names: list[str]) -> str | None:
+    if not role_names:
+        return None
+    return min(role_names, key=_lighthouse_role_priority)
+
+
+def _lighthouse_role_priority(role_name: str) -> tuple[int, str]:
+    normalized = role_name.strip().lower()
+    if normalized == "owner":
+        return 0, normalized
+    if normalized == "user access administrator":
+        return 1, normalized
+    if normalized == "contributor":
+        return 2, normalized
+    if normalized == "reader":
+        return 4, normalized
+    if normalized:
+        return 3, normalized
+    return 5, normalized
+
+
 def _snapshot_disk_source_kind(resource_id: str | None) -> str | None:
     if not resource_id:
         return None
@@ -2546,6 +2845,10 @@ def _datetime_to_string(value: object) -> str | None:
     if callable(isoformat):
         return str(isoformat())
     return str(value)
+
+
+def _arm_ssl_context() -> ssl.SSLContext:
+    return ssl.create_default_context(cafile=certifi.where())
 
 
 def _snapshot_disk_summary(item: dict) -> str:

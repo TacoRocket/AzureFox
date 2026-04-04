@@ -47,6 +47,34 @@ def test_auth_policies_table_mode_surfaces_findings_and_issues(tmp_path: Path) -
     assert "Takeaway: 4 policy rows, 5 findings, and 0 collection issues" in result.stdout
 
 
+def test_lighthouse_table_mode_surfaces_cross_tenant_scope_and_access(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "lighthouse"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Reviewing Azure Lighthouse delegations for cross-tenant management scope and "
+        "high-impact access cues."
+        in result.stdout
+    )
+    assert "managing tenant" in result.stdout
+    assert "managed tenant" in result.stdout
+    assert "subscription::22222222-2222-" in result.stdout
+    assert "Contoso Corp." in result.stdout
+    assert "AzureFox Lab Tenant" in result.stdout
+    assert "strongest=Owner" in result.stdout
+    assert "eligible=1" in result.stdout
+    assert "eligible=0" in result.stdout
+    assert (
+        "Takeaway: 3 Azure Lighthouse delegation(s) visible; 1 are subscription-scoped, "
+        "1 grant Owner or User Access Administrator, and 1 include eligible access."
+        in " ".join(result.stdout.split())
+    )
+
+
 def test_keyvault_table_mode_labels_implicit_open_acl(tmp_path: Path) -> None:
     result = runner.invoke(
         app,

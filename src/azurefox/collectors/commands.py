@@ -26,6 +26,7 @@ from azurefox.models.commands import (
     FunctionsOutput,
     InventoryOutput,
     KeyVaultOutput,
+    LighthouseOutput,
     ManagedIdentitiesOutput,
     NetworkEffectiveOutput,
     NetworkPortsOutput,
@@ -307,11 +308,47 @@ def collect_privesc(provider: BaseProvider, options: GlobalOptions) -> PrivescOu
 
 def collect_role_trusts(provider: BaseProvider, options: GlobalOptions) -> RoleTrustsOutput:
     data = provider.role_trusts(options.role_trusts_mode)
+    trusts = sorted(
+        data.get("trusts", []),
+        key=lambda item: (
+            str(item.get("confidence") or "").lower() != "confirmed",
+            _role_trust_priority(item),
+            item.get("source_name") or item.get("source_object_id") or "",
+            item.get("target_name") or item.get("target_object_id") or "",
+        ),
+    )
     return RoleTrustsOutput.model_validate(
         {
             "metadata": _metadata(provider, "role-trusts", options),
             "mode": options.role_trusts_mode,
             **data,
+            "trusts": trusts,
+        }
+    )
+
+
+def collect_lighthouse(provider: BaseProvider, options: GlobalOptions) -> LighthouseOutput:
+    data = provider.lighthouse()
+    lighthouse_delegations = sorted(
+        data.get("lighthouse_delegations", []),
+        key=lambda item: (
+            item.get("scope_type") != "subscription",
+            _lighthouse_role_rank(item),
+            item.get("authorization_count", 0) == 0,
+            -_int_or_zero(item.get("authorization_count")),
+            -_int_or_zero(item.get("eligible_authorization_count")),
+            _lighthouse_state_rank(item),
+            item.get("managed_by_tenant_name") or item.get("managed_by_tenant_id") or "",
+            item.get("scope_display_name") or "",
+            item.get("name") or "",
+        ),
+    )
+    return LighthouseOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "lighthouse", options),
+            "findings": [],
+            **data,
+            "lighthouse_delegations": lighthouse_delegations,
         }
     )
 
@@ -329,11 +366,23 @@ def collect_auth_policies(provider: BaseProvider, options: GlobalOptions) -> Aut
         data.get("auth_policies", []),
         data.get("issues", []),
     )
+    auth_policies = sorted(
+        data.get("auth_policies", []),
+        key=lambda item: (
+            not _auth_policy_has_findings(item, findings),
+            not _auth_policy_has_issue(item, data.get("issues", [])),
+            _auth_policy_state_rank(item),
+            item.get("policy_type") != "security-defaults",
+            item.get("policy_type") != "authorization-policy",
+            item.get("name") or "",
+        ),
+    )
     return AuthPoliciesOutput.model_validate(
         {
             "metadata": _metadata(provider, "auth-policies", options),
             "findings": findings,
             **data,
+            "auth_policies": auth_policies,
         }
     )
 
@@ -377,6 +426,7 @@ def collect_storage(provider: BaseProvider, options: GlobalOptions) -> StorageOu
     storage_assets = sorted(
         data.get("storage_assets", []),
         key=lambda item: (
+            _storage_priority_rank(item),
             item.get("name") or "",
             item.get("id") or "",
         ),
@@ -514,6 +564,143 @@ def _priority_sort_value(item: dict) -> int:
     if item.get("asset_kind") == "snapshot":
         score -= 1
     return score
+
+
+def _lighthouse_role_rank(item: dict) -> tuple[int, int]:
+    role_name = str(item.get("strongest_role_name") or "").strip().lower()
+    if item.get("has_owner_role"):
+        role_rank = 0
+    elif item.get("has_user_access_administrator"):
+        role_rank = 1
+    elif role_name == "contributor":
+        role_rank = 2
+    elif role_name and role_name != "reader":
+        role_rank = 3
+    elif role_name == "reader":
+        role_rank = 4
+    else:
+        role_rank = 5
+
+    delegated_rank = 0 if item.get("has_delegated_role_assignments") else 1
+    return role_rank, delegated_rank
+
+
+def _lighthouse_state_rank(item: dict) -> tuple[int, int]:
+    assignment_state = str(item.get("provisioning_state") or "").strip().lower()
+    definition_state = str(item.get("definition_provisioning_state") or "").strip().lower()
+    assignment_rank = 1 if assignment_state in {"", "succeeded"} else 0
+    definition_rank = 1 if definition_state in {"", "succeeded"} else 0
+    return assignment_rank, definition_rank
+
+
+def _auth_policy_has_findings(item: dict, findings: list[dict]) -> bool:
+    related_ids = {str(value) for value in item.get("related_ids", []) if value}
+    if not related_ids:
+        return False
+    for finding in findings:
+        finding_related_ids = {str(value) for value in finding.get("related_ids", []) if value}
+        if related_ids & finding_related_ids:
+            return True
+    return False
+
+
+def _auth_policy_has_issue(item: dict, issues: list[dict]) -> bool:
+    collector_name = {
+        "security-defaults": "auth_policies.security_defaults",
+        "authorization-policy": "auth_policies.authorization_policy",
+        "conditional-access": "auth_policies.conditional_access",
+    }.get(item.get("policy_type"))
+    if collector_name is None:
+        return False
+    return any(
+        (issue.get("context") or {}).get("collector") == collector_name
+        for issue in issues
+        if isinstance(issue, dict)
+    )
+
+
+def _auth_policy_state_rank(item: dict) -> tuple[int, int]:
+    policy_type = str(item.get("policy_type") or "")
+    state = str(item.get("state") or "").lower()
+    controls = {str(control).lower() for control in item.get("controls", [])}
+
+    if policy_type == "security-defaults":
+        return (0 if state == "disabled" else 2, 0)
+
+    if policy_type == "authorization-policy":
+        risky_controls = {
+            "risky-app-consent:enabled",
+            "guest-invites:everyone",
+            "users-can-register-apps",
+            "user-consent:self-service",
+        }
+        control_rank = 0 if controls & risky_controls else 1
+        return (control_rank, 0)
+
+    if policy_type == "conditional-access":
+        if state == "disabled":
+            return (0, 0)
+        if state == "enabledforreportingbutnotenforced":
+            return (1, 0)
+        if state == "enabled":
+            return (2, 0)
+        return (3, 0)
+
+    return (9, 0)
+
+
+def _role_trust_priority(item: dict) -> tuple[int, int]:
+    trust_type = str(item.get("trust_type") or "").strip().lower()
+    evidence_type = str(item.get("evidence_type") or "").strip().lower()
+
+    trust_rank = {
+        "federated-credential": 0,
+        "service-principal-owner": 1,
+        "app-owner": 2,
+        "app-to-service-principal": 3,
+    }.get(trust_type, 9)
+
+    evidence_rank = {
+        "graph-federated-credential": 0,
+        "graph-owner": 1,
+        "graph-app-role-assignment": 2,
+    }.get(evidence_type, 9)
+
+    return trust_rank, evidence_rank
+
+
+def _storage_priority_rank(item: dict) -> tuple[int, int, int, int, int, int]:
+    public_access_rank = 0 if item.get("public_access") else 1
+
+    public_network_enabled = str(item.get("public_network_access") or "").lower() == "enabled"
+    network_default_action = str(item.get("network_default_action") or "").lower()
+    if public_network_enabled and network_default_action == "allow":
+        network_rank = 0
+    elif public_network_enabled:
+        network_rank = 1
+    elif network_default_action == "allow":
+        network_rank = 2
+    else:
+        network_rank = 3
+
+    shared_key_rank = 0 if item.get("allow_shared_key_access") is True else 1
+    tls_rank = {
+        "tls1_0": 0,
+        "tls1_1": 1,
+        "tls1_2": 2,
+        "tls1_3": 3,
+    }.get(str(item.get("minimum_tls_version") or "").lower(), 1)
+    https_rank = 0 if item.get("https_traffic_only_enabled") is False else 1
+    private_endpoint_rank = 0 if not item.get("private_endpoint_enabled") else 1
+
+    return (
+        public_access_rank,
+        network_rank,
+        shared_key_rank,
+        tls_rank,
+        https_rank,
+        private_endpoint_rank,
+    )
 
 
 def _keyvault_priority_rank(item: dict) -> tuple[int, int, int]:

@@ -31,19 +31,6 @@
     },
     {
       "controls": [
-        "mfa"
-      ],
-      "name": "CA001: Require multi-factor authentication for admins",
-      "policy_type": "conditional-access",
-      "related_ids": [
-        "ca-1"
-      ],
-      "scope": "roles:2, apps:all",
-      "state": "enabledForReportingButNotEnforced",
-      "summary": "state: enabledForReportingButNotEnforced; grants: mfa; scope: roles:2, apps:all"
-    },
-    {
-      "controls": [
         "block"
       ],
       "name": "CA002: Block legacy auth",
@@ -54,6 +41,19 @@
       "scope": "users:all, apps:all",
       "state": "disabled",
       "summary": "state: disabled; grants: block; scope: users:all, apps:all"
+    },
+    {
+      "controls": [
+        "mfa"
+      ],
+      "name": "CA001: Require multi-factor authentication for admins",
+      "policy_type": "conditional-access",
+      "related_ids": [
+        "ca-1"
+      ],
+      "scope": "roles:2, apps:all",
+      "state": "enabledForReportingButNotEnforced",
+      "summary": "state: enabledForReportingButNotEnforced; grants: mfa; scope: roles:2, apps:all"
     }
   ],
   "findings": [

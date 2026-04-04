@@ -118,6 +118,17 @@ def test_help_command_storage_topic() -> None:
     assert "https_traffic_only_enabled" in result.stdout
 
 
+def test_help_command_lighthouse_topic() -> None:
+    result = runner.invoke(app, ["help", "lighthouse"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: lighthouse" in result.stdout
+    assert "Azure Lighthouse" in result.stdout
+    assert "managed_by_tenant_name" in result.stdout
+    assert "eligible_authorization_count" in result.stdout
+    assert "provisioning_state" in result.stdout
+
+
 def test_help_command_snapshots_disks_topic() -> None:
     result = runner.invoke(app, ["help", "snapshots-disks"])
 

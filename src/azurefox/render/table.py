@@ -489,6 +489,37 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "lighthouse":
+        return (
+            [
+                ("scope", "scope"),
+                ("managing_tenant", "managing tenant"),
+                ("managed_tenant", "managed tenant"),
+                ("access", "access"),
+                ("state", "state"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "scope": _lighthouse_scope_context(item),
+                    "managing_tenant": (
+                        item.get("managed_by_tenant_name")
+                        or item.get("managed_by_tenant_id")
+                        or "-"
+                    ),
+                    "managed_tenant": (
+                        item.get("managee_tenant_name")
+                        or item.get("managee_tenant_id")
+                        or "-"
+                    ),
+                    "access": _lighthouse_access_context(item),
+                    "state": _lighthouse_state_context(item),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("lighthouse_delegations", [])
+            ],
+        )
+
     if command == "resource-trusts":
         return (
             [
@@ -783,6 +814,20 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             f"{len(trusts)} trust edges surfaced in {mode} mode; "
             f"{counts or 'no trust edges visible'}. "
             "Delegated and admin consent grants are out of scope for this command."
+        )
+
+    if command == "lighthouse":
+        delegations = payload.get("lighthouse_delegations", [])
+        subscription_scope = sum(item.get("scope_type") == "subscription" for item in delegations)
+        eligible = sum((item.get("eligible_authorization_count") or 0) > 0 for item in delegations)
+        broad_roles = sum(
+            bool(item.get("has_owner_role")) or bool(item.get("has_user_access_administrator"))
+            for item in delegations
+        )
+        return (
+            f"{len(delegations)} Azure Lighthouse delegation(s) visible; "
+            f"{subscription_scope} are subscription-scoped, {broad_roles} grant Owner or "
+            f"User Access Administrator, and {eligible} include eligible access."
         )
 
     if command == "resource-trusts":
@@ -1828,6 +1873,40 @@ def _vmss_network_context(item: dict) -> str:
     if not parts:
         return "-"
     return "; ".join(parts)
+
+
+def _lighthouse_scope_context(item: dict) -> str:
+    scope_label = item.get("scope_display_name") or _display_resource_name(item.get("scope_id"))
+    scope_type = item.get("scope_type") or "scope"
+    if scope_type == "resource_group":
+        return f"resource-group::{scope_label}"
+    return f"subscription::{scope_label}"
+
+
+def _lighthouse_access_context(item: dict) -> str:
+    parts: list[str] = []
+    strongest_role = item.get("strongest_role_name")
+    if strongest_role:
+        parts.append(f"strongest={strongest_role}")
+    parts.append(f"auth={item.get('authorization_count', 0)}")
+    parts.append(f"eligible={item.get('eligible_authorization_count', 0)}")
+    if item.get("has_delegated_role_assignments"):
+        parts.append("delegated-role-assign=yes")
+    plan_name = item.get("plan_name")
+    if plan_name:
+        parts.append(f"plan={plan_name}")
+    return "; ".join(parts) if parts else "-"
+
+
+def _lighthouse_state_context(item: dict) -> str:
+    parts: list[str] = []
+    assignment_state = item.get("provisioning_state")
+    if assignment_state:
+        parts.append(f"assignment={assignment_state}")
+    definition_state = item.get("definition_provisioning_state")
+    if definition_state and definition_state != assignment_state:
+        parts.append(f"definition={definition_state}")
+    return "; ".join(parts) if parts else "-"
 
 
 def _display_reference_identity(value: object) -> str:

@@ -20,6 +20,7 @@ from azurefox.models.common import (
     Finding,
     FunctionAppAsset,
     KeyVaultAsset,
+    LighthouseDelegationAsset,
     ManagedIdentity,
     NetworkEffectiveSummary,
     NetworkPortSummary,
@@ -146,6 +147,13 @@ class RoleTrustsOutput(BaseModel):
     metadata: CommandMetadata
     mode: RoleTrustsMode = RoleTrustsMode.FAST
     trusts: list[RoleTrustSummary] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class LighthouseOutput(BaseModel):
+    metadata: CommandMetadata
+    lighthouse_delegations: list[LighthouseDelegationAsset] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 
 

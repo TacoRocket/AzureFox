@@ -22,6 +22,47 @@ azurefox --outdir ./azurefox-demo whoami --output table
 azurefox --outdir ./azurefox-demo all-checks --output table
 ```
 
+## Currently Supported Azure Commands
+
+| Section | Commands |
+| --- | --- |
+| `core` | `inventory` |
+| `identity` | `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `lighthouse`, `auth-policies`, `managed-identities` |
+| `config` | `arm-deployments`, `env-vars` |
+| `secrets` | `keyvault`, `tokens-credentials` |
+| `resource` | `acr`, `api-mgmt`, `databases`, `resource-trusts` |
+| `storage` | `storage` |
+| `network` | `nics`, `dns`, `endpoints`, `network-effective`, `network-ports` |
+| `compute` | `workloads`, `app-services`, `functions`, `aks`, `vms`, `vmss`, `snapshots-disks` |
+| orchestration | `all-checks` |
+
+## Need A Test Lab?
+
+Don't have an Azure environment handy? The companion repo
+[AzureFox OpenTofu Proof Lab](https://github.com/TacoRocket/terraform-labs-for-azurefox) spins up
+a deliberately insecure Azure lab for demos, validation, and practice.
+
+Use a disposable subscription you control. It is risky on purpose.
+
+## CLI Invocation
+
+Shared flags like `--tenant`, `--subscription`, `--output`, `--outdir`, and `--debug` work before
+or after the command.
+
+These forms are equivalent:
+
+```bash
+azurefox dns --output json --outdir ./azurefox-demo
+azurefox --output json --outdir ./azurefox-demo dns
+```
+
+Use `azurefox <command> --help` or `azurefox help <command>` for command-specific help.
+
+## Install Profiles
+
+AzureFox installs the live Azure runtime dependencies by default so `pip install azurefox` is ready
+for real Azure command execution.
+
 If you prefer an isolated virtual environment:
 
 ```bash
@@ -42,47 +83,6 @@ activation and environment-variable export.
 Live operator guidance is built into `azurefox help` and `azurefox help <command>`.
 Longer-form planning and wiki-source material lives under
 [`wiki/`](https://github.com/TacoRocket/AzureFox/tree/main/wiki).
-
-## Need A Test Lab?
-
-Don't have an Azure environment handy? The companion repo
-[AzureFox OpenTofu Proof Lab](https://github.com/TacoRocket/terraform-labs-for-azurefox) spins up
-a deliberately insecure Azure lab for demos, validation, and practice.
-
-Use a disposable subscription you control. It is risky on purpose.
-
-## Currently Supported Azure Commands
-
-| Section | Commands |
-| --- | --- |
-| `core` | `inventory` |
-| `identity` | `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `auth-policies`, `managed-identities` |
-| `config` | `arm-deployments`, `env-vars` |
-| `secrets` | `keyvault`, `tokens-credentials` |
-| `resource` | `acr`, `api-mgmt`, `databases`, `resource-trusts` |
-| `storage` | `storage` |
-| `network` | `nics`, `dns`, `endpoints`, `network-effective`, `network-ports` |
-| `compute` | `workloads`, `app-services`, `functions`, `aks`, `vms`, `vmss`, `snapshots-disks` |
-| orchestration | `all-checks` |
-
-## CLI Invocation
-
-Shared flags like `--tenant`, `--subscription`, `--output`, `--outdir`, and `--debug` work before
-or after the command.
-
-These forms are equivalent:
-
-```bash
-azurefox dns --output json --outdir ./azurefox-demo
-azurefox --output json --outdir ./azurefox-demo dns
-```
-
-Use `azurefox <command> --help` or `azurefox help <command>` for command-specific help.
-
-## Install Profiles
-
-AzureFox installs the live Azure runtime dependencies by default so `pip install azurefox` is ready
-for real Azure command execution.
 
 - `pip install azurefox`
   installs the normal operator profile from PyPI, including the Azure SDK dependencies used by the
@@ -168,7 +168,7 @@ than a single command, especially when a full section is writing grouped artifac
 
 Current section mappings:
 
-- `identity`: `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `auth-policies`, `managed-identities`
+- `identity`: `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `lighthouse`, `auth-policies`, `managed-identities`
 - `config`: `arm-deployments`, `env-vars`
 - `secrets`: `keyvault`, `tokens-credentials`
 - `resource`: `acr`, `api-mgmt`, `databases`, `resource-trusts`

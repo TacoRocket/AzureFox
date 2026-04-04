@@ -183,6 +183,39 @@ class AuthPolicySummary(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class LighthouseDelegationAsset(BaseModel):
+    id: str
+    name: str
+    scope_id: str
+    scope_type: str
+    scope_display_name: str | None = None
+    resource_group: str | None = None
+    managed_by_tenant_id: str | None = None
+    managed_by_tenant_name: str | None = None
+    managee_tenant_id: str | None = None
+    managee_tenant_name: str | None = None
+    registration_definition_id: str | None = None
+    registration_definition_name: str | None = None
+    description: str | None = None
+    authorization_count: int = 0
+    eligible_authorization_count: int = 0
+    principal_count: int = 0
+    eligible_principal_count: int = 0
+    role_names: list[str] = Field(default_factory=list)
+    eligible_role_names: list[str] = Field(default_factory=list)
+    strongest_role_name: str | None = None
+    has_user_access_administrator: bool = False
+    has_owner_role: bool = False
+    has_delegated_role_assignments: bool = False
+    provisioning_state: str | None = None
+    definition_provisioning_state: str | None = None
+    plan_name: str | None = None
+    plan_product: str | None = None
+    plan_publisher: str | None = None
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class RoleAssignment(BaseModel):
     id: str
     scope_id: str

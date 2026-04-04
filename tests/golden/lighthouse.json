@@ -1,0 +1,131 @@
+{
+  "findings": [],
+  "issues": [],
+  "lighthouse_delegations": [
+    {
+      "authorization_count": 2,
+      "definition_provisioning_state": "Succeeded",
+      "description": "Contoso subscription delegation",
+      "eligible_authorization_count": 1,
+      "eligible_principal_count": 1,
+      "eligible_role_names": [
+        "Contributor"
+      ],
+      "has_delegated_role_assignments": true,
+      "has_owner_role": true,
+      "has_user_access_administrator": true,
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationAssignments/lh-sub-contoso",
+      "managee_tenant_id": "11111111-1111-1111-1111-111111111111",
+      "managee_tenant_name": "AzureFox Lab Tenant",
+      "managed_by_tenant_id": "33333333-3333-3333-3333-333333333333",
+      "managed_by_tenant_name": "Contoso Corp.",
+      "name": "lh-sub-contoso",
+      "plan_name": "contoso-plan",
+      "plan_product": "ops",
+      "plan_publisher": "contoso",
+      "principal_count": 2,
+      "provisioning_state": "Succeeded",
+      "registration_definition_id": "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationDefinitions/lh-def-contoso-sub",
+      "registration_definition_name": "Contoso baseline ops",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationAssignments/lh-sub-contoso",
+        "/subscriptions/22222222-2222-2222-2222-222222222222",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationDefinitions/lh-def-contoso-sub"
+      ],
+      "resource_group": null,
+      "role_names": [
+        "Owner",
+        "User Access Administrator"
+      ],
+      "scope_display_name": "22222222-2222-2222-2222-222222222222",
+      "scope_id": "/subscriptions/22222222-2222-2222-2222-222222222222",
+      "scope_type": "subscription",
+      "strongest_role_name": "Owner",
+      "summary": "managed by Contoso Corp.; strongest role Owner; 1 eligible authorization(s)"
+    },
+    {
+      "authorization_count": 1,
+      "definition_provisioning_state": "Succeeded",
+      "description": "Fabrikam platform support delegation",
+      "eligible_authorization_count": 0,
+      "eligible_principal_count": 0,
+      "eligible_role_names": [],
+      "has_delegated_role_assignments": false,
+      "has_owner_role": false,
+      "has_user_access_administrator": false,
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-platform/providers/Microsoft.ManagedServices/registrationAssignments/lh-rg-platform-contrib",
+      "managee_tenant_id": "11111111-1111-1111-1111-111111111111",
+      "managee_tenant_name": "AzureFox Lab Tenant",
+      "managed_by_tenant_id": "44444444-4444-4444-4444-444444444444",
+      "managed_by_tenant_name": "Fabrikam Ops",
+      "name": "lh-rg-platform-contrib",
+      "plan_name": null,
+      "plan_product": null,
+      "plan_publisher": null,
+      "principal_count": 1,
+      "provisioning_state": "Succeeded",
+      "registration_definition_id": "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationDefinitions/lh-def-fabrikam-rg",
+      "registration_definition_name": "Fabrikam platform support",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-platform/providers/Microsoft.ManagedServices/registrationAssignments/lh-rg-platform-contrib",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-platform",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationDefinitions/lh-def-fabrikam-rg"
+      ],
+      "resource_group": "rg-platform",
+      "role_names": [
+        "Contributor"
+      ],
+      "scope_display_name": "rg-platform",
+      "scope_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-platform",
+      "scope_type": "resource_group",
+      "strongest_role_name": "Contributor",
+      "summary": "managed by Fabrikam Ops; strongest role Contributor"
+    },
+    {
+      "authorization_count": 1,
+      "definition_provisioning_state": "Succeeded",
+      "description": "Northwind logging review",
+      "eligible_authorization_count": 0,
+      "eligible_principal_count": 0,
+      "eligible_role_names": [],
+      "has_delegated_role_assignments": false,
+      "has_owner_role": false,
+      "has_user_access_administrator": false,
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-logging/providers/Microsoft.ManagedServices/registrationAssignments/lh-rg-logging-reader",
+      "managee_tenant_id": "11111111-1111-1111-1111-111111111111",
+      "managee_tenant_name": "AzureFox Lab Tenant",
+      "managed_by_tenant_id": "55555555-5555-5555-5555-555555555555",
+      "managed_by_tenant_name": "Northwind MSP",
+      "name": "lh-rg-logging-reader",
+      "plan_name": null,
+      "plan_product": null,
+      "plan_publisher": null,
+      "principal_count": 1,
+      "provisioning_state": "Succeeded",
+      "registration_definition_id": "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationDefinitions/lh-def-logging-reader",
+      "registration_definition_name": "Northwind logging review",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-logging/providers/Microsoft.ManagedServices/registrationAssignments/lh-rg-logging-reader",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-logging",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationDefinitions/lh-def-logging-reader"
+      ],
+      "resource_group": "rg-logging",
+      "role_names": [
+        "Reader"
+      ],
+      "scope_display_name": "rg-logging",
+      "scope_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-logging",
+      "scope_type": "resource_group",
+      "strongest_role_name": "Reader",
+      "summary": "managed by Northwind MSP; strongest role Reader"
+    }
+  ],
+  "metadata": {
+    "command": "lighthouse",
+    "generated_at": "<generated_at>",
+    "schema_version": "1.1.0",
+    "subscription_id": "22222222-2222-2222-2222-222222222222",
+    "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "token_source": null
+  }
+}
