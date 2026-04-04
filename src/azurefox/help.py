@@ -249,16 +249,17 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="api-mgmt",
         section="resource",
         summary=(
-            "Summarize API Management gateway, hostname, identity, and service-inventory posture."
+            "Summarize API Management gateway, hostname, identity, and narrow "
+            "service-depth posture."
         ),
         offensive_question=(
-            "Which API Management services expose the most interesting gateway, backend, and "
-            "configuration posture for operator follow-up?"
+            "Which API Management services expose the most interesting gateway, subscription, "
+            "backend, and secret posture for operator follow-up?"
         ),
         cloudfox_frame=(
             "Azure-native API Management census that surfaces gateway hostnames, identity "
-            "context, service inventory, and basic exposure posture before deeper policy or "
-            "subscription analysis."
+            "context, service inventory, and a small amount of deeper subscription, backend, "
+            "and named-value posture without turning into a raw APIM dump."
         ),
         output_highlights=(
             "gateway_hostnames",
@@ -266,6 +267,11 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "virtual_network_type",
             "api_count",
             "named_value_count",
+            "api_subscription_required_count",
+            "subscription_count",
+            "named_value_secret_count",
+            "named_value_key_vault_count",
+            "backend_hostnames",
         ),
         attack_leads=(
             AttackLead("Discovery", "Cloud Service Discovery"),

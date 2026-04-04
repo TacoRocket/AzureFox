@@ -200,13 +200,20 @@ def test_api_mgmt_table_mode_surfaces_gateway_and_inventory(tmp_path: Path) -> N
     )
     assert "service" in result.stdout
     assert "apim-edge-01" in result.stdout
+    assert "sub-required=1/2" in result.stdout
+    assert "subs=3" in result.stdout
+    assert "backend-hosts=1" in result.stdout
     assert "named-values=2" in result.stdout
+    assert "named-secrets=1" in result.stdout
+    assert "kv-backed=1" in result.stdout
     assert "gateway=2" in result.stdout
     assert "public=Enabled" in result.stdout
+    normalized_output = " ".join(result.stdout.split())
     assert (
         "Takeaway: 1 API Management services visible; 1 keep public network access enabled, "
-        "1 carry managed identity context, and 2 named values are visible."
-    ) in result.stdout
+        "1 carry managed identity context, and 2 named values are visible, including 1 marked "
+        "secret."
+    ) in normalized_output
 
 
 def test_functions_table_mode_surfaces_runtime_and_deployment(tmp_path: Path) -> None:

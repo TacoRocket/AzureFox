@@ -609,6 +609,7 @@ class AzureProvider(BaseProvider):
             iterator = self.clients.api_management.api_management_service.list()
             for service in iterator:
                 apis = None
+                subscriptions = None
                 backends = None
                 named_values = None
                 service_id = getattr(service, "id", "") or ""
@@ -627,6 +628,21 @@ class AzureProvider(BaseProvider):
                         issues.append(
                             _issue_from_exception(
                                 f"api_mgmt[{resource_group}/{service_name}].apis",
+                                exc,
+                            )
+                        )
+
+                    try:
+                        subscriptions = list(
+                            self.clients.api_management.subscription.list(
+                                resource_group,
+                                service_name,
+                            )
+                        )
+                    except Exception as exc:
+                        issues.append(
+                            _issue_from_exception(
+                                f"api_mgmt[{resource_group}/{service_name}].subscriptions",
                                 exc,
                             )
                         )
@@ -661,7 +677,15 @@ class AzureProvider(BaseProvider):
                             )
                         )
 
-                services.append(_api_mgmt_service_summary(service, apis, backends, named_values))
+                services.append(
+                    _api_mgmt_service_summary(
+                        service,
+                        apis,
+                        subscriptions,
+                        backends,
+                        named_values,
+                    )
+                )
         except Exception as exc:
             issues.append(_issue_from_exception("api_mgmt.services", exc))
 
@@ -2483,6 +2507,7 @@ def _app_service_summary(app: object, config: object | None) -> dict:
 def _api_mgmt_service_summary(
     service: object,
     apis: list[object] | None,
+    subscriptions: list[object] | None,
     backends: list[object] | None,
     named_values: list[object] | None,
 ) -> dict:
@@ -2510,8 +2535,14 @@ def _api_mgmt_service_summary(
     workload_principal_id = _string_value(getattr(identity, "principal_id", None))
     workload_client_id = _string_value(getattr(identity, "client_id", None))
     api_count = len(apis) if apis is not None else None
+    api_subscription_required_count = _api_mgmt_api_subscription_required_count(apis)
+    subscription_count = len(subscriptions) if subscriptions is not None else None
+    active_subscription_count = _api_mgmt_active_subscription_count(subscriptions)
     backend_count = len(backends) if backends is not None else None
+    backend_hostnames = _api_mgmt_backend_hostnames(backends)
     named_value_count = len(named_values) if named_values is not None else None
+    named_value_secret_count = _api_mgmt_named_value_secret_count(named_values)
+    named_value_key_vault_count = _api_mgmt_named_value_key_vault_count(named_values)
     gateway_enabled = (
         None
         if getattr(service, "disable_gateway", None) is None
@@ -2542,8 +2573,14 @@ def _api_mgmt_service_summary(
         "developer_portal_status": _string_value(getattr(service, "developer_portal_status", None)),
         "legacy_portal_status": _string_value(getattr(service, "legacy_portal_status", None)),
         "api_count": api_count,
+        "api_subscription_required_count": api_subscription_required_count,
+        "subscription_count": subscription_count,
+        "active_subscription_count": active_subscription_count,
         "backend_count": backend_count,
+        "backend_hostnames": backend_hostnames,
         "named_value_count": named_value_count,
+        "named_value_secret_count": named_value_secret_count,
+        "named_value_key_vault_count": named_value_key_vault_count,
         "summary": _api_mgmt_operator_summary(
             service_name=service_name,
             gateway_hostnames=gateway_hostnames,
@@ -2554,8 +2591,14 @@ def _api_mgmt_service_summary(
             sku_name=_string_value(getattr(sku, "name", None)),
             workload_identity_type=workload_identity_type,
             api_count=api_count,
+            api_subscription_required_count=api_subscription_required_count,
+            subscription_count=subscription_count,
+            active_subscription_count=active_subscription_count,
             backend_count=backend_count,
+            backend_hostnames=backend_hostnames,
             named_value_count=named_value_count,
+            named_value_secret_count=named_value_secret_count,
+            named_value_key_vault_count=named_value_key_vault_count,
             gateway_enabled=gateway_enabled,
             developer_portal_status=_string_value(
                 getattr(service, "developer_portal_status", None)
@@ -3449,8 +3492,14 @@ def _api_mgmt_operator_summary(
     sku_name: str | None,
     workload_identity_type: str | None,
     api_count: int | None,
+    api_subscription_required_count: int | None,
+    subscription_count: int | None,
+    active_subscription_count: int | None,
     backend_count: int | None,
+    backend_hostnames: list[str],
     named_value_count: int | None,
+    named_value_secret_count: int | None,
+    named_value_key_vault_count: int | None,
     gateway_enabled: bool | None,
     developer_portal_status: str | None,
 ) -> str:
@@ -3470,6 +3519,20 @@ def _api_mgmt_operator_summary(
     inventory_parts: list[str] = []
     if api_count is not None:
         inventory_parts.append(f"{api_count} APIs")
+    if api_subscription_required_count is not None:
+        if api_count is not None:
+            inventory_parts.append(f"{api_subscription_required_count} require subscriptions")
+        else:
+            inventory_parts.append(
+                f"{api_subscription_required_count} APIs require subscriptions"
+            )
+    if subscription_count is not None:
+        if active_subscription_count is not None:
+            inventory_parts.append(
+                f"{subscription_count} subscriptions ({active_subscription_count} active)"
+            )
+        else:
+            inventory_parts.append(f"{subscription_count} subscriptions")
     if backend_count is not None:
         inventory_parts.append(f"{backend_count} backends")
     if named_value_count is not None:
@@ -3479,6 +3542,15 @@ def _api_mgmt_operator_summary(
         if inventory_parts
         else "Inventory counts are not fully readable from the current read path."
     )
+
+    depth_parts: list[str] = []
+    if named_value_secret_count is not None:
+        depth_parts.append(f"{named_value_secret_count} named values marked secret")
+    if named_value_key_vault_count is not None:
+        depth_parts.append(f"{named_value_key_vault_count} Key Vault-backed named values")
+    if backend_hostnames:
+        depth_parts.append(f"backend hosts {', '.join(backend_hostnames)}")
+    depth_phrase = f" Depth cues: {', '.join(depth_parts)}." if depth_parts else ""
 
     posture_parts = [
         f"public network access {public_network_access or 'unknown'}",
@@ -3499,7 +3571,7 @@ def _api_mgmt_operator_summary(
 
     return (
         f"API Management service '{service_name}' {host_phrase} and {identity_phrase}. "
-        f"{inventory_phrase} Visible posture: {', '.join(posture_parts)}."
+        f"{inventory_phrase}{depth_phrase} Visible posture: {', '.join(posture_parts)}."
     )
 
 
@@ -3553,6 +3625,56 @@ def _hostname_from_url(value: str | None) -> str | None:
 def _api_mgmt_exposure_priority(item: dict) -> bool:
     return bool(item.get("gateway_hostnames")) or (
         str(item.get("public_network_access") or "").lower() == "enabled"
+    )
+
+
+def _api_mgmt_api_subscription_required_count(apis: list[object] | None) -> int | None:
+    if apis is None:
+        return None
+    return sum(bool(getattr(api, "subscription_required", False)) for api in apis)
+
+
+def _api_mgmt_active_subscription_count(subscriptions: list[object] | None) -> int | None:
+    if subscriptions is None:
+        return None
+    return sum(
+        str(getattr(subscription, "state", "")).strip().lower() == "active"
+        for subscription in subscriptions
+    )
+
+
+def _api_mgmt_backend_hostnames(backends: list[object] | None) -> list[str]:
+    if backends is None:
+        return []
+    return _dedupe_strings(
+        [
+            _hostname_from_url(
+                _string_value(
+                    getattr(backend, "url", None)
+                    or getattr(getattr(backend, "properties", None), "url", None)
+                )
+            )
+            for backend in backends
+        ]
+    )
+
+
+def _api_mgmt_named_value_secret_count(named_values: list[object] | None) -> int | None:
+    if named_values is None:
+        return None
+    return sum(bool(getattr(named_value, "secret", False)) for named_value in named_values)
+
+
+def _api_mgmt_named_value_key_vault_count(named_values: list[object] | None) -> int | None:
+    if named_values is None:
+        return None
+    return sum(
+        bool(
+            _string_value(
+                getattr(getattr(named_value, "key_vault", None), "secret_identifier", None)
+            )
+        )
+        for named_value in named_values
     )
 
 

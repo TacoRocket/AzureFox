@@ -942,10 +942,22 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
                 )
         else:
             named_value_phrase = f"{readable_named_values} named values are visible"
+        secret_named_value_counts = [
+            item.get("named_value_secret_count") for item in services
+        ]
+        readable_secret_named_values = sum(
+            count for count in secret_named_value_counts if isinstance(count, int)
+        )
+        secret_phrase = (
+            f", including {readable_secret_named_values} marked secret"
+            if secret_named_value_counts
+            and all(isinstance(count, int) for count in secret_named_value_counts)
+            else ""
+        )
         return (
             f"{len(services)} API Management services visible; {public_network} keep public "
             f"network access enabled, {identities} carry managed identity context, and "
-            f"{named_value_phrase}."
+            f"{named_value_phrase}{secret_phrase}."
         )
 
     if command == "functions":
@@ -1362,8 +1374,22 @@ def _api_mgmt_inventory_context(item: dict) -> str:
     parts: list[str] = []
     if item.get("api_count") is not None:
         parts.append(f"apis={item.get('api_count')}")
+    if item.get("api_subscription_required_count") is not None:
+        if item.get("api_count") is not None:
+            parts.append(
+                "sub-required="
+                f"{item.get('api_subscription_required_count')}/{item.get('api_count')}"
+            )
+        else:
+            parts.append(f"sub-required={item.get('api_subscription_required_count')}")
+    if item.get("subscription_count") is not None:
+        parts.append(f"subs={item.get('subscription_count')}")
+    if item.get("active_subscription_count") is not None:
+        parts.append(f"active-subs={item.get('active_subscription_count')}")
     if item.get("backend_count") is not None:
         parts.append(f"backends={item.get('backend_count')}")
+    if item.get("backend_hostnames"):
+        parts.append(f"backend-hosts={len(item.get('backend_hostnames', []))}")
     if item.get("named_value_count") is not None:
         parts.append(f"named-values={item.get('named_value_count')}")
     if not parts:
@@ -1400,6 +1426,10 @@ def _api_mgmt_posture_context(item: dict) -> str:
         parts.append("gateway=no")
     if item.get("developer_portal_status"):
         parts.append(f"devportal={item.get('developer_portal_status')}")
+    if item.get("named_value_secret_count") is not None:
+        parts.append(f"named-secrets={item.get('named_value_secret_count')}")
+    if item.get("named_value_key_vault_count") is not None:
+        parts.append(f"kv-backed={item.get('named_value_key_vault_count')}")
     if not parts:
         return "-"
     return "; ".join(parts)

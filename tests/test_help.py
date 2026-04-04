@@ -139,6 +139,7 @@ def test_help_command_api_mgmt_topic() -> None:
     assert "AzureFox Help :: api-mgmt" in result.stdout
     assert "gateway_hostnames" in result.stdout
     assert "virtual_network_type" in result.stdout
+    assert "named_value_secret_count" in result.stdout
 
 
 def test_help_command_network_ports_topic() -> None:

@@ -287,6 +287,7 @@ class PartialApiMgmtFixtureProvider(FixtureProvider):
         data = self._read("api_mgmt")
         row = dict(data["api_management_services"][0])
         row["api_count"] = None
+        row["api_subscription_required_count"] = None
         return {
             "api_management_services": [row],
             "issues": [
@@ -669,7 +670,15 @@ def test_collect_api_mgmt(fixture_provider, options) -> None:
     assert len(output.findings) == 0
     assert output.api_management_services[0].name == "apim-edge-01"
     assert output.api_management_services[0].api_count == 2
+    assert output.api_management_services[0].api_subscription_required_count == 1
+    assert output.api_management_services[0].subscription_count == 3
+    assert output.api_management_services[0].active_subscription_count == 2
+    assert output.api_management_services[0].backend_hostnames == [
+        "orders-internal.contoso.local"
+    ]
     assert output.api_management_services[0].named_value_count == 2
+    assert output.api_management_services[0].named_value_secret_count == 1
+    assert output.api_management_services[0].named_value_key_vault_count == 1
     assert (
         output.api_management_services[0].public_ip_address_id
         == (
@@ -690,6 +699,7 @@ def test_collect_api_mgmt_keeps_partial_visibility_explicit(
     assert len(output.api_management_services) == 1
     assert output.api_management_services[0].name == "apim-edge-01"
     assert output.api_management_services[0].api_count is None
+    assert output.api_management_services[0].api_subscription_required_count is None
     assert output.issues[0].kind == "permission_denied"
     assert output.issues[0].context["collector"] == "api_mgmt[rg-apps/apim-edge-01].apis"
 

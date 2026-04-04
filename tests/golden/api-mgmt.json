@@ -2,7 +2,12 @@
   "api_management_services": [
     {
       "api_count": 2,
+      "api_subscription_required_count": 1,
+      "active_subscription_count": 2,
       "backend_count": 1,
+      "backend_hostnames": [
+        "orders-internal.contoso.local"
+      ],
       "developer_portal_status": "Enabled",
       "gateway_enabled": true,
       "gateway_hostnames": [
@@ -17,6 +22,8 @@
       ],
       "name": "apim-edge-01",
       "named_value_count": 2,
+      "named_value_key_vault_count": 1,
+      "named_value_secret_count": 1,
       "portal_hostnames": [
         "portal.apim-edge-01.contoso.com"
       ],
@@ -35,7 +42,8 @@
       "sku_capacity": 1,
       "sku_name": "Developer",
       "state": "Succeeded",
-      "summary": "API Management service 'apim-edge-01' publishes gateway hostnames apim-edge-01.azure-api.net, api.contoso.com; management hostnames apim-edge-01.management.azure-api.net; portal hostnames portal.apim-edge-01.contoso.com and uses managed identity (SystemAssigned). Visible inventory: 2 APIs, 1 backends, 2 named values. Visible posture: public network access Enabled, virtual network type External, SKU Developer, gateway enabled, developer portal Enabled.",
+      "subscription_count": 3,
+      "summary": "API Management service 'apim-edge-01' publishes gateway hostnames apim-edge-01.azure-api.net, api.contoso.com; management hostnames apim-edge-01.management.azure-api.net; portal hostnames portal.apim-edge-01.contoso.com and uses managed identity (SystemAssigned). Visible inventory: 2 APIs, 1 require subscriptions, 3 subscriptions (2 active), 1 backends, 2 named values. Depth cues: 1 named values marked secret, 1 Key Vault-backed named values, backend hosts orders-internal.contoso.local. Visible posture: public network access Enabled, virtual network type External, SKU Developer, gateway enabled, developer portal Enabled.",
       "virtual_network_type": "External",
       "workload_client_id": "99990000-0000-0000-0000-000000000002",
       "workload_identity_ids": [],

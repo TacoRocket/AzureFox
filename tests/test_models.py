@@ -76,7 +76,13 @@ def test_api_mgmt_service_asset_defaults() -> None:
     assert asset.public_ip_address_id is None
     assert asset.public_ip_addresses == []
     assert asset.api_count is None
+    assert asset.api_subscription_required_count is None
+    assert asset.subscription_count is None
+    assert asset.active_subscription_count is None
     assert asset.gateway_enabled is None
+    assert asset.backend_hostnames == []
+    assert asset.named_value_secret_count is None
+    assert asset.named_value_key_vault_count is None
     assert asset.related_ids == []
 
 
