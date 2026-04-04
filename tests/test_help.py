@@ -78,6 +78,8 @@ def test_help_command_acr_topic() -> None:
     assert "AzureFox Help :: acr" in result.stdout
     assert "login_server" in result.stdout
     assert "admin_user_enabled" in result.stdout
+    assert "webhook_count" in result.stdout
+    assert "replication_count" in result.stdout
     assert "network_rule_default_action" in result.stdout
 
 
@@ -86,8 +88,10 @@ def test_help_command_databases_topic() -> None:
 
     assert result.exit_code == 0
     assert "AzureFox Help :: databases" in result.stdout
+    assert "engine" in result.stdout
     assert "fully_qualified_domain_name" in result.stdout
     assert "database_count" in result.stdout
+    assert "high_availability_mode" in result.stdout
     assert "minimal_tls_version" in result.stdout
 
 
@@ -139,6 +143,7 @@ def test_help_command_api_mgmt_topic() -> None:
     assert "AzureFox Help :: api-mgmt" in result.stdout
     assert "gateway_hostnames" in result.stdout
     assert "virtual_network_type" in result.stdout
+    assert "active_subscription_count" in result.stdout
     assert "named_value_secret_count" in result.stdout
 
 

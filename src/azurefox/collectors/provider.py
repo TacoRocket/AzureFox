@@ -134,7 +134,7 @@ class BaseProvider(ABC):
 
     def network_effective(self) -> dict:
         endpoint_data = self.endpoints()
-        network_port_data = self.network_ports()
+        network_port_data = self.network_ports(endpoint_data=endpoint_data)
         effective_exposures = _compose_network_effective(
             endpoint_data.get("endpoints", []),
             network_port_data.get("network_ports", []),
@@ -145,7 +145,7 @@ class BaseProvider(ABC):
         }
 
     @abstractmethod
-    def network_ports(self) -> dict:
+    def network_ports(self, endpoint_data: dict | None = None) -> dict:
         raise NotImplementedError
 
     @abstractmethod
@@ -290,8 +290,14 @@ class FixtureProvider(BaseProvider):
     def nics(self) -> dict:
         return self._read("nics")
 
-    def network_ports(self) -> dict:
-        return self._read("network_ports")
+    def network_ports(self, endpoint_data: dict | None = None) -> dict:
+        data = self._read("network_ports")
+        if endpoint_data is None:
+            return data
+        return {
+            "network_ports": data.get("network_ports", []),
+            "issues": [*endpoint_data.get("issues", []), *data.get("issues", [])],
+        }
 
     def vms(self) -> dict:
         return self._read("vms")
@@ -508,7 +514,44 @@ class AzureProvider(BaseProvider):
         try:
             iterator = self.clients.container_registry.registries.list()
             for registry in iterator:
-                registries.append(_acr_registry_summary(registry))
+                webhooks = None
+                replications = None
+                registry_id = getattr(registry, "id", "") or ""
+                resource_group = _resource_group_from_id(registry_id)
+                registry_name = getattr(registry, "name", None)
+
+                if resource_group and registry_name:
+                    try:
+                        webhooks = list(
+                            self.clients.container_registry.webhooks.list(
+                                resource_group,
+                                registry_name,
+                            )
+                        )
+                    except Exception as exc:
+                        issues.append(
+                            _issue_from_exception(
+                                f"acr[{resource_group}/{registry_name}].webhooks",
+                                exc,
+                            )
+                        )
+
+                    try:
+                        replications = list(
+                            self.clients.container_registry.replications.list(
+                                resource_group,
+                                registry_name,
+                            )
+                        )
+                    except Exception as exc:
+                        issues.append(
+                            _issue_from_exception(
+                                f"acr[{resource_group}/{registry_name}].replications",
+                                exc,
+                            )
+                        )
+
+                registries.append(_acr_registry_summary(registry, webhooks, replications))
         except Exception as exc:
             issues.append(_issue_from_exception("acr.registries", exc))
 
@@ -552,9 +595,78 @@ class AzureProvider(BaseProvider):
         except Exception as exc:
             issues.append(_issue_from_exception("databases.sql_servers", exc))
 
+        try:
+            iterator = self.clients.postgresql_flexible.servers.list_by_subscription()
+            for server in iterator:
+                server_id = getattr(server, "id", "") or ""
+                resource_group = _resource_group_from_id(server_id)
+                server_name = getattr(server, "name", None)
+                databases = None
+
+                if resource_group and server_name:
+                    try:
+                        databases = list(
+                            self.clients.postgresql_flexible.databases.list_by_server(
+                                resource_group,
+                                server_name,
+                            )
+                        )
+                    except Exception as exc:
+                        issues.append(
+                            _issue_from_exception(
+                                f"databases[{resource_group}/{server_name}].databases",
+                                exc,
+                            )
+                        )
+
+                database_servers.append(
+                    _database_server_summary(
+                        server,
+                        databases,
+                        engine="PostgreSqlFlexible",
+                    )
+                )
+        except Exception as exc:
+            issues.append(_issue_from_exception("databases.postgresql_flexible_servers", exc))
+
+        try:
+            iterator = self.clients.mysql_flexible.servers.list()
+            for server in iterator:
+                server_id = getattr(server, "id", "") or ""
+                resource_group = _resource_group_from_id(server_id)
+                server_name = getattr(server, "name", None)
+                databases = None
+
+                if resource_group and server_name:
+                    try:
+                        databases = list(
+                            self.clients.mysql_flexible.databases.list_by_server(
+                                resource_group,
+                                server_name,
+                            )
+                        )
+                    except Exception as exc:
+                        issues.append(
+                            _issue_from_exception(
+                                f"databases[{resource_group}/{server_name}].databases",
+                                exc,
+                            )
+                        )
+
+                database_servers.append(
+                    _database_server_summary(
+                        server,
+                        databases,
+                        engine="MySqlFlexible",
+                    )
+                )
+        except Exception as exc:
+            issues.append(_issue_from_exception("databases.mysql_flexible_servers", exc))
+
         database_servers.sort(
             key=lambda item: (
                 not _database_exposure_priority(item),
+                item.get("engine") or "",
                 item.get("name") or "",
             )
         )
@@ -1644,8 +1756,9 @@ class AzureProvider(BaseProvider):
 
         return {"nic_assets": nic_assets, "issues": issues}
 
-    def network_ports(self) -> dict:
-        endpoint_data = self.endpoints()
+    def network_ports(self, endpoint_data: dict | None = None) -> dict:
+        if endpoint_data is None:
+            endpoint_data = self.endpoints()
         nic_data = self.nics()
         issues = [*endpoint_data.get("issues", []), *nic_data.get("issues", [])]
 
@@ -2192,6 +2305,19 @@ def _string_value(value: object) -> str | None:
     if value is None:
         return None
     return str(getattr(value, "value", value))
+
+
+def _normalized_arm_enum(value: object) -> str | None:
+    text = str(_string_value(value) or "").strip()
+    if not text:
+        return None
+    if "." in text:
+        text = text.rsplit(".", 1)[-1]
+    text = text.replace("_", "-").replace(" ", "-")
+    text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "-", text)
+    text = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", "-", text)
+    text = re.sub(r"-{2,}", "-", text)
+    return text.lower()
 
 
 def _int_value(value: object) -> int | None:
@@ -2861,11 +2987,16 @@ def _app_service_exposure_priority(item: dict) -> bool:
     )
 
 
-def _acr_registry_summary(registry: object) -> dict:
+def _acr_registry_summary(
+    registry: object,
+    webhooks: list[object] | None = None,
+    replications: list[object] | None = None,
+) -> dict:
     registry_id = getattr(registry, "id", "") or ""
     registry_name = getattr(registry, "name", "unknown")
     identity = getattr(registry, "identity", None)
     sku = getattr(registry, "sku", None)
+    policies = getattr(registry, "policies", None)
     network_rule_set = getattr(registry, "network_rule_set", None)
     private_endpoint_connections = getattr(registry, "private_endpoint_connections", None) or []
     workload_identity_ids = sorted(
@@ -2888,6 +3019,20 @@ def _acr_registry_summary(registry: object) -> dict:
     private_endpoint_connection_count = len(private_endpoint_connections)
     login_server = _string_value(getattr(registry, "login_server", None))
     sku_name = _string_value(getattr(sku, "name", None))
+    webhook_count = len(webhooks) if webhooks is not None else None
+    enabled_webhook_count = _acr_enabled_webhook_count(webhooks)
+    webhook_action_types = _acr_webhook_action_types(webhooks)
+    broad_webhook_scope_count = _acr_broad_webhook_scope_count(webhooks)
+    replication_count = len(replications) if replications is not None else None
+    replication_regions = _acr_replication_regions(replications)
+    quarantine_policy = getattr(policies, "quarantine_policy", None)
+    retention_policy = getattr(policies, "retention_policy", None)
+    trust_policy = getattr(policies, "trust_policy", None)
+    quarantine_policy_status = _normalized_arm_enum(getattr(quarantine_policy, "status", None))
+    retention_policy_status = _normalized_arm_enum(getattr(retention_policy, "status", None))
+    retention_policy_days = _int_value(getattr(retention_policy, "days", None))
+    trust_policy_status = _normalized_arm_enum(getattr(trust_policy, "status", None))
+    trust_policy_type = _normalized_arm_enum(getattr(trust_policy, "type", None))
 
     return {
         "id": registry_id or f"/unknown/{registry_name}",
@@ -2904,6 +3049,17 @@ def _acr_registry_summary(registry: object) -> dict:
         "anonymous_pull_enabled": anonymous_pull_enabled,
         "data_endpoint_enabled": data_endpoint_enabled,
         "private_endpoint_connection_count": private_endpoint_connection_count,
+        "webhook_count": webhook_count,
+        "enabled_webhook_count": enabled_webhook_count,
+        "webhook_action_types": webhook_action_types,
+        "broad_webhook_scope_count": broad_webhook_scope_count,
+        "replication_count": replication_count,
+        "replication_regions": replication_regions,
+        "quarantine_policy_status": quarantine_policy_status,
+        "retention_policy_status": retention_policy_status,
+        "retention_policy_days": retention_policy_days,
+        "trust_policy_status": trust_policy_status,
+        "trust_policy_type": trust_policy_type,
         "workload_identity_type": workload_identity_type,
         "workload_principal_id": workload_principal_id,
         "workload_client_id": workload_client_id,
@@ -2920,12 +3076,31 @@ def _acr_registry_summary(registry: object) -> dict:
             data_endpoint_enabled=data_endpoint_enabled,
             private_endpoint_connection_count=private_endpoint_connection_count,
             sku_name=sku_name,
+            webhook_count=webhook_count,
+            enabled_webhook_count=enabled_webhook_count,
+            webhook_action_types=webhook_action_types,
+            broad_webhook_scope_count=broad_webhook_scope_count,
+            replication_count=replication_count,
+            replication_regions=replication_regions,
+            quarantine_policy_status=quarantine_policy_status,
+            retention_policy_status=retention_policy_status,
+            retention_policy_days=retention_policy_days,
+            trust_policy_status=trust_policy_status,
+            trust_policy_type=trust_policy_type,
         ),
         "related_ids": _dedupe_strings(
             [
                 registry_id,
                 workload_principal_id,
                 *workload_identity_ids,
+                *[
+                    _string_value(getattr(webhook, "id", None))
+                    for webhook in (webhooks or [])
+                ],
+                *[
+                    _string_value(getattr(replication, "id", None))
+                    for replication in (replications or [])
+                ],
             ]
         ),
     }
@@ -2944,6 +3119,17 @@ def _acr_operator_summary(
     data_endpoint_enabled: bool | None,
     private_endpoint_connection_count: int,
     sku_name: str | None,
+    webhook_count: int | None,
+    enabled_webhook_count: int | None,
+    webhook_action_types: list[str],
+    broad_webhook_scope_count: int | None,
+    replication_count: int | None,
+    replication_regions: list[str],
+    quarantine_policy_status: str | None,
+    retention_policy_status: str | None,
+    retention_policy_days: int | None,
+    trust_policy_status: str | None,
+    trust_policy_type: str | None,
 ) -> str:
     login_phrase = (
         f"publishes login server '{login_server}'"
@@ -2994,11 +3180,38 @@ def _acr_operator_summary(
         if service_parts
         else "Service shape is not fully readable from the current read path."
     )
+    depth_parts: list[str] = []
+    if webhook_count is not None:
+        webhook_phrase = f"{webhook_count} webhooks"
+        if enabled_webhook_count is not None:
+            webhook_phrase += f" ({enabled_webhook_count} enabled)"
+        depth_parts.append(webhook_phrase)
+    if broad_webhook_scope_count:
+        depth_parts.append(f"{broad_webhook_scope_count} broad webhook scope(s)")
+    if webhook_action_types:
+        depth_parts.append(f"webhook actions {', '.join(webhook_action_types)}")
+    if replication_count is not None and replication_regions:
+        depth_parts.append(
+            f"{replication_count} replications across {', '.join(replication_regions)}"
+        )
+    elif replication_count is not None:
+        depth_parts.append(f"{replication_count} replications")
+    if quarantine_policy_status:
+        depth_parts.append(f"quarantine {quarantine_policy_status}")
+    if retention_policy_status == "enabled" and retention_policy_days is not None:
+        depth_parts.append(f"retention enabled ({retention_policy_days}d)")
+    elif retention_policy_status:
+        depth_parts.append(f"retention {retention_policy_status}")
+    if trust_policy_status == "enabled" and trust_policy_type:
+        depth_parts.append(f"content trust enabled ({trust_policy_type})")
+    elif trust_policy_status:
+        depth_parts.append(f"content trust {trust_policy_status}")
+    depth_phrase = f" Depth cues: {', '.join(depth_parts)}." if depth_parts else ""
 
     return (
         f"Container Registry '{registry_name}' {login_phrase} and {identity_phrase}. "
         f"{auth_phrase} Visible network posture: {', '.join(network_parts)}. "
-        f"{service_phrase}"
+        f"{service_phrase}{depth_phrase}"
     )
 
 
@@ -3010,14 +3223,63 @@ def _acr_exposure_priority(item: dict) -> bool:
     )
 
 
+def _acr_enabled_webhook_count(webhooks: list[object] | None) -> int | None:
+    if webhooks is None:
+        return None
+    return sum(
+        _normalized_arm_enum(getattr(webhook, "status", None)) == "enabled"
+        for webhook in webhooks
+    )
+
+
+def _acr_webhook_action_types(webhooks: list[object] | None) -> list[str]:
+    if webhooks is None:
+        return []
+    return sorted(
+        {
+            normalized
+            for webhook in webhooks
+            for action in (getattr(webhook, "actions", None) or [])
+            if (normalized := _normalized_arm_enum(action))
+        }
+    )
+
+
+def _acr_broad_webhook_scope_count(webhooks: list[object] | None) -> int | None:
+    if webhooks is None:
+        return None
+    return sum(_acr_has_broad_webhook_scope(webhook) for webhook in webhooks)
+
+
+def _acr_has_broad_webhook_scope(webhook: object) -> bool:
+    scope = str(_string_value(getattr(webhook, "scope", None)) or "").strip()
+    return not scope or "*" in scope
+
+
+def _acr_replication_regions(replications: list[object] | None) -> list[str]:
+    if replications is None:
+        return []
+    return sorted(
+        {
+            region
+            for replication in replications
+            if (region := _string_value(getattr(replication, "location", None)))
+        }
+    )
+
+
 def _database_server_summary(
     server: object,
     databases: list[object] | None,
+    *,
+    engine: str = "AzureSql",
 ) -> dict:
     server_id = getattr(server, "id", "") or ""
     server_name = getattr(server, "name", "unknown")
     identity = getattr(server, "identity", None)
-    user_databases = _visible_user_databases(databases)
+    network = getattr(server, "network", None)
+    high_availability = getattr(server, "high_availability", None)
+    user_databases = _visible_user_databases(databases, engine=engine)
     user_database_names = sorted(
         str(getattr(database, "name", "") or "")
         for database in user_databases
@@ -3033,9 +3295,18 @@ def _database_server_summary(
     fully_qualified_domain_name = _string_value(
         getattr(server, "fully_qualified_domain_name", None)
     )
-    public_network_access = _string_value(getattr(server, "public_network_access", None))
+    public_network_access = _string_value(
+        getattr(server, "public_network_access", None)
+    ) or _string_value(getattr(network, "public_network_access", None))
     minimal_tls_version = _string_value(getattr(server, "minimal_tls_version", None))
     server_version = _string_value(getattr(server, "version", None))
+    high_availability_mode = _normalized_arm_enum(getattr(high_availability, "mode", None))
+    delegated_subnet_resource_id = _string_value(
+        getattr(network, "delegated_subnet_resource_id", None)
+    )
+    private_dns_zone_resource_id = _string_value(
+        getattr(network, "private_dns_zone_arm_resource_id", None)
+    ) or _string_value(getattr(network, "private_dns_zone_resource_id", None))
     database_count = len(user_databases) if databases is not None else None
 
     return {
@@ -3044,11 +3315,14 @@ def _database_server_summary(
         "resource_group": _resource_group_from_id(server_id),
         "location": _string_value(getattr(server, "location", None)),
         "state": _string_value(getattr(server, "state", None)),
-        "engine": "AzureSql",
+        "engine": engine,
         "fully_qualified_domain_name": fully_qualified_domain_name,
         "server_version": server_version,
         "public_network_access": public_network_access,
         "minimal_tls_version": minimal_tls_version,
+        "high_availability_mode": high_availability_mode,
+        "delegated_subnet_resource_id": delegated_subnet_resource_id,
+        "private_dns_zone_resource_id": private_dns_zone_resource_id,
         "database_count": database_count,
         "user_database_names": user_database_names,
         "workload_identity_type": workload_identity_type,
@@ -3056,12 +3330,16 @@ def _database_server_summary(
         "workload_client_id": workload_client_id,
         "workload_identity_ids": workload_identity_ids,
         "summary": _database_server_operator_summary(
+            engine=engine,
             server_name=server_name,
             fully_qualified_domain_name=fully_qualified_domain_name,
             workload_identity_type=workload_identity_type,
             public_network_access=public_network_access,
             minimal_tls_version=minimal_tls_version,
             server_version=server_version,
+            high_availability_mode=high_availability_mode,
+            delegated_subnet_resource_id=delegated_subnet_resource_id,
+            private_dns_zone_resource_id=private_dns_zone_resource_id,
             database_count=database_count,
             user_database_names=user_database_names,
         ),
@@ -3077,19 +3355,24 @@ def _database_server_summary(
 
 def _database_server_operator_summary(
     *,
+    engine: str,
     server_name: str,
     fully_qualified_domain_name: str | None,
     workload_identity_type: str | None,
     public_network_access: str | None,
     minimal_tls_version: str | None,
     server_version: str | None,
+    high_availability_mode: str | None,
+    delegated_subnet_resource_id: str | None,
+    private_dns_zone_resource_id: str | None,
     database_count: int | None,
     user_database_names: list[str],
 ) -> str:
+    engine_label = _database_engine_label(engine)
     endpoint_phrase = (
         f"publishes endpoint '{fully_qualified_domain_name}'"
         if fully_qualified_domain_name
-        else "does not expose a readable SQL endpoint from the current read path"
+        else "does not expose a readable database endpoint from the current read path"
     )
     identity_phrase = (
         f"uses managed identity ({workload_identity_type})"
@@ -3108,6 +3391,12 @@ def _database_server_operator_summary(
         posture_parts.append(f"minimal TLS {minimal_tls_version}")
     if server_version:
         posture_parts.append(f"server version {server_version}")
+    if high_availability_mode:
+        posture_parts.append(f"HA {high_availability_mode}")
+    if delegated_subnet_resource_id:
+        posture_parts.append("delegated subnet configured")
+    if private_dns_zone_resource_id:
+        posture_parts.append("private DNS configured")
 
     inventory_phrase = (
         f"Visible inventory: {', '.join(inventory_parts)}."
@@ -3116,7 +3405,7 @@ def _database_server_operator_summary(
     )
 
     return (
-        f"Azure SQL server '{server_name}' {endpoint_phrase} and {identity_phrase}. "
+        f"{engine_label} server '{server_name}' {endpoint_phrase} and {identity_phrase}. "
         f"{inventory_phrase} Visible posture: {', '.join(posture_parts)}."
     )
 
@@ -3215,17 +3504,36 @@ def _dns_zone_operator_summary(
     return f"Private DNS zone '{zone_name}' {inventory_phrase} and {namespace_phrase}."
 
 
-def _visible_user_databases(databases: list[object] | None) -> list[object]:
+def _visible_user_databases(databases: list[object] | None, *, engine: str) -> list[object]:
     if databases is None:
         return []
 
     visible: list[object] = []
     for database in databases:
         database_name = str(getattr(database, "name", "") or "").lower()
-        if database_name == "master":
+        if database_name in _system_database_names(engine):
             continue
         visible.append(database)
     return visible
+
+
+def _system_database_names(engine: str) -> set[str]:
+    if engine == "AzureSql":
+        return {"master"}
+    if engine == "PostgreSqlFlexible":
+        return {"postgres", "azure_maintenance"}
+    if engine == "MySqlFlexible":
+        return {"mysql", "information_schema", "performance_schema", "sys"}
+    return set()
+
+
+def _database_engine_label(engine: str) -> str:
+    labels = {
+        "AzureSql": "Azure SQL",
+        "PostgreSqlFlexible": "PostgreSQL Flexible",
+        "MySqlFlexible": "MySQL Flexible",
+    }
+    return labels.get(engine, engine)
 
 
 def _database_exposure_priority(item: dict) -> bool:

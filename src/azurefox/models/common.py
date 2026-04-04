@@ -448,6 +448,17 @@ class AcrRegistryAsset(BaseModel):
     anonymous_pull_enabled: bool | None = None
     data_endpoint_enabled: bool | None = None
     private_endpoint_connection_count: int = 0
+    webhook_count: int | None = None
+    enabled_webhook_count: int | None = None
+    webhook_action_types: list[str] = Field(default_factory=list)
+    broad_webhook_scope_count: int | None = None
+    replication_count: int | None = None
+    replication_regions: list[str] = Field(default_factory=list)
+    quarantine_policy_status: str | None = None
+    retention_policy_status: str | None = None
+    retention_policy_days: int | None = None
+    trust_policy_status: str | None = None
+    trust_policy_type: str | None = None
     workload_identity_type: str | None = None
     workload_principal_id: str | None = None
     workload_client_id: str | None = None
@@ -467,6 +478,9 @@ class DatabaseServerAsset(BaseModel):
     server_version: str | None = None
     public_network_access: str | None = None
     minimal_tls_version: str | None = None
+    high_availability_mode: str | None = None
+    delegated_subnet_resource_id: str | None = None
+    private_dns_zone_resource_id: str | None = None
     database_count: int | None = None
     user_database_names: list[str] = Field(default_factory=list)
     workload_identity_type: str | None = None

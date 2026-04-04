@@ -36,10 +36,13 @@ from azurefox.collectors.commands import (
 from azurefox.collectors.provider import (
     AzureProvider,
     FixtureProvider,
+    _acr_registry_summary,
     _aks_cluster_summary,
+    _database_server_summary,
     _env_var_reference_target,
     _network_effective_row_from_endpoint,
     _network_scope_label,
+    _normalized_arm_enum,
     _principal_from_claims,
     _web_asset_kind,
 )
@@ -288,6 +291,11 @@ class PartialApiMgmtFixtureProvider(FixtureProvider):
         row = dict(data["api_management_services"][0])
         row["api_count"] = None
         row["api_subscription_required_count"] = None
+        row["backend_count"] = None
+        row["backend_hostnames"] = []
+        row["named_value_count"] = None
+        row["named_value_secret_count"] = None
+        row["named_value_key_vault_count"] = None
         return {
             "api_management_services": [row],
             "issues": [
@@ -295,8 +303,72 @@ class PartialApiMgmtFixtureProvider(FixtureProvider):
                     "kind": "permission_denied",
                     "message": "api_mgmt[rg-apps/apim-edge-01].apis: 403 Forbidden",
                     "context": {"collector": "api_mgmt[rg-apps/apim-edge-01].apis"},
+                },
+                {
+                    "kind": "permission_denied",
+                    "message": "api_mgmt[rg-apps/apim-edge-01].backends: 403 Forbidden",
+                    "context": {"collector": "api_mgmt[rg-apps/apim-edge-01].backends"},
+                },
+                {
+                    "kind": "permission_denied",
+                    "message": "api_mgmt[rg-apps/apim-edge-01].named_values: 403 Forbidden",
+                    "context": {"collector": "api_mgmt[rg-apps/apim-edge-01].named_values"},
+                },
+            ],
+        }
+
+
+class NetworkEffectiveSnapshotFixtureProvider(FixtureProvider):
+    def __init__(self, fixture_dir: Path) -> None:
+        super().__init__(fixture_dir)
+        self.endpoint_calls = 0
+        self.seen_endpoint_data: dict | None = None
+
+    def endpoints(self) -> dict:
+        self.endpoint_calls += 1
+        return {
+            "endpoints": [
+                {
+                    "source_asset_id": (
+                        "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/"
+                        "virtualMachines/vm-01"
+                    ),
+                    "source_asset_name": "vm-01",
+                    "source_asset_kind": "VM",
+                    "endpoint": "1.2.3.4",
+                    "endpoint_type": "ip",
+                    "exposure_family": "public-ip",
+                    "ingress_path": "public-ip",
+                    "related_ids": [],
                 }
             ],
+            "issues": [
+                {
+                    "kind": "permission_denied",
+                    "message": "endpoints.vm-01: 403 Forbidden",
+                    "context": {"collector": "endpoints.vm-01"},
+                }
+            ],
+        }
+
+    def network_ports(self, endpoint_data: dict | None = None) -> dict:
+        self.seen_endpoint_data = endpoint_data
+        endpoint = (endpoint_data or {}).get("endpoints", [])[0]
+        return {
+            "network_ports": [
+                {
+                    "asset_id": endpoint.get("source_asset_id"),
+                    "asset_name": endpoint.get("source_asset_name"),
+                    "endpoint": endpoint.get("endpoint"),
+                    "protocol": "tcp",
+                    "port": "443",
+                    "allow_source_summary": "0.0.0.0/0 via nic-nsg:rg/nsg-web/allow-https",
+                    "exposure_confidence": "high",
+                    "summary": "test",
+                    "related_ids": [],
+                }
+            ],
+            "issues": [*((endpoint_data or {}).get("issues", []))],
         }
 
 
@@ -324,6 +396,37 @@ class PartialAcrFixtureProvider(FixtureProvider):
                     "message": "acr.registries: 403 Forbidden",
                     "context": {"collector": "acr.registries"},
                 }
+            ],
+        }
+
+
+class PartialAcrDepthFixtureProvider(FixtureProvider):
+    def acr(self) -> dict:
+        data = self._read("acr")
+        row = dict(data["registries"][0])
+        row["webhook_count"] = None
+        row["enabled_webhook_count"] = None
+        row["webhook_action_types"] = []
+        row["broad_webhook_scope_count"] = None
+        row["replication_count"] = None
+        row["replication_regions"] = []
+        return {
+            "registries": [row],
+            "issues": [
+                {
+                    "kind": "permission_denied",
+                    "message": "acr[rg-containers/acr-public-legacy].webhooks: 403 Forbidden",
+                    "context": {
+                        "collector": "acr[rg-containers/acr-public-legacy].webhooks"
+                    },
+                },
+                {
+                    "kind": "permission_denied",
+                    "message": "acr[rg-containers/acr-public-legacy].replications: 403 Forbidden",
+                    "context": {
+                        "collector": "acr[rg-containers/acr-public-legacy].replications"
+                    },
+                },
             ],
         }
 
@@ -423,21 +526,42 @@ def test_collect_acr(fixture_provider, options) -> None:
     assert output.registries[0].name == "acr-public-legacy"
     assert output.registries[0].admin_user_enabled is True
     assert output.registries[0].anonymous_pull_enabled is True
+    assert output.registries[0].webhook_count == 2
+    assert output.registries[0].enabled_webhook_count == 1
+    assert output.registries[0].webhook_action_types == ["delete", "push"]
+    assert output.registries[0].broad_webhook_scope_count == 1
+    assert len(output.registries[0].related_ids) == 3
     assert output.registries[1].name == "acr-ops-01"
     assert output.registries[1].private_endpoint_connection_count == 1
+    assert output.registries[1].replication_count == 2
+    assert output.registries[1].replication_regions == ["northeurope", "westus2"]
+    assert output.registries[1].retention_policy_days == 30
+    assert output.registries[1].trust_policy_status == "enabled"
+    assert len(output.registries[1].related_ids) == 5
     assert output.registries[1].workload_identity_type == "SystemAssigned"
 
 
 def test_collect_databases(fixture_provider, options) -> None:
     output = collect_databases(fixture_provider, options)
-    assert len(output.database_servers) == 2
+    assert len(output.database_servers) == 4
     assert len(output.findings) == 0
     assert output.database_servers[0].name == "sql-public-legacy"
+    assert output.database_servers[0].engine == "AzureSql"
     assert output.database_servers[0].database_count == 2
     assert output.database_servers[0].public_network_access == "Enabled"
     assert output.database_servers[1].name == "sql-ops-01"
     assert output.database_servers[1].workload_identity_type == "SystemAssigned"
     assert output.database_servers[1].user_database_names == ["appdb"]
+    assert output.database_servers[2].engine == "PostgreSqlFlexible"
+    assert output.database_servers[2].name == "pg-public-legacy"
+    assert output.database_servers[2].database_count == 2
+    assert output.database_servers[2].public_network_access == "Enabled"
+    assert output.database_servers[3].name == "mysql-ops-01"
+    assert output.database_servers[3].engine == "MySqlFlexible"
+    assert output.database_servers[3].high_availability_mode == "zone-redundant"
+    assert output.database_servers[3].private_dns_zone_resource_id is not None
+    assert output.database_servers[3].workload_identity_type == "SystemAssigned"
+    assert output.database_servers[3].user_database_names == ["inventory"]
 
 
 def test_collect_databases_keeps_nested_inventory_issue_explicit(
@@ -489,6 +613,21 @@ def test_collect_network_effective(fixture_provider, options) -> None:
     assert output.effective_exposures[0].effective_exposure == "high"
     assert output.effective_exposures[0].internet_exposed_ports == ["TCP/22"]
     assert output.effective_exposures[0].constrained_ports == ["TCP/443", "TCP/8080"]
+
+
+def test_collect_network_effective_reuses_one_endpoint_snapshot_and_keeps_issues(
+    fixture_dir: Path, options
+) -> None:
+    provider = NetworkEffectiveSnapshotFixtureProvider(fixture_dir)
+
+    output = collect_network_effective(provider, options)
+
+    assert provider.endpoint_calls == 1
+    assert provider.seen_endpoint_data is not None
+    assert provider.seen_endpoint_data["issues"][0]["context"]["collector"] == "endpoints.vm-01"
+    assert len(output.effective_exposures) == 1
+    assert output.effective_exposures[0].asset_name == "vm-01"
+    assert output.issues[0].context["collector"] == "endpoints.vm-01"
 
 
 def test_network_effective_no_nsg_observation_stays_cautious() -> None:
@@ -569,6 +708,121 @@ def test_collect_acr_keeps_command_level_issue_explicit(
     assert output.registries == []
     assert output.issues[0].kind == "permission_denied"
     assert output.issues[0].context["collector"] == "acr.registries"
+
+
+def test_collect_acr_keeps_nested_depth_visibility_explicit(
+    fixture_dir: Path, options
+) -> None:
+    provider = PartialAcrDepthFixtureProvider(fixture_dir)
+
+    output = collect_acr(provider, options)
+
+    assert len(output.registries) == 1
+    assert output.registries[0].webhook_count is None
+    assert output.registries[0].enabled_webhook_count is None
+    assert output.registries[0].webhook_action_types == []
+    assert output.registries[0].replication_count is None
+    assert output.registries[0].replication_regions == []
+    assert [issue.context["collector"] for issue in output.issues] == [
+        "acr[rg-containers/acr-public-legacy].webhooks",
+        "acr[rg-containers/acr-public-legacy].replications",
+    ]
+
+
+def test_acr_registry_summary_rolls_up_management_plane_depth_cues() -> None:
+    registry = SimpleNamespace(
+        id="/subscriptions/test/resourceGroups/rg/providers/Microsoft.ContainerRegistry/registries/acr-01",
+        name="acr-01",
+        location="eastus",
+        provisioning_state="Succeeded",
+        login_server="acr-01.azurecr.io",
+        sku=SimpleNamespace(name="Premium"),
+        public_network_access="Enabled",
+        network_rule_bypass_options="AzureServices",
+        network_rule_set=SimpleNamespace(default_action="Allow"),
+        admin_user_enabled=True,
+        anonymous_pull_enabled=False,
+        data_endpoint_enabled=True,
+        private_endpoint_connections=[],
+        identity=SimpleNamespace(
+            type="SystemAssigned",
+            principal_id="principal-1",
+            client_id="client-1",
+            user_assigned_identities={},
+        ),
+        policies=SimpleNamespace(
+            quarantine_policy=SimpleNamespace(status="disabled"),
+            retention_policy=SimpleNamespace(status="enabled", days=15),
+            trust_policy=SimpleNamespace(status="enabled", type="Notary"),
+        ),
+    )
+    webhooks = [
+        SimpleNamespace(
+            id="/subscriptions/test/.../webhooks/push-all",
+            status="enabled",
+            scope="samples/*",
+            actions=["push"],
+        ),
+        SimpleNamespace(
+            id="/subscriptions/test/.../webhooks/delete-all",
+            status="disabled",
+            scope="",
+            actions=["delete"],
+        ),
+    ]
+    replications = [
+        SimpleNamespace(
+            id="/subscriptions/test/.../replications/westus2",
+            location="westus2",
+        )
+    ]
+
+    summary = _acr_registry_summary(registry, webhooks, replications)
+
+    assert summary["webhook_count"] == 2
+    assert summary["enabled_webhook_count"] == 1
+    assert summary["webhook_action_types"] == ["delete", "push"]
+    assert summary["broad_webhook_scope_count"] == 2
+    assert summary["replication_regions"] == ["westus2"]
+    assert summary["retention_policy_days"] == 15
+    assert summary["trust_policy_type"] == "notary"
+    assert "/subscriptions/test/.../webhooks/push-all" in summary["related_ids"]
+    assert "/subscriptions/test/.../replications/westus2" in summary["related_ids"]
+    assert "Depth cues:" in summary["summary"]
+
+
+def test_normalized_arm_enum_splits_camel_case_values() -> None:
+    assert _normalized_arm_enum("ZoneRedundant") == "zone-redundant"
+    assert _normalized_arm_enum("SameZone") == "same-zone"
+
+
+def test_database_server_summary_normalizes_flexible_server_ha_mode() -> None:
+    server = SimpleNamespace(
+        id=(
+            "/subscriptions/test/resourceGroups/rg-data/providers/"
+            "Microsoft.DBforPostgreSQL/flexibleServers/pg-01"
+        ),
+        name="pg-01",
+        fully_qualified_domain_name="pg-01.postgres.database.azure.com",
+        version="16",
+        public_network_access="Enabled",
+        high_availability=SimpleNamespace(mode="ZoneRedundant"),
+        network=SimpleNamespace(
+            delegated_subnet_resource_id=(
+                "/subscriptions/test/resourceGroups/rg-data/providers/"
+                "Microsoft.Network/virtualNetworks/data-vnet/subnets/postgres-flex"
+            ),
+            private_dns_zone_arm_resource_id=(
+                "/subscriptions/test/resourceGroups/rg-data/providers/"
+                "Microsoft.Network/privateDnsZones/postgres.database.azure.com"
+            ),
+        ),
+    )
+
+    summary = _database_server_summary(server, [], engine="PostgreSqlFlexible")
+
+    assert summary["high_availability_mode"] == "zone-redundant"
+    assert "HA zone-redundant" in summary["summary"]
 
 
 def test_collect_aks(fixture_provider, options) -> None:
@@ -700,8 +954,16 @@ def test_collect_api_mgmt_keeps_partial_visibility_explicit(
     assert output.api_management_services[0].name == "apim-edge-01"
     assert output.api_management_services[0].api_count is None
     assert output.api_management_services[0].api_subscription_required_count is None
-    assert output.issues[0].kind == "permission_denied"
-    assert output.issues[0].context["collector"] == "api_mgmt[rg-apps/apim-edge-01].apis"
+    assert output.api_management_services[0].backend_count is None
+    assert output.api_management_services[0].backend_hostnames == []
+    assert output.api_management_services[0].named_value_count is None
+    assert output.api_management_services[0].named_value_secret_count is None
+    assert output.api_management_services[0].named_value_key_vault_count is None
+    assert [issue.context["collector"] for issue in output.issues] == [
+        "api_mgmt[rg-apps/apim-edge-01].apis",
+        "api_mgmt[rg-apps/apim-edge-01].backends",
+        "api_mgmt[rg-apps/apim-edge-01].named_values",
+    ]
 
 
 def test_collect_app_services_keeps_partial_visibility_explicit(

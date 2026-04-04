@@ -80,7 +80,7 @@ def test_cli_smoke_csv_row_mapping_for_inventory_style_commands(tmp_path: Path) 
 
     expectations = {
         "acr": (2, "acr-public-legacy"),
-        "databases": (2, "sql-public-legacy"),
+        "databases": (4, "sql-public-legacy"),
         "dns": (3, "corp.example.com"),
     }
 

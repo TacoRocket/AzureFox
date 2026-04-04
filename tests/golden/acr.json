@@ -13,7 +13,9 @@
     {
       "admin_user_enabled": true,
       "anonymous_pull_enabled": true,
+      "broad_webhook_scope_count": 1,
       "data_endpoint_enabled": true,
+      "enabled_webhook_count": 1,
       "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.ContainerRegistry/registries/acr-public-legacy",
       "location": "eastus",
       "login_server": "acr-public-legacy.azurecr.io",
@@ -22,13 +24,27 @@
       "network_rule_default_action": "Allow",
       "private_endpoint_connection_count": 0,
       "public_network_access": "Enabled",
+      "quarantine_policy_status": "disabled",
       "related_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.ContainerRegistry/registries/acr-public-legacy"
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.ContainerRegistry/registries/acr-public-legacy",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.ContainerRegistry/registries/acr-public-legacy/webhooks/push-all",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.ContainerRegistry/registries/acr-public-legacy/webhooks/delete-all"
       ],
+      "replication_count": 0,
+      "replication_regions": [],
       "resource_group": "rg-containers",
+      "retention_policy_days": null,
+      "retention_policy_status": "disabled",
       "sku_name": "Standard",
       "state": "Succeeded",
-      "summary": "Container Registry 'acr-public-legacy' publishes login server 'acr-public-legacy.azurecr.io' and has no managed identity visible from the current read path. Visible auth posture: admin user enabled, anonymous pull enabled. Visible network posture: public network access Enabled, default action Allow, bypass AzureServices, no private endpoints visible. Visible service shape: SKU Standard, data endpoint enabled.",
+      "summary": "Container Registry 'acr-public-legacy' publishes login server 'acr-public-legacy.azurecr.io' and has no managed identity visible from the current read path. Visible auth posture: admin user enabled, anonymous pull enabled. Visible network posture: public network access Enabled, default action Allow, bypass AzureServices, no private endpoints visible. Visible service shape: SKU Standard, data endpoint enabled. Depth cues: 2 webhooks (1 enabled), 1 broad webhook scope(s), webhook actions delete, push, 0 replications, quarantine disabled, retention disabled, content trust disabled.",
+      "trust_policy_status": "disabled",
+      "trust_policy_type": null,
+      "webhook_action_types": [
+        "delete",
+        "push"
+      ],
+      "webhook_count": 2,
       "workload_client_id": null,
       "workload_identity_ids": [],
       "workload_identity_type": null,
@@ -37,7 +53,9 @@
     {
       "admin_user_enabled": false,
       "anonymous_pull_enabled": false,
+      "broad_webhook_scope_count": 0,
       "data_endpoint_enabled": false,
+      "enabled_webhook_count": 1,
       "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.ContainerRegistry/registries/acr-ops-01",
       "location": "eastus2",
       "login_server": "acr-ops-01.azurecr.io",
@@ -46,14 +64,31 @@
       "network_rule_default_action": "Deny",
       "private_endpoint_connection_count": 1,
       "public_network_access": "Disabled",
+      "quarantine_policy_status": "enabled",
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.ContainerRegistry/registries/acr-ops-01",
-        "99990000-0000-0000-0000-000000000031"
+        "99990000-0000-0000-0000-000000000031",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.ContainerRegistry/registries/acr-ops-01/webhooks/push-internal",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.ContainerRegistry/registries/acr-ops-01/replications/westus2",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.ContainerRegistry/registries/acr-ops-01/replications/northeurope"
+      ],
+      "replication_count": 2,
+      "replication_regions": [
+        "northeurope",
+        "westus2"
       ],
       "resource_group": "rg-containers",
+      "retention_policy_days": 30,
+      "retention_policy_status": "enabled",
       "sku_name": "Premium",
       "state": "Succeeded",
-      "summary": "Container Registry 'acr-ops-01' publishes login server 'acr-ops-01.azurecr.io' and uses managed identity (SystemAssigned). Visible auth posture: admin user disabled, anonymous pull disabled. Visible network posture: public network access Disabled, default action Deny, bypass None, 1 private endpoint(s). Visible service shape: SKU Premium, data endpoint disabled.",
+      "summary": "Container Registry 'acr-ops-01' publishes login server 'acr-ops-01.azurecr.io' and uses managed identity (SystemAssigned). Visible auth posture: admin user disabled, anonymous pull disabled. Visible network posture: public network access Disabled, default action Deny, bypass None, 1 private endpoint(s). Visible service shape: SKU Premium, data endpoint disabled. Depth cues: 1 webhooks (1 enabled), webhook actions push, 2 replications across northeurope, westus2, quarantine enabled, retention enabled (30d), content trust enabled (notary).",
+      "trust_policy_status": "enabled",
+      "trust_policy_type": "notary",
+      "webhook_action_types": [
+        "push"
+      ],
+      "webhook_count": 1,
       "workload_client_id": "99990000-0000-0000-0000-000000000032",
       "workload_identity_ids": [],
       "workload_identity_type": "SystemAssigned",

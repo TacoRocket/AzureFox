@@ -89,21 +89,28 @@ def test_acr_table_mode_surfaces_login_server_and_posture(tmp_path: Path) -> Non
 
     assert result.exit_code == 0
     assert (
-        "Reviewing Azure Container Registry login servers, auth posture, and network exposure."
+        "Reviewing Azure Container Registry login, auth, network, and registry "
+        "automation/governance cues."
         in result.stdout
     )
     assert "registry" in result.stdout
     assert "acr-public-legacy" in result.stdout
     assert "login server" in result.stdout
-    assert "acr-ops-01.azurecr.io" in result.stdout
     assert "admin=yes" in result.stdout
     assert "anon-pull=yes" in result.stdout
     assert "public=Enabled" in result.stdout
+    assert "webhooks=2" in result.stdout
+    assert "enabled=1" in result.stdout
+    assert "replications=2" in result.stdout
+    assert "retention=30d" in result.stdout
+    assert "trust=notary" in result.stdout
     assert "pe=1" in result.stdout
+    normalized_output = " ".join(result.stdout.split())
     assert (
         "Takeaway: 2 registries visible; 1 keep public network access enabled, "
-        "1 allow admin-user auth, and 1 permit anonymous pull."
-    ) in result.stdout
+        "1 allow admin-user auth, 3 webhooks are visible, and 1 registry replicates "
+        "content into additional regions."
+    ) in normalized_output
 
 
 def test_databases_table_mode_surfaces_server_inventory_and_posture(tmp_path: Path) -> None:
@@ -115,20 +122,29 @@ def test_databases_table_mode_surfaces_server_inventory_and_posture(tmp_path: Pa
 
     assert result.exit_code == 0
     assert (
-        "Reviewing Azure SQL server posture and visible user-database inventory."
+        "Reviewing relational database server posture across Azure SQL, PostgreSQL Flexible, "
+        "and MySQL Flexible."
         in result.stdout
     )
     assert "server" in result.stdout
+    assert "pg-public-legacy" in result.stdout
+    assert "mysql-ops-01" in result.stdout
     assert "sql-public-legacy" in result.stdout
+    assert "MySqlFlexible" in result.stdout
     assert "AzureSql" in result.stdout
     assert "dbs=2" in result.stdout
     assert "orders,reporting" in result.stdout
     assert "public=Enabled" in result.stdout
+    assert "ha=zone-redundant" in result.stdout
+    assert "private-dns=yes" in result.stdout
     assert "tls=1.2" in result.stdout
+    normalized_output = " ".join(result.stdout.split())
+    assert "PostgreSqlFlexib" in result.stdout
     assert (
-        "Takeaway: 2 Azure SQL servers visible; 1 keep public network access enabled, "
-        "1 carry managed identity context, and 3 user databases are visible."
-    ) in result.stdout
+        "Takeaway: 4 relational database servers visible across 3 engine families; "
+        "2 keep public network access enabled, 2 carry managed identity context, and "
+        "6 user databases are visible."
+    ) in normalized_output
 
 
 def test_dns_table_mode_surfaces_zone_inventory_and_namespace_context(tmp_path: Path) -> None:
@@ -163,7 +179,8 @@ def test_aks_table_mode_surfaces_endpoint_and_auth_posture(tmp_path: Path) -> No
 
     assert result.exit_code == 0
     assert (
-        "Reviewing AKS control-plane endpoint, identity, auth posture, and network shape."
+        "Reviewing AKS control-plane endpoint, identity, auth posture, and Azure-side "
+        "federation and addon cues."
         in result.stdout
     )
     assert "cluster" in result.stdout
@@ -195,7 +212,8 @@ def test_api_mgmt_table_mode_surfaces_gateway_and_inventory(tmp_path: Path) -> N
 
     assert result.exit_code == 0
     assert (
-        "Reviewing API Management gateway hostnames, identity, and service posture."
+        "Reviewing API Management gateway hostnames, identity, subscription, backend, and "
+        "secret posture."
         in result.stdout
     )
     assert "service" in result.stdout
@@ -491,6 +509,44 @@ def test_acr_collection_issue_surfaces_in_table_output() -> None:
     assert "acr.registries" in rendered
 
 
+def test_acr_partial_replication_read_stays_explicit_in_takeaway() -> None:
+    payload = {
+        "metadata": {"command": "acr"},
+        "registries": [
+            {
+                "name": "acr-public-legacy",
+                "login_server": "acr-public-legacy.azurecr.io",
+                "webhook_count": 1,
+                "enabled_webhook_count": 1,
+                "webhook_action_types": ["push"],
+                "replication_count": None,
+                "replication_regions": [],
+                "public_network_access": "Enabled",
+                "admin_user_enabled": True,
+                "summary": "test",
+            }
+        ],
+        "findings": [],
+        "issues": [
+            {
+                "kind": "permission_denied",
+                "message": "acr[rg-containers/acr-public-legacy].replications: 403 Forbidden",
+                "context": {
+                    "collector": "acr[rg-containers/acr-public-legacy].replications"
+                },
+            }
+        ],
+    }
+    rendered = render_table("acr", payload)
+
+    normalized_rendered = " ".join(rendered.split())
+    assert (
+        "replication visibility is unreadable from at least one visible registry"
+        in normalized_rendered
+    )
+    assert "acr[rg-containers/acr-public-legacy].replications" in rendered
+
+
 def test_databases_partial_read_surfaces_collection_issue() -> None:
     payload = {
         "metadata": {"command": "databases"},
@@ -523,7 +579,9 @@ def test_databases_partial_read_surfaces_collection_issue() -> None:
     assert "Collection issues:" in rendered
     assert "permission_denied" in rendered
     assert "databases[rg-data/sql-public-legacy].databases" in rendered
-    assert "database visibility is unreadable from at" in rendered
+    assert "database visibility is unreadable from at least one visible server" in " ".join(
+        rendered.split()
+    )
     assert "least one visible server" in rendered
 
 
