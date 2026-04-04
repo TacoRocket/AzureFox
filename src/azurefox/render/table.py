@@ -908,10 +908,15 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         private_clusters = sum(item.get("private_cluster_enabled") is True for item in clusters)
         identities = sum(bool(item.get("cluster_identity_type")) for item in clusters)
         azure_rbac = sum(item.get("azure_rbac_enabled") is True for item in clusters)
+        federation = sum(
+            item.get("oidc_issuer_enabled") is True
+            or item.get("workload_identity_enabled") is True
+            for item in clusters
+        )
         return (
             f"{len(clusters)} AKS clusters visible; {private_clusters} use private API "
-            f"endpoints, {identities} expose cluster identity context, and {azure_rbac} enable "
-            "Azure RBAC."
+            f"endpoints, {identities} expose cluster identity context, {azure_rbac} enable "
+            f"Azure RBAC, and {federation} show Azure-side federation cues."
         )
 
     if command == "api-mgmt":
@@ -1242,6 +1247,10 @@ def _aks_identity_context(item: dict) -> str:
         parts.append(f"user-assigned={len(item.get('cluster_identity_ids', []))}")
     if item.get("cluster_identity_type") == "ServicePrincipal" and item.get("cluster_client_id"):
         parts.append("client-id=yes")
+    if item.get("workload_identity_enabled") is True:
+        parts.append("workload-id=yes")
+    elif item.get("workload_identity_enabled") is False:
+        parts.append("workload-id=no")
     if not parts:
         return "-"
     return "; ".join(parts)
@@ -1280,6 +1289,10 @@ def _aks_auth_context(item: dict) -> str:
         parts.append("local-accounts=disabled")
     elif item.get("local_accounts_disabled") is False:
         parts.append("local-accounts=enabled")
+    if item.get("oidc_issuer_enabled") is True:
+        parts.append("oidc=yes")
+    elif item.get("oidc_issuer_enabled") is False:
+        parts.append("oidc=no")
     if not parts:
         return "-"
     return "; ".join(parts)
@@ -1293,6 +1306,12 @@ def _aks_network_context(item: dict) -> str:
         parts.append(f"policy={item.get('network_policy')}")
     if item.get("outbound_type"):
         parts.append(f"outbound={item.get('outbound_type')}")
+    if item.get("addon_names"):
+        parts.append(f"addons={len(item.get('addon_names', []))}")
+    if item.get("web_app_routing_enabled") is True:
+        parts.append("webapp-routing=yes")
+    elif item.get("web_app_routing_enabled") is False:
+        parts.append("webapp-routing=no")
     if item.get("node_resource_group"):
         parts.append(f"node-rg={item.get('node_resource_group')}")
     if not parts:

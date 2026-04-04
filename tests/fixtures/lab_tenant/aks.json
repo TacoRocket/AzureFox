@@ -24,7 +24,13 @@
       "network_policy": null,
       "outbound_type": "loadBalancer",
       "agent_pool_count": 1,
-      "summary": "AKS cluster 'aks-public-legacy' publishes API endpoint 'aks-public-legacy-ef567890.hcp.eastus.azmk8s.io' and uses service principal client '99990000-0000-0000-0000-000000000021'. Visible inventory: Kubernetes 1.27.9, 1 agent pool(s). Visible auth posture: AAD profile not managed, Azure RBAC disabled, local accounts enabled. Visible network shape: private cluster disabled, network plugin kubenet, outbound loadBalancer.",
+      "oidc_issuer_enabled": false,
+      "oidc_issuer_url": null,
+      "workload_identity_enabled": false,
+      "addon_names": [],
+      "web_app_routing_enabled": false,
+      "web_app_routing_dns_zone_count": 0,
+      "summary": "AKS cluster 'aks-public-legacy' publishes API endpoint 'aks-public-legacy-ef567890.hcp.eastus.azmk8s.io' and uses service principal client '99990000-0000-0000-0000-000000000021'. Visible inventory: Kubernetes 1.27.9, 1 agent pool(s). Visible auth posture: AAD profile not managed, Azure RBAC disabled, local accounts enabled, OIDC issuer disabled, workload identity disabled. Visible network shape: private cluster disabled, network plugin kubenet, outbound loadBalancer, web app routing disabled.",
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ContainerService/managedClusters/aks-public-legacy"
       ]
@@ -53,7 +59,15 @@
       "network_policy": "calico",
       "outbound_type": "loadBalancer",
       "agent_pool_count": 2,
-      "summary": "AKS cluster 'aks-ops-01' uses private API endpoint 'aks-ops-01-abcd1234.privatelink.eastus.azmk8s.io' and uses cluster identity (SystemAssigned). Visible inventory: Kubernetes 1.29.4, 2 agent pool(s). Visible auth posture: AAD-managed auth, Azure RBAC enabled, local accounts disabled. Visible network shape: private cluster enabled, network plugin azure, network policy calico, outbound loadBalancer.",
+      "oidc_issuer_enabled": true,
+      "oidc_issuer_url": "https://oidc.prod-aks.azure.example/aks-ops-01",
+      "workload_identity_enabled": true,
+      "addon_names": [
+        "azureKeyvaultSecretsProvider"
+      ],
+      "web_app_routing_enabled": true,
+      "web_app_routing_dns_zone_count": 1,
+      "summary": "AKS cluster 'aks-ops-01' uses private API endpoint 'aks-ops-01-abcd1234.privatelink.eastus.azmk8s.io' and uses cluster identity (SystemAssigned). Visible inventory: Kubernetes 1.29.4, 2 agent pool(s), addons azureKeyvaultSecretsProvider. Depth cues: OIDC issuer https://oidc.prod-aks.azure.example/aks-ops-01, workload identity enabled, enabled addons azureKeyvaultSecretsProvider. Visible auth posture: AAD-managed auth, Azure RBAC enabled, local accounts disabled, OIDC issuer enabled, workload identity enabled. Visible network shape: private cluster enabled, network plugin azure, network policy calico, outbound loadBalancer, web app routing enabled (1 DNS zone links).",
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ContainerService/managedClusters/aks-ops-01",
         "99990000-0000-0000-0000-000000000011"

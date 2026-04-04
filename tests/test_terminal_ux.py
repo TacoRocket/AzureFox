@@ -172,12 +172,18 @@ def test_aks_table_mode_surfaces_endpoint_and_auth_posture(tmp_path: Path) -> No
     assert "k8s=1.29.4" in result.stdout
     assert "private-api=yes" in result.stdout
     assert "ServicePrincipal" in result.stdout
+    assert "workload-id=yes" in result.stdout
     assert "azure-rbac=yes" in result.stdout
+    assert "oidc=yes" in result.stdout
     assert "plugin=azure" in result.stdout
+    assert "addons=1" in result.stdout
+    assert "webapp-routing=yes" in result.stdout
+    normalized_output = " ".join(result.stdout.split())
     assert (
         "Takeaway: 2 AKS clusters visible; 1 use private API endpoints, "
-        "2 expose cluster identity context, and 1 enable Azure RBAC."
-    ) in result.stdout
+        "2 expose cluster identity context, 1 enable Azure RBAC, and 1 show Azure-side "
+        "federation cues."
+    ) in normalized_output
 
 
 def test_api_mgmt_table_mode_surfaces_gateway_and_inventory(tmp_path: Path) -> None:

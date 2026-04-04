@@ -60,6 +60,12 @@ def test_aks_cluster_asset_defaults() -> None:
     assert asset.private_cluster_enabled is None
     assert asset.cluster_identity_ids == []
     assert asset.agent_pool_count is None
+    assert asset.oidc_issuer_enabled is None
+    assert asset.oidc_issuer_url is None
+    assert asset.workload_identity_enabled is None
+    assert asset.addon_names == []
+    assert asset.web_app_routing_enabled is None
+    assert asset.web_app_routing_dns_zone_count is None
     assert asset.related_ids == []
 
 

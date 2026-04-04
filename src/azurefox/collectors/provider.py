@@ -3199,8 +3199,14 @@ def _aks_cluster_summary(cluster: object) -> dict:
     aad_profile = getattr(cluster, "aad_profile", None)
     api_server_access_profile = getattr(cluster, "api_server_access_profile", None)
     network_profile = getattr(cluster, "network_profile", None)
+    oidc_issuer_profile = getattr(cluster, "oidc_issuer_profile", None)
+    security_profile = getattr(cluster, "security_profile", None)
+    ingress_profile = getattr(cluster, "ingress_profile", None)
+    addon_profiles = getattr(cluster, "addon_profiles", None) or {}
     sku = getattr(cluster, "sku", None)
     agent_pool_profiles = getattr(cluster, "agent_pool_profiles", None) or []
+    workload_identity = getattr(security_profile, "workload_identity", None)
+    web_app_routing = getattr(ingress_profile, "web_app_routing", None)
 
     cluster_identity_ids = sorted(
         str(identity_id)
@@ -3226,6 +3232,19 @@ def _aks_cluster_summary(cluster: object) -> dict:
     azure_rbac_enabled = getattr(aad_profile, "enable_azure_rbac", None)
     local_accounts_disabled = getattr(cluster, "disable_local_accounts", None)
     agent_pool_count = len(agent_pool_profiles)
+    oidc_issuer_enabled = getattr(oidc_issuer_profile, "enabled", None)
+    oidc_issuer_url = _string_value(getattr(oidc_issuer_profile, "issuer_url", None))
+    workload_identity_enabled = getattr(workload_identity, "enabled", None)
+    addon_names = sorted(
+        addon_name
+        for addon_name, addon_profile in addon_profiles.items()
+        if getattr(addon_profile, "enabled", False)
+    )
+    web_app_routing_enabled = getattr(web_app_routing, "enabled", None)
+    web_app_routing_dns_zone_ids = getattr(web_app_routing, "dns_zone_resource_ids", None)
+    web_app_routing_dns_zone_count = (
+        len(web_app_routing_dns_zone_ids) if web_app_routing_dns_zone_ids is not None else None
+    )
 
     return {
         "id": cluster_id or f"/unknown/{cluster_name}",
@@ -3251,6 +3270,12 @@ def _aks_cluster_summary(cluster: object) -> dict:
         "network_policy": _string_value(getattr(network_profile, "network_policy", None)),
         "outbound_type": _string_value(getattr(network_profile, "outbound_type", None)),
         "agent_pool_count": agent_pool_count,
+        "oidc_issuer_enabled": oidc_issuer_enabled,
+        "oidc_issuer_url": oidc_issuer_url,
+        "workload_identity_enabled": workload_identity_enabled,
+        "addon_names": addon_names,
+        "web_app_routing_enabled": web_app_routing_enabled,
+        "web_app_routing_dns_zone_count": web_app_routing_dns_zone_count,
         "summary": _aks_operator_summary(
             cluster_name=cluster_name,
             kubernetes_version=_string_value(getattr(cluster, "kubernetes_version", None)),
@@ -3267,6 +3292,12 @@ def _aks_cluster_summary(cluster: object) -> dict:
             network_policy=_string_value(getattr(network_profile, "network_policy", None)),
             outbound_type=_string_value(getattr(network_profile, "outbound_type", None)),
             agent_pool_count=agent_pool_count,
+            oidc_issuer_enabled=oidc_issuer_enabled,
+            oidc_issuer_url=oidc_issuer_url,
+            workload_identity_enabled=workload_identity_enabled,
+            addon_names=addon_names,
+            web_app_routing_enabled=web_app_routing_enabled,
+            web_app_routing_dns_zone_count=web_app_routing_dns_zone_count,
         ),
         "related_ids": _dedupe_strings(
             [cluster_id, cluster_principal_id, *cluster_identity_ids]
@@ -3291,6 +3322,12 @@ def _aks_operator_summary(
     network_policy: str | None,
     outbound_type: str | None,
     agent_pool_count: int | None,
+    oidc_issuer_enabled: bool | None,
+    oidc_issuer_url: str | None,
+    workload_identity_enabled: bool | None,
+    addon_names: list[str],
+    web_app_routing_enabled: bool | None,
+    web_app_routing_dns_zone_count: int | None,
 ) -> str:
     if private_cluster_enabled is True and private_fqdn and public_fqdn_enabled and fqdn:
         endpoint_phrase = (
@@ -3326,6 +3363,14 @@ def _aks_operator_summary(
         auth_parts.append("local accounts disabled")
     elif local_accounts_disabled is False:
         auth_parts.append("local accounts enabled")
+    if oidc_issuer_enabled is True:
+        auth_parts.append("OIDC issuer enabled")
+    elif oidc_issuer_enabled is False:
+        auth_parts.append("OIDC issuer disabled")
+    if workload_identity_enabled is True:
+        auth_parts.append("workload identity enabled")
+    elif workload_identity_enabled is False:
+        auth_parts.append("workload identity disabled")
 
     network_parts: list[str] = []
     if private_cluster_enabled is True:
@@ -3338,12 +3383,34 @@ def _aks_operator_summary(
         network_parts.append(f"network policy {network_policy}")
     if outbound_type:
         network_parts.append(f"outbound {outbound_type}")
+    if web_app_routing_enabled is True:
+        if web_app_routing_dns_zone_count is not None:
+            network_parts.append(
+                f"web app routing enabled ({web_app_routing_dns_zone_count} DNS zone links)"
+            )
+        else:
+            network_parts.append("web app routing enabled")
+    elif web_app_routing_enabled is False:
+        network_parts.append("web app routing disabled")
 
     inventory_parts: list[str] = []
     if kubernetes_version:
         inventory_parts.append(f"Kubernetes {kubernetes_version}")
     if agent_pool_count is not None:
         inventory_parts.append(f"{agent_pool_count} agent pool(s)")
+    if addon_names:
+        inventory_parts.append(f"addons {', '.join(addon_names)}")
+
+    depth_parts: list[str] = []
+    if oidc_issuer_enabled is True and oidc_issuer_url:
+        depth_parts.append(f"OIDC issuer {oidc_issuer_url}")
+    elif oidc_issuer_enabled is True:
+        depth_parts.append("OIDC issuer enabled")
+    if workload_identity_enabled is True:
+        depth_parts.append("workload identity enabled")
+    if addon_names:
+        depth_parts.append(f"enabled addons {', '.join(addon_names)}")
+    depth_phrase = f" Depth cues: {', '.join(depth_parts)}." if depth_parts else ""
 
     auth_phrase = (
         f"Visible auth posture: {', '.join(auth_parts)}."
@@ -3363,7 +3430,7 @@ def _aks_operator_summary(
 
     return (
         f"AKS cluster '{cluster_name}' {endpoint_phrase} and {identity_phrase}. "
-        f"{inventory_phrase} {auth_phrase} {network_phrase}"
+        f"{inventory_phrase}{depth_phrase} {auth_phrase} {network_phrase}"
     )
 
 

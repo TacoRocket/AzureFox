@@ -387,6 +387,12 @@ class AksClusterAsset(BaseModel):
     network_policy: str | None = None
     outbound_type: str | None = None
     agent_pool_count: int | None = None
+    oidc_issuer_enabled: bool | None = None
+    oidc_issuer_url: str | None = None
+    workload_identity_enabled: bool | None = None
+    addon_names: list[str] = Field(default_factory=list)
+    web_app_routing_enabled: bool | None = None
+    web_app_routing_dns_zone_count: int | None = None
     summary: str
     related_ids: list[str] = Field(default_factory=list)
 
