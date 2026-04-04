@@ -27,6 +27,7 @@ from azurefox.collectors.commands import (
     collect_rbac,
     collect_resource_trusts,
     collect_role_trusts,
+    collect_snapshots_disks,
     collect_storage,
     collect_tokens_credentials,
     collect_vms,
@@ -75,10 +76,11 @@ COMMAND_SPECS: tuple[CommandSpec, ...] = (
     CommandSpec("acr", "resource", collect_acr),
     CommandSpec("databases", "resource", collect_databases),
     CommandSpec("vms", "compute", collect_vms),
+    CommandSpec("snapshots-disks", "compute", collect_snapshots_disks),
 )
 
 SECTION_NAMES: tuple[str, ...] = tuple(
-    sorted({command.section for command in COMMAND_SPECS} | {"ai", "azure-only", "network"})
+    sorted({command.section for command in COMMAND_SPECS} | {"ai"})
 )
 
 

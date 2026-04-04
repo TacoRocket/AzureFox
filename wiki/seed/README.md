@@ -9,5 +9,6 @@ Use these pages as the reviewable source for:
 - lightweight platform guidance
 - example-heavy pages that can later be copied into the live wiki
 
-These files are not meant to replace the repo's versioned source-of-truth docs.
-Keep contracts, roadmap decisions, and API-boundary detail in the main repo docs.
+These files are not meant to replace the live operator guidance in `azurefox help`.
+Use the surrounding `wiki/` tree for longer-form planning and seed material, and keep the
+versioned contract baseline in the repo where it belongs.

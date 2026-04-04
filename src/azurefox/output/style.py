@@ -58,6 +58,10 @@ COMMAND_NARRATION = {
         "Correlating resource trust surfaces across public network and private-link paths."
     ),
     "storage": "Checking storage exposure and network posture for likely data targets.",
+    "snapshots-disks": (
+        "Reviewing managed disks and snapshots for offline-copy, sharing/export, and "
+        "encryption posture with highest-value targets first."
+    ),
     "nics": "Enumerating NIC attachments, IP context, and network boundary references.",
     "workloads": "Joining workload assets with identity context and visible ingress paths.",
     "vms": "Summarizing reachable compute assets and identity-bearing workloads.",

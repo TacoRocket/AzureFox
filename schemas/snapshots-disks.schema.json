@@ -1,0 +1,9 @@
+{
+  "model": "SnapshotsDisksOutput",
+  "top_level_fields": [
+    "metadata",
+    "snapshot_disk_assets",
+    "findings",
+    "issues"
+  ]
+}

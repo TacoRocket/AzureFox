@@ -117,6 +117,17 @@ def test_help_command_storage_topic() -> None:
     assert "https_traffic_only_enabled" in result.stdout
 
 
+def test_help_command_snapshots_disks_topic() -> None:
+    result = runner.invoke(app, ["help", "snapshots-disks"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: snapshots-disks" in result.stdout
+    assert "highest-value offline-copy targets first" in result.stdout
+    assert "attachment_state" in result.stdout
+    assert "network_access_policy" in result.stdout
+    assert "disk_encryption_set_id" in result.stdout
+
+
 def test_help_command_network_effective_topic() -> None:
     result = runner.invoke(app, ["help", "network-effective"])
 
