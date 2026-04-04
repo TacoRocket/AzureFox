@@ -11,12 +11,22 @@ COMMAND_NARRATION = {
     "whoami": "Checking caller context and active subscription scope.",
     "inventory": "Scoping the visible Azure resource footprint.",
     "app-services": "Reviewing App Service runtime, hostname, identity, and hardening posture.",
-    "acr": "Reviewing Azure Container Registry login servers, auth posture, and network exposure.",
-    "databases": "Reviewing Azure SQL server posture and visible user-database inventory.",
+    "acr": (
+        "Reviewing Azure Container Registry login, auth, network, and registry "
+        "automation/governance cues."
+    ),
+    "databases": (
+        "Reviewing relational database server posture across Azure SQL, PostgreSQL Flexible, "
+        "and MySQL Flexible."
+    ),
     "dns": "Reviewing public and private DNS zone inventory and namespace boundaries.",
-    "aks": "Reviewing AKS control-plane endpoint, identity, auth posture, and network shape.",
+    "aks": (
+        "Reviewing AKS control-plane endpoint, identity, auth posture, and Azure-side "
+        "federation and addon cues."
+    ),
     "api-mgmt": (
-        "Reviewing API Management gateway hostnames, identity, and service posture."
+        "Reviewing API Management gateway hostnames, identity, subscription, backend, and "
+        "secret posture."
     ),
     "functions": (
         "Reviewing Function App runtime, storage binding, identity, and deployment posture."

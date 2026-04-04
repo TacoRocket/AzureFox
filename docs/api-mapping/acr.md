@@ -2,10 +2,11 @@
 
 ## Slice Goal
 
-Surface Azure Container Registry posture before deeper repository or token analysis exists.
+Surface Azure Container Registry posture with a narrow management-plane depth pass.
 
-This first version answers:
-"Which registries expose interesting login, auth, and network posture worth operator follow-up?"
+This version answers:
+"Which registries expose interesting login, auth, network, automation, and governance cues worth
+operator follow-up?"
 
 ## Initial Scope
 
@@ -14,24 +15,32 @@ This first version answers:
 - Public network access and network-rule default-action visibility
 - Admin-user and anonymous-pull posture
 - Managed identity and basic service-shape cues
+- Webhook counts, action types, and broad scope cues
+- Replication counts and replicated region names
+- Quarantine, retention, and content-trust policy posture
 
 ## Explicit Non-Goals For V1
 
 - Repository or artifact inventory
-- Token, scope-map, or webhook depth
-- Content-trust or retention-policy deepening
+- Token, scope-map, or task depth
+- Webhook callback URI retrieval
+- Any repository-content or data-plane access path
 
 ## Primary APIs
 
 - `azure.mgmt.containerregistry.ContainerRegistryManagementClient.registries.list`
+- `azure.mgmt.containerregistry.ContainerRegistryManagementClient.webhooks.list`
+- `azure.mgmt.containerregistry.ContainerRegistryManagementClient.replications.list`
 
 ## Correlation / Joins
 
-- Normalize registry posture into operator-first rows that emphasize exposure and auth switches
+- Normalize registry posture into operator-first rows that emphasize exposure, auth, automation,
+  replication, and policy cues
+- Keep nested read gaps explicit when webhook or replication visibility is denied
 - Keep data-plane content analysis out of the first slice
 
 ## Blind Spots
 
 - Registry posture does not prove repository contents are readable
-- Auth switches alone do not model every possible registry abuse path
-
+- Webhook and replication cues do not prove downstream trust or exploitability
+- Policy posture does not prove content-governance enforcement is operating as intended

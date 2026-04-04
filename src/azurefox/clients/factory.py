@@ -18,6 +18,8 @@ class AzureClients:
     containerservice: object
     api_management: object
     sql: object
+    postgresql_flexible: object
+    mysql_flexible: object
     keyvault: object
     storage: object
     compute: object
@@ -32,7 +34,9 @@ def build_clients(session: AuthSession, requested_subscription: str | None) -> A
         from azure.mgmt.containerregistry import ContainerRegistryManagementClient
         from azure.mgmt.containerservice import ContainerServiceClient
         from azure.mgmt.keyvault import KeyVaultManagementClient
+        from azure.mgmt.mysqlflexibleservers import MySQLManagementClient
         from azure.mgmt.network import NetworkManagementClient
+        from azure.mgmt.postgresqlflexibleservers import PostgreSQLManagementClient
         from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient
         from azure.mgmt.sql import SqlManagementClient
         from azure.mgmt.storage import StorageManagementClient
@@ -88,6 +92,8 @@ def build_clients(session: AuthSession, requested_subscription: str | None) -> A
         containerservice=ContainerServiceClient(session.credential, subscription_id),
         api_management=ApiManagementClient(session.credential, subscription_id),
         sql=SqlManagementClient(session.credential, subscription_id),
+        postgresql_flexible=PostgreSQLManagementClient(session.credential, subscription_id),
+        mysql_flexible=MySQLManagementClient(session.credential, subscription_id),
         keyvault=KeyVaultManagementClient(session.credential, subscription_id),
         storage=StorageManagementClient(session.credential, subscription_id),
         compute=ComputeManagementClient(session.credential, subscription_id),

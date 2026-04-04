@@ -134,6 +134,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                 ("identity", "identity"),
                 ("auth", "auth"),
                 ("exposure", "exposure"),
+                ("depth", "depth"),
                 ("posture", "posture"),
                 ("why_it_matters", "why it matters"),
             ],
@@ -144,6 +145,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     "identity": _app_service_identity_context(item),
                     "auth": _acr_auth_context(item),
                     "exposure": _acr_exposure_context(item),
+                    "depth": _acr_depth_context(item),
                     "posture": _acr_posture_context(item),
                     "why_it_matters": item.get("summary"),
                 }
@@ -830,11 +832,46 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             for item in registries
         )
         admin_auth = sum(item.get("admin_user_enabled") is True for item in registries)
-        anonymous_pull = sum(item.get("anonymous_pull_enabled") is True for item in registries)
+        webhook_counts = [item.get("webhook_count") for item in registries]
+        readable_webhooks = sum(count for count in webhook_counts if isinstance(count, int))
+        if webhook_counts and any(count is None for count in webhook_counts):
+            if readable_webhooks:
+                webhook_phrase = (
+                    f"at least {readable_webhooks} webhooks are visible, with some "
+                    "registries unreadable"
+                )
+            else:
+                webhook_phrase = (
+                    "webhook visibility is unreadable from at least one visible registry"
+                )
+        else:
+            webhook_phrase = f"{readable_webhooks} webhooks are visible"
+        replication_counts = [item.get("replication_count") for item in registries]
+        readable_replicated = sum(
+            bool(item.get("replication_regions"))
+            for item in registries
+            if isinstance(item.get("replication_count"), int)
+        )
+        if replication_counts and any(count is None for count in replication_counts):
+            if readable_replicated:
+                replication_phrase = (
+                    f"at least {readable_replicated} registries show replicated regions, "
+                    "with some registries unreadable"
+                )
+            else:
+                replication_phrase = (
+                    "replication visibility is unreadable from at least one visible registry"
+                )
+        elif readable_replicated == 1:
+            replication_phrase = "1 registry replicates content into additional regions"
+        else:
+            replication_phrase = (
+                f"{readable_replicated} registries replicate content into additional regions"
+            )
         return (
             f"{len(registries)} registries visible; {public_network} keep public network access "
-            f"enabled, {admin_auth} allow admin-user auth, and {anonymous_pull} permit "
-            "anonymous pull."
+            f"enabled, {admin_auth} allow admin-user auth, {webhook_phrase}, and "
+            f"{replication_phrase}."
         )
 
     if command == "databases":
@@ -844,6 +881,7 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             for item in database_servers
         )
         identities = sum(bool(item.get("workload_identity_type")) for item in database_servers)
+        engines = {item.get("engine") for item in database_servers if item.get("engine")}
         database_counts = [item.get("database_count") for item in database_servers]
         readable_databases = sum(count for count in database_counts if isinstance(count, int))
         if database_counts and any(count is None for count in database_counts):
@@ -859,9 +897,9 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         else:
             database_phrase = f"{readable_databases} user databases are visible"
         return (
-            f"{len(database_servers)} Azure SQL servers visible; {public_servers} keep public "
-            f"network access enabled, {identities} carry managed identity context, and "
-            f"{database_phrase}."
+            f"{len(database_servers)} relational database servers visible across "
+            f"{len(engines)} engine families; {public_servers} keep public network access "
+            f"enabled, {identities} carry managed identity context, and {database_phrase}."
         )
 
     if command == "dns":
@@ -1171,6 +1209,40 @@ def _acr_posture_context(item: dict) -> str:
         parts.append("data-endpoint=yes")
     elif item.get("data_endpoint_enabled") is False:
         parts.append("data-endpoint=no")
+    if item.get("quarantine_policy_status"):
+        parts.append(f"quarantine={item.get('quarantine_policy_status')}")
+    retention_status = item.get("retention_policy_status")
+    if retention_status == "enabled" and item.get("retention_policy_days") is not None:
+        parts.append(f"retention={item.get('retention_policy_days')}d")
+    elif retention_status:
+        parts.append(f"retention={retention_status}")
+    trust_status = item.get("trust_policy_status")
+    if trust_status == "enabled" and item.get("trust_policy_type"):
+        parts.append(f"trust={item.get('trust_policy_type')}")
+    elif trust_status:
+        parts.append(f"trust={trust_status}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _acr_depth_context(item: dict) -> str:
+    parts: list[str] = []
+    webhook_count = item.get("webhook_count")
+    enabled_webhook_count = item.get("enabled_webhook_count")
+    if webhook_count is not None:
+        parts.append(f"webhooks={webhook_count}")
+    if enabled_webhook_count is not None:
+        parts.append(f"enabled={enabled_webhook_count}")
+    if item.get("broad_webhook_scope_count"):
+        parts.append(f"wide-scopes={item.get('broad_webhook_scope_count')}")
+    if item.get("webhook_action_types"):
+        parts.append(f"actions={','.join(item.get('webhook_action_types', []))}")
+    replication_count = item.get("replication_count")
+    if replication_count is not None:
+        parts.append(f"replications={replication_count}")
+    if item.get("replication_regions"):
+        parts.append(f"regions={','.join(item.get('replication_regions', []))}")
     if not parts:
         return "-"
     return "; ".join(parts)
@@ -1204,6 +1276,12 @@ def _database_posture_context(item: dict) -> str:
         parts.append(f"tls={item.get('minimal_tls_version')}")
     if item.get("server_version"):
         parts.append(f"version={item.get('server_version')}")
+    if item.get("high_availability_mode"):
+        parts.append(f"ha={item.get('high_availability_mode')}")
+    if item.get("delegated_subnet_resource_id"):
+        parts.append("delegated-subnet=yes")
+    if item.get("private_dns_zone_resource_id"):
+        parts.append("private-dns=yes")
     if item.get("state"):
         parts.append(f"state={item.get('state')}")
     if not parts:

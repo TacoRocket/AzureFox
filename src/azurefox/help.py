@@ -97,17 +97,18 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="acr",
         section="resource",
         summary=(
-            "Summarize Azure Container Registry login servers, auth posture, and network "
-            "exposure."
+            "Summarize Azure Container Registry login, auth, network, webhook, replication, "
+            "and policy posture."
         ),
         offensive_question=(
-            "Which container registries expose the most interesting login, auth, and network "
-            "posture for operator follow-up?"
+            "Which container registries expose the most interesting login, auth, network, "
+            "automation, and governance cues for operator follow-up?"
         ),
         cloudfox_frame=(
             "Azure-native container registry census that stays at management-plane posture: "
-            "login server visibility, broad auth switches, and network boundary signals before "
-            "any repository-content or data-plane analysis."
+            "login visibility, broad auth switches, network boundary signals, and a narrow "
+            "amount of webhook, replication, and policy depth before any repository-content or "
+            "data-plane analysis."
         ),
         output_highlights=(
             "login_server",
@@ -115,6 +116,11 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "network_rule_default_action",
             "admin_user_enabled",
             "anonymous_pull_enabled",
+            "webhook_count",
+            "enabled_webhook_count",
+            "replication_count",
+            "retention_policy_status",
+            "trust_policy_status",
         ),
         attack_leads=(
             AttackLead("Discovery", "Cloud Service Discovery"),
@@ -127,22 +133,25 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="databases",
         section="resource",
         summary=(
-            "Summarize Azure SQL server endpoint, network posture, identity context, and visible "
-            "user-database inventory."
+            "Summarize Azure SQL, PostgreSQL Flexible, and MySQL Flexible server endpoint, "
+            "network posture, identity context, and visible user-database inventory."
         ),
         offensive_question=(
-            "Which Azure SQL servers expose the most interesting endpoint, network posture, and "
-            "visible database inventory for operator follow-up?"
+            "Which relational database servers expose the most interesting endpoint, network "
+            "posture, and visible database inventory for operator follow-up?"
         ),
         cloudfox_frame=(
-            "Azure-native database census that starts with Azure SQL management-plane posture: "
-            "server endpoint visibility, public network stance, managed identity context, and "
-            "user-database inventory before any broader multi-engine or data-plane analysis."
+            "Azure-native relational database census across Azure SQL, PostgreSQL Flexible, and "
+            "MySQL Flexible management-plane posture: endpoint visibility, public network stance, "
+            "managed identity context, and visible database inventory before any data-plane "
+            "analysis."
         ),
         output_highlights=(
+            "engine",
             "fully_qualified_domain_name",
             "public_network_access",
             "minimal_tls_version",
+            "high_availability_mode",
             "database_count",
             "user_database_names",
         ),
@@ -269,6 +278,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "named_value_count",
             "api_subscription_required_count",
             "subscription_count",
+            "active_subscription_count",
             "named_value_secret_count",
             "named_value_key_vault_count",
             "backend_hostnames",

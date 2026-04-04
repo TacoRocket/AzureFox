@@ -49,6 +49,62 @@
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.Sql/servers/sql-ops-01",
         "99990000-0000-0000-0000-000000000041"
       ]
+    },
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.DBforPostgreSQL/flexibleServers/pg-public-legacy",
+      "name": "pg-public-legacy",
+      "resource_group": "rg-data",
+      "location": "eastus2",
+      "state": "Ready",
+      "engine": "PostgreSqlFlexible",
+      "fully_qualified_domain_name": "pg-public-legacy.postgres.database.azure.com",
+      "server_version": "16",
+      "public_network_access": "Enabled",
+      "minimal_tls_version": null,
+      "high_availability_mode": "disabled",
+      "delegated_subnet_resource_id": null,
+      "private_dns_zone_resource_id": null,
+      "database_count": 2,
+      "user_database_names": [
+        "app",
+        "orders"
+      ],
+      "workload_identity_type": null,
+      "workload_principal_id": null,
+      "workload_client_id": null,
+      "workload_identity_ids": [],
+      "summary": "PostgreSQL Flexible server 'pg-public-legacy' publishes endpoint 'pg-public-legacy.postgres.database.azure.com' and has no managed identity visible from the current read path. Visible inventory: 2 user database(s), names: app, orders. Visible posture: public network access Enabled, server version 16, HA disabled.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.DBforPostgreSQL/flexibleServers/pg-public-legacy"
+      ]
+    },
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.DBforMySQL/flexibleServers/mysql-ops-01",
+      "name": "mysql-ops-01",
+      "resource_group": "rg-data",
+      "location": "centralus",
+      "state": "Ready",
+      "engine": "MySqlFlexible",
+      "fully_qualified_domain_name": "mysql-ops-01.mysql.database.azure.com",
+      "server_version": "8.0.21",
+      "public_network_access": "Disabled",
+      "minimal_tls_version": null,
+      "high_availability_mode": "zone-redundant",
+      "delegated_subnet_resource_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.Network/virtualNetworks/vnet-data/subnets/mysql-flex",
+      "private_dns_zone_resource_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.Network/privateDnsZones/mysql.database.azure.com",
+      "database_count": 1,
+      "user_database_names": [
+        "inventory"
+      ],
+      "workload_identity_type": "SystemAssigned",
+      "workload_principal_id": "99990000-0000-0000-0000-000000000051",
+      "workload_client_id": "99990000-0000-0000-0000-000000000052",
+      "workload_identity_ids": [],
+      "summary": "MySQL Flexible server 'mysql-ops-01' publishes endpoint 'mysql-ops-01.mysql.database.azure.com' and uses managed identity (SystemAssigned). Visible inventory: 1 user database(s), names: inventory. Visible posture: public network access Disabled, server version 8.0.21, HA zone-redundant, delegated subnet configured, private DNS configured.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.DBforMySQL/flexibleServers/mysql-ops-01",
+        "99990000-0000-0000-0000-000000000051"
+      ]
     }
   ],
   "issues": []
