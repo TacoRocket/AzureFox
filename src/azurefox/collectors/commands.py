@@ -27,6 +27,7 @@ from azurefox.models.commands import (
     InventoryOutput,
     KeyVaultOutput,
     ManagedIdentitiesOutput,
+    NetworkEffectiveOutput,
     NetworkPortsOutput,
     NicsOutput,
     PermissionsOutput,
@@ -110,6 +111,29 @@ def collect_dns(provider: BaseProvider, options: GlobalOptions) -> DnsOutput:
             "findings": [],
             **data,
             "dns_zones": dns_zones,
+        }
+    )
+
+
+def collect_network_effective(
+    provider: BaseProvider,
+    options: GlobalOptions,
+) -> NetworkEffectiveOutput:
+    data = provider.network_effective()
+    effective_exposures = sorted(
+        data.get("effective_exposures", []),
+        key=lambda item: (
+            {"high": 0, "medium": 1, "low": 2}.get(str(item.get("effective_exposure")), 9),
+            item.get("asset_name") or "",
+            item.get("endpoint") or "",
+        ),
+    )
+    return NetworkEffectiveOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "network-effective", options),
+            "findings": [],
+            **data,
+            "effective_exposures": effective_exposures,
         }
     )
 

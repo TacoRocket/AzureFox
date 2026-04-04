@@ -18,19 +18,29 @@ By default, AzureFox writes artifacts into your current directory. If you want t
 else, pass `--outdir`:
 
 ```bash
-azurefox --outdir /tmp/azurefox-demo whoami --output table
-azurefox --outdir /tmp/azurefox-demo all-checks --output table
+azurefox --outdir ./azurefox-demo whoami --output table
+azurefox --outdir ./azurefox-demo all-checks --output table
 ```
 
 If you prefer an isolated virtual environment:
 
 ```bash
 python -m venv .venv
+# macOS/Linux
 source .venv/bin/activate
+# Windows PowerShell
+# .venv\Scripts\Activate.ps1
 pip install azurefox
 ```
 
 For local source-based development, use `pip install -e '.[dev]'`.
+
+AzureFox is intended to work on macOS, Linux, and Windows. The command examples below use
+portable relative paths like `./azurefox-demo`; shell syntax mainly differs for virtualenv
+activation and environment-variable export.
+
+For a quick operator-focused summary of what changes across shells and what does not, see
+[`docs/wiki-seed/Platform-Notes.md`](docs/wiki-seed/Platform-Notes.md).
 
 ## Need A Test Lab?
 
@@ -47,6 +57,7 @@ Use a disposable subscription you control. It is risky on purpose.
 - `nics`
 - `dns`
 - `endpoints`
+- `network-effective`
 - `network-ports`
 - `workloads`
 - `app-services`
@@ -79,8 +90,8 @@ or after the command.
 These forms are equivalent:
 
 ```bash
-azurefox dns --output json --outdir /tmp/azurefox-demo
-azurefox --output json --outdir /tmp/azurefox-demo dns
+azurefox dns --output json --outdir ./azurefox-demo
+azurefox --output json --outdir ./azurefox-demo dns
 ```
 
 Use `azurefox <command> --help` or `azurefox help <command>` for command-specific help.
@@ -125,9 +136,18 @@ for tenant/subscription targeting.
 Environment credential + CLI options example:
 
 ```bash
+# macOS/Linux
 export AZURE_TENANT_ID=<tenant-id>
 export AZURE_CLIENT_ID=<client-id>
 export AZURE_CLIENT_SECRET=<client-secret>
+azurefox whoami --tenant <tenant-id> --subscription <subscription-id>
+```
+
+```powershell
+# Windows PowerShell
+$env:AZURE_TENANT_ID="<tenant-id>"
+$env:AZURE_CLIENT_ID="<client-id>"
+$env:AZURE_CLIENT_SECRET="<client-secret>"
 azurefox whoami --tenant <tenant-id> --subscription <subscription-id>
 ```
 
@@ -190,15 +210,22 @@ azurefox -h permissions
 Command help includes ATT&CK cloud leads as investigation prompts, not proof that a technique
 occurred.
 
-For ad hoc demos or local testing, use `--outdir /tmp/<name>` so artifacts do not pile up in the
-repo root.
+For ad hoc demos or local testing, use a dedicated path like `--outdir ./azurefox-demo` so
+artifacts do not pile up in the repo root.
 
 ## Fixture Mode
 
 Set `AZUREFOX_FIXTURE_DIR` to run against local fixture files rather than Azure APIs.
 
 ```bash
+# macOS/Linux
 AZUREFOX_FIXTURE_DIR=tests/fixtures/lab_tenant azurefox rbac --output json
+```
+
+```powershell
+# Windows PowerShell
+$env:AZUREFOX_FIXTURE_DIR="tests/fixtures/lab_tenant"
+azurefox rbac --output json
 ```
 
 ## Development

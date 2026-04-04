@@ -33,6 +33,7 @@ AzureFox should provide:
 ## Phase 3: Compute, Apps, Endpoints, and Network
 
 - `endpoints`
+- `network-effective`
 - `network-ports`
 - `nics`
 - `workloads`
@@ -44,12 +45,9 @@ AzureFox should provide:
 - `databases`
 - `dns`
 
-Grounded Phase 3 follow-on depth is intentionally parked separately in
-`docs/future-phase-candidates.md` so the current shipped boundary stays clear:
+Grounded Phase 3 follow-on depth is intentionally parked separately in external planning notes so
+the current shipped boundary stays clear:
 
-- `public-ips`
-- `load-balancers`
-- `network-effective`
 - `api-mgmt-depth`
 - `aks-depth`
 - `acr-depth`
@@ -63,6 +61,9 @@ Grounded Phase 3 follow-on depth is intentionally parked separately in
 - `automation`
 - `devops`
 - `snapshots-disks`
+
+Later revisit items such as `public-ips` and `load-balancers` are intentionally parked outside the
+initial Phase 4 list until they show clearer analyst-decision value.
 
 ## Phase 5: AI Track
 

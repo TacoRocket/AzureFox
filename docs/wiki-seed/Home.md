@@ -10,6 +10,7 @@ decisions.
 ## Start Here
 
 - [Getting Started](Getting-Started)
+- [Platform Notes](Platform-Notes)
 - [Running Against The Proof Lab](Running-Against-The-Proof-Lab)
 - [Understanding Output](Understanding-Output)
 
@@ -24,20 +25,25 @@ pip install azurefox
 Run a quick identity sanity check:
 
 ```bash
-azurefox --outdir /tmp/azurefox-demo whoami --output table
+azurefox --outdir ./azurefox-demo whoami --output table
 ```
 
 Run a broader grouped sweep:
 
 ```bash
-azurefox --outdir /tmp/azurefox-demo all-checks --output table
+azurefox --outdir ./azurefox-demo all-checks --output table
 ```
 
 Run one section when you want a narrower grouped pass:
 
 ```bash
-azurefox --outdir /tmp/azurefox-demo all-checks --section identity --output table
+azurefox --outdir ./azurefox-demo all-checks --section identity --output table
 ```
+
+The examples use portable relative paths so they read cleanly on macOS, Linux, and Windows.
+
+If you want the short version of platform differences before going deeper, start with
+[Platform Notes](Platform-Notes).
 
 ## What Lives Where
 

@@ -331,6 +331,29 @@ def test_endpoints_table_mode_surfaces_reachability_context(tmp_path: Path) -> N
     )
 
 
+def test_network_effective_table_mode_surfaces_prioritized_reachability(
+    tmp_path: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "network-effective"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Prioritizing likely public-IP reachability by combining visible endpoint and NSG evidence."
+        in result.stdout
+    )
+    assert "internet ports" in result.stdout
+    assert "TCP/22" in result.stdout
+    assert "TCP/443" in result.stdout
+    assert (
+        "Takeaway: 1 public-IP exposure summaries visible; 1 high, 0 medium, 0 low"
+        in result.stdout
+    )
+
+
 def test_network_ports_table_mode_surfaces_allow_context(tmp_path: Path) -> None:
     result = runner.invoke(
         app,

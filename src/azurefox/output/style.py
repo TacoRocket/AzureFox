@@ -23,6 +23,9 @@ COMMAND_NARRATION = {
     ),
     "arm-deployments": "Reviewing ARM deployment history for config exposure and linked content.",
     "endpoints": "Mapping reachable IP and hostname surfaces from compute and web workloads.",
+    "network-effective": (
+        "Prioritizing likely public-IP reachability by combining visible endpoint and NSG evidence."
+    ),
     "env-vars": "Reviewing App Service and Function App settings for exposed config paths.",
     "network-ports": "Tracing likely inbound port exposure from visible NIC and subnet NSG rules.",
     "tokens-credentials": (

@@ -132,6 +132,18 @@ class BaseProvider(ABC):
             "issues": [*workload_data.get("issues", []), *vm_data.get("issues", [])],
         }
 
+    def network_effective(self) -> dict:
+        endpoint_data = self.endpoints()
+        network_port_data = self.network_ports()
+        effective_exposures = _compose_network_effective(
+            endpoint_data.get("endpoints", []),
+            network_port_data.get("network_ports", []),
+        )
+        return {
+            "effective_exposures": effective_exposures,
+            "issues": [*network_port_data.get("issues", [])],
+        }
+
     @abstractmethod
     def network_ports(self) -> dict:
         raise NotImplementedError
@@ -3919,6 +3931,140 @@ def _workload_sort_key(item: dict) -> tuple[bool, bool, int, str]:
         kind_order.get(str(item.get("asset_kind") or ""), 9),
         str(item.get("asset_name") or ""),
     )
+
+
+def _compose_network_effective(endpoints: list[dict], network_ports: list[dict]) -> list[dict]:
+    rows_by_key: dict[tuple[str, str], list[dict]] = {}
+    for row in network_ports:
+        key = (str(row.get("asset_id") or ""), str(row.get("endpoint") or ""))
+        rows_by_key.setdefault(key, []).append(row)
+
+    effective_exposures: list[dict] = []
+    for endpoint in endpoints:
+        if endpoint.get("endpoint_type") != "ip":
+            continue
+        if endpoint.get("exposure_family") != "public-ip":
+            continue
+
+        asset_id = str(endpoint.get("source_asset_id") or "")
+        endpoint_value = str(endpoint.get("endpoint") or "")
+        rows = rows_by_key.get((asset_id, endpoint_value), [])
+        effective_exposures.append(
+            _network_effective_row_from_endpoint(endpoint=endpoint, network_ports=rows)
+        )
+
+    effective_exposures.sort(
+        key=lambda item: (
+            {"high": 0, "medium": 1, "low": 2}.get(str(item.get("effective_exposure")), 9),
+            str(item.get("asset_name") or ""),
+            str(item.get("endpoint") or ""),
+        )
+    )
+    return effective_exposures
+
+
+def _network_effective_row_from_endpoint(*, endpoint: dict, network_ports: list[dict]) -> dict:
+    asset_id = str(
+        endpoint.get("source_asset_id") or f"/unknown/{endpoint.get('source_asset_name')}"
+    )
+    asset_name = str(endpoint.get("source_asset_name") or asset_id or "unknown")
+    endpoint_value = str(endpoint.get("endpoint") or "unknown")
+
+    confidence_order = {"high": 0, "medium": 1, "low": 2}
+    highest = "low"
+    if network_ports:
+        highest = min(
+            (
+                str(item.get("exposure_confidence") or "low").lower()
+                for item in network_ports
+            ),
+            key=lambda value: confidence_order.get(value, 9),
+        )
+
+    explicit_allow_rows = [
+        item for item in network_ports if not _network_port_is_no_nsg_observation(item)
+    ]
+
+    internet_exposed_ports = _dedupe_strings(
+        [
+            _network_port_label(item)
+            for item in explicit_allow_rows
+            if _network_port_has_broad_internet_source(item)
+        ]
+    )
+    constrained_ports = _dedupe_strings(
+        [
+            _network_port_label(item)
+            for item in explicit_allow_rows
+            if not _network_port_has_broad_internet_source(item)
+        ]
+    )
+    observed_paths = _dedupe_strings(
+        [str(item.get("allow_source_summary") or "") for item in network_ports]
+    )
+    related_ids = _dedupe_strings(
+        [endpoint.get("source_asset_id"), *endpoint.get("related_ids", [])]
+        + [related_id for item in network_ports for related_id in item.get("related_ids", [])]
+    )
+
+    if explicit_allow_rows:
+        internet_phrase = (
+            f"internet-facing allow evidence on {', '.join(internet_exposed_ports)}"
+            if internet_exposed_ports
+            else "no broad internet allow evidence surfaced"
+        )
+        constrained_phrase = (
+            f" and narrower allow evidence on {', '.join(constrained_ports)}"
+            if constrained_ports
+            else ""
+        )
+        summary = (
+            f"Asset '{asset_name}' endpoint {endpoint_value} has {internet_phrase}"
+            f"{constrained_phrase}. Treat this as visible Azure network triage signal, not proof "
+            "of full effective reachability."
+        )
+    elif network_ports:
+        summary = (
+            f"Asset '{asset_name}' endpoint {endpoint_value} is visible as a public IP path, but "
+            "no Azure NSG was visible on the NIC or subnet from the current read path. Treat "
+            "this as a low-confidence triage clue rather than proof of exposure."
+        )
+    else:
+        summary = (
+            f"Asset '{asset_name}' endpoint {endpoint_value} is visible as a public IP path, but "
+            "no inbound-rule evidence was surfaced from the current read path. Treat this as a "
+            "low-confidence triage clue rather than proof of exposure."
+        )
+
+    return {
+        "asset_id": asset_id,
+        "asset_name": asset_name,
+        "endpoint": endpoint_value,
+        "endpoint_type": str(endpoint.get("endpoint_type") or "ip"),
+        "effective_exposure": highest,
+        "internet_exposed_ports": internet_exposed_ports,
+        "constrained_ports": constrained_ports,
+        "observed_paths": observed_paths,
+        "summary": summary,
+        "related_ids": related_ids,
+    }
+
+
+def _network_port_label(item: dict) -> str:
+    protocol = str(item.get("protocol") or "any").upper()
+    port = str(item.get("port") or "any")
+    return f"{protocol}/{port}"
+
+
+def _network_port_is_no_nsg_observation(item: dict) -> bool:
+    return str(item.get("allow_source_summary") or "") == "no Azure NSG visible on NIC or subnet"
+
+
+def _network_port_has_broad_internet_source(item: dict) -> bool:
+    source_summary = str(item.get("allow_source_summary") or "")
+    source_fragment = source_summary.split(" via ", 1)[0]
+    source_tokens = [token.strip().lower() for token in source_fragment.split(",") if token.strip()]
+    return any(token in {"any", "internet", "0.0.0.0/0", "::/0"} for token in source_tokens)
 
 
 def _tokens_credentials_surfaces_from_env_vars(env_vars: list[dict]) -> list[dict]:

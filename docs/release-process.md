@@ -1,5 +1,10 @@
 # Release Process
 
+Maintainer note:
+These steps currently use Unix-style shell examples because the release workflow has been authored
+and exercised that way so far. That is a maintainer workflow detail, not an operator-facing AzureFox
+platform support statement.
+
 ## Versioning
 
 Use semantic versioning (`MAJOR.MINOR.PATCH`).

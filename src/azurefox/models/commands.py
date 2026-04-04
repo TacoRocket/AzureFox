@@ -21,6 +21,7 @@ from azurefox.models.common import (
     FunctionAppAsset,
     KeyVaultAsset,
     ManagedIdentity,
+    NetworkEffectiveSummary,
     NetworkPortSummary,
     NicAsset,
     PermissionSummary,
@@ -177,6 +178,13 @@ class EndpointsOutput(BaseModel):
 class NetworkPortsOutput(BaseModel):
     metadata: CommandMetadata
     network_ports: list[NetworkPortSummary] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class NetworkEffectiveOutput(BaseModel):
+    metadata: CommandMetadata
+    effective_exposures: list[NetworkEffectiveSummary] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 

@@ -621,6 +621,29 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "network-effective":
+        return (
+            [
+                ("asset_name", "asset"),
+                ("endpoint", "endpoint"),
+                ("effective_exposure", "priority"),
+                ("internet_exposed_ports", "internet ports"),
+                ("constrained_ports", "narrower ports"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "asset_name": item.get("asset_name"),
+                    "endpoint": item.get("endpoint"),
+                    "effective_exposure": item.get("effective_exposure"),
+                    "internet_exposed_ports": item.get("internet_exposed_ports", []),
+                    "constrained_ports": item.get("constrained_ports", []),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("effective_exposures", [])
+            ],
+        )
+
     if command == "workloads":
         return (
             [
@@ -862,6 +885,22 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         return (
             f"{len(dns_zones)} DNS zones visible; {public_zones} public, {private_zones} "
             f"private, and {record_phrase}."
+        )
+
+    if command == "network-effective":
+        effective_exposures = payload.get("effective_exposures", [])
+        by_confidence = Counter(
+            str(item.get("effective_exposure") or "unknown").lower()
+            for item in effective_exposures
+        )
+        internet_exposed = sum(
+            1 for item in effective_exposures if item.get("internet_exposed_ports")
+        )
+        return (
+            f"{len(effective_exposures)} public-IP exposure summaries visible; "
+            f"{by_confidence.get('high', 0)} high, {by_confidence.get('medium', 0)} medium, "
+            f"{by_confidence.get('low', 0)} low, and {internet_exposed} show broad "
+            "internet-facing allow evidence."
         )
 
     if command == "aks":

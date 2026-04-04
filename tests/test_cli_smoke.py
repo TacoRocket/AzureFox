@@ -26,6 +26,7 @@ def test_cli_smoke_all_commands(tmp_path: Path) -> None:
         "functions",
         "arm-deployments",
         "endpoints",
+        "network-effective",
         "env-vars",
         "network-ports",
         "tokens-credentials",
@@ -70,7 +71,7 @@ def test_cli_smoke_all_checks_json_summary(tmp_path: Path) -> None:
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["metadata"]["command"] == "all-checks"
-    assert len(payload["results"]) == 27
+    assert len(payload["results"]) == 28
     assert (tmp_path / "run-summary.json").exists()
 
 
@@ -258,7 +259,7 @@ def test_cli_smoke_section_filter_network(tmp_path: Path) -> None:
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     commands = {item["command"] for item in payload["results"]}
-    assert commands == {"dns", "endpoints", "network-ports", "nics"}
+    assert commands == {"dns", "endpoints", "network-effective", "network-ports", "nics"}
 
 
 def test_cli_smoke_section_filter_compute(tmp_path: Path) -> None:

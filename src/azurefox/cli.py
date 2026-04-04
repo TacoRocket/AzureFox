@@ -30,12 +30,19 @@ DEBUG_OPTION = typer.Option(False, "--debug", help="Enable verbose error output"
 ROLE_TRUSTS_MODE_OPTION = typer.Option(
     RoleTrustsMode.FAST,
     "--mode",
-    help="role-trusts collection mode: fast (default) or full",
+    help=(
+        "role-trusts collection mode: fast (default), or full for a slower tenant-wide "
+        "application sweep with per-app owner and federated credential lookups"
+    ),
 )
 ALL_CHECKS_ROLE_TRUSTS_MODE_OPTION = typer.Option(
     RoleTrustsMode.FAST,
     "--role-trusts-mode",
-    help="role-trusts collection mode used inside all-checks: fast (default) or full",
+    help=(
+        "role-trusts collection mode used inside all-checks: fast (default), or full for "
+        "a slower tenant-wide application sweep with per-app owner and federated credential "
+        "lookups"
+    ),
 )
 HELP_FLAGS = {"-h", "--help"}
 GLOBAL_OPTIONS_WITH_VALUES = {"--tenant", "--subscription", "--output", "--outdir"}
@@ -190,6 +197,11 @@ def nics(ctx: typer.Context) -> None:
 @app.command("endpoints")
 def endpoints(ctx: typer.Context) -> None:
     _run_single(ctx, "endpoints")
+
+
+@app.command("network-effective")
+def network_effective(ctx: typer.Context) -> None:
+    _run_single(ctx, "network-effective")
 
 
 @app.command("network-ports")
