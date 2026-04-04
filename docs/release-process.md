@@ -9,6 +9,28 @@ platform support statement.
 
 Use semantic versioning (`MAJOR.MINOR.PATCH`).
 
+Current project release-boundary rule:
+
+- `PATCH` for fixes, packaging improvements, docs-only release-worthy corrections, and other
+  backward-compatible cleanup to existing shipped behavior
+- `MINOR` for a meaningful new AzureFox capability tranche that stays backward-compatible
+- `MAJOR` only when operator-facing compatibility or output-contract expectations break in a
+  meaningful way
+
+Current tranche decision:
+
+- `v1.0.0` represents the initial Phase 1 through Phase 3 command surface
+- the grounded post-Phase-3 follow-on tranche should roll up into `v1.1.0`
+- that tranche currently means:
+  - `api-mgmt-depth`
+  - `aks-depth`
+  - `acr-depth`
+  - `databases-relational-depth`
+  - `dns-depth`
+  - `storage-depth`
+- do not bump to `v1.1.0` one slice at a time unless maintainers explicitly decide to change that
+  release boundary
+
 ## Steps
 
 1. Update `pyproject.toml` version.
