@@ -15,6 +15,7 @@ operator follow-up?"
 - Visible record-set totals from management-plane zone metadata
 - Public-zone name-server delegation visibility
 - Private-zone virtual-network link counts, including registration-enabled links when visible
+- Private-zone private-endpoint reference counts derived from private DNS zone-group associations
 
 ## Explicit Non-Goals For V1
 
@@ -32,6 +33,8 @@ operator follow-up?"
 - Normalize public and private DNS zone ARM metadata into one operator-first zone summary shape
 - Keep the slice at zone-level inventory so public delegation and private-link context stay easy to
   scan
+- Join visible private endpoints to private DNS zone groups so a private zone can show whether it
+  is actively referenced by Azure private-link plumbing
 
 ## Blind Spots
 
