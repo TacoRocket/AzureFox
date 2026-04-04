@@ -4,7 +4,7 @@ Each command output is represented by a versioned Pydantic model and is rendered
 
 ## Schema Version
 
-- Current: `1.0.0`
+- Current: `1.1.0`
 
 ## Contract Rules
 
