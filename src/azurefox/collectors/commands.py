@@ -597,6 +597,7 @@ def _metadata(
         command=command,
         tenant_id=options.tenant or context.get("tenant_id"),
         subscription_id=options.subscription or context.get("subscription_id"),
+        devops_organization=options.devops_organization,
         token_source=token_source or context.get("token_source"),
     )
 

@@ -31,6 +31,7 @@
         "kv-prod-shared"
       ],
       "name": "deploy-aks-prod",
+      "partial_read": false,
       "path": "\\Production",
       "project_id": "4f90f8a6-1111-4444-8888-0a12b45c67de",
       "project_name": "prod-platform",
@@ -89,6 +90,7 @@
       "key_vault_group_names": [],
       "key_vault_names": [],
       "name": "deploy-appservice-prod",
+      "partial_read": false,
       "path": "\\Production",
       "project_id": "4f90f8a6-1111-4444-8888-0a12b45c67de",
       "project_name": "prod-platform",
@@ -141,6 +143,7 @@
         "kv-platform-shared"
       ],
       "name": "plan-infra-prod",
+      "partial_read": false,
       "path": "\\Infra",
       "project_id": "145c7175-2222-4bc2-b4d1-f31f0a8f962a",
       "project_name": "platform-infra",

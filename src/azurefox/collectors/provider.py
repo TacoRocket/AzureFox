@@ -727,7 +727,7 @@ class AzureProvider(BaseProvider):
 
             for definition in definitions:
                 try:
-                    pipeline = _devops_pipeline_summary(
+                    pipeline, definition_issues = _devops_pipeline_summary(
                         organization=organization,
                         project=project,
                         definition=definition,
@@ -748,6 +748,7 @@ class AzureProvider(BaseProvider):
                     )
                     continue
 
+                issues.extend(definition_issues)
                 if _devops_pipeline_is_interesting(pipeline):
                     pipelines.append(pipeline)
 
@@ -6878,6 +6879,7 @@ def _devops_pipeline_is_interesting(item: dict[str, object]) -> bool:
             item.get("secret_variable_count"),
             item.get("key_vault_group_names"),
             item.get("target_clues"),
+            item.get("partial_read"),
         )
     )
 
@@ -6890,7 +6892,7 @@ def _devops_pipeline_summary(
     service_endpoints_by_id: dict[str, dict[str, object]],
     service_endpoints_by_name: dict[str, dict[str, object]],
     variable_groups_by_id: dict[int, dict[str, object]],
-) -> dict[str, object]:
+) -> tuple[dict[str, object], list[dict[str, object]]]:
     definition_project = definition.get("project")
     if not isinstance(definition_project, dict):
         definition_project = {}
@@ -6913,11 +6915,15 @@ def _devops_pipeline_summary(
         definition.get("variables")
     )
 
+    referenced_group_ids = _devops_definition_variable_group_ids(definition)
     referenced_groups: list[dict[str, object]] = []
-    for group_id in _devops_definition_variable_group_ids(definition):
+    unresolved_group_ids: list[str] = []
+    for group_id in referenced_group_ids:
         group = variable_groups_by_id.get(group_id)
-        if group is not None:
-            referenced_groups.append(group)
+        if group is None:
+            unresolved_group_ids.append(str(group_id))
+            continue
+        referenced_groups.append(group)
 
     variable_group_names = _dedupe_strings(group.get("name") for group in referenced_groups)
     group_secret_count = 0
@@ -6938,15 +6944,18 @@ def _devops_pipeline_summary(
             _devops_service_endpoint_ids_from_provider_data(group.get("providerData"))
         )
 
-    referenced_endpoints = _devops_definition_endpoint_refs(
+    referenced_endpoints, unresolved_endpoint_refs = _devops_definition_endpoint_refs(
         definition,
         service_endpoints_by_id=service_endpoints_by_id,
         service_endpoints_by_name=service_endpoints_by_name,
     )
+    unresolved_provider_endpoint_ids: list[str] = []
     for endpoint_id in provider_endpoint_ids:
         endpoint = service_endpoints_by_id.get(endpoint_id.lower())
-        if endpoint is not None:
-            referenced_endpoints.append(endpoint)
+        if endpoint is None:
+            unresolved_provider_endpoint_ids.append(endpoint_id)
+            continue
+        referenced_endpoints.append(endpoint)
 
     azure_endpoints = [
         endpoint for endpoint in referenced_endpoints if _devops_is_azure_endpoint(endpoint)
@@ -6972,7 +6981,17 @@ def _devops_pipeline_summary(
         azure_service_connection_names=azure_service_connection_names,
         secret_variable_count=secret_variable_count,
         key_vault_group_names=key_vault_group_names,
+        unresolved_group_count=len(unresolved_group_ids),
+        unresolved_service_connection_count=(
+            len(unresolved_endpoint_refs) + len(unresolved_provider_endpoint_ids)
+        ),
     )
+    partial_read_reasons = _devops_partial_read_reasons(
+        unresolved_group_ids=unresolved_group_ids,
+        unresolved_endpoint_refs=unresolved_endpoint_refs,
+        unresolved_provider_endpoint_ids=unresolved_provider_endpoint_ids,
+    )
+    partial_read = bool(partial_read_reasons)
 
     related_ids = _dedupe_strings(
         [
@@ -6991,7 +7010,7 @@ def _devops_pipeline_summary(
         ]
     )
 
-    return {
+    pipeline = {
         "id": (
             "https://dev.azure.com/"
             f"{organization}/{quote(project_name, safe='')}/_build?definitionId={definition_id}"
@@ -7017,6 +7036,7 @@ def _devops_pipeline_summary(
         "azure_service_connection_auth_schemes": azure_service_connection_auth_schemes,
         "target_clues": target_clues,
         "risk_cues": risk_cues,
+        "partial_read": partial_read,
         "summary": _devops_operator_summary(
             definition_name=definition_name,
             project_name=project_name,
@@ -7029,9 +7049,20 @@ def _devops_pipeline_summary(
             key_vault_group_names=key_vault_group_names,
             key_vault_names=key_vault_names,
             target_clues=target_clues,
+            partial_read_reasons=partial_read_reasons,
         ),
         "related_ids": related_ids,
     }
+    issues = [
+        _partial_collection_issue(
+            "devops.definition",
+            reason,
+            asset_id=str(pipeline["id"]),
+            asset_name=definition_name,
+        )
+        for reason in partial_read_reasons
+    ]
+    return pipeline, issues
 
 
 def _devops_secret_details(variables: object) -> tuple[int, list[str]]:
@@ -7115,7 +7146,7 @@ def _devops_definition_endpoint_refs(
     *,
     service_endpoints_by_id: dict[str, dict[str, object]],
     service_endpoints_by_name: dict[str, dict[str, object]],
-) -> list[dict[str, object]]:
+) -> tuple[list[dict[str, object]], list[str]]:
     endpoint_keys = (
         "serviceconnection",
         "serviceendpoint",
@@ -7126,6 +7157,7 @@ def _devops_definition_endpoint_refs(
         "kubernetesserviceendpoint",
     )
     matches: list[dict[str, object]] = []
+    unresolved_refs: list[str] = []
 
     def walk(value: object, *, parent_key: str = "") -> None:
         if isinstance(value, dict):
@@ -7148,6 +7180,8 @@ def _devops_definition_endpoint_refs(
             endpoint = service_endpoints_by_name.get(value.strip().lower())
         if endpoint is not None:
             matches.append(endpoint)
+        else:
+            unresolved_refs.append(value.strip())
 
     walk(node)
     deduped: dict[str, dict[str, object]] = {}
@@ -7155,7 +7189,7 @@ def _devops_definition_endpoint_refs(
         endpoint_key = str(endpoint.get("id") or endpoint.get("name") or "").lower()
         if endpoint_key:
             deduped[endpoint_key] = endpoint
-    return list(deduped.values())
+    return list(deduped.values()), _dedupe_strings(unresolved_refs)
 
 
 def _devops_is_azure_endpoint(endpoint: dict[str, object]) -> bool:
@@ -7217,6 +7251,8 @@ def _devops_risk_cues(
     azure_service_connection_names: list[str],
     secret_variable_count: int,
     key_vault_group_names: list[str],
+    unresolved_group_count: int,
+    unresolved_service_connection_count: int,
 ) -> list[str]:
     lowered_triggers = {value.lower() for value in trigger_types}
     cues: list[str] = []
@@ -7230,6 +7266,8 @@ def _devops_risk_cues(
         cues.append("secret-bearing variables")
     if key_vault_group_names:
         cues.append("key vault-backed variables")
+    if unresolved_group_count or unresolved_service_connection_count:
+        cues.append("partial-read")
     return cues
 
 
@@ -7246,6 +7284,7 @@ def _devops_operator_summary(
     key_vault_group_names: list[str],
     key_vault_names: list[str],
     target_clues: list[str],
+    partial_read_reasons: list[str],
 ) -> str:
     parts = [f"Build definition '{definition_name}' in project '{project_name}'"]
 
@@ -7280,6 +7319,9 @@ def _devops_operator_summary(
     if target_clues:
         parts.append("shows deployment cues for " + ", ".join(target_clues))
 
+    if partial_read_reasons:
+        parts.append("keeps explicit partial-read evidence: " + "; ".join(partial_read_reasons))
+
     return ". ".join(parts) + "."
 
 
@@ -7294,6 +7336,29 @@ def _devops_trigger_phrase(trigger_types: list[str]) -> str | None:
     if trigger_types:
         return "uses trigger types " + ", ".join(trigger_types)
     return None
+
+
+def _devops_partial_read_reasons(
+    *,
+    unresolved_group_ids: list[str],
+    unresolved_endpoint_refs: list[str],
+    unresolved_provider_endpoint_ids: list[str],
+) -> list[str]:
+    reasons: list[str] = []
+    if unresolved_group_ids:
+        reasons.append(
+            "unresolved variable group refs: " + ", ".join(unresolved_group_ids)
+        )
+    if unresolved_endpoint_refs:
+        reasons.append(
+            "unresolved service connection refs: " + ", ".join(unresolved_endpoint_refs)
+        )
+    if unresolved_provider_endpoint_ids:
+        reasons.append(
+            "unresolved provider endpoint refs: "
+            + ", ".join(unresolved_provider_endpoint_ids)
+        )
+    return reasons
 
 
 def _recursive_strings(node: object) -> list[str]:

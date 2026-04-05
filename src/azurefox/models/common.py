@@ -622,6 +622,7 @@ class DevopsPipelineAsset(BaseModel):
     azure_service_connection_auth_schemes: list[str] = Field(default_factory=list)
     target_clues: list[str] = Field(default_factory=list)
     risk_cues: list[str] = Field(default_factory=list)
+    partial_read: bool = False
     summary: str
     related_ids: list[str] = Field(default_factory=list)
 

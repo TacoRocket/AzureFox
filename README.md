@@ -30,7 +30,7 @@ azurefox --outdir ./azurefox-demo all-checks --output table
 | `identity` | `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `lighthouse`, `auth-policies`, `managed-identities` |
 | `config` | `arm-deployments`, `env-vars` |
 | `secrets` | `keyvault`, `tokens-credentials` |
-| `resource` | `automation`, `acr`, `api-mgmt`, `databases`, `resource-trusts` |
+| `resource` | `automation`, `devops`, `acr`, `api-mgmt`, `databases`, `resource-trusts` |
 | `storage` | `storage` |
 | `network` | `nics`, `dns`, `endpoints`, `network-effective`, `network-ports` |
 | `compute` | `workloads`, `app-services`, `functions`, `aks`, `vms`, `vmss`, `snapshots-disks` |
@@ -123,6 +123,7 @@ Environment credential + CLI options example:
 export AZURE_TENANT_ID=<tenant-id>
 export AZURE_CLIENT_ID=<client-id>
 export AZURE_CLIENT_SECRET=<client-secret>
+export AZUREFOX_DEVOPS_ORG=<org-name> # only needed for the devops command
 azurefox whoami --tenant <tenant-id> --subscription <subscription-id>
 ```
 
@@ -131,8 +132,13 @@ azurefox whoami --tenant <tenant-id> --subscription <subscription-id>
 $env:AZURE_TENANT_ID="<tenant-id>"
 $env:AZURE_CLIENT_ID="<client-id>"
 $env:AZURE_CLIENT_SECRET="<client-secret>"
+$env:AZUREFOX_DEVOPS_ORG="<org-name>" # only needed for the devops command
 azurefox whoami --tenant <tenant-id> --subscription <subscription-id>
 ```
+
+`AZUREFOX_DEVOPS_ORG` is only needed when running the `devops` command. The identity used for
+`devops` still needs access to the Azure DevOps organization, not just ARM access to the tenant or
+subscription.
 
 ## Output Modes
 
@@ -171,7 +177,7 @@ Current section mappings:
 - `identity`: `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `lighthouse`, `auth-policies`, `managed-identities`
 - `config`: `arm-deployments`, `env-vars`
 - `secrets`: `keyvault`, `tokens-credentials`
-- `resource`: `automation`, `acr`, `api-mgmt`, `databases`, `resource-trusts`
+- `resource`: `automation`, `devops`, `acr`, `api-mgmt`, `databases`, `resource-trusts`
 - `storage`: `storage`
 - `network`: `nics`, `dns`, `endpoints`, `network-effective`, `network-ports`
 - `compute`: `workloads`, `app-services`, `functions`, `aks`, `vms`, `vmss`, `snapshots-disks`

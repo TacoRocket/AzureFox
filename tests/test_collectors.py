@@ -14,6 +14,7 @@ from azurefox.collectors.commands import (
     collect_automation,
     collect_cross_tenant,
     collect_databases,
+    collect_devops,
     collect_dns,
     collect_endpoints,
     collect_env_vars,
@@ -44,6 +45,7 @@ from azurefox.collectors.provider import (
     _acr_registry_summary,
     _aks_cluster_summary,
     _database_server_summary,
+    _devops_pipeline_summary,
     _env_var_reference_target,
     _network_effective_row_from_endpoint,
     _network_scope_label,
@@ -1311,6 +1313,47 @@ def test_env_var_reference_target_supports_vaultname_form() -> None:
     )
 
 
+def test_devops_pipeline_summary_surfaces_partial_read_refs() -> None:
+    pipeline, issues = _devops_pipeline_summary(
+        organization="contoso",
+        project={"name": "prod-platform", "id": "project-1"},
+        definition={
+            "id": 17,
+            "name": "deploy-prod",
+            "repository": {"name": "platform-api", "type": "TfsGit"},
+            "process": {
+                "phases": [
+                    {
+                        "steps": [
+                            {
+                                "inputs": {
+                                    "connectedServiceNameARM": "prod-subscription",
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            "variableGroups": [91, 92],
+        },
+        service_endpoints_by_id={},
+        service_endpoints_by_name={},
+        variable_groups_by_id={
+            91: {
+                "id": 91,
+                "name": "prod-release",
+                "variables": {"DB_PASSWORD": {"isSecret": True}},
+            }
+        },
+    )
+
+    assert pipeline["partial_read"] is True
+    assert "partial-read" in pipeline["risk_cues"]
+    assert len(issues) == 2
+    assert issues[0]["kind"] == "partial_collection"
+    assert "unresolved variable group refs" in issues[0]["message"]
+
+
 def test_collect_inventory_metadata_falls_back_to_provider_context(
     fixture_dir: Path, tmp_path: Path
 ) -> None:
@@ -1329,6 +1372,25 @@ def test_collect_inventory_metadata_falls_back_to_provider_context(
     assert output.metadata.tenant_id == "tenant-from-provider"
     assert output.metadata.subscription_id == "subscription-from-provider"
     assert output.metadata.token_source == "azure_cli"
+
+
+def test_collect_devops_metadata_keeps_org_from_options(
+    fixture_dir: Path, tmp_path: Path
+) -> None:
+    provider = MetadataFixtureProvider(fixture_dir)
+    options = GlobalOptions(
+        tenant=None,
+        subscription=None,
+        output=OutputMode.JSON,
+        outdir=tmp_path,
+        debug=False,
+        devops_organization="contoso",
+        role_trusts_mode=RoleTrustsMode.FAST,
+    )
+
+    output = collect_devops(provider, options)
+
+    assert output.metadata.devops_organization == "contoso"
 
 
 def test_collect_auth_policies(fixture_provider, options) -> None:
