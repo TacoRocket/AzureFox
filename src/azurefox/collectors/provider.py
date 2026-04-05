@@ -31,6 +31,11 @@ from azurefox.models.common import (
     is_private_network_prefix,
 )
 
+_DNS_RESOURCE_API_VERSION = {
+    "microsoft.network/dnszones": "2018-05-01",
+    "microsoft.network/privatednszones": "2020-06-01",
+}
+
 
 class BaseProvider(ABC):
     def metadata_context(self) -> dict[str, str | None]:
@@ -846,6 +851,20 @@ class AzureProvider(BaseProvider):
                             )
                         )
 
+                    if _acr_registry_needs_hydration(registry):
+                        try:
+                            registry = self.clients.container_registry.registries.get(
+                                resource_group,
+                                registry_name,
+                            )
+                        except Exception as exc:
+                            issues.append(
+                                _issue_from_exception(
+                                    f"acr[{resource_group}/{registry_name}].registry",
+                                    exc,
+                                )
+                            )
+
                 registries.append(_acr_registry_summary(registry, webhooks, replications))
         except Exception as exc:
             issues.append(_issue_from_exception("acr.registries", exc))
@@ -891,7 +910,7 @@ class AzureProvider(BaseProvider):
             issues.append(_issue_from_exception("databases.sql_servers", exc))
 
         try:
-            iterator = self.clients.postgresql_flexible.servers.list_by_subscription()
+            iterator = self.clients.postgresql_flexible.servers.list()
             for server in iterator:
                 server_id = getattr(server, "id", "") or ""
                 resource_group = _resource_group_from_id(server_id)
@@ -975,8 +994,10 @@ class AzureProvider(BaseProvider):
             for resource in self.clients.resource.resources.list():
                 resource_type = str(getattr(resource, "type", "") or "").lower()
                 if resource_type == "microsoft.network/dnszones":
+                    resource = self._hydrate_dns_resource(resource, issues)
                     dns_zones.append(_dns_zone_summary(resource, zone_kind="public"))
                 elif resource_type == "microsoft.network/privatednszones":
+                    resource = self._hydrate_dns_resource(resource, issues)
                     dns_zones.append(_dns_zone_summary(resource, zone_kind="private"))
         except Exception as exc:
             issues.append(_issue_from_exception("dns.resources", exc))
@@ -1085,6 +1106,22 @@ class AzureProvider(BaseProvider):
         try:
             iterator = self.clients.containerservice.managed_clusters.list()
             for cluster in iterator:
+                cluster_id = getattr(cluster, "id", "") or ""
+                resource_group = _resource_group_from_id(cluster_id)
+                cluster_name = getattr(cluster, "name", None)
+                if resource_group and cluster_name and _aks_cluster_needs_hydration(cluster):
+                    try:
+                        cluster = self.clients.containerservice.managed_clusters.get(
+                            resource_group,
+                            cluster_name,
+                        )
+                    except Exception as exc:
+                        issues.append(
+                            _issue_from_exception(
+                                f"aks[{resource_group}/{cluster_name}].cluster",
+                                exc,
+                            )
+                        )
                 clusters.append(_aks_cluster_summary(cluster))
         except Exception as exc:
             issues.append(_issue_from_exception("aks.managed_clusters", exc))
@@ -1096,6 +1133,24 @@ class AzureProvider(BaseProvider):
             )
         )
         return {"aks_clusters": clusters, "issues": issues}
+
+    def _hydrate_dns_resource(self, resource: object, issues: list[dict]) -> object:
+        resource_type = str(getattr(resource, "type", "") or "").lower()
+        api_version = _DNS_RESOURCE_API_VERSION.get(resource_type)
+        resource_id = _string_value(getattr(resource, "id", None))
+        if not api_version or not resource_id or not _dns_resource_needs_hydration(resource):
+            return resource
+
+        try:
+            return self.clients.resource.resources.get_by_id(resource_id, api_version)
+        except Exception as exc:
+            issues.append(
+                _issue_from_exception(
+                    f"dns.resource[{resource_type}/{resource_id}]",
+                    exc,
+                )
+            )
+            return resource
 
     def api_mgmt(self) -> dict:
         issues: list[dict] = []
@@ -4864,6 +4919,14 @@ def _acr_exposure_priority(item: dict) -> bool:
     )
 
 
+def _acr_registry_needs_hydration(registry: object) -> bool:
+    identity = getattr(registry, "identity", None)
+    return (
+        _string_value(getattr(registry, "public_network_access", None)) is None
+        or _string_value(getattr(identity, "type", None)) is None
+    )
+
+
 def _acr_enabled_webhook_count(webhooks: list[object] | None) -> int | None:
     if webhooks is None:
         return None
@@ -5152,6 +5215,43 @@ def _dns_zone_operator_summary(
     return f"Private DNS zone '{zone_name}' {inventory_phrase} and {namespace_phrase}."
 
 
+def _dns_resource_needs_hydration(resource: object) -> bool:
+    resource_type = str(getattr(resource, "type", "") or "").lower()
+    properties = getattr(resource, "properties", None)
+
+    record_set_count = _int_value(
+        _property_value(properties, "numberOfRecordSets", "number_of_record_sets")
+    )
+    if record_set_count is None:
+        return True
+
+    if resource_type == "microsoft.network/dnszones":
+        name_servers = _property_value(properties, "nameServers", "name_servers") or []
+        return len([item for item in name_servers if item]) == 0
+
+    if resource_type == "microsoft.network/privatednszones":
+        linked_virtual_network_count = _int_value(
+            _property_value(
+                properties,
+                "numberOfVirtualNetworkLinks",
+                "number_of_virtual_network_links",
+            )
+        )
+        registration_virtual_network_count = _int_value(
+            _property_value(
+                properties,
+                "numberOfVirtualNetworkLinksWithRegistration",
+                "number_of_virtual_network_links_with_registration",
+            )
+        )
+        return (
+            linked_virtual_network_count is None
+            or registration_virtual_network_count is None
+        )
+
+    return False
+
+
 def _visible_user_databases(databases: list[object] | None, *, engine: str) -> list[object]:
     if databases is None:
         return []
@@ -5435,6 +5535,23 @@ def _aks_operator_summary(
 
 def _aks_exposure_priority(item: dict) -> bool:
     return bool(item.get("fqdn")) and item.get("private_cluster_enabled") is not True
+
+
+def _aks_cluster_needs_hydration(cluster: object) -> bool:
+    api_server_access_profile = getattr(cluster, "api_server_access_profile", None)
+    security_profile = getattr(cluster, "security_profile", None)
+    ingress_profile = getattr(cluster, "ingress_profile", None)
+    workload_identity = getattr(security_profile, "workload_identity", None)
+    web_app_routing = getattr(ingress_profile, "web_app_routing", None)
+
+    return any(
+        value is None
+        for value in (
+            getattr(api_server_access_profile, "enable_private_cluster", None),
+            getattr(workload_identity, "enabled", None),
+            getattr(web_app_routing, "enabled", None),
+        )
+    )
 
 
 def _api_mgmt_operator_summary(

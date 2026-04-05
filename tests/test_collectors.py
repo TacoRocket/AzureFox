@@ -1150,6 +1150,47 @@ def test_collect_databases_keeps_nested_inventory_issue_explicit(
     )
 
 
+def test_azure_provider_databases_uses_postgresql_flexible_list_surface() -> None:
+    provider = AzureProvider.__new__(AzureProvider)
+    provider.clients = SimpleNamespace(
+        sql=SimpleNamespace(servers=SimpleNamespace(list=lambda: [])),
+        postgresql_flexible=SimpleNamespace(
+            servers=SimpleNamespace(
+                list=lambda: [
+                    SimpleNamespace(
+                        id=(
+                            "/subscriptions/test/resourceGroups/rg-data/providers/"
+                            "Microsoft.DBforPostgreSQL/flexibleServers/pg-live"
+                        ),
+                        name="pg-live",
+                        fully_qualified_domain_name="pg-live.postgres.database.azure.com",
+                        version="16",
+                        public_network_access="Enabled",
+                    )
+                ]
+            ),
+            databases=SimpleNamespace(
+                list_by_server=lambda resource_group, server_name: [
+                    SimpleNamespace(name="postgres"),
+                    SimpleNamespace(name="app"),
+                    SimpleNamespace(name="orders"),
+                ]
+            ),
+        ),
+        mysql_flexible=SimpleNamespace(servers=SimpleNamespace(list=lambda: [])),
+    )
+
+    data = provider.databases()
+
+    assert data["issues"] == []
+    assert len(data["database_servers"]) == 1
+    row = data["database_servers"][0]
+    assert row["engine"] == "PostgreSqlFlexible"
+    assert row["name"] == "pg-live"
+    assert row["database_count"] == 2
+    assert row["user_database_names"] == ["app", "orders"]
+
+
 def test_collect_dns(fixture_provider, options) -> None:
     output = collect_dns(fixture_provider, options)
     assert len(output.dns_zones) == 3
@@ -1174,6 +1215,82 @@ def test_collect_dns_keeps_command_level_issue_explicit(
     assert output.dns_zones == []
     assert output.issues[0].kind == "permission_denied"
     assert output.issues[0].context["collector"] == "dns.resources"
+
+
+def test_azure_provider_dns_hydrates_zone_details_when_arm_list_is_thin() -> None:
+    provider = AzureProvider.__new__(AzureProvider)
+    get_by_id_calls: list[tuple[str, str]] = []
+    public_zone_id = (
+        "/subscriptions/test/resourceGroups/rg-network/providers/"
+        "Microsoft.Network/dnszones/corp.example.com"
+    )
+    private_zone_id = (
+        "/subscriptions/test/resourceGroups/rg-network/providers/"
+        "Microsoft.Network/privateDnsZones/privatelink.database.windows.net"
+    )
+    public_zone = SimpleNamespace(
+        id=public_zone_id,
+        type="Microsoft.Network/dnszones",
+        name="corp.example.com",
+        location="global",
+        properties={},
+    )
+    private_zone = SimpleNamespace(
+        id=private_zone_id,
+        type="Microsoft.Network/privateDnsZones",
+        name="privatelink.database.windows.net",
+        location="global",
+        properties={"numberOfRecordSets": 6},
+    )
+    hydrated_public_zone = SimpleNamespace(
+        **{
+            **public_zone.__dict__,
+            "properties": {
+                "numberOfRecordSets": 9,
+                "nameServers": ["ns1", "ns2", "ns3", "ns4"],
+            },
+        }
+    )
+    hydrated_private_zone = SimpleNamespace(
+        **{
+            **private_zone.__dict__,
+            "properties": {
+                "numberOfRecordSets": 6,
+                "numberOfVirtualNetworkLinks": 2,
+                "numberOfVirtualNetworkLinksWithRegistration": 1,
+            },
+        }
+    )
+    hydrated_by_id = {
+        public_zone_id: hydrated_public_zone,
+        private_zone_id: hydrated_private_zone,
+    }
+    provider.clients = SimpleNamespace(
+        resource=SimpleNamespace(
+            resources=SimpleNamespace(
+                list=lambda: [public_zone, private_zone],
+                get_by_id=lambda resource_id, api_version: (
+                    get_by_id_calls.append((resource_id, api_version))
+                    or hydrated_by_id[resource_id]
+                ),
+            )
+        ),
+        network=SimpleNamespace(
+            private_endpoints=SimpleNamespace(list_by_subscription=lambda: []),
+        ),
+    )
+
+    data = provider.dns()
+
+    assert data["issues"] == []
+    assert get_by_id_calls == [
+        (public_zone_id, "2018-05-01"),
+        (private_zone_id, "2020-06-01"),
+    ]
+    assert data["dns_zones"][0]["record_set_count"] == 9
+    assert data["dns_zones"][0]["name_servers"] == ["ns1", "ns2", "ns3", "ns4"]
+    assert data["dns_zones"][1]["linked_virtual_network_count"] == 2
+    assert data["dns_zones"][1]["registration_virtual_network_count"] == 1
 
 
 def test_collect_application_gateway(fixture_provider, options) -> None:
@@ -1339,6 +1456,62 @@ def test_collect_acr_keeps_nested_depth_visibility_explicit(
         "acr[rg-containers/acr-public-legacy].webhooks",
         "acr[rg-containers/acr-public-legacy].replications",
     ]
+
+
+def test_azure_provider_acr_hydrates_registry_when_list_surface_is_thin() -> None:
+    provider = AzureProvider.__new__(AzureProvider)
+    get_calls: list[tuple[str, str]] = []
+    thin_registry = SimpleNamespace(
+        id=(
+            "/subscriptions/test/resourceGroups/rg/providers/"
+            "Microsoft.ContainerRegistry/registries/acr-live"
+        ),
+        name="acr-live",
+        location="eastus",
+        provisioning_state="Succeeded",
+        login_server="acr-live.azurecr.io",
+        sku=SimpleNamespace(name="Premium"),
+        public_network_access=None,
+        network_rule_bypass_options="AzureServices",
+        network_rule_set=SimpleNamespace(default_action="Allow"),
+        admin_user_enabled=False,
+        anonymous_pull_enabled=False,
+        data_endpoint_enabled=False,
+        private_endpoint_connections=[],
+        identity=None,
+        policies=None,
+    )
+    hydrated_registry = SimpleNamespace(
+        **{
+            **thin_registry.__dict__,
+            "public_network_access": "Enabled",
+            "identity": SimpleNamespace(
+                type="SystemAssigned",
+                principal_id="principal-1",
+                client_id="client-1",
+                user_assigned_identities={},
+            ),
+        }
+    )
+    provider.clients = SimpleNamespace(
+        container_registry=SimpleNamespace(
+            registries=SimpleNamespace(
+                list=lambda: [thin_registry],
+                get=lambda resource_group, registry_name: (
+                    get_calls.append((resource_group, registry_name)) or hydrated_registry
+                ),
+            ),
+            webhooks=SimpleNamespace(list=lambda resource_group, registry_name: []),
+            replications=SimpleNamespace(list=lambda resource_group, registry_name: []),
+        )
+    )
+
+    data = provider.acr()
+
+    assert data["issues"] == []
+    assert get_calls == [("rg", "acr-live")]
+    assert data["registries"][0]["public_network_access"] == "Enabled"
+    assert data["registries"][0]["workload_identity_type"] == "SystemAssigned"
 
 
 def test_acr_registry_summary_rolls_up_management_plane_depth_cues() -> None:
@@ -1528,6 +1701,86 @@ def test_collect_aks_keeps_command_level_issue_explicit(
     assert output.aks_clusters == []
     assert output.issues[0].kind == "permission_denied"
     assert output.issues[0].context["collector"] == "aks.managed_clusters"
+
+
+def test_azure_provider_aks_hydrates_cluster_when_list_surface_is_thin() -> None:
+    provider = AzureProvider.__new__(AzureProvider)
+    get_calls: list[tuple[str, str]] = []
+    thin_cluster = SimpleNamespace(
+        id=(
+            "/subscriptions/test/resourceGroups/rg-aks/providers/"
+            "Microsoft.ContainerService/managedClusters/aks-live"
+        ),
+        name="aks-live",
+        location="eastus",
+        provisioning_state="Succeeded",
+        kubernetes_version="1.29.4",
+        sku=SimpleNamespace(tier="Standard"),
+        node_resource_group="MC_rg-aks_aks-live_eastus",
+        fqdn="aks-live.hcp.eastus.azmk8s.io",
+        private_fqdn=None,
+        identity=SimpleNamespace(
+            type="SystemAssigned",
+            principal_id="principal-1",
+            client_id="client-1",
+            user_assigned_identities={},
+        ),
+        service_principal_profile=None,
+        aad_profile=SimpleNamespace(managed=True, enable_azure_rbac=True),
+        api_server_access_profile=None,
+        network_profile=SimpleNamespace(
+            network_plugin="azure",
+            network_policy="calico",
+            outbound_type="loadBalancer",
+        ),
+        oidc_issuer_profile=SimpleNamespace(
+            enabled=True,
+            issuer_url="https://issuer.example",
+        ),
+        security_profile=None,
+        ingress_profile=None,
+        addon_profiles={},
+        agent_pool_profiles=[SimpleNamespace(name="systempool")],
+        disable_local_accounts=True,
+    )
+    hydrated_cluster = SimpleNamespace(
+        **{
+            **thin_cluster.__dict__,
+            "private_fqdn": "aks-live.privatelink.eastus.azmk8s.io",
+            "api_server_access_profile": SimpleNamespace(
+                enable_private_cluster=True,
+                enable_private_cluster_public_fqdn=False,
+            ),
+            "security_profile": SimpleNamespace(
+                workload_identity=SimpleNamespace(enabled=True)
+            ),
+            "ingress_profile": SimpleNamespace(
+                web_app_routing=SimpleNamespace(
+                    enabled=True,
+                    dns_zone_resource_ids=["/dns/zone1"],
+                )
+            ),
+        }
+    )
+    provider.clients = SimpleNamespace(
+        containerservice=SimpleNamespace(
+            managed_clusters=SimpleNamespace(
+                list=lambda: [thin_cluster],
+                get=lambda resource_group, resource_name: (
+                    get_calls.append((resource_group, resource_name)) or hydrated_cluster
+                ),
+            )
+        )
+    )
+
+    data = provider.aks()
+
+    assert data["issues"] == []
+    assert get_calls == [("rg-aks", "aks-live")]
+    row = data["aks_clusters"][0]
+    assert row["private_cluster_enabled"] is True
+    assert row["workload_identity_enabled"] is True
+    assert row["web_app_routing_enabled"] is True
 
 
 def test_collect_api_mgmt(fixture_provider, options) -> None:
