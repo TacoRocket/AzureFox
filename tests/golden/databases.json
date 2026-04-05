@@ -29,34 +29,6 @@
       "workload_principal_id": null
     },
     {
-      "database_count": 1,
-      "delegated_subnet_resource_id": null,
-      "engine": "AzureSql",
-      "fully_qualified_domain_name": "sql-ops-01.database.windows.net",
-      "high_availability_mode": null,
-      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.Sql/servers/sql-ops-01",
-      "location": "centralus",
-      "minimal_tls_version": "1.2",
-      "name": "sql-ops-01",
-      "private_dns_zone_resource_id": null,
-      "public_network_access": "Disabled",
-      "related_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.Sql/servers/sql-ops-01",
-        "99990000-0000-0000-0000-000000000041"
-      ],
-      "resource_group": "rg-data",
-      "server_version": "12.0",
-      "state": "Ready",
-      "summary": "Azure SQL server 'sql-ops-01' publishes endpoint 'sql-ops-01.database.windows.net' and uses managed identity (SystemAssigned). Visible inventory: 1 user database(s), names: appdb. Visible posture: public network access Disabled, minimal TLS 1.2, server version 12.0.",
-      "user_database_names": [
-        "appdb"
-      ],
-      "workload_client_id": "99990000-0000-0000-0000-000000000042",
-      "workload_identity_ids": [],
-      "workload_identity_type": "SystemAssigned",
-      "workload_principal_id": "99990000-0000-0000-0000-000000000041"
-    },
-    {
       "database_count": 2,
       "delegated_subnet_resource_id": null,
       "engine": "PostgreSqlFlexible",
@@ -83,6 +55,34 @@
       "workload_identity_ids": [],
       "workload_identity_type": null,
       "workload_principal_id": null
+    },
+    {
+      "database_count": 1,
+      "delegated_subnet_resource_id": null,
+      "engine": "AzureSql",
+      "fully_qualified_domain_name": "sql-ops-01.database.windows.net",
+      "high_availability_mode": null,
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.Sql/servers/sql-ops-01",
+      "location": "centralus",
+      "minimal_tls_version": "1.2",
+      "name": "sql-ops-01",
+      "private_dns_zone_resource_id": null,
+      "public_network_access": "Disabled",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-data/providers/Microsoft.Sql/servers/sql-ops-01",
+        "99990000-0000-0000-0000-000000000041"
+      ],
+      "resource_group": "rg-data",
+      "server_version": "12.0",
+      "state": "Ready",
+      "summary": "Azure SQL server 'sql-ops-01' publishes endpoint 'sql-ops-01.database.windows.net' and uses managed identity (SystemAssigned). Visible inventory: 1 user database(s), names: appdb. Visible posture: public network access Disabled, minimal TLS 1.2, server version 12.0.",
+      "user_database_names": [
+        "appdb"
+      ],
+      "workload_client_id": "99990000-0000-0000-0000-000000000042",
+      "workload_identity_ids": [],
+      "workload_identity_type": "SystemAssigned",
+      "workload_principal_id": "99990000-0000-0000-0000-000000000041"
     },
     {
       "database_count": 1,

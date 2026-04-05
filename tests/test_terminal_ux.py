@@ -279,6 +279,58 @@ def test_snapshots_disks_table_mode_surfaces_priority_first_targets(tmp_path: Pa
     ) in normalized_output
 
 
+def test_snapshots_disks_takeaway_counts_disk_access_as_broad_export_signal() -> None:
+    payload = {
+        "metadata": {"command": "snapshots-disks"},
+        "snapshot_disk_assets": [
+            {
+                "name": "disk-access-only",
+                "asset_kind": "disk",
+                "attachment_state": "attached",
+                "public_network_access": "Disabled",
+                "network_access_policy": "AllowPrivate",
+                "max_shares": 1,
+                "disk_access_id": (
+                    "/subscriptions/test/resourceGroups/rg/providers/"
+                    "Microsoft.Compute/diskAccesses/access-01"
+                ),
+                "related_ids": [],
+                "summary": "test",
+            }
+        ],
+        "issues": [],
+        "findings": [],
+    }
+
+    rendered = render_table("snapshots-disks", payload)
+
+    assert "1 show broader sharing or export posture" in " ".join(rendered.split())
+
+
+def test_storage_takeaway_keeps_partial_read_posture_explicit() -> None:
+    payload = {
+        "metadata": {"command": "storage"},
+        "storage_assets": [
+            {
+                "name": "st-partial",
+                "public_access": False,
+                "public_network_access": None,
+                "allow_shared_key_access": None,
+                "related_ids": [],
+                "summary": "test",
+            }
+        ],
+        "findings": [],
+        "issues": [],
+    }
+
+    rendered = render_table("storage", payload)
+    normalized = " ".join(rendered.split())
+
+    assert "1 have unreadable public-network posture" in normalized
+    assert "1 have unreadable shared-key posture" in normalized
+
+
 def test_dns_table_mode_surfaces_zone_inventory_and_namespace_context(tmp_path: Path) -> None:
     result = runner.invoke(
         app,

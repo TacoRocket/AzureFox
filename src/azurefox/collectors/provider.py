@@ -2338,30 +2338,6 @@ class AzureProvider(BaseProvider):
                     }
                 )
 
-            for vmss in self.clients.compute.virtual_machine_scale_sets.list_all():
-                vmss_id = getattr(vmss, "id", "unknown")
-                identity_ids = []
-                vmss_identity = getattr(vmss, "identity", None)
-                if vmss_identity is not None:
-                    if getattr(vmss_identity, "principal_id", None):
-                        identity_ids.append(f"{vmss_id}/identities/system")
-                    user_assigned = getattr(vmss_identity, "user_assigned_identities", None) or {}
-                    identity_ids.extend(user_assigned.keys())
-
-                vm_assets.append(
-                    {
-                        "id": vmss_id,
-                        "name": getattr(vmss, "name", "unknown"),
-                        "resource_group": _resource_group_from_id(vmss_id),
-                        "location": getattr(vmss, "location", None),
-                        "vm_type": "vmss",
-                        "power_state": None,
-                        "private_ips": [],
-                        "public_ips": [],
-                        "identity_ids": sorted(set(identity_ids)),
-                        "nic_ids": [],
-                    }
-                )
         except Exception as exc:
             issues.append(_issue_from_exception("vms", exc))
 

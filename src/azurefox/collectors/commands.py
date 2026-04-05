@@ -110,22 +110,26 @@ def collect_app_services(provider: BaseProvider, options: GlobalOptions) -> AppS
 
 def collect_acr(provider: BaseProvider, options: GlobalOptions) -> AcrOutput:
     data = provider.acr()
+    registries = sorted(data.get("registries", []), key=_acr_registry_sort_key)
     return AcrOutput.model_validate(
         {
             "metadata": _metadata(provider, "acr", options),
             "findings": [],
             **data,
+            "registries": registries,
         }
     )
 
 
 def collect_databases(provider: BaseProvider, options: GlobalOptions) -> DatabasesOutput:
     data = provider.databases()
+    database_servers = sorted(data.get("database_servers", []), key=_database_server_sort_key)
     return DatabasesOutput.model_validate(
         {
             "metadata": _metadata(provider, "databases", options),
             "findings": [],
             **data,
+            "database_servers": database_servers,
         }
     )
 
@@ -179,11 +183,13 @@ def collect_network_effective(
 
 def collect_aks(provider: BaseProvider, options: GlobalOptions) -> AksOutput:
     data = provider.aks()
+    aks_clusters = sorted(data.get("aks_clusters", []), key=_aks_cluster_sort_key)
     return AksOutput.model_validate(
         {
             "metadata": _metadata(provider, "aks", options),
             "findings": [],
             **data,
+            "aks_clusters": aks_clusters,
         }
     )
 
@@ -519,14 +525,7 @@ def collect_snapshots_disks(
 
 def collect_nics(provider: BaseProvider, options: GlobalOptions) -> NicsOutput:
     data = provider.nics()
-    nic_assets = sorted(
-        data.get("nic_assets", []),
-        key=lambda item: (
-            item.get("attached_asset_name") is None,
-            item.get("attached_asset_name") or "",
-            item.get("name") or "",
-        ),
-    )
+    nic_assets = sorted(data.get("nic_assets", []), key=_nic_asset_sort_key)
     return NicsOutput.model_validate(
         {
             "metadata": _metadata(provider, "nics", options),
@@ -550,8 +549,11 @@ def collect_workloads(provider: BaseProvider, options: GlobalOptions) -> Workloa
 
 def collect_vms(provider: BaseProvider, options: GlobalOptions) -> VmsOutput:
     data = provider.vms()
-    vm_assets = sorted(data.get("vm_assets", []), key=_vm_asset_sort_key)
-    findings = build_vm_findings(data.get("vm_assets", []))
+    vm_assets = [
+        item for item in data.get("vm_assets", []) if str(item.get("vm_type") or "vm") == "vm"
+    ]
+    vm_assets = sorted(vm_assets, key=_vm_asset_sort_key)
+    findings = build_vm_findings(vm_assets)
     return VmsOutput.model_validate(
         {
             "metadata": _metadata(provider, "vms", options),
@@ -821,6 +823,56 @@ def _api_mgmt_priority(item: dict) -> bool:
     )
 
 
+def _acr_registry_sort_key(item: dict) -> tuple[int, int, int, int, int, str]:
+    return (
+        _acr_registry_posture_rank(item),
+        -_int_or_zero(item.get("enabled_webhook_count")),
+        -_int_or_zero(item.get("replication_count")),
+        -_acr_governance_weakness_score(item),
+        -_int_or_zero(item.get("broad_webhook_scope_count")),
+        item.get("name") or "",
+    )
+
+
+def _database_server_sort_key(item: dict) -> tuple[bool, int, int, bool, str, str]:
+    return (
+        not _database_server_exposure_priority(item),
+        _database_tls_rank(item),
+        -_int_or_zero(item.get("database_count")),
+        not bool(item.get("workload_identity_type")),
+        item.get("engine") or "",
+        item.get("name") or "",
+    )
+
+
+def _aks_cluster_sort_key(item: dict) -> tuple[int, bool, int, int, tuple[int, int, int], str]:
+    return (
+        _aks_control_plane_rank(item),
+        not bool(item.get("cluster_identity_type")),
+        -_aks_federation_cue_count(item),
+        -len(item.get("addon_names", []) or []),
+        _aks_auth_cue_rank(item),
+        item.get("name") or "",
+    )
+
+
+def _nic_asset_sort_key(item: dict) -> tuple[bool, bool, int, int, str, str]:
+    boundary_signal_count = int(bool(item.get("network_security_group_id"))) + len(
+        item.get("subnet_ids", []) or []
+    ) + len(item.get("vnet_ids", []) or [])
+    unusual_attachment = (
+        item.get("attached_asset_id") is None or item.get("attached_asset_name") is None
+    )
+    return (
+        not bool(item.get("public_ip_ids")),
+        not unusual_attachment,
+        -boundary_signal_count,
+        -len(item.get("private_ips", []) or []),
+        item.get("attached_asset_name") or "",
+        item.get("name") or "",
+    )
+
+
 def _app_service_sort_key(item: dict) -> tuple[bool, bool, tuple[int, int, int, int], str]:
     return (
         not _web_workload_exposure_priority(item),
@@ -917,6 +969,71 @@ def _vmss_orchestration_rank(value: object) -> int:
 
 def _vmss_upgrade_rank(value: object) -> int:
     return {"Manual": 0, "Rolling": 1, "Automatic": 2}.get(str(value or ""), 9)
+
+
+def _acr_registry_posture_rank(item: dict) -> int:
+    public_enabled = str(item.get("public_network_access") or "").lower() == "enabled"
+    admin_enabled = item.get("admin_user_enabled") is True
+    anonymous_pull_enabled = item.get("anonymous_pull_enabled") is True
+
+    if public_enabled and (admin_enabled or anonymous_pull_enabled):
+        return 0
+    if public_enabled:
+        return 1
+    if admin_enabled or anonymous_pull_enabled:
+        return 2
+    return 3
+
+
+def _acr_governance_weakness_score(item: dict) -> int:
+    return sum(
+        1
+        for key, weak_values in (
+            ("quarantine_policy_status", {"disabled"}),
+            ("retention_policy_status", {"disabled"}),
+            ("trust_policy_status", {"disabled"}),
+        )
+        if str(item.get(key) or "").lower() in weak_values
+    )
+
+
+def _database_server_exposure_priority(item: dict) -> bool:
+    return str(item.get("public_network_access") or "").lower() == "enabled"
+
+
+def _database_tls_rank(item: dict) -> int:
+    return {
+        "1.0": 0,
+        "1.1": 1,
+        "1.2": 2,
+        "1.3": 3,
+    }.get(str(item.get("minimal_tls_version") or ""), 4)
+
+
+def _aks_control_plane_rank(item: dict) -> int:
+    if bool(item.get("fqdn")) and item.get("private_cluster_enabled") is not True:
+        return 0
+    if item.get("public_fqdn_enabled") is True and bool(item.get("fqdn")):
+        return 1
+    return 2
+
+
+def _aks_federation_cue_count(item: dict) -> int:
+    return int(item.get("oidc_issuer_enabled") is True) + int(
+        item.get("workload_identity_enabled") is True
+    )
+
+
+def _aks_auth_cue_rank(item: dict) -> tuple[int, int, int]:
+    local_accounts_disabled = item.get("local_accounts_disabled")
+    aad_managed = item.get("aad_managed")
+    azure_rbac_enabled = item.get("azure_rbac_enabled")
+
+    return (
+        0 if local_accounts_disabled is False else 1 if local_accounts_disabled is True else 2,
+        0 if aad_managed is False else 1 if aad_managed is True else 2,
+        0 if azure_rbac_enabled is False else 1 if azure_rbac_enabled is True else 2,
+    )
 
 
 def _automation_sort_key(item: dict) -> tuple[bool, bool, bool, int, int, int, int, str]:

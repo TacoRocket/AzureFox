@@ -81,6 +81,29 @@ def test_cli_smoke_all_checks_json_summary(tmp_path: Path) -> None:
     assert (tmp_path / "run-summary.json").exists()
 
 
+def test_cli_smoke_devops_accepts_organization_after_command(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    result = runner.invoke(
+        app,
+        [
+            "--outdir",
+            str(tmp_path),
+            "--output",
+            "json",
+            "devops",
+            "--devops-organization",
+            "contoso",
+        ],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["metadata"]["command"] == "devops"
+    assert payload["metadata"]["devops_organization"] == "contoso"
+
+
 def test_cli_smoke_csv_row_mapping_for_inventory_style_commands(tmp_path: Path) -> None:
     fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
 

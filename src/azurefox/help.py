@@ -137,8 +137,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="app-services",
         section="compute",
         summary=(
-            "Deepen App Service runtime, hostname, identity, and basic deployment-posture "
-            "visibility."
+            "Deepen App Service runtime, hostname, identity, and hardening visibility."
         ),
         offensive_question=(
             "Which App Service apps expose the most interesting runtime, identity, and ingress "
@@ -996,11 +995,9 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
     "vms": CommandHelpTopic(
         name="vms",
         section="compute",
-        summary=(
-            "Summarize virtual machines (VMs) and scale sets with network and identity context."
-        ),
+        summary=("Summarize virtual machines (VMs) with network and identity context."),
         offensive_question=(
-            "Which compute assets are reachable, and which of them "
+            "Which virtual machines are reachable, and which of them "
             "expose useful identity or ingress paths?"
         ),
         cloudfox_frame="Azure compute census with the operator-first feel of CloudFox host triage.",
