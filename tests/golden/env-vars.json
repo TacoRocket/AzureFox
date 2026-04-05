@@ -14,11 +14,11 @@
       "resource_group": "rg-apps",
       "setting_name": "DB_PASSWORD",
       "summary": "AppService 'app-public-api' stores sensitive-looking setting 'DB_PASSWORD' as plain-text app configuration.",
+      "value_type": "plain-text",
       "workload_client_id": "bbbb1111-1111-1111-1111-111111111111",
       "workload_identity_ids": [],
       "workload_identity_type": "SystemAssigned",
-      "workload_principal_id": "aaaa1111-1111-1111-1111-111111111111",
-      "value_type": "plain-text"
+      "workload_principal_id": "aaaa1111-1111-1111-1111-111111111111"
     },
     {
       "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders",
@@ -34,13 +34,13 @@
       "resource_group": "rg-apps",
       "setting_name": "PAYMENT_API_KEY",
       "summary": "FunctionApp 'func-orders' maps setting 'PAYMENT_API_KEY' to Key Vault-backed configuration (kvlabopen01.vault.azure.net/secrets/payment-api-key) via SystemAssigned identity.",
+      "value_type": "keyvault-ref",
       "workload_client_id": "dddd2222-2222-2222-2222-222222222222",
       "workload_identity_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-orders"
       ],
       "workload_identity_type": "SystemAssigned, UserAssigned",
-      "workload_principal_id": "cccc2222-2222-2222-2222-222222222222",
-      "value_type": "keyvault-ref"
+      "workload_principal_id": "cccc2222-2222-2222-2222-222222222222"
     },
     {
       "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api",
@@ -56,11 +56,11 @@
       "resource_group": "rg-apps",
       "setting_name": "API_BASE_URL",
       "summary": "AppService 'app-public-api' exposes setting 'API_BASE_URL' through management-plane app settings (plain-text).",
+      "value_type": "plain-text",
       "workload_client_id": "bbbb1111-1111-1111-1111-111111111111",
       "workload_identity_ids": [],
       "workload_identity_type": "SystemAssigned",
-      "workload_principal_id": "aaaa1111-1111-1111-1111-111111111111",
-      "value_type": "plain-text"
+      "workload_principal_id": "aaaa1111-1111-1111-1111-111111111111"
     },
     {
       "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders",
@@ -76,13 +76,13 @@
       "resource_group": "rg-apps",
       "setting_name": "AzureWebJobsStorage",
       "summary": "FunctionApp 'func-orders' exposes setting 'AzureWebJobsStorage' through management-plane app settings (plain-text).",
+      "value_type": "plain-text",
       "workload_client_id": "dddd2222-2222-2222-2222-222222222222",
       "workload_identity_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-orders"
       ],
       "workload_identity_type": "SystemAssigned, UserAssigned",
-      "workload_principal_id": "cccc2222-2222-2222-2222-222222222222",
-      "value_type": "plain-text"
+      "workload_principal_id": "cccc2222-2222-2222-2222-222222222222"
     }
   ],
   "findings": [
@@ -108,6 +108,7 @@
   "issues": [],
   "metadata": {
     "command": "env-vars",
+    "devops_organization": null,
     "generated_at": "<generated_at>",
     "schema_version": "1.1.0",
     "subscription_id": "22222222-2222-2222-2222-222222222222",

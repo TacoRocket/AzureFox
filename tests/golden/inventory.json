@@ -2,6 +2,7 @@
   "issues": [],
   "metadata": {
     "command": "inventory",
+    "devops_organization": null,
     "generated_at": "<generated_at>",
     "schema_version": "1.1.0",
     "subscription_id": "22222222-2222-2222-2222-222222222222",
@@ -16,8 +17,8 @@
     "state": "Enabled"
   },
   "top_resource_types": {
-    "Microsoft.ContainerService/managedClusters": 2,
     "Microsoft.Compute/virtualMachines": 3,
+    "Microsoft.ContainerService/managedClusters": 2,
     "Microsoft.Network/networkInterfaces": 6,
     "Microsoft.Storage/storageAccounts": 2
   }

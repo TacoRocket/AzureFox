@@ -1,19 +1,37 @@
 {
+  "findings": [
+    {
+      "description": "Workload 'vm-web-01' has public IP exposure and one or more managed identities. Validate identity privileges and ingress hardening.",
+      "id": "vm-public-identity-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-app"
+      ],
+      "severity": "medium",
+      "title": "Public workload with attached identity"
+    }
+  ],
+  "issues": [],
   "metadata": {
-    "schema_version": "1.1.0",
     "command": "vms",
+    "devops_organization": null,
     "generated_at": "<generated_at>",
-    "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "schema_version": "1.1.0",
     "subscription_id": "22222222-2222-2222-2222-222222222222",
+    "tenant_id": "11111111-1111-1111-1111-111111111111",
     "token_source": null
   },
   "vm_assets": [
     {
       "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01",
-      "name": "vm-web-01",
-      "resource_group": "rg-workload",
+      "identity_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-app"
+      ],
       "location": "eastus",
-      "vm_type": "vm",
+      "name": "vm-web-01",
+      "nic_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Network/networkInterfaces/nic-web-01"
+      ],
       "power_state": "running",
       "private_ips": [
         "10.0.1.4"
@@ -21,51 +39,34 @@
       "public_ips": [
         "52.160.10.20"
       ],
-      "identity_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-app"
-      ],
-      "nic_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Network/networkInterfaces/nic-web-01"
-      ]
+      "resource_group": "rg-workload",
+      "vm_type": "vm"
     },
     {
       "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-edge-01",
-      "name": "vmss-edge-01",
-      "resource_group": "rg-workload",
-      "location": "eastus",
-      "vm_type": "vmss",
-      "power_state": null,
-      "private_ips": [],
-      "public_ips": [],
       "identity_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-edge-01/identities/system"
       ],
-      "nic_ids": []
-    },
-    {
-      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-batch/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-batch-01",
-      "name": "vmss-batch-01",
-      "resource_group": "rg-batch",
-      "location": "centralus",
-      "vm_type": "vmss",
+      "location": "eastus",
+      "name": "vmss-edge-01",
+      "nic_ids": [],
       "power_state": null,
       "private_ips": [],
       "public_ips": [],
-      "identity_ids": [],
-      "nic_ids": []
-    }
-  ],
-  "findings": [
+      "resource_group": "rg-workload",
+      "vm_type": "vmss"
+    },
     {
-      "id": "vm-public-identity-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01",
-      "severity": "medium",
-      "title": "Public workload with attached identity",
-      "description": "Workload 'vm-web-01' has public IP exposure and one or more managed identities. Validate identity privileges and ingress hardening.",
-      "related_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01",
-        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-app"
-      ]
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-batch/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-batch-01",
+      "identity_ids": [],
+      "location": "centralus",
+      "name": "vmss-batch-01",
+      "nic_ids": [],
+      "power_state": null,
+      "private_ips": [],
+      "public_ips": [],
+      "resource_group": "rg-batch",
+      "vm_type": "vmss"
     }
-  ],
-  "issues": []
+  ]
 }
