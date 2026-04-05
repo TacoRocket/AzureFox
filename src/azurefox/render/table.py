@@ -955,11 +955,22 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             for item in assets
         )
         shared_key_assets = sum(item.get("allow_shared_key_access") is True for item in assets)
-        return (
-            f"{len(assets)} storage accounts visible; "
-            f"{public_assets} allow public blob access, {public_network_assets} keep public "
-            f"network access enabled, and {shared_key_assets} allow shared-key access."
+        public_network_unreadable = sum(
+            item.get("public_network_access") is None for item in assets
         )
+        shared_key_unreadable = sum(item.get("allow_shared_key_access") is None for item in assets)
+        posture_parts = [
+            f"{public_assets} allow public blob access",
+            f"{public_network_assets} keep public network access enabled",
+        ]
+        if public_network_unreadable:
+            posture_parts.append(
+                f"{public_network_unreadable} have unreadable public-network posture"
+            )
+        posture_parts.append(f"{shared_key_assets} allow shared-key access")
+        if shared_key_unreadable:
+            posture_parts.append(f"{shared_key_unreadable} have unreadable shared-key posture")
+        return f"{len(assets)} storage accounts visible; {', '.join(posture_parts)}."
 
     if command == "snapshots-disks":
         assets = payload.get("snapshot_disk_assets", [])
@@ -969,6 +980,7 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             str(item.get("public_network_access") or "").lower() == "enabled"
             or str(item.get("network_access_policy") or "").lower() == "allowall"
             or item.get("max_shares") not in (None, 1)
+            or bool(item.get("disk_access_id"))
             for item in assets
         )
         detached_label = "disk" if detached == 1 else "disks"

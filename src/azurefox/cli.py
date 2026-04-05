@@ -102,7 +102,12 @@ def automation(ctx: typer.Context) -> None:
 
 
 @app.command("devops")
-def devops(ctx: typer.Context) -> None:
+def devops(
+    ctx: typer.Context,
+    devops_organization: str | None = DEVOPS_ORGANIZATION_OPTION,
+) -> None:
+    if devops_organization:
+        ctx.obj = replace(ctx.obj, devops_organization=devops_organization)
     _run_single(ctx, "devops")
 
 

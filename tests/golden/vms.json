@@ -41,32 +41,6 @@
       ],
       "resource_group": "rg-workload",
       "vm_type": "vm"
-    },
-    {
-      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-edge-01",
-      "identity_ids": [
-        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-edge-01/identities/system"
-      ],
-      "location": "eastus",
-      "name": "vmss-edge-01",
-      "nic_ids": [],
-      "power_state": null,
-      "private_ips": [],
-      "public_ips": [],
-      "resource_group": "rg-workload",
-      "vm_type": "vmss"
-    },
-    {
-      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-batch/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-batch-01",
-      "identity_ids": [],
-      "location": "centralus",
-      "name": "vmss-batch-01",
-      "nic_ids": [],
-      "power_state": null,
-      "private_ips": [],
-      "public_ips": [],
-      "resource_group": "rg-batch",
-      "vm_type": "vmss"
     }
   ]
 }

@@ -119,6 +119,223 @@ class DriftOrderingFixtureProvider(MetadataFixtureProvider):
             "issues": [],
         }
 
+    def acr(self) -> dict:
+        return {
+            "registries": [
+                {
+                    "id": "acr-public",
+                    "name": "acr-public",
+                    "public_network_access": "Enabled",
+                    "admin_user_enabled": True,
+                    "anonymous_pull_enabled": False,
+                    "enabled_webhook_count": 0,
+                    "replication_count": 0,
+                    "broad_webhook_scope_count": 0,
+                    "quarantine_policy_status": "enabled",
+                    "retention_policy_status": "enabled",
+                    "trust_policy_status": "enabled",
+                    "summary": "public registry",
+                },
+                {
+                    "id": "acr-webhooks",
+                    "name": "acr-webhooks",
+                    "public_network_access": "Disabled",
+                    "admin_user_enabled": True,
+                    "anonymous_pull_enabled": False,
+                    "enabled_webhook_count": 2,
+                    "replication_count": 0,
+                    "broad_webhook_scope_count": 1,
+                    "quarantine_policy_status": "enabled",
+                    "retention_policy_status": "enabled",
+                    "trust_policy_status": "enabled",
+                    "summary": "admin-backed registry with webhook depth",
+                },
+                {
+                    "id": "acr-replication",
+                    "name": "acr-replication",
+                    "public_network_access": "Disabled",
+                    "admin_user_enabled": True,
+                    "anonymous_pull_enabled": False,
+                    "enabled_webhook_count": 0,
+                    "replication_count": 2,
+                    "broad_webhook_scope_count": 0,
+                    "quarantine_policy_status": "enabled",
+                    "retention_policy_status": "enabled",
+                    "trust_policy_status": "enabled",
+                    "summary": "admin-backed registry with replication depth",
+                },
+                {
+                    "id": "acr-governance-weak",
+                    "name": "acr-governance-weak",
+                    "public_network_access": "Disabled",
+                    "admin_user_enabled": True,
+                    "anonymous_pull_enabled": False,
+                    "enabled_webhook_count": 0,
+                    "replication_count": 0,
+                    "broad_webhook_scope_count": 0,
+                    "quarantine_policy_status": "disabled",
+                    "retention_policy_status": "disabled",
+                    "trust_policy_status": "disabled",
+                    "summary": "admin-backed registry with weak governance",
+                },
+            ],
+            "issues": [],
+        }
+
+    def databases(self) -> dict:
+        return {
+            "database_servers": [
+                {
+                    "id": "db-public-many",
+                    "name": "db-public-many",
+                    "engine": "AzureSql",
+                    "fully_qualified_domain_name": "db-public-many.database.windows.net",
+                    "public_network_access": "Enabled",
+                    "minimal_tls_version": "1.2",
+                    "database_count": 3,
+                    "workload_identity_type": None,
+                    "summary": "public server with more visible databases",
+                },
+                {
+                    "id": "db-private-identity",
+                    "name": "db-private-identity",
+                    "engine": "AzureSql",
+                    "fully_qualified_domain_name": "db-private-identity.database.windows.net",
+                    "public_network_access": "Disabled",
+                    "minimal_tls_version": "1.0",
+                    "database_count": 9,
+                    "workload_identity_type": "SystemAssigned",
+                    "summary": "private identity-backed server",
+                },
+                {
+                    "id": "db-public-weak-tls",
+                    "name": "db-public-weak-tls",
+                    "engine": "AzureSql",
+                    "fully_qualified_domain_name": "db-public-weak-tls.database.windows.net",
+                    "public_network_access": "Enabled",
+                    "minimal_tls_version": "1.0",
+                    "database_count": 1,
+                    "workload_identity_type": None,
+                    "summary": "public server with weaker TLS",
+                },
+                {
+                    "id": "db-public-identity",
+                    "name": "db-public-identity",
+                    "engine": "AzureSql",
+                    "fully_qualified_domain_name": "db-public-identity.database.windows.net",
+                    "public_network_access": "Enabled",
+                    "minimal_tls_version": "1.2",
+                    "database_count": 1,
+                    "workload_identity_type": "SystemAssigned",
+                    "summary": "public identity-backed server",
+                },
+            ],
+            "issues": [],
+        }
+
+    def aks(self) -> dict:
+        return {
+            "aks_clusters": [
+                {
+                    "id": "aks-public-auth-cues",
+                    "name": "aks-public-auth-cues",
+                    "fqdn": "aks-public-auth-cues.example",
+                    "private_cluster_enabled": False,
+                    "cluster_identity_type": None,
+                    "oidc_issuer_enabled": False,
+                    "workload_identity_enabled": False,
+                    "addon_names": [],
+                    "aad_managed": False,
+                    "azure_rbac_enabled": False,
+                    "local_accounts_disabled": False,
+                    "summary": "public cluster with weaker auth cues",
+                },
+                {
+                    "id": "aks-private-federated",
+                    "name": "aks-private-federated",
+                    "fqdn": "aks-private-federated.example",
+                    "private_cluster_enabled": True,
+                    "cluster_identity_type": "SystemAssigned",
+                    "oidc_issuer_enabled": True,
+                    "workload_identity_enabled": True,
+                    "addon_names": ["azureKeyvaultSecretsProvider"],
+                    "aad_managed": True,
+                    "azure_rbac_enabled": True,
+                    "local_accounts_disabled": True,
+                    "summary": "private cluster with rich cues",
+                },
+                {
+                    "id": "aks-public-addon",
+                    "name": "aks-public-addon",
+                    "fqdn": "aks-public-addon.example",
+                    "private_cluster_enabled": False,
+                    "cluster_identity_type": "SystemAssigned",
+                    "oidc_issuer_enabled": False,
+                    "workload_identity_enabled": False,
+                    "addon_names": ["azureKeyvaultSecretsProvider"],
+                    "aad_managed": True,
+                    "azure_rbac_enabled": True,
+                    "local_accounts_disabled": True,
+                    "summary": "public cluster with addon cues",
+                },
+                {
+                    "id": "aks-public-federated",
+                    "name": "aks-public-federated",
+                    "fqdn": "aks-public-federated.example",
+                    "private_cluster_enabled": False,
+                    "cluster_identity_type": "SystemAssigned",
+                    "oidc_issuer_enabled": True,
+                    "workload_identity_enabled": True,
+                    "addon_names": [],
+                    "aad_managed": True,
+                    "azure_rbac_enabled": True,
+                    "local_accounts_disabled": True,
+                    "summary": "public cluster with federation cues",
+                },
+            ],
+            "issues": [],
+        }
+
+    def nics(self) -> dict:
+        return {
+            "nic_assets": [
+                {
+                    "id": "nic-routine",
+                    "name": "nic-routine",
+                    "attached_asset_id": "vm-routine",
+                    "attached_asset_name": "vm-routine",
+                    "private_ips": ["10.0.0.5"],
+                    "public_ip_ids": [],
+                    "subnet_ids": ["subnet-a"],
+                    "vnet_ids": ["vnet-a"],
+                    "network_security_group_id": None,
+                },
+                {
+                    "id": "nic-unattached",
+                    "name": "nic-unattached",
+                    "attached_asset_id": None,
+                    "attached_asset_name": None,
+                    "private_ips": ["10.0.1.5", "10.0.1.6"],
+                    "public_ip_ids": [],
+                    "subnet_ids": ["subnet-b"],
+                    "vnet_ids": ["vnet-a"],
+                    "network_security_group_id": "nsg-b",
+                },
+                {
+                    "id": "nic-public",
+                    "name": "nic-public",
+                    "attached_asset_id": "vm-edge",
+                    "attached_asset_name": "vm-edge",
+                    "private_ips": ["10.0.2.5"],
+                    "public_ip_ids": ["pip-edge"],
+                    "subnet_ids": ["subnet-edge"],
+                    "vnet_ids": ["vnet-a"],
+                    "network_security_group_id": "nsg-edge",
+                },
+            ],
+            "issues": [],
+        }
+
     def functions(self) -> dict:
         return {
             "function_apps": [
@@ -736,6 +953,55 @@ def test_collect_app_services_sorts_identity_and_weaker_hardening_first(options)
     ]
 
 
+def test_collect_acr_sorts_permissive_posture_then_webhooks_replication_and_governance(
+    options,
+) -> None:
+    output = collect_acr(DriftOrderingFixtureProvider(Path(".")), options)
+
+    assert [item.name for item in output.registries] == [
+        "acr-public",
+        "acr-webhooks",
+        "acr-replication",
+        "acr-governance-weak",
+    ]
+
+
+def test_collect_databases_sorts_exposure_then_tls_then_database_count_then_identity(
+    options,
+) -> None:
+    output = collect_databases(DriftOrderingFixtureProvider(Path(".")), options)
+
+    assert [item.name for item in output.database_servers] == [
+        "db-public-weak-tls",
+        "db-public-many",
+        "db-public-identity",
+        "db-private-identity",
+    ]
+
+
+def test_collect_aks_sorts_public_control_plane_then_identity_federation_addons_and_auth(
+    options,
+) -> None:
+    output = collect_aks(DriftOrderingFixtureProvider(Path(".")), options)
+
+    assert [item.name for item in output.aks_clusters] == [
+        "aks-public-federated",
+        "aks-public-addon",
+        "aks-public-auth-cues",
+        "aks-private-federated",
+    ]
+
+
+def test_collect_nics_sorts_public_then_unusual_attachment_then_boundary_context(options) -> None:
+    output = collect_nics(DriftOrderingFixtureProvider(Path(".")), options)
+
+    assert [item.name for item in output.nic_assets] == [
+        "nic-public",
+        "nic-unattached",
+        "nic-routine",
+    ]
+
+
 def test_collect_acr(fixture_provider, options) -> None:
     output = collect_acr(fixture_provider, options)
     assert len(output.registries) == 2
@@ -766,13 +1032,13 @@ def test_collect_databases(fixture_provider, options) -> None:
     assert output.database_servers[0].engine == "AzureSql"
     assert output.database_servers[0].database_count == 2
     assert output.database_servers[0].public_network_access == "Enabled"
-    assert output.database_servers[1].name == "sql-ops-01"
-    assert output.database_servers[1].workload_identity_type == "SystemAssigned"
-    assert output.database_servers[1].user_database_names == ["appdb"]
-    assert output.database_servers[2].engine == "PostgreSqlFlexible"
-    assert output.database_servers[2].name == "pg-public-legacy"
-    assert output.database_servers[2].database_count == 2
-    assert output.database_servers[2].public_network_access == "Enabled"
+    assert output.database_servers[1].engine == "PostgreSqlFlexible"
+    assert output.database_servers[1].name == "pg-public-legacy"
+    assert output.database_servers[1].database_count == 2
+    assert output.database_servers[1].public_network_access == "Enabled"
+    assert output.database_servers[2].name == "sql-ops-01"
+    assert output.database_servers[2].workload_identity_type == "SystemAssigned"
+    assert output.database_servers[2].user_database_names == ["appdb"]
     assert output.database_servers[3].name == "mysql-ops-01"
     assert output.database_servers[3].engine == "MySqlFlexible"
     assert output.database_servers[3].high_availability_mode == "zone-redundant"
@@ -1863,9 +2129,8 @@ def test_network_scope_label_includes_resource_group() -> None:
 
 def test_collect_vms(fixture_provider, options) -> None:
     output = collect_vms(fixture_provider, options)
-    assert len(output.vm_assets) == 3
-    assert output.vm_assets[1].name == "vmss-edge-01"
-    assert output.vm_assets[2].name == "vmss-batch-01"
+    assert len(output.vm_assets) == 1
+    assert output.vm_assets[0].name == "vm-web-01"
     assert len(output.findings) == 1
 
 
