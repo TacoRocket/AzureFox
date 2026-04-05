@@ -263,6 +263,37 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox dns --output table",
     ),
+    "application-gateway": CommandHelpTopic(
+        name="application-gateway",
+        section="network",
+        summary=(
+            "Summarize Azure Application Gateway shared-ingress posture, routing breadth, "
+            "and visible Web Application Firewall (WAF) coverage."
+        ),
+        offensive_question=(
+            "Which Application Gateways are the shared public front doors for several "
+            "backend paths, and which look weak enough to review first?"
+        ),
+        cloudfox_frame=(
+            "Azure-native ingress-tier triage: frontend exposure, listener and routing "
+            "breadth, backend-pool depth, and visible WAF posture without collecting "
+            "request content, certificates, or backend app data."
+        ),
+        output_highlights=(
+            "public_frontend_count",
+            "listener_count",
+            "request_routing_rule_count",
+            "backend_target_count",
+            "waf_mode",
+            "firewall_policy_id",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Discovery", "Network Service Discovery"),
+            AttackLead("Initial Access", "Exploit Public-Facing Application"),
+        ),
+        example="azurefox application-gateway --output table",
+    ),
     "functions": CommandHelpTopic(
         name="functions",
         section="compute",

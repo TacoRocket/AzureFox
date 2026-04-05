@@ -253,6 +253,29 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "application-gateway":
+        return (
+            [
+                ("name", "gateway"),
+                ("exposure", "exposure"),
+                ("routing", "routing"),
+                ("backends", "backends"),
+                ("waf", "waf"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "name": item.get("name"),
+                    "exposure": _application_gateway_exposure_context(item),
+                    "routing": _application_gateway_routing_context(item),
+                    "backends": _application_gateway_backend_context(item),
+                    "waf": _application_gateway_waf_context(item),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("application_gateways", [])
+            ],
+        )
+
     if command == "aks":
         return (
             [
@@ -1205,6 +1228,32 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             f"references, and {record_phrase}."
         )
 
+    if command == "application-gateway":
+        application_gateways = payload.get("application_gateways", [])
+        public_gateways = sum(
+            (item.get("public_frontend_count") or 0) > 0 for item in application_gateways
+        )
+        shared_public_gateways = sum(
+            (item.get("public_frontend_count") or 0) > 0
+            and (
+                (item.get("backend_target_count") or 0) > 1
+                or (item.get("request_routing_rule_count") or 0) > 1
+            )
+            for item in application_gateways
+        )
+        weak_public_gateways = sum(
+            (item.get("public_frontend_count") or 0) > 0
+            and _application_gateway_waf_rank(item) < 3
+            for item in application_gateways
+        )
+        return (
+            f"{len(application_gateways)} Application Gateways visible; {public_gateways} "
+            f"have public frontends, {shared_public_gateways} look like shared public front "
+            f"doors, and {weak_public_gateways} public gateway(s) lack strong visible WAF "
+            "coverage. Treat weak shared edge layers as clues that the apps behind them may "
+            "deserve review next."
+        )
+
     if command == "network-effective":
         effective_exposures = payload.get("effective_exposures", [])
         by_confidence = Counter(
@@ -1643,6 +1692,91 @@ def _dns_namespace_context(item: dict) -> str:
     if not parts:
         return "-"
     return "; ".join(parts)
+
+
+def _application_gateway_exposure_context(item: dict) -> str:
+    parts: list[str] = []
+    public_frontend_count = item.get("public_frontend_count") or 0
+    private_frontend_count = item.get("private_frontend_count") or 0
+    public_ip_addresses = item.get("public_ip_addresses", []) or []
+
+    if public_frontend_count:
+        public_phrase = f"public={public_frontend_count}"
+        if public_ip_addresses:
+            public_phrase += f" ({', '.join(public_ip_addresses)})"
+        parts.append(public_phrase)
+    if private_frontend_count:
+        parts.append(f"private={private_frontend_count}")
+    if item.get("subnet_ids"):
+        parts.append(f"subnets={len(item.get('subnet_ids', []))}")
+
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _application_gateway_routing_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("listener_count") is not None:
+        parts.append(f"listeners={item.get('listener_count')}")
+    if item.get("request_routing_rule_count") is not None:
+        parts.append(f"rules={item.get('request_routing_rule_count')}")
+    if item.get("url_path_map_count"):
+        parts.append(f"path-maps={item.get('url_path_map_count')}")
+    if item.get("redirect_configuration_count"):
+        parts.append(f"redirects={item.get('redirect_configuration_count')}")
+    if item.get("rewrite_rule_set_count"):
+        parts.append(f"rewrites={item.get('rewrite_rule_set_count')}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _application_gateway_backend_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("backend_pool_count") is not None:
+        parts.append(f"pools={item.get('backend_pool_count')}")
+    if item.get("backend_target_count") is not None:
+        parts.append(f"targets={item.get('backend_target_count')}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _application_gateway_waf_context(item: dict) -> str:
+    if item.get("firewall_policy_id") and item.get("waf_mode"):
+        return f"policy; {str(item.get('waf_mode')).lower()}"
+    if item.get("firewall_policy_id"):
+        return "policy attached"
+    if item.get("waf_enabled") is True and item.get("waf_mode"):
+        return f"enabled; {str(item.get('waf_mode')).lower()}"
+    if item.get("waf_enabled") is True:
+        return "enabled"
+    if item.get("waf_enabled") is False:
+        return "disabled"
+    return "not visible"
+
+
+def _application_gateway_waf_rank(item: dict) -> int:
+    if item.get("firewall_policy_id"):
+        mode = str(item.get("waf_mode") or "").strip().lower()
+        if mode == "prevention":
+            return 3
+        if mode == "detection":
+            return 1
+        return 2
+
+    if item.get("waf_enabled") is False:
+        return 0
+
+    mode = str(item.get("waf_mode") or "").strip().lower()
+    if mode == "prevention":
+        return 3
+    if mode == "detection":
+        return 1
+    if item.get("waf_enabled") is True:
+        return 2
+    return 0
 
 
 def _storage_exposure_context(item: dict) -> str:

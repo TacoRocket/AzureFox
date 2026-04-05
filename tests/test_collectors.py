@@ -8,6 +8,7 @@ from azurefox.collectors.commands import (
     collect_acr,
     collect_aks,
     collect_api_mgmt,
+    collect_application_gateway,
     collect_app_services,
     collect_arm_deployments,
     collect_auth_policies,
@@ -228,6 +229,52 @@ class DriftOrderingFixtureProvider(MetadataFixtureProvider):
                     "database_count": 1,
                     "workload_identity_type": "SystemAssigned",
                     "summary": "public identity-backed server",
+                },
+            ],
+            "issues": [],
+        }
+
+    def application_gateway(self) -> dict:
+        return {
+            "application_gateways": [
+                {
+                    "id": "agw-public-prevention",
+                    "name": "zzz-public-prevention",
+                    "public_frontend_count": 1,
+                    "listener_count": 2,
+                    "request_routing_rule_count": 2,
+                    "backend_target_count": 2,
+                    "waf_enabled": True,
+                    "waf_mode": "Prevention",
+                    "firewall_policy_id": "/policy/prevention",
+                    "summary": "public gateway with prevention mode",
+                    "related_ids": [],
+                },
+                {
+                    "id": "agw-public-weak",
+                    "name": "mmm-public-weak",
+                    "public_frontend_count": 1,
+                    "listener_count": 4,
+                    "request_routing_rule_count": 4,
+                    "backend_target_count": 5,
+                    "waf_enabled": False,
+                    "waf_mode": None,
+                    "firewall_policy_id": None,
+                    "summary": "public gateway with weak shared edge posture",
+                    "related_ids": [],
+                },
+                {
+                    "id": "agw-internal",
+                    "name": "aaa-internal-detection",
+                    "public_frontend_count": 0,
+                    "listener_count": 6,
+                    "request_routing_rule_count": 6,
+                    "backend_target_count": 8,
+                    "waf_enabled": True,
+                    "waf_mode": "Detection",
+                    "firewall_policy_id": None,
+                    "summary": "internal gateway with broader routing",
+                    "related_ids": [],
                 },
             ],
             "issues": [],
@@ -878,6 +925,21 @@ class PartialDnsFixtureProvider(FixtureProvider):
         }
 
 
+class PartialApplicationGatewayFixtureProvider(FixtureProvider):
+    def application_gateway(self) -> dict:
+        data = self._read("application_gateway")
+        return {
+            "application_gateways": [data["application_gateways"][0]],
+            "issues": [
+                {
+                    "kind": "permission_denied",
+                    "message": "application_gateway.public_ip_addresses: 403 Forbidden",
+                    "context": {"collector": "application_gateway.public_ip_addresses"},
+                }
+            ],
+        }
+
+
 def test_collect_whoami(fixture_provider, options) -> None:
     output = collect_whoami(fixture_provider, options)
     assert output.principal is not None
@@ -1087,6 +1149,44 @@ def test_collect_dns_keeps_command_level_issue_explicit(
     assert output.dns_zones == []
     assert output.issues[0].kind == "permission_denied"
     assert output.issues[0].context["collector"] == "dns.resources"
+
+
+def test_collect_application_gateway(fixture_provider, options) -> None:
+    output = collect_application_gateway(fixture_provider, options)
+
+    assert len(output.application_gateways) == 3
+    assert len(output.findings) == 0
+    assert output.application_gateways[0].name == "agw-shared-edge-01"
+    assert output.application_gateways[0].public_frontend_count == 1
+    assert output.application_gateways[0].listener_count == 4
+    assert output.application_gateways[0].request_routing_rule_count == 4
+    assert output.application_gateways[0].backend_pool_count == 3
+    assert output.application_gateways[0].backend_target_count == 5
+    assert output.application_gateways[0].waf_enabled is False
+    assert output.application_gateways[2].name == "agw-internal-payments"
+    assert output.application_gateways[2].public_frontend_count == 0
+
+
+def test_collect_application_gateway_sorts_public_then_weaker_edge_first(options) -> None:
+    output = collect_application_gateway(DriftOrderingFixtureProvider(Path(".")), options)
+
+    assert [item.name for item in output.application_gateways] == [
+        "mmm-public-weak",
+        "zzz-public-prevention",
+        "aaa-internal-detection",
+    ]
+
+
+def test_collect_application_gateway_keeps_command_level_issue_explicit(
+    fixture_dir: Path, options
+) -> None:
+    provider = PartialApplicationGatewayFixtureProvider(fixture_dir)
+
+    output = collect_application_gateway(provider, options)
+
+    assert len(output.application_gateways) == 1
+    assert output.issues[0].kind == "permission_denied"
+    assert output.issues[0].context["collector"] == "application_gateway.public_ip_addresses"
 
 
 def test_collect_network_effective(fixture_provider, options) -> None:

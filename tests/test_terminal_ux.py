@@ -820,6 +820,61 @@ def test_dns_collection_issue_surfaces_in_table_output() -> None:
     assert "dns.resources" in rendered
 
 
+def test_application_gateway_table_surfaces_shared_edge_risk_and_waf_state() -> None:
+    payload = {
+        "metadata": {"command": "application-gateway"},
+        "application_gateways": [
+            {
+                "name": "agw-shared-edge-01",
+                "public_frontend_count": 1,
+                "private_frontend_count": 0,
+                "public_ip_addresses": ["20.30.40.50"],
+                "subnet_ids": [
+                    "/subscriptions/test/resourceGroups/rg-edge/providers/Microsoft.Network/virtualNetworks/vnet-edge/subnets/appgw"
+                ],
+                "listener_count": 4,
+                "request_routing_rule_count": 4,
+                "backend_pool_count": 3,
+                "backend_target_count": 5,
+                "waf_enabled": False,
+                "waf_mode": None,
+                "firewall_policy_id": None,
+                "summary": "shared public front door with weak visible edge controls",
+            }
+        ],
+        "findings": [],
+        "issues": [],
+    }
+    rendered = render_table("application-gateway", payload)
+
+    assert "public=1 (20.30.40.50)" in rendered
+    assert "listeners=4" in rendered
+    assert "pools=3" in rendered
+    assert "disabled" in rendered
+    assert "shared public front doors" in rendered
+
+
+def test_application_gateway_collection_issue_surfaces_in_table_output() -> None:
+    payload = {
+        "metadata": {"command": "application-gateway"},
+        "application_gateways": [],
+        "findings": [],
+        "issues": [
+            {
+                "kind": "permission_denied",
+                "message": "application_gateway.gateways: 403 Forbidden",
+                "context": {"collector": "application_gateway.gateways"},
+            }
+        ],
+    }
+    rendered = render_table("application-gateway", payload)
+
+    assert "No records" in rendered
+    assert "Collection issues:" in rendered
+    assert "permission_denied" in rendered
+    assert "application_gateway.gateways" in rendered
+
+
 def test_dns_table_surfaces_private_endpoint_reference_count() -> None:
     payload = {
         "metadata": {"command": "dns"},

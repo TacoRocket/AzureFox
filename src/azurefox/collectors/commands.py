@@ -16,6 +16,7 @@ from azurefox.models.commands import (
     AcrOutput,
     AksOutput,
     ApiMgmtOutput,
+    ApplicationGatewayOutput,
     AppServicesOutput,
     ArmDeploymentsOutput,
     AuthPoliciesOutput,
@@ -213,6 +214,25 @@ def collect_api_mgmt(provider: BaseProvider, options: GlobalOptions) -> ApiMgmtO
             "findings": [],
             **data,
             "api_management_services": api_management_services,
+        }
+    )
+
+
+def collect_application_gateway(
+    provider: BaseProvider,
+    options: GlobalOptions,
+) -> ApplicationGatewayOutput:
+    data = provider.application_gateway()
+    application_gateways = sorted(
+        data.get("application_gateways", []),
+        key=_application_gateway_sort_key,
+    )
+    return ApplicationGatewayOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "application-gateway", options),
+            "findings": [],
+            **data,
+            "application_gateways": application_gateways,
         }
     )
 
@@ -633,6 +653,40 @@ def _vm_asset_sort_key(item: dict) -> tuple[bool, bool, int, int, str, str]:
         item.get("name") or "",
         item.get("id") or "",
     )
+
+
+def _application_gateway_sort_key(item: dict) -> tuple[bool, int, int, int, int, int, str]:
+    return (
+        not bool(item.get("public_frontend_count")),
+        _application_gateway_waf_rank(item),
+        -_int_or_zero(item.get("public_frontend_count")),
+        -_int_or_zero(item.get("listener_count")),
+        -_int_or_zero(item.get("request_routing_rule_count")),
+        -_int_or_zero(item.get("backend_target_count")),
+        item.get("name") or "",
+    )
+
+
+def _application_gateway_waf_rank(item: dict) -> int:
+    if item.get("firewall_policy_id"):
+        mode = str(item.get("waf_mode") or "").strip().lower()
+        if mode == "prevention":
+            return 3
+        if mode == "detection":
+            return 1
+        return 2
+
+    if item.get("waf_enabled") is False:
+        return 0
+
+    mode = str(item.get("waf_mode") or "").strip().lower()
+    if mode == "prevention":
+        return 3
+    if mode == "detection":
+        return 1
+    if item.get("waf_enabled") is True:
+        return 2
+    return 0
 
 
 def _lighthouse_role_rank(item: dict) -> tuple[int, int]:
