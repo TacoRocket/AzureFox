@@ -616,6 +616,32 @@ class DnsZoneAsset(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class AutomationAccountAsset(BaseModel):
+    id: str
+    name: str
+    resource_group: str | None = None
+    location: str | None = None
+    state: str | None = None
+    sku_name: str | None = None
+    identity_type: str | None = None
+    principal_id: str | None = None
+    client_id: str | None = None
+    identity_ids: list[str] = Field(default_factory=list)
+    runbook_count: int | None = None
+    published_runbook_count: int | None = None
+    schedule_count: int | None = None
+    job_schedule_count: int | None = None
+    webhook_count: int | None = None
+    hybrid_worker_group_count: int | None = None
+    credential_count: int | None = None
+    certificate_count: int | None = None
+    connection_count: int | None = None
+    variable_count: int | None = None
+    encrypted_variable_count: int | None = None
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class WebWorkloadSummary(BaseModel):
     asset_id: str
     asset_name: str

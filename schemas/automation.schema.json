@@ -1,0 +1,9 @@
+{
+  "model": "AutomationOutput",
+  "top_level_fields": [
+    "metadata",
+    "automation_accounts",
+    "findings",
+    "issues"
+  ]
+}

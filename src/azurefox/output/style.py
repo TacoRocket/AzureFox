@@ -10,6 +10,10 @@ from azurefox.models.common import OutputMode
 COMMAND_NARRATION = {
     "whoami": "Checking caller context and active subscription scope.",
     "inventory": "Scoping the visible Azure resource footprint.",
+    "automation": (
+        "Reviewing Azure Automation accounts for identity, execution, webhook, worker, "
+        "and secure-asset posture."
+    ),
     "app-services": "Reviewing App Service runtime, hostname, identity, and hardening posture.",
     "acr": (
         "Reviewing Azure Container Registry login, auth, network, and registry "

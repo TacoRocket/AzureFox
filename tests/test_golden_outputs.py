@@ -10,6 +10,7 @@ from azurefox.collectors.commands import (
     collect_app_services,
     collect_arm_deployments,
     collect_auth_policies,
+    collect_automation,
     collect_cross_tenant,
     collect_databases,
     collect_dns,
@@ -52,6 +53,7 @@ def test_golden_outputs(fixture_provider, options) -> None:
     collectors = {
         "whoami": collect_whoami,
         "inventory": collect_inventory,
+        "automation": collect_automation,
         "app-services": collect_app_services,
         "acr": collect_acr,
         "databases": collect_databases,

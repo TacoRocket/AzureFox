@@ -30,7 +30,7 @@ azurefox --outdir ./azurefox-demo all-checks --output table
 | `identity` | `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `lighthouse`, `auth-policies`, `managed-identities` |
 | `config` | `arm-deployments`, `env-vars` |
 | `secrets` | `keyvault`, `tokens-credentials` |
-| `resource` | `acr`, `api-mgmt`, `databases`, `resource-trusts` |
+| `resource` | `automation`, `acr`, `api-mgmt`, `databases`, `resource-trusts` |
 | `storage` | `storage` |
 | `network` | `nics`, `dns`, `endpoints`, `network-effective`, `network-ports` |
 | `compute` | `workloads`, `app-services`, `functions`, `aks`, `vms`, `vmss`, `snapshots-disks` |
@@ -171,7 +171,7 @@ Current section mappings:
 - `identity`: `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `lighthouse`, `auth-policies`, `managed-identities`
 - `config`: `arm-deployments`, `env-vars`
 - `secrets`: `keyvault`, `tokens-credentials`
-- `resource`: `acr`, `api-mgmt`, `databases`, `resource-trusts`
+- `resource`: `automation`, `acr`, `api-mgmt`, `databases`, `resource-trusts`
 - `storage`: `storage`
 - `network`: `nics`, `dns`, `endpoints`, `network-effective`, `network-ports`
 - `compute`: `workloads`, `app-services`, `functions`, `aks`, `vms`, `vmss`, `snapshots-disks`

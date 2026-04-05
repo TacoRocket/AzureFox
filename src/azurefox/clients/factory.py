@@ -13,6 +13,7 @@ class AzureClients:
     subscription: SubscriptionRef
     resource: object
     authorization: object
+    automation: object
     web: object
     container_registry: object
     containerservice: object
@@ -30,6 +31,7 @@ def build_clients(session: AuthSession, requested_subscription: str | None) -> A
     try:
         from azure.mgmt.apimanagement import ApiManagementClient
         from azure.mgmt.authorization import AuthorizationManagementClient
+        from azure.mgmt.automation import AutomationClient
         from azure.mgmt.compute import ComputeManagementClient
         from azure.mgmt.containerregistry import ContainerRegistryManagementClient
         from azure.mgmt.containerservice import ContainerServiceClient
@@ -87,6 +89,7 @@ def build_clients(session: AuthSession, requested_subscription: str | None) -> A
         subscription=subscription_ref,
         resource=ResourceManagementClient(session.credential, subscription_id),
         authorization=AuthorizationManagementClient(session.credential, subscription_id),
+        automation=AutomationClient(session.credential, subscription_id),
         web=WebSiteManagementClient(session.credential, subscription_id),
         container_registry=ContainerRegistryManagementClient(session.credential, subscription_id),
         containerservice=ContainerServiceClient(session.credential, subscription_id),

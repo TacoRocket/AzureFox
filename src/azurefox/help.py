@@ -62,6 +62,39 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox inventory --output table",
     ),
+    "automation": CommandHelpTopic(
+        name="automation",
+        section="resource",
+        summary=(
+            "Summarize Azure Automation account identity, runbook, schedule, webhook, "
+            "Hybrid Worker, and secure-asset posture."
+        ),
+        offensive_question=(
+            "Which Azure Automation accounts create the strongest execution, persistence, "
+            "or cross-boundary control paths for operator follow-up?"
+        ),
+        cloudfox_frame=(
+            "Azure-native automation-account triage that stays at management-plane posture: "
+            "managed identity, published runbooks, schedules, webhooks, Hybrid Runbook Worker "
+            "presence, and secure-asset counts before any runbook-content or secret-value access."
+        ),
+        output_highlights=(
+            "identity_type",
+            "published_runbook_count",
+            "schedule_count",
+            "job_schedule_count",
+            "webhook_count",
+            "hybrid_worker_group_count",
+            "credential_count",
+            "encrypted_variable_count",
+        ),
+        attack_leads=(
+            AttackLead("Execution", "Command and Scripting Interpreter"),
+            AttackLead("Persistence", "Scheduled Task/Job"),
+            AttackLead("Discovery", "Cloud Service Discovery"),
+        ),
+        example="azurefox automation --output table",
+    ),
     "app-services": CommandHelpTopic(
         name="app-services",
         section="compute",
