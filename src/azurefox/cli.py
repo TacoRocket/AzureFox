@@ -131,6 +131,11 @@ def dns(ctx: typer.Context) -> None:
     _run_single(ctx, "dns")
 
 
+@app.command("application-gateway")
+def application_gateway(ctx: typer.Context) -> None:
+    _run_single(ctx, "application-gateway")
+
+
 @app.command("functions")
 def functions(ctx: typer.Context) -> None:
     _run_single(ctx, "functions")

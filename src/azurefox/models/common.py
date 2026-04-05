@@ -543,6 +543,34 @@ class ApiMgmtServiceAsset(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class ApplicationGatewayAsset(BaseModel):
+    id: str
+    name: str
+    resource_group: str | None = None
+    location: str | None = None
+    state: str | None = None
+    sku_name: str | None = None
+    sku_tier: str | None = None
+    public_frontend_count: int = 0
+    private_frontend_count: int = 0
+    public_ip_address_ids: list[str] = Field(default_factory=list)
+    public_ip_addresses: list[str] = Field(default_factory=list)
+    private_frontend_ips: list[str] = Field(default_factory=list)
+    subnet_ids: list[str] = Field(default_factory=list)
+    listener_count: int = 0
+    request_routing_rule_count: int = 0
+    backend_pool_count: int = 0
+    backend_target_count: int = 0
+    url_path_map_count: int = 0
+    redirect_configuration_count: int = 0
+    rewrite_rule_set_count: int = 0
+    waf_enabled: bool | None = None
+    waf_mode: str | None = None
+    firewall_policy_id: str | None = None
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class AcrRegistryAsset(BaseModel):
     id: str
     name: str

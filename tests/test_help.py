@@ -139,6 +139,17 @@ def test_help_command_dns_topic() -> None:
     assert "private_endpoint_reference_count" in result.stdout
 
 
+def test_help_command_application_gateway_topic() -> None:
+    result = runner.invoke(app, ["help", "application-gateway"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: application-gateway" in result.stdout
+    assert "shared public front doors" in result.stdout
+    assert "listener_count" in result.stdout
+    assert "request_routing_rule_count" in result.stdout
+    assert "firewall_policy_id" in result.stdout
+
+
 def test_help_command_storage_topic() -> None:
     result = runner.invoke(app, ["help", "storage"])
 

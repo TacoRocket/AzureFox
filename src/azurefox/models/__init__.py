@@ -1,4 +1,5 @@
 from azurefox.models.commands import (
+    ApplicationGatewayOutput,
     AuthPoliciesOutput,
     EndpointsOutput,
     EnvVarsOutput,
@@ -17,6 +18,7 @@ from azurefox.models.commands import (
     WhoAmIOutput,
 )
 from azurefox.models.common import (
+    ApplicationGatewayAsset,
     AuthPolicySummary,
     CollectionIssue,
     CommandMetadata,
@@ -44,6 +46,8 @@ from azurefox.models.run import AllChecksSummary, RunCommandResult
 
 __all__ = [
     "AllChecksSummary",
+    "ApplicationGatewayAsset",
+    "ApplicationGatewayOutput",
     "AuthPoliciesOutput",
     "AuthPolicySummary",
     "CollectionIssue",

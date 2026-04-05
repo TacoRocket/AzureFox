@@ -1,0 +1,9 @@
+{
+  "model": "ApplicationGatewayOutput",
+  "top_level_fields": [
+    "metadata",
+    "application_gateways",
+    "findings",
+    "issues"
+  ]
+}

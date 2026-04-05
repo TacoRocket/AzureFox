@@ -92,6 +92,7 @@ def _to_csv(command: str, payload: dict) -> str:
         "acr": "registries",
         "databases": "database_servers",
         "dns": "dns_zones",
+        "application-gateway": "application_gateways",
         "aks": "aks_clusters",
         "api-mgmt": "api_management_services",
         "functions": "function_apps",

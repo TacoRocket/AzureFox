@@ -8,6 +8,7 @@ from azurefox.models.common import (
     AcrRegistryAsset,
     AksClusterAsset,
     ApiMgmtServiceAsset,
+    ApplicationGatewayAsset,
     AppServiceAsset,
     ArmDeploymentSummary,
     AuthPolicySummary,
@@ -117,6 +118,13 @@ class AksOutput(BaseModel):
 class ApiMgmtOutput(BaseModel):
     metadata: CommandMetadata
     api_management_services: list[ApiMgmtServiceAsset] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class ApplicationGatewayOutput(BaseModel):
+    metadata: CommandMetadata
+    application_gateways: list[ApplicationGatewayAsset] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 

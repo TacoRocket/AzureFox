@@ -66,6 +66,9 @@ class BaseProvider(ABC):
     def dns(self) -> dict:
         return {"dns_zones": [], "issues": []}
 
+    def application_gateway(self) -> dict:
+        return {"application_gateways": [], "issues": []}
+
     def aks(self) -> dict:
         return {"aks_clusters": [], "issues": []}
 
@@ -265,6 +268,9 @@ class FixtureProvider(BaseProvider):
 
     def dns(self) -> dict:
         return self._read("dns")
+
+    def application_gateway(self) -> dict:
+        return self._read("application_gateway")
 
     def aks(self) -> dict:
         return self._read("aks")
@@ -1038,6 +1044,39 @@ class AzureProvider(BaseProvider):
             )
         )
         return {"dns_zones": dns_zones, "issues": issues}
+
+    def application_gateway(self) -> dict:
+        issues: list[dict] = []
+        application_gateways: list[dict] = []
+        public_ip_lookup: dict[str, str] = {}
+
+        try:
+            for public_ip in self.clients.network.public_ip_addresses.list_all():
+                public_ip_id = _arm_id_join_key(getattr(public_ip, "id", None))
+                public_ip_address = _string_value(getattr(public_ip, "ip_address", None))
+                if public_ip_id and public_ip_address:
+                    public_ip_lookup[public_ip_id] = public_ip_address
+        except Exception as exc:
+            issues.append(_issue_from_exception("application_gateway.public_ip_addresses", exc))
+
+        try:
+            for gateway in self.clients.network.application_gateways.list_all():
+                application_gateways.append(
+                    _application_gateway_summary(
+                        gateway,
+                        public_ip_lookup=public_ip_lookup,
+                    )
+                )
+        except Exception as exc:
+            issues.append(_issue_from_exception("application_gateway.gateways", exc))
+
+        application_gateways.sort(
+            key=lambda item: (
+                not bool(item.get("public_frontend_count")),
+                item.get("name") or "",
+            )
+        )
+        return {"application_gateways": application_gateways, "issues": issues}
 
     def aks(self) -> dict:
         issues: list[dict] = []
@@ -4008,6 +4047,107 @@ def _app_service_summary(app: object, config: object | None) -> dict:
     }
 
 
+def _application_gateway_summary(
+    gateway: object,
+    *,
+    public_ip_lookup: dict[str, str] | None = None,
+) -> dict:
+    gateway_id = getattr(gateway, "id", "") or ""
+    gateway_name = getattr(gateway, "name", "unknown")
+    sku = getattr(gateway, "sku", None)
+    frontend_ip_configurations = getattr(gateway, "frontend_ip_configurations", None) or []
+    backend_address_pools = getattr(gateway, "backend_address_pools", None) or []
+    waf_configuration = getattr(gateway, "web_application_firewall_configuration", None)
+    firewall_policy_id = _string_value(
+        getattr(getattr(gateway, "firewall_policy", None), "id", None)
+    )
+
+    public_ip_address_ids: list[str] = []
+    private_frontend_ips: list[str] = []
+    subnet_ids: list[str] = []
+    for frontend in frontend_ip_configurations:
+        public_ip_address_id = _string_value(
+            getattr(getattr(frontend, "public_ip_address", None), "id", None)
+        )
+        if public_ip_address_id:
+            public_ip_address_ids.append(public_ip_address_id)
+
+        private_frontend_ip = _string_value(getattr(frontend, "private_ip_address", None))
+        if private_frontend_ip:
+            private_frontend_ips.append(private_frontend_ip)
+
+        subnet_id = _string_value(getattr(getattr(frontend, "subnet", None), "id", None))
+        if subnet_id:
+            subnet_ids.append(subnet_id)
+
+    public_ip_address_ids = _dedupe_strings(public_ip_address_ids)
+    private_frontend_ips = _dedupe_strings(private_frontend_ips)
+    subnet_ids = _dedupe_strings(subnet_ids)
+    public_ip_addresses = _dedupe_strings(
+        [
+            public_ip_lookup.get(_arm_id_join_key(public_ip_address_id))
+            for public_ip_address_id in public_ip_address_ids
+            if public_ip_lookup and _arm_id_join_key(public_ip_address_id)
+        ]
+    )
+
+    waf_enabled = _bool_or_none(getattr(waf_configuration, "enabled", None))
+    waf_mode = _string_value(getattr(waf_configuration, "firewall_mode", None))
+
+    return {
+        "id": gateway_id or f"/unknown/{gateway_name}",
+        "name": gateway_name,
+        "resource_group": _resource_group_from_id(gateway_id),
+        "location": _string_value(getattr(gateway, "location", None)),
+        "state": _string_value(getattr(gateway, "operational_state", None)),
+        "sku_name": _string_value(getattr(sku, "name", None)),
+        "sku_tier": _string_value(getattr(sku, "tier", None)),
+        "public_frontend_count": len(public_ip_address_ids),
+        "private_frontend_count": len(private_frontend_ips),
+        "public_ip_address_ids": public_ip_address_ids,
+        "public_ip_addresses": public_ip_addresses,
+        "private_frontend_ips": private_frontend_ips,
+        "subnet_ids": subnet_ids,
+        "listener_count": len(getattr(gateway, "http_listeners", None) or []),
+        "request_routing_rule_count": len(
+            getattr(gateway, "request_routing_rules", None) or []
+        ),
+        "backend_pool_count": len(backend_address_pools),
+        "backend_target_count": _application_gateway_backend_target_count(backend_address_pools),
+        "url_path_map_count": len(getattr(gateway, "url_path_maps", None) or []),
+        "redirect_configuration_count": len(
+            getattr(gateway, "redirect_configurations", None) or []
+        ),
+        "rewrite_rule_set_count": len(getattr(gateway, "rewrite_rule_sets", None) or []),
+        "waf_enabled": waf_enabled,
+        "waf_mode": waf_mode,
+        "firewall_policy_id": firewall_policy_id,
+        "summary": _application_gateway_operator_summary(
+            gateway_name=gateway_name,
+            public_frontend_count=len(public_ip_address_ids),
+            private_frontend_count=len(private_frontend_ips),
+            public_ip_addresses=public_ip_addresses,
+            listener_count=len(getattr(gateway, "http_listeners", None) or []),
+            request_routing_rule_count=len(getattr(gateway, "request_routing_rules", None) or []),
+            backend_pool_count=len(backend_address_pools),
+            backend_target_count=_application_gateway_backend_target_count(
+                backend_address_pools
+            ),
+            waf_enabled=waf_enabled,
+            waf_mode=waf_mode,
+            firewall_policy_id=firewall_policy_id,
+        ),
+        "related_ids": _dedupe_strings(
+            [
+                gateway_id,
+                *public_ip_address_ids,
+                *subnet_ids,
+                firewall_policy_id,
+            ]
+        ),
+    }
+
+
 def _api_mgmt_service_summary(
     service: object,
     apis: list[object] | None,
@@ -4359,10 +4499,133 @@ def _app_service_operator_summary(
     )
 
 
+def _application_gateway_operator_summary(
+    *,
+    gateway_name: str,
+    public_frontend_count: int,
+    private_frontend_count: int,
+    public_ip_addresses: list[str],
+    listener_count: int,
+    request_routing_rule_count: int,
+    backend_pool_count: int,
+    backend_target_count: int,
+    waf_enabled: bool | None,
+    waf_mode: str | None,
+    firewall_policy_id: str | None,
+) -> str:
+    if public_frontend_count:
+        exposure_phrase = (
+            f"publishes {public_frontend_count} public frontend(s)"
+            + (
+                f" ({', '.join(public_ip_addresses)})"
+                if public_ip_addresses
+                else ""
+            )
+        )
+    elif private_frontend_count:
+        exposure_phrase = (
+            "is private-only from the current read path "
+            f"({private_frontend_count} private frontend(s))"
+        )
+    else:
+        exposure_phrase = "does not expose readable frontend IP posture from the current read path"
+
+    routing_parts: list[str] = []
+    if listener_count:
+        routing_parts.append(f"{listener_count} listener(s)")
+    if request_routing_rule_count:
+        routing_parts.append(f"{request_routing_rule_count} routing rule(s)")
+    if backend_pool_count:
+        routing_parts.append(f"{backend_pool_count} backend pool(s)")
+    if backend_target_count:
+        routing_parts.append(f"{backend_target_count} backend target(s)")
+    routing_phrase = (
+        "Visible routing breadth: " + ", ".join(routing_parts) + "."
+        if routing_parts
+        else "Routing breadth is not fully readable from the current read path."
+    )
+
+    if firewall_policy_id and waf_mode:
+        waf_phrase = f"WAF policy is attached and running in {waf_mode} mode."
+    elif firewall_policy_id:
+        waf_phrase = "WAF policy is attached."
+    elif waf_enabled is True and waf_mode:
+        waf_phrase = f"Gateway-level WAF is enabled in {waf_mode} mode."
+    elif waf_enabled is True:
+        waf_phrase = "Gateway-level WAF is enabled."
+    elif waf_enabled is False:
+        waf_phrase = "Visible WAF protection is disabled."
+    else:
+        waf_phrase = "No visible WAF protection is configured from the current read path."
+
+    if public_frontend_count and _application_gateway_has_shared_breadth(
+        listener_count=listener_count,
+        request_routing_rule_count=request_routing_rule_count,
+        backend_pool_count=backend_pool_count,
+        backend_target_count=backend_target_count,
+    ):
+        why_phrase = (
+            "This is a shared front door, so if the edge is weak "
+            "the apps behind it may deserve review next."
+        )
+    elif public_frontend_count:
+        why_phrase = (
+            "Because this gateway is public, weak edge controls here "
+            "would make the backend path worth checking next."
+        )
+    else:
+        why_phrase = (
+            "This is still useful shared-ingress context, but it is not "
+            "an obvious internet-first path."
+        )
+
+    return (
+        f"Application Gateway '{gateway_name}' {exposure_phrase}. "
+        f"{routing_phrase} {waf_phrase} {why_phrase}"
+    )
+
+
+def _application_gateway_has_shared_breadth(
+    *,
+    listener_count: int,
+    request_routing_rule_count: int,
+    backend_pool_count: int,
+    backend_target_count: int,
+) -> bool:
+    return any(
+        value > 1
+        for value in (
+            listener_count,
+            request_routing_rule_count,
+            backend_pool_count,
+            backend_target_count,
+        )
+    )
+
+
 def _app_service_exposure_priority(item: dict) -> bool:
     return bool(item.get("default_hostname")) or (
         str(item.get("public_network_access") or "").lower() == "enabled"
     )
+
+
+def _application_gateway_backend_target_count(backend_address_pools: list[object]) -> int:
+    backend_targets: list[str] = []
+    for pool in backend_address_pools:
+        for address in getattr(pool, "backend_addresses", None) or []:
+            fqdn = _string_value(getattr(address, "fqdn", None))
+            ip_address = _string_value(getattr(address, "ip_address", None))
+            if fqdn:
+                backend_targets.append(f"fqdn:{fqdn}")
+            elif ip_address:
+                backend_targets.append(f"ip:{ip_address}")
+
+        for ip_configuration in getattr(pool, "backend_ip_configurations", None) or []:
+            ip_configuration_id = _string_value(getattr(ip_configuration, "id", None))
+            if ip_configuration_id:
+                backend_targets.append(f"id:{ip_configuration_id}")
+
+    return len(_dedupe_strings(backend_targets))
 
 
 def _acr_registry_summary(

@@ -1,0 +1,117 @@
+{
+  "application_gateways": [
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-edge/providers/Microsoft.Network/applicationGateways/agw-shared-edge-01",
+      "name": "agw-shared-edge-01",
+      "resource_group": "rg-edge",
+      "location": "eastus",
+      "state": "Running",
+      "sku_name": "Standard_v2",
+      "sku_tier": "Standard_v2",
+      "public_frontend_count": 1,
+      "private_frontend_count": 0,
+      "public_ip_address_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-edge/providers/Microsoft.Network/publicIPAddresses/pip-agw-shared-edge-01"
+      ],
+      "public_ip_addresses": [
+        "20.30.40.50"
+      ],
+      "private_frontend_ips": [],
+      "subnet_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-edge/providers/Microsoft.Network/virtualNetworks/vnet-edge/subnets/appgw-shared"
+      ],
+      "listener_count": 4,
+      "request_routing_rule_count": 4,
+      "backend_pool_count": 3,
+      "backend_target_count": 5,
+      "url_path_map_count": 1,
+      "redirect_configuration_count": 1,
+      "rewrite_rule_set_count": 0,
+      "waf_enabled": false,
+      "waf_mode": null,
+      "firewall_policy_id": null,
+      "summary": "Application Gateway 'agw-shared-edge-01' publishes 1 public frontend(s) (20.30.40.50). Visible routing breadth: 4 listener(s), 4 routing rule(s), 3 backend pool(s), 5 backend target(s). Visible WAF protection is disabled. This is a shared front door, so if the edge is weak the apps behind it may deserve review next.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-edge/providers/Microsoft.Network/applicationGateways/agw-shared-edge-01",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-edge/providers/Microsoft.Network/publicIPAddresses/pip-agw-shared-edge-01",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-edge/providers/Microsoft.Network/virtualNetworks/vnet-edge/subnets/appgw-shared"
+      ]
+    },
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-edge/providers/Microsoft.Network/applicationGateways/agw-customer-edge-02",
+      "name": "agw-customer-edge-02",
+      "resource_group": "rg-edge",
+      "location": "eastus2",
+      "state": "Running",
+      "sku_name": "WAF_v2",
+      "sku_tier": "WAF_v2",
+      "public_frontend_count": 1,
+      "private_frontend_count": 1,
+      "public_ip_address_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-edge/providers/Microsoft.Network/publicIPAddresses/pip-agw-customer-edge-02"
+      ],
+      "public_ip_addresses": [
+        "20.30.40.60"
+      ],
+      "private_frontend_ips": [
+        "10.20.0.10"
+      ],
+      "subnet_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-edge/providers/Microsoft.Network/virtualNetworks/vnet-edge/subnets/appgw-customer"
+      ],
+      "listener_count": 3,
+      "request_routing_rule_count": 3,
+      "backend_pool_count": 2,
+      "backend_target_count": 4,
+      "url_path_map_count": 1,
+      "redirect_configuration_count": 0,
+      "rewrite_rule_set_count": 1,
+      "waf_enabled": true,
+      "waf_mode": "Detection",
+      "firewall_policy_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-edge/providers/Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies/agw-customer-edge-02-policy",
+      "summary": "Application Gateway 'agw-customer-edge-02' publishes 1 public frontend(s) (20.30.40.60). Visible routing breadth: 3 listener(s), 3 routing rule(s), 2 backend pool(s), 4 backend target(s). WAF policy is attached and running in Detection mode. This is a shared front door, so if the edge is weak the apps behind it may deserve review next.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-edge/providers/Microsoft.Network/applicationGateways/agw-customer-edge-02",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-edge/providers/Microsoft.Network/publicIPAddresses/pip-agw-customer-edge-02",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-edge/providers/Microsoft.Network/virtualNetworks/vnet-edge/subnets/appgw-customer",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-edge/providers/Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies/agw-customer-edge-02-policy"
+      ]
+    },
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-payments/providers/Microsoft.Network/applicationGateways/agw-internal-payments",
+      "name": "agw-internal-payments",
+      "resource_group": "rg-payments",
+      "location": "centralus",
+      "state": "Running",
+      "sku_name": "WAF_v2",
+      "sku_tier": "WAF_v2",
+      "public_frontend_count": 0,
+      "private_frontend_count": 1,
+      "public_ip_address_ids": [],
+      "public_ip_addresses": [],
+      "private_frontend_ips": [
+        "10.30.0.15"
+      ],
+      "subnet_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-payments/providers/Microsoft.Network/virtualNetworks/vnet-payments/subnets/appgw-internal"
+      ],
+      "listener_count": 2,
+      "request_routing_rule_count": 2,
+      "backend_pool_count": 2,
+      "backend_target_count": 2,
+      "url_path_map_count": 0,
+      "redirect_configuration_count": 0,
+      "rewrite_rule_set_count": 0,
+      "waf_enabled": true,
+      "waf_mode": "Prevention",
+      "firewall_policy_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-payments/providers/Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies/agw-internal-payments-policy",
+      "summary": "Application Gateway 'agw-internal-payments' is private-only from the current read path (1 private frontend(s)). Visible routing breadth: 2 listener(s), 2 routing rule(s), 2 backend pool(s), 2 backend target(s). WAF policy is attached and running in Prevention mode. This is still useful shared-ingress context, but it is not an obvious internet-first path.",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-payments/providers/Microsoft.Network/applicationGateways/agw-internal-payments",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-payments/providers/Microsoft.Network/virtualNetworks/vnet-payments/subnets/appgw-internal",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-payments/providers/Microsoft.Network/ApplicationGatewayWebApplicationFirewallPolicies/agw-internal-payments-policy"
+      ]
+    }
+  ],
+  "issues": []
+}
