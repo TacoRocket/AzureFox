@@ -61,6 +61,15 @@ def test_help_command_endpoints_topic() -> None:
     assert "ingress_path" in result.stdout
 
 
+def test_help_command_cross_tenant_topic() -> None:
+    result = runner.invoke(app, ["help", "cross-tenant"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: cross-tenant" in result.stdout
+    assert "outside-tenant trust" in result.stdout
+    assert "attack_path" in result.stdout
+
+
 def test_help_command_app_services_topic() -> None:
     result = runner.invoke(app, ["help", "app-services"])
 

@@ -633,6 +633,37 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox lighthouse --output table",
     ),
+    "cross-tenant": CommandHelpTopic(
+        name="cross-tenant",
+        section="identity",
+        summary=(
+            "Correlate outside-tenant trust, delegated management, and policy cues worth review "
+            "first."
+        ),
+        offensive_question=(
+            "Which visible outside-tenant relationships most change who can operate here or how an "
+            "attacker could pivot into or across this environment?"
+        ),
+        cloudfox_frame=(
+            "Azure-native cross-tenant trust triage that joins delegated management, external "
+            "service-principal ownership, and tenant policy cues into one operator-first view."
+        ),
+        output_highlights=(
+            "signal_type",
+            "tenant_name",
+            "scope",
+            "posture",
+            "attack_path",
+            "priority",
+            "summary",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Infrastructure Discovery"),
+            AttackLead("Persistence", "External Remote Services"),
+            AttackLead("Privilege Escalation", "Additional Cloud Roles"),
+        ),
+        example="azurefox cross-tenant --output table",
+    ),
     "auth-policies": CommandHelpTopic(
         name="auth-policies",
         section="identity",

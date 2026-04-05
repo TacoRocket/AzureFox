@@ -1,0 +1,78 @@
+{
+  "cross_tenant_paths": [
+    {
+      "attack_path": "control",
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationAssignments/lh-sub-contoso",
+      "name": "Contoso baseline ops",
+      "posture": "strongest=Owner; eligible=1; delegated-role-assign=yes",
+      "priority": "high",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationAssignments/lh-sub-contoso",
+        "/subscriptions/22222222-2222-2222-2222-222222222222",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationDefinitions/lh-def-contoso-sub"
+      ],
+      "scope": "subscription::22222222-2222-2222-2222-222222222222",
+      "signal_type": "lighthouse",
+      "summary": "managed by Contoso Corp.; strongest role Owner; 1 eligible authorization(s)",
+      "tenant_id": "33333333-3333-3333-3333-333333333333",
+      "tenant_name": "Contoso Corp."
+    },
+    {
+      "attack_path": "pivot",
+      "id": "sp-external-ci",
+      "name": "external-ci-bridge",
+      "posture": "roles=Owner; assignments=2; scopes=1",
+      "priority": "high",
+      "related_ids": [
+        "sp-external-ci"
+      ],
+      "scope": "tenant",
+      "signal_type": "external-sp",
+      "summary": "Service principal 'external-ci-bridge' appears to be owned by another tenant and holds high-impact Azure role assignments in the current environment.",
+      "tenant_id": "66666666-6666-6666-6666-666666666666",
+      "tenant_name": null
+    },
+    {
+      "attack_path": "entry",
+      "id": "authorizationPolicy",
+      "name": "Authorization Policy",
+      "posture": "guest-invites=everyone; app-registration=yes; user-consent=self-service",
+      "priority": "high",
+      "related_ids": [
+        "authorizationPolicy"
+      ],
+      "scope": "tenant",
+      "signal_type": "policy",
+      "summary": "guest invites: everyone; users can register apps; self-service permission grant policies assigned; legacy MSOL PowerShell blocked",
+      "tenant_id": "11111111-1111-1111-1111-111111111111",
+      "tenant_name": null
+    },
+    {
+      "attack_path": "control",
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-platform/providers/Microsoft.ManagedServices/registrationAssignments/lh-rg-platform-contrib",
+      "name": "Fabrikam platform support",
+      "posture": "strongest=Contributor; eligible=0",
+      "priority": "low",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-platform/providers/Microsoft.ManagedServices/registrationAssignments/lh-rg-platform-contrib",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-platform",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationDefinitions/lh-def-fabrikam-rg"
+      ],
+      "scope": "resource-group::rg-platform",
+      "signal_type": "lighthouse",
+      "summary": "managed by Fabrikam Ops; strongest role Contributor",
+      "tenant_id": "44444444-4444-4444-4444-444444444444",
+      "tenant_name": "Fabrikam Ops"
+    }
+  ],
+  "findings": [],
+  "issues": [],
+  "metadata": {
+    "command": "cross-tenant",
+    "generated_at": "<generated_at>",
+    "schema_version": "1.1.0",
+    "subscription_id": "22222222-2222-2222-2222-222222222222",
+    "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "token_source": null
+  }
+}

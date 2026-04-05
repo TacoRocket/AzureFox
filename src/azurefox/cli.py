@@ -169,6 +169,11 @@ def lighthouse(ctx: typer.Context) -> None:
     _run_single(ctx, "lighthouse")
 
 
+@app.command("cross-tenant")
+def cross_tenant(ctx: typer.Context) -> None:
+    _run_single(ctx, "cross-tenant")
+
+
 @app.command("auth-policies")
 def auth_policies(ctx: typer.Context) -> None:
     _run_single(ctx, "auth-policies")

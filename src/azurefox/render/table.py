@@ -520,6 +520,31 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "cross-tenant":
+        return (
+            [
+                ("name", "signal"),
+                ("signal_type", "type"),
+                ("tenant", "tenant"),
+                ("scope", "scope"),
+                ("posture", "posture"),
+                ("attack_path", "attack path"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "name": item.get("name"),
+                    "signal_type": item.get("signal_type"),
+                    "tenant": _cross_tenant_tenant_context(item),
+                    "scope": item.get("scope"),
+                    "posture": _cross_tenant_posture_context(item),
+                    "attack_path": _cross_tenant_attack_path_context(item),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("cross_tenant_paths", [])
+            ],
+        )
+
     if command == "resource-trusts":
         return (
             [
@@ -828,6 +853,18 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             f"{len(delegations)} Azure Lighthouse delegation(s) visible; "
             f"{subscription_scope} are subscription-scoped, {broad_roles} grant Owner or "
             f"User Access Administrator, and {eligible} include eligible access."
+        )
+
+    if command == "cross-tenant":
+        paths = payload.get("cross_tenant_paths", [])
+        high = sum(str(item.get("priority") or "").lower() == "high" for item in paths)
+        lighthouse = sum(item.get("signal_type") == "lighthouse" for item in paths)
+        external_sp = sum(item.get("signal_type") == "external-sp" for item in paths)
+        policy = sum(item.get("signal_type") == "policy" for item in paths)
+        return (
+            f"{len(paths)} cross-tenant signal(s) visible; {high} high priority, "
+            f"{lighthouse} delegated management, {external_sp} externally owned service "
+            f"principal, and {policy} tenant policy cue."
         )
 
     if command == "resource-trusts":
@@ -1907,6 +1944,37 @@ def _lighthouse_state_context(item: dict) -> str:
     if definition_state and definition_state != assignment_state:
         parts.append(f"definition={definition_state}")
     return "; ".join(parts) if parts else "-"
+
+
+def _cross_tenant_tenant_context(item: dict) -> str:
+    tenant_name = item.get("tenant_name")
+    tenant_id = item.get("tenant_id")
+    if tenant_name and tenant_id:
+        return f"{tenant_name} ({tenant_id})"
+    if tenant_name:
+        return str(tenant_name)
+    if tenant_id:
+        return str(tenant_id)
+    return "-"
+
+
+def _cross_tenant_posture_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("priority"):
+        parts.append(f"priority={item.get('priority')}")
+    if item.get("posture"):
+        parts.append(str(item.get("posture")))
+    return "; ".join(parts) if parts else "-"
+
+
+def _cross_tenant_attack_path_context(item: dict) -> str:
+    attack_path = item.get("attack_path")
+    signal_type = item.get("signal_type")
+    if attack_path and signal_type:
+        return f"{attack_path} via {signal_type}"
+    if attack_path:
+        return str(attack_path)
+    return str(signal_type or "-")
 
 
 def _display_reference_identity(value: object) -> str:

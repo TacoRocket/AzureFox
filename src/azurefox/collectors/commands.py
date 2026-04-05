@@ -19,6 +19,7 @@ from azurefox.models.commands import (
     AppServicesOutput,
     ArmDeploymentsOutput,
     AuthPoliciesOutput,
+    CrossTenantOutput,
     DatabasesOutput,
     DnsOutput,
     EndpointsOutput,
@@ -353,6 +354,27 @@ def collect_lighthouse(provider: BaseProvider, options: GlobalOptions) -> Lighth
     )
 
 
+def collect_cross_tenant(provider: BaseProvider, options: GlobalOptions) -> CrossTenantOutput:
+    data = provider.cross_tenant()
+    cross_tenant_paths = sorted(
+        data.get("cross_tenant_paths", []),
+        key=lambda item: (
+            _priority_rank(item.get("priority")),
+            _cross_tenant_signal_rank(item),
+            item.get("tenant_name") or item.get("tenant_id") or "",
+            item.get("name") or "",
+        ),
+    )
+    return CrossTenantOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "cross-tenant", options),
+            "findings": [],
+            **data,
+            "cross_tenant_paths": cross_tenant_paths,
+        }
+    )
+
+
 def collect_resource_trusts(provider: BaseProvider, options: GlobalOptions) -> ResourceTrustsOutput:
     data = provider.resource_trusts()
     return ResourceTrustsOutput.model_validate(
@@ -502,9 +524,15 @@ def collect_workloads(provider: BaseProvider, options: GlobalOptions) -> Workloa
 
 def collect_vms(provider: BaseProvider, options: GlobalOptions) -> VmsOutput:
     data = provider.vms()
+    vm_assets = sorted(data.get("vm_assets", []), key=_vm_asset_sort_key)
     findings = build_vm_findings(data.get("vm_assets", []))
     return VmsOutput.model_validate(
-        {"metadata": _metadata(provider, "vms", options), "findings": findings, **data}
+        {
+            "metadata": _metadata(provider, "vms", options),
+            "findings": findings,
+            **data,
+            "vm_assets": vm_assets,
+        }
     )
 
 
@@ -566,6 +594,18 @@ def _priority_sort_value(item: dict) -> int:
     return score
 
 
+def _vm_asset_sort_key(item: dict) -> tuple[bool, bool, int, int, str, str]:
+    vm_type_rank = {"vm": 0, "vmss": 1}
+    return (
+        not bool(item.get("public_ips")),
+        not bool(item.get("identity_ids")),
+        vm_type_rank.get(str(item.get("vm_type") or "").lower(), 9),
+        -_int_or_zero(len(item.get("public_ips", []) or [])),
+        item.get("name") or "",
+        item.get("id") or "",
+    )
+
+
 def _lighthouse_role_rank(item: dict) -> tuple[int, int]:
     role_name = str(item.get("strongest_role_name") or "").strip().lower()
     if item.get("has_owner_role"):
@@ -591,6 +631,18 @@ def _lighthouse_state_rank(item: dict) -> tuple[int, int]:
     assignment_rank = 1 if assignment_state in {"", "succeeded"} else 0
     definition_rank = 1 if definition_state in {"", "succeeded"} else 0
     return assignment_rank, definition_rank
+
+
+def _priority_rank(priority: object) -> int:
+    return {"high": 0, "medium": 1, "low": 2}.get(str(priority or "").lower(), 9)
+
+
+def _cross_tenant_signal_rank(item: dict) -> int:
+    return {
+        "lighthouse": 0,
+        "external-sp": 1,
+        "policy": 2,
+    }.get(str(item.get("signal_type") or "").lower(), 9)
 
 
 def _auth_policy_has_findings(item: dict, findings: list[dict]) -> bool:

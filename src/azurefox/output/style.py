@@ -48,6 +48,10 @@ COMMAND_NARRATION = {
     "role-trusts": (
         "Reviewing high-signal identity trust edges without implying delegated or admin consent."
     ),
+    "cross-tenant": (
+        "Reviewing outside-tenant trust, delegated management, and tenant policy cues that most "
+        "change control or pivot paths."
+    ),
     "lighthouse": (
         "Reviewing Azure Lighthouse delegations for cross-tenant management scope and "
         "high-impact access cues."

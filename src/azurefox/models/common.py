@@ -216,6 +216,20 @@ class LighthouseDelegationAsset(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class CrossTenantPathSummary(BaseModel):
+    id: str
+    signal_type: str
+    name: str
+    tenant_id: str | None = None
+    tenant_name: str | None = None
+    scope: str | None = None
+    posture: str | None = None
+    attack_path: str
+    priority: str
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class RoleAssignment(BaseModel):
     id: str
     scope_id: str

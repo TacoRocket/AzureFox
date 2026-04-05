@@ -75,6 +75,31 @@ def test_lighthouse_table_mode_surfaces_cross_tenant_scope_and_access(tmp_path: 
     )
 
 
+def test_cross_tenant_table_mode_surfaces_control_pivot_and_policy_cues(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "cross-tenant"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Reviewing outside-tenant trust, delegated management, and tenant policy cues that most "
+        "change control or pivot paths."
+        in result.stdout
+    )
+    assert "control via lighthouse" in result.stdout
+    assert "pivot via external-sp" in result.stdout
+    assert "entry via policy" in result.stdout
+    assert "Contoso Corp." in result.stdout
+    assert "guest invites:" in result.stdout
+    assert (
+        "Takeaway: 4 cross-tenant signal(s) visible; 3 high priority, 2 delegated management, "
+        "1 externally owned service principal, and 1 tenant policy cue."
+        in " ".join(result.stdout.split())
+    )
+
+
 def test_keyvault_table_mode_labels_implicit_open_acl(tmp_path: Path) -> None:
     result = runner.invoke(
         app,

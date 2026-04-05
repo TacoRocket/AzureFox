@@ -13,6 +13,7 @@ from azurefox.models.common import (
     AuthPolicySummary,
     CollectionIssue,
     CommandMetadata,
+    CrossTenantPathSummary,
     DatabaseServerAsset,
     DnsZoneAsset,
     EndpointSummary,
@@ -153,6 +154,13 @@ class RoleTrustsOutput(BaseModel):
 class LighthouseOutput(BaseModel):
     metadata: CommandMetadata
     lighthouse_delegations: list[LighthouseDelegationAsset] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class CrossTenantOutput(BaseModel):
+    metadata: CommandMetadata
+    cross_tenant_paths: list[CrossTenantPathSummary] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 
