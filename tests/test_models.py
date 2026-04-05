@@ -28,7 +28,7 @@ from azurefox.models.common import (
 
 
 def test_schema_version() -> None:
-    assert SCHEMA_VERSION == "1.1.0"
+    assert SCHEMA_VERSION == "1.2.0"
 
 
 def test_arm_deployment_summary_defaults() -> None:
