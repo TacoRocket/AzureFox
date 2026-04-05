@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "schema_version": "1.1.0",
+    "schema_version": "1.2.0",
     "command": "snapshots-disks",
     "generated_at": "<generated_at>",
     "tenant_id": "11111111-1111-1111-1111-111111111111",

@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.2.0] - 2026-04-05
+
+### Added
+- Completed the Phase 4 Azure-native service lane with shipped `cross-tenant`, `lighthouse`,
+  `automation`, `devops`, and `snapshots-disks` coverage now treated as the closed minor-release
+  boundary.
+
+### Changed
+- Retired the remaining tracked command-intent drift for `nics`, `databases`, `acr`, and `aks` by
+  pushing more operator-relevant assets to the top of each command's output.
+- Tightened Phase 4 closeout truthfulness across `devops`, `snapshots-disks`, `storage`, `vms`,
+  and `app-services` so CLI behavior, help text, and takeaway wording match the shipped evidence
+  boundary more closely.
+- Bumped the published package and output schema version to `1.2.0` for the completed end-of-
+  Phase-4 minor release boundary.
+
 ## [1.1.0] - 2026-04-04
 
 ### Added
