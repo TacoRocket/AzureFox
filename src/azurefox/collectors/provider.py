@@ -178,6 +178,10 @@ class BaseProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def cross_tenant(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
     def resource_trusts(self) -> dict:
         raise NotImplementedError
 
@@ -271,6 +275,9 @@ class FixtureProvider(BaseProvider):
 
     def lighthouse(self) -> dict:
         return self._read("lighthouse")
+
+    def cross_tenant(self) -> dict:
+        return self._read("cross_tenant")
 
     def resource_trusts(self) -> dict:
         storage_data = self.storage()
@@ -1112,10 +1119,7 @@ class AzureProvider(BaseProvider):
 
         principals = sorted(
             records.values(),
-            key=lambda item: (
-                item.get("display_name") or "",
-                item["id"],
-            ),
+            key=_principal_sort_key,
         )
         return {"principals": principals, "issues": issues}
 
@@ -1241,11 +1245,7 @@ class AzureProvider(BaseProvider):
                     )
 
         paths.sort(
-            key=lambda item: (
-                not item["current_identity"],
-                item["path_type"] != "public-identity-pivot",
-                item["principal"],
-            )
+            key=_privesc_sort_key,
         )
         issues = [
             *permissions_data.get("issues", []),
@@ -1563,6 +1563,57 @@ class AzureProvider(BaseProvider):
                 )
 
         return {"lighthouse_delegations": lighthouse_delegations, "issues": issues}
+
+    def cross_tenant(self) -> dict:
+        issues: list[dict] = []
+        tenant_id = self.session.tenant_id
+
+        lighthouse_data = self.lighthouse()
+        auth_policy_data = self.auth_policies()
+        principal_data = self.principals()
+
+        issues.extend(lighthouse_data.get("issues", []))
+        issues.extend(auth_policy_data.get("issues", []))
+        issues.extend(principal_data.get("issues", []))
+
+        principal_by_id = {
+            item.get("id"): item
+            for item in principal_data.get("principals", [])
+            if isinstance(item, dict) and item.get("id")
+        }
+
+        cross_tenant_paths = [
+            _cross_tenant_lighthouse_row(item)
+            for item in lighthouse_data.get("lighthouse_delegations", [])
+            if isinstance(item, dict)
+        ]
+
+        if tenant_id:
+            try:
+                service_principals = self.graph.list_service_principals()
+            except Exception as exc:
+                issues.append(_issue_from_exception("cross_tenant.service_principals", exc))
+                service_principals = []
+
+            for service_principal in service_principals:
+                owner_tenant_id = service_principal.get("appOwnerOrganizationId")
+                principal_id = service_principal.get("id")
+                if (
+                    not principal_id
+                    or not owner_tenant_id
+                    or str(owner_tenant_id).lower() == str(tenant_id).lower()
+                ):
+                    continue
+
+                principal = principal_by_id.get(principal_id)
+                cross_tenant_paths.append(
+                    _cross_tenant_external_service_principal_row(service_principal, principal)
+                )
+
+        cross_tenant_paths.extend(
+            _cross_tenant_policy_rows(auth_policy_data.get("auth_policies", []), tenant_id)
+        )
+        return {"cross_tenant_paths": cross_tenant_paths, "issues": issues}
 
     def resource_trusts(self) -> dict:
         storage_data = self.storage()
@@ -2623,6 +2674,42 @@ _HIGH_IMPACT_ROLE_NAMES = {
 }
 
 
+def _principal_sort_key(item: dict) -> tuple[bool, bool, int, int, str, str]:
+    try:
+        assignment_count = int(item.get("role_assignment_count") or 0)
+    except (TypeError, ValueError):
+        assignment_count = 0
+    return (
+        not _principal_has_high_impact_roles(item.get("role_names", [])),
+        not bool(item.get("attached_to")),
+        -len(item.get("scope_ids", []) or []),
+        -assignment_count,
+        item.get("display_name") or "",
+        item.get("id") or "",
+    )
+
+
+def _principal_has_high_impact_roles(role_names: list[object]) -> bool:
+    return any(
+        str(role).lower() in _HIGH_IMPACT_ROLE_NAMES for role in role_names if isinstance(role, str)
+    )
+
+
+def _privesc_sort_key(item: dict) -> tuple[int, bool, int, str, str]:
+    severity_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    path_type_rank = {
+        "public-identity-pivot": 0,
+        "direct-role-abuse": 1,
+    }
+    return (
+        severity_rank.get(str(item.get("severity") or "").lower(), 9),
+        not bool(item.get("current_identity")),
+        path_type_rank.get(str(item.get("path_type") or ""), 9),
+        str(item.get("principal") or ""),
+        str(item.get("asset") or ""),
+    )
+
+
 def _arm_id_join_key(resource_id: object | None) -> str | None:
     text = str(resource_id or "").strip()
     if not text:
@@ -2790,6 +2877,165 @@ def _lighthouse_delegation_summary(
         "summary": summary,
         "related_ids": related_ids,
     }
+
+
+def _cross_tenant_lighthouse_row(item: dict) -> dict:
+    scope_label = item.get("scope_display_name") or _resource_name_from_id(item.get("scope_id"))
+    scope_type = item.get("scope_type") or "scope"
+    if scope_type == "resource_group":
+        scope = f"resource-group::{scope_label}"
+    else:
+        scope = f"subscription::{scope_label}"
+
+    strongest_role = item.get("strongest_role_name") or "unknown"
+    posture_parts = [f"strongest={strongest_role}"]
+    posture_parts.append(f"eligible={item.get('eligible_authorization_count', 0)}")
+    if item.get("has_delegated_role_assignments"):
+        posture_parts.append("delegated-role-assign=yes")
+
+    priority = "medium"
+    if scope_type == "subscription" and (
+        item.get("has_owner_role") or item.get("has_user_access_administrator")
+    ):
+        priority = "high"
+    elif scope_type == "subscription" or item.get("has_owner_role"):
+        priority = "medium"
+    else:
+        priority = "low"
+
+    return {
+        "id": item.get("id"),
+        "signal_type": "lighthouse",
+        "name": item.get("registration_definition_name") or item.get("name") or "lighthouse",
+        "tenant_id": item.get("managed_by_tenant_id"),
+        "tenant_name": item.get("managed_by_tenant_name"),
+        "scope": scope,
+        "posture": "; ".join(posture_parts),
+        "attack_path": "control",
+        "priority": priority,
+        "summary": item.get("summary")
+        or "Outside tenant has delegated management visibility at this scope.",
+        "related_ids": item.get("related_ids", []),
+    }
+
+
+def _cross_tenant_external_service_principal_row(
+    service_principal: dict,
+    principal: dict | None,
+) -> dict:
+    principal_data = principal if isinstance(principal, dict) else {}
+    role_names = principal_data.get("role_names", [])
+    try:
+        assignment_count = int(principal_data.get("role_assignment_count") or 0)
+    except (TypeError, ValueError):
+        assignment_count = 0
+
+    scope_ids = principal_data.get("scope_ids", [])
+    role_names = principal_data.get("role_names", [])
+    high_impact = any(
+        str(role).lower() in _HIGH_IMPACT_ROLE_NAMES for role in role_names if isinstance(role, str)
+    )
+    if high_impact:
+        priority = "high"
+    elif assignment_count > 0:
+        priority = "medium"
+    else:
+        priority = "low"
+
+    posture_parts = []
+    if role_names:
+        posture_parts.append(f"roles={','.join(role_names[:3])}")
+    else:
+        posture_parts.append("roles=none-visible")
+    posture_parts.append(f"assignments={assignment_count}")
+    posture_parts.append(f"scopes={len(scope_ids)}")
+
+    display_name = (
+        service_principal.get("displayName")
+        or principal_data.get("display_name")
+        or service_principal.get("appId")
+        or service_principal.get("id")
+        or "external service principal"
+    )
+    if high_impact:
+        summary = (
+            f"Service principal '{display_name}' appears to be owned by another tenant and holds "
+            "high-impact Azure role assignments in the current environment."
+        )
+    elif assignment_count > 0:
+        summary = (
+            f"Service principal '{display_name}' appears to be owned by another tenant and also "
+            "holds visible Azure role assignments in the current environment."
+        )
+    else:
+        summary = (
+            f"Service principal '{display_name}' appears to be owned by another tenant and is "
+            "readable in the current tenant, but no Azure role assignments are visible through "
+            "the current read path."
+        )
+
+    return {
+        "id": service_principal.get("id"),
+        "signal_type": "external-sp",
+        "name": display_name,
+        "tenant_id": service_principal.get("appOwnerOrganizationId"),
+        "tenant_name": None,
+        "scope": "tenant",
+        "posture": "; ".join(posture_parts),
+        "attack_path": "pivot",
+        "priority": priority,
+        "summary": summary,
+        "related_ids": [item for item in [service_principal.get("id")] if item],
+    }
+
+
+def _cross_tenant_policy_rows(auth_policies: list[dict], tenant_id: str | None) -> list[dict]:
+    rows: list[dict] = []
+    for policy in auth_policies:
+        if policy.get("policy_type") != "authorization-policy":
+            continue
+
+        controls = [str(item) for item in policy.get("controls", [])]
+        guest_invites = next(
+            (item.split(":", 1)[1] for item in controls if item.startswith("guest-invites:")),
+            None,
+        )
+        users_can_register_apps = "users-can-register-apps" in controls
+        user_consent = "user-consent:self-service" in controls
+        if not (guest_invites or users_can_register_apps or user_consent):
+            continue
+
+        posture_parts = []
+        if guest_invites:
+            posture_parts.append(f"guest-invites={guest_invites}")
+        if users_can_register_apps:
+            posture_parts.append("app-registration=yes")
+        if user_consent:
+            posture_parts.append("user-consent=self-service")
+
+        priority = "low"
+        if guest_invites == "everyone":
+            priority = "high"
+        elif users_can_register_apps or user_consent:
+            priority = "medium"
+
+        rows.append(
+            {
+                "id": policy.get("related_ids", [policy.get("name")])[0],
+                "signal_type": "policy",
+                "name": policy.get("name") or "Authorization Policy",
+                "tenant_id": tenant_id,
+                "tenant_name": None,
+                "scope": "tenant",
+                "posture": "; ".join(posture_parts),
+                "attack_path": "entry",
+                "priority": priority,
+                "summary": policy.get("summary")
+                or "Tenant policy may make outside-tenant entry or consent easier to extend.",
+                "related_ids": policy.get("related_ids", []),
+            }
+        )
+    return rows
 
 
 def _lighthouse_resolved_role_name(

@@ -35,6 +35,7 @@ def test_cli_smoke_all_commands(tmp_path: Path) -> None:
         "permissions",
         "privesc",
         "role-trusts",
+        "cross-tenant",
         "lighthouse",
         "resource-trusts",
         "auth-policies",
@@ -74,7 +75,7 @@ def test_cli_smoke_all_checks_json_summary(tmp_path: Path) -> None:
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["metadata"]["command"] == "all-checks"
-    assert len(payload["results"]) == 31
+    assert len(payload["results"]) == 32
     assert (tmp_path / "run-summary.json").exists()
 
 
@@ -128,6 +129,7 @@ def test_cli_smoke_section_filter(tmp_path: Path) -> None:
         "permissions",
         "privesc",
         "role-trusts",
+        "cross-tenant",
         "lighthouse",
         "auth-policies",
         "managed-identities",

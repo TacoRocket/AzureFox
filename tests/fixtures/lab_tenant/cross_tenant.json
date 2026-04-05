@@ -1,0 +1,69 @@
+{
+  "cross_tenant_paths": [
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationAssignments/lh-sub-contoso",
+      "signal_type": "lighthouse",
+      "name": "Contoso baseline ops",
+      "tenant_id": "33333333-3333-3333-3333-333333333333",
+      "tenant_name": "Contoso Corp.",
+      "scope": "subscription::22222222-2222-2222-2222-222222222222",
+      "posture": "strongest=Owner; eligible=1; delegated-role-assign=yes",
+      "attack_path": "control",
+      "priority": "high",
+      "summary": "managed by Contoso Corp.; strongest role Owner; 1 eligible authorization(s)",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationAssignments/lh-sub-contoso",
+        "/subscriptions/22222222-2222-2222-2222-222222222222",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationDefinitions/lh-def-contoso-sub"
+      ]
+    },
+    {
+      "id": "sp-external-ci",
+      "signal_type": "external-sp",
+      "name": "external-ci-bridge",
+      "tenant_id": "66666666-6666-6666-6666-666666666666",
+      "tenant_name": null,
+      "scope": "tenant",
+      "posture": "roles=Owner; assignments=2; scopes=1",
+      "attack_path": "pivot",
+      "priority": "high",
+      "summary": "Service principal 'external-ci-bridge' appears to be owned by another tenant and holds high-impact Azure role assignments in the current environment.",
+      "related_ids": [
+        "sp-external-ci"
+      ]
+    },
+    {
+      "id": "authorizationPolicy",
+      "signal_type": "policy",
+      "name": "Authorization Policy",
+      "tenant_id": "11111111-1111-1111-1111-111111111111",
+      "tenant_name": null,
+      "scope": "tenant",
+      "posture": "guest-invites=everyone; app-registration=yes; user-consent=self-service",
+      "attack_path": "entry",
+      "priority": "high",
+      "summary": "guest invites: everyone; users can register apps; self-service permission grant policies assigned; legacy MSOL PowerShell blocked",
+      "related_ids": [
+        "authorizationPolicy"
+      ]
+    },
+    {
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-platform/providers/Microsoft.ManagedServices/registrationAssignments/lh-rg-platform-contrib",
+      "signal_type": "lighthouse",
+      "name": "Fabrikam platform support",
+      "tenant_id": "44444444-4444-4444-4444-444444444444",
+      "tenant_name": "Fabrikam Ops",
+      "scope": "resource-group::rg-platform",
+      "posture": "strongest=Contributor; eligible=0",
+      "attack_path": "control",
+      "priority": "low",
+      "summary": "managed by Fabrikam Ops; strongest role Contributor",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-platform/providers/Microsoft.ManagedServices/registrationAssignments/lh-rg-platform-contrib",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-platform",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.ManagedServices/registrationDefinitions/lh-def-fabrikam-rg"
+      ]
+    }
+  ],
+  "issues": []
+}

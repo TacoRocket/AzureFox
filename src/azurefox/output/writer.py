@@ -104,6 +104,7 @@ def _to_csv(command: str, payload: dict) -> str:
         "permissions": "permissions",
         "privesc": "paths",
         "role-trusts": "trusts",
+        "cross-tenant": "cross_tenant_paths",
         "lighthouse": "lighthouse_delegations",
         "resource-trusts": "resource_trusts",
         "auth-policies": "auth_policies",

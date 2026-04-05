@@ -1,0 +1,9 @@
+{
+  "model": "CrossTenantOutput",
+  "top_level_fields": [
+    "metadata",
+    "cross_tenant_paths",
+    "findings",
+    "issues"
+  ]
+}

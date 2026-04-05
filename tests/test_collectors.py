@@ -4,12 +4,14 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from azurefox.collectors.commands import (
+    _vm_asset_sort_key,
     collect_acr,
     collect_aks,
     collect_api_mgmt,
     collect_app_services,
     collect_arm_deployments,
     collect_auth_policies,
+    collect_cross_tenant,
     collect_databases,
     collect_dns,
     collect_endpoints,
@@ -46,6 +48,8 @@ from azurefox.collectors.provider import (
     _network_scope_label,
     _normalized_arm_enum,
     _principal_from_claims,
+    _principal_sort_key,
+    _privesc_sort_key,
     _vmss_summary,
     _web_asset_kind,
 )
@@ -1150,6 +1154,46 @@ def test_collect_principals(fixture_provider, options) -> None:
     assert "ua-app" in output.principals[0].identity_names
 
 
+def test_principal_sort_key_prioritizes_high_impact_then_workload_attachment() -> None:
+    principals = [
+        {
+            "id": "reader-workload",
+            "display_name": "reader-workload",
+            "role_names": ["Reader"],
+            "attached_to": [
+                "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/"
+                "virtualMachines/vm-a"
+            ],
+            "scope_ids": ["/subscriptions/test"],
+            "role_assignment_count": 1,
+        },
+        {
+            "id": "owner-user",
+            "display_name": "owner-user",
+            "role_names": ["Owner"],
+            "attached_to": [],
+            "scope_ids": ["/subscriptions/test"],
+            "role_assignment_count": 1,
+        },
+        {
+            "id": "alpha-reader",
+            "display_name": "alpha-reader",
+            "role_names": ["Reader"],
+            "attached_to": [],
+            "scope_ids": ["/subscriptions/test"],
+            "role_assignment_count": 1,
+        },
+    ]
+
+    ordered = sorted(principals, key=_principal_sort_key)
+
+    assert [item["id"] for item in ordered] == [
+        "owner-user",
+        "reader-workload",
+        "alpha-reader",
+    ]
+
+
 def test_collect_permissions(fixture_provider, options) -> None:
     output = collect_permissions(fixture_provider, options)
     assert len(output.permissions) == 2
@@ -1162,6 +1206,40 @@ def test_collect_privesc(fixture_provider, options) -> None:
     assert len(output.paths) == 2
     assert output.paths[0].path_type == "direct-role-abuse"
     assert output.paths[1].asset == "vm-web-01"
+
+
+def test_privesc_sort_key_prioritizes_severity_then_current_identity_then_path_type() -> None:
+    paths = [
+        {
+            "severity": "medium",
+            "current_identity": False,
+            "path_type": "direct-role-abuse",
+            "principal": "medium-row",
+            "asset": None,
+        },
+        {
+            "severity": "high",
+            "current_identity": False,
+            "path_type": "public-identity-pivot",
+            "principal": "public-pivot",
+            "asset": "vm-edge-01",
+        },
+        {
+            "severity": "high",
+            "current_identity": True,
+            "path_type": "direct-role-abuse",
+            "principal": "current-owner",
+            "asset": None,
+        },
+    ]
+
+    ordered = sorted(paths, key=_privesc_sort_key)
+
+    assert [item["principal"] for item in ordered] == [
+        "current-owner",
+        "public-pivot",
+        "medium-row",
+    ]
 
 
 def test_collect_role_trusts(fixture_provider, options) -> None:
@@ -1498,6 +1576,46 @@ def test_collect_vms(fixture_provider, options) -> None:
     assert len(output.findings) == 1
 
 
+def test_vm_asset_sort_key_prioritizes_public_and_identity_cues() -> None:
+    vm_assets = [
+        {
+            "id": "quiet-vmss",
+            "name": "quiet-vmss",
+            "vm_type": "vmss",
+            "public_ips": [],
+            "identity_ids": [],
+        },
+        {
+            "id": "identity-vmss",
+            "name": "identity-vmss",
+            "vm_type": "vmss",
+            "public_ips": [],
+            "identity_ids": [
+                "/subscriptions/test/resourceGroups/rg/providers/Microsoft.ManagedIdentity/"
+                "userAssignedIdentities/id-a"
+            ],
+        },
+        {
+            "id": "public-vm",
+            "name": "public-vm",
+            "vm_type": "vm",
+            "public_ips": ["52.160.10.20"],
+            "identity_ids": [
+                "/subscriptions/test/resourceGroups/rg/providers/Microsoft.ManagedIdentity/"
+                "userAssignedIdentities/id-b"
+            ],
+        },
+    ]
+
+    ordered = sorted(vm_assets, key=_vm_asset_sort_key)
+
+    assert [item["id"] for item in ordered] == [
+        "public-vm",
+        "identity-vmss",
+        "quiet-vmss",
+    ]
+
+
 def test_collect_vmss(fixture_provider, options) -> None:
     output = collect_vmss(fixture_provider, options)
     assert len(output.vmss_assets) == 2
@@ -1517,6 +1635,89 @@ def test_collect_lighthouse(fixture_provider, options) -> None:
     assert output.lighthouse_delegations[0].managed_by_tenant_name == "Contoso Corp."
     assert output.lighthouse_delegations[1].scope_type == "resource_group"
     assert output.lighthouse_delegations[2].strongest_role_name == "Reader"
+
+
+def test_collect_cross_tenant(fixture_provider, options) -> None:
+    output = collect_cross_tenant(fixture_provider, options)
+    assert len(output.cross_tenant_paths) == 4
+    assert output.issues == []
+    assert output.cross_tenant_paths[0].signal_type == "lighthouse"
+    assert output.cross_tenant_paths[0].priority == "high"
+    assert output.cross_tenant_paths[1].signal_type == "external-sp"
+    assert output.cross_tenant_paths[1].attack_path == "pivot"
+    assert output.cross_tenant_paths[3].signal_type == "lighthouse"
+
+
+def test_cross_tenant_surfaces_external_service_principal_without_principal_join() -> None:
+    provider = AzureProvider.__new__(AzureProvider)
+    provider.session = SimpleNamespace(tenant_id="11111111-1111-1111-1111-111111111111")
+    provider.graph = SimpleNamespace(
+        list_service_principals=lambda: [
+            {
+                "id": "sp-external-readable",
+                "appId": "app-external-readable",
+                "displayName": "external-readable-app",
+                "appOwnerOrganizationId": "77777777-7777-7777-7777-777777777777",
+            }
+        ]
+    )
+    provider.lighthouse = lambda: {"lighthouse_delegations": [], "issues": []}
+    provider.auth_policies = lambda: {"auth_policies": [], "issues": []}
+    provider.principals = lambda: {"principals": [], "issues": []}
+
+    data = provider.cross_tenant()
+
+    assert data["issues"] == []
+    assert len(data["cross_tenant_paths"]) == 1
+    row = data["cross_tenant_paths"][0]
+    assert row["signal_type"] == "external-sp"
+    assert row["priority"] == "low"
+    assert row["posture"] == "roles=none-visible; assignments=0; scopes=0"
+    assert "no Azure role assignments are visible through the current read path" in row["summary"]
+
+
+def test_collect_cross_tenant_keeps_subscription_lighthouse_ahead_of_resource_group_ties(
+    options,
+) -> None:
+    provider = SimpleNamespace(
+        metadata_context=lambda: {},
+        cross_tenant=lambda: {
+            "cross_tenant_paths": [
+                {
+                    "id": "rg-owner",
+                    "signal_type": "lighthouse",
+                    "name": "RG owner delegation",
+                    "tenant_id": "22222222-2222-2222-2222-222222222222",
+                    "tenant_name": None,
+                    "scope": "resource-group::rg-platform",
+                    "posture": "strongest=Owner",
+                    "attack_path": "control",
+                    "priority": "medium",
+                    "summary": "Outside tenant can manage a resource group.",
+                    "related_ids": ["rg-owner"],
+                },
+                {
+                    "id": "sub-contributor",
+                    "signal_type": "lighthouse",
+                    "name": "Subscription contributor delegation",
+                    "tenant_id": "99999999-9999-9999-9999-999999999999",
+                    "tenant_name": None,
+                    "scope": "subscription::lab-subscription",
+                    "posture": "strongest=Contributor",
+                    "attack_path": "control",
+                    "priority": "medium",
+                    "summary": "Outside tenant can manage the subscription.",
+                    "related_ids": ["sub-contributor"],
+                },
+            ],
+            "issues": [],
+        },
+    )
+
+    output = collect_cross_tenant(provider, options)
+
+    assert output.cross_tenant_paths[0].id == "sub-contributor"
+    assert output.cross_tenant_paths[1].id == "rg-owner"
 
 
 def test_vmss_summary_emits_partial_issue_when_network_profile_is_missing() -> None:
