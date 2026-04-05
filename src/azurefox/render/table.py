@@ -101,6 +101,31 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "automation":
+        return (
+            [
+                ("name", "automation account"),
+                ("identity", "identity"),
+                ("execution", "execution"),
+                ("triggers", "triggers"),
+                ("workers", "workers"),
+                ("assets", "assets"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "name": item.get("name"),
+                    "identity": _automation_identity_context(item),
+                    "execution": _automation_execution_context(item),
+                    "triggers": _automation_trigger_context(item),
+                    "workers": _automation_worker_context(item),
+                    "assets": _automation_asset_context(item),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("automation_accounts", [])
+            ],
+        )
+
     if command == "app-services":
         return (
             [
@@ -982,6 +1007,27 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             f"{payload.get('resource_group_count', 0)} resource groups."
         )
 
+    if command == "automation":
+        automation_accounts = payload.get("automation_accounts", [])
+        identity_accounts = sum(bool(item.get("identity_type")) for item in automation_accounts)
+        webhook_accounts = sum(
+            _value_gt_zero(item.get("webhook_count")) for item in automation_accounts
+        )
+        worker_accounts = sum(
+            _value_gt_zero(item.get("hybrid_worker_group_count")) for item in automation_accounts
+        )
+        published_runbooks = sum(
+            item.get("published_runbook_count", 0)
+            for item in automation_accounts
+            if isinstance(item.get("published_runbook_count"), int)
+        )
+        return (
+            f"{len(automation_accounts)} Automation account(s) visible; {identity_accounts} carry "
+            f"managed identity context, {webhook_accounts} expose webhook start paths, "
+            f"{worker_accounts} show Hybrid Runbook Worker reach, and {published_runbooks} "
+            "published runbooks are visible."
+        )
+
     if command == "app-services":
         app_services = payload.get("app_services", [])
         https_only = sum(bool(item.get("https_only")) for item in app_services)
@@ -1252,6 +1298,53 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         return f"{len(assignments)} RBAC assignments across {len(principals)} principals."
 
     return ""
+
+
+def _automation_identity_context(item: dict) -> str:
+    identity_type = item.get("identity_type")
+    if not identity_type:
+        return "none"
+    return str(identity_type)
+
+
+def _automation_execution_context(item: dict) -> str:
+    runbooks = _value_or_unknown(item.get("runbook_count"))
+    published = _value_or_unknown(item.get("published_runbook_count"))
+    job_schedules = _value_or_unknown(item.get("job_schedule_count"))
+    return f"published={published}/{runbooks}; job-schedules={job_schedules}"
+
+
+def _automation_trigger_context(item: dict) -> str:
+    schedules = _value_or_unknown(item.get("schedule_count"))
+    webhooks = _value_or_unknown(item.get("webhook_count"))
+    return f"schedules={schedules}; webhooks={webhooks}"
+
+
+def _automation_worker_context(item: dict) -> str:
+    groups = item.get("hybrid_worker_group_count")
+    if groups is None:
+        return "groups=?"
+    return f"groups={groups}"
+
+
+def _automation_asset_context(item: dict) -> str:
+    credentials = _value_or_unknown(item.get("credential_count"))
+    certificates = _value_or_unknown(item.get("certificate_count"))
+    connections = _value_or_unknown(item.get("connection_count"))
+    variables = _value_or_unknown(item.get("variable_count"))
+    encrypted = _value_or_unknown(item.get("encrypted_variable_count"))
+    return (
+        f"cred={credentials}; cert={certificates}; conn={connections}; "
+        f"vars={variables} ({encrypted} enc)"
+    )
+
+
+def _value_or_unknown(value: object) -> str:
+    return str(value) if value is not None else "?"
+
+
+def _value_gt_zero(value: object) -> bool:
+    return isinstance(value, int) and value > 0
 
 
 def _principal_identity_context(item: dict) -> str:

@@ -11,6 +11,7 @@ from azurefox.models.common import (
     AppServiceAsset,
     ArmDeploymentSummary,
     AuthPolicySummary,
+    AutomationAccountAsset,
     CollectionIssue,
     CommandMetadata,
     CrossTenantPathSummary,
@@ -60,6 +61,13 @@ class InventoryOutput(BaseModel):
     resource_group_count: int = 0
     resource_count: int = 0
     top_resource_types: dict[str, int] = Field(default_factory=dict)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class AutomationOutput(BaseModel):
+    metadata: CommandMetadata
+    automation_accounts: list[AutomationAccountAsset] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 
 

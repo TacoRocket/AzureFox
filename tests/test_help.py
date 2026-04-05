@@ -51,6 +51,17 @@ def test_help_command_arm_deployments_topic() -> None:
     assert "outputs_count" in result.stdout
 
 
+def test_help_command_automation_topic() -> None:
+    result = runner.invoke(app, ["help", "automation"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: automation" in result.stdout
+    assert "Hybrid Worker" in result.stdout
+    assert "published_runbook_count" in result.stdout
+    assert "webhook_count" in result.stdout
+    assert "encrypted_variable_count" in result.stdout
+
+
 def test_help_command_endpoints_topic() -> None:
     result = runner.invoke(app, ["help", "endpoints"])
 

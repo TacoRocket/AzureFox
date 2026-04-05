@@ -11,6 +11,7 @@ from azurefox.collectors.commands import (
     collect_app_services,
     collect_arm_deployments,
     collect_auth_policies,
+    collect_automation,
     collect_cross_tenant,
     collect_databases,
     collect_dns,
@@ -63,6 +64,192 @@ class MetadataFixtureProvider(FixtureProvider):
             "tenant_id": "tenant-from-provider",
             "subscription_id": "subscription-from-provider",
             "token_source": "azure_cli",
+        }
+
+
+class DriftOrderingFixtureProvider(MetadataFixtureProvider):
+    def app_services(self) -> dict:
+        return {
+            "app_services": [
+                {
+                    "id": "app-1",
+                    "name": "zzz-hardened-id",
+                    "default_hostname": "zzz-hardened-id.azurewebsites.net",
+                    "public_network_access": "Enabled",
+                    "https_only": True,
+                    "client_cert_enabled": True,
+                    "min_tls_version": "1.2",
+                    "ftps_state": "Disabled",
+                    "runtime_stack": "NODE|20-lts",
+                    "workload_identity_type": "SystemAssigned",
+                    "summary": "hardened identity-backed app",
+                    "related_ids": [],
+                },
+                {
+                    "id": "app-2",
+                    "name": "mmm-weak-id",
+                    "default_hostname": "mmm-weak-id.azurewebsites.net",
+                    "public_network_access": "Enabled",
+                    "https_only": False,
+                    "client_cert_enabled": False,
+                    "min_tls_version": "1.0",
+                    "ftps_state": "AllAllowed",
+                    "runtime_stack": "DOTNETCORE|8.0",
+                    "workload_identity_type": "SystemAssigned",
+                    "summary": "weaker identity-backed app",
+                    "related_ids": [],
+                },
+                {
+                    "id": "app-3",
+                    "name": "aaa-weak-no-id",
+                    "default_hostname": "aaa-weak-no-id.azurewebsites.net",
+                    "public_network_access": "Enabled",
+                    "https_only": False,
+                    "client_cert_enabled": False,
+                    "min_tls_version": "1.0",
+                    "ftps_state": "AllAllowed",
+                    "runtime_stack": "PYTHON|3.11",
+                    "workload_identity_type": None,
+                    "summary": "weaker non-identity app",
+                    "related_ids": [],
+                },
+            ],
+            "issues": [],
+        }
+
+    def functions(self) -> dict:
+        return {
+            "function_apps": [
+                {
+                    "id": "func-1",
+                    "name": "aaa-plain-no-id",
+                    "default_hostname": "aaa-plain-no-id.azurewebsites.net",
+                    "public_network_access": "Enabled",
+                    "https_only": True,
+                    "client_cert_enabled": False,
+                    "min_tls_version": "1.2",
+                    "ftps_state": "Disabled",
+                    "runtime_stack": "PYTHON|3.11",
+                    "functions_extension_version": "~4",
+                    "always_on": False,
+                    "workload_identity_type": None,
+                    "azure_webjobs_storage_value_type": "plain-text",
+                    "run_from_package": None,
+                    "key_vault_reference_count": 0,
+                    "summary": "plain storage without identity",
+                    "related_ids": [],
+                },
+                {
+                    "id": "func-2",
+                    "name": "zzz-identity-plain-signal",
+                    "default_hostname": "zzz-identity-plain-signal.azurewebsites.net",
+                    "public_network_access": "Enabled",
+                    "https_only": True,
+                    "client_cert_enabled": False,
+                    "min_tls_version": "1.2",
+                    "ftps_state": "Disabled",
+                    "runtime_stack": "PYTHON|3.11",
+                    "functions_extension_version": "~4",
+                    "always_on": True,
+                    "workload_identity_type": "SystemAssigned",
+                    "azure_webjobs_storage_value_type": "plain-text",
+                    "run_from_package": True,
+                    "key_vault_reference_count": 2,
+                    "summary": "identity-backed function with multiple deployment signals",
+                    "related_ids": [],
+                },
+                {
+                    "id": "func-3",
+                    "name": "bbb-identity-quiet",
+                    "default_hostname": "bbb-identity-quiet.azurewebsites.net",
+                    "public_network_access": "Enabled",
+                    "https_only": True,
+                    "client_cert_enabled": False,
+                    "min_tls_version": "1.2",
+                    "ftps_state": "Disabled",
+                    "runtime_stack": "PYTHON|3.11",
+                    "functions_extension_version": "~4",
+                    "always_on": True,
+                    "workload_identity_type": "SystemAssigned",
+                    "azure_webjobs_storage_value_type": "keyvault-ref",
+                    "run_from_package": None,
+                    "key_vault_reference_count": 0,
+                    "summary": "identity-backed function with quieter deployment posture",
+                    "related_ids": [],
+                },
+                {
+                    "id": "func-4",
+                    "name": "ccc-identity-plain",
+                    "default_hostname": "ccc-identity-plain.azurewebsites.net",
+                    "public_network_access": "Enabled",
+                    "https_only": True,
+                    "client_cert_enabled": False,
+                    "min_tls_version": "1.2",
+                    "ftps_state": "Disabled",
+                    "runtime_stack": "PYTHON|3.11",
+                    "functions_extension_version": "~4",
+                    "always_on": True,
+                    "workload_identity_type": "SystemAssigned",
+                    "azure_webjobs_storage_value_type": "plain-text",
+                    "run_from_package": None,
+                    "key_vault_reference_count": 0,
+                    "summary": "identity-backed function with plain storage",
+                    "related_ids": [],
+                },
+            ],
+            "issues": [],
+        }
+
+    def arm_deployments(self) -> dict:
+        return {
+            "deployments": [
+                {
+                    "id": "dep-1",
+                    "name": "zzz-sub-routine",
+                    "scope": "/subscriptions/test",
+                    "scope_type": "subscription",
+                    "resource_group": None,
+                    "provisioning_state": "Succeeded",
+                    "outputs_count": 0,
+                    "output_resource_count": 0,
+                    "providers": [],
+                    "template_link": None,
+                    "parameters_link": None,
+                    "summary": "routine subscription deployment",
+                    "related_ids": [],
+                },
+                {
+                    "id": "dep-2",
+                    "name": "aaa-rg-linked",
+                    "scope": "/subscriptions/test/resourceGroups/rg-apps",
+                    "scope_type": "resource_group",
+                    "resource_group": "rg-apps",
+                    "provisioning_state": "Succeeded",
+                    "outputs_count": 2,
+                    "output_resource_count": 3,
+                    "providers": ["Microsoft.Web"],
+                    "template_link": "https://example.invalid/templates/app.json",
+                    "parameters_link": "https://example.invalid/parameters/app.json",
+                    "summary": "linked deployment with outputs",
+                    "related_ids": [],
+                },
+                {
+                    "id": "dep-3",
+                    "name": "mmm-rg-failed",
+                    "scope": "/subscriptions/test/resourceGroups/rg-apps",
+                    "scope_type": "resource_group",
+                    "resource_group": "rg-apps",
+                    "provisioning_state": "Failed",
+                    "outputs_count": 0,
+                    "output_resource_count": 0,
+                    "providers": ["Microsoft.Web"],
+                    "template_link": None,
+                    "parameters_link": None,
+                    "summary": "failed deployment",
+                    "related_ids": [],
+                },
+            ],
+            "issues": [],
         }
 
 
@@ -478,6 +665,17 @@ def test_collect_whoami(fixture_provider, options) -> None:
     assert output.principal.id == "33333333-3333-3333-3333-333333333333"
 
 
+def test_collect_automation(fixture_provider, options) -> None:
+    output = collect_automation(fixture_provider, options)
+    assert len(output.automation_accounts) == 2
+    assert output.automation_accounts[0].name == "aa-hybrid-prod"
+    assert output.automation_accounts[0].hybrid_worker_group_count == 1
+    assert output.automation_accounts[0].webhook_count == 2
+    assert output.automation_accounts[0].identity_type == "SystemAssigned"
+    assert output.automation_accounts[1].name == "aa-lab-quiet"
+    assert output.metadata.command == "automation"
+
+
 def test_principal_from_claims_prefers_user_for_delegated_tokens() -> None:
     principal = _principal_from_claims(
         {
@@ -524,6 +722,16 @@ def test_collect_app_services(fixture_provider, options) -> None:
     assert output.app_services[0].runtime_stack == "DOTNETCORE|8.0"
     assert output.app_services[0].https_only is False
     assert output.app_services[1].client_cert_enabled is True
+
+
+def test_collect_app_services_sorts_identity_and_weaker_hardening_first(options) -> None:
+    output = collect_app_services(DriftOrderingFixtureProvider(Path(".")), options)
+
+    assert [item.name for item in output.app_services] == [
+        "mmm-weak-id",
+        "zzz-hardened-id",
+        "aaa-weak-no-id",
+    ]
 
 
 def test_collect_acr(fixture_provider, options) -> None:
@@ -1000,6 +1208,17 @@ def test_collect_functions(fixture_provider, options) -> None:
     assert output.function_apps[0].run_from_package is None
 
 
+def test_collect_functions_sorts_identity_plain_storage_and_signal_strength(options) -> None:
+    output = collect_functions(DriftOrderingFixtureProvider(Path(".")), options)
+
+    assert [item.name for item in output.function_apps] == [
+        "zzz-identity-plain-signal",
+        "ccc-identity-plain",
+        "bbb-identity-quiet",
+        "aaa-plain-no-id",
+    ]
+
+
 def test_collect_functions_keeps_partial_visibility_explicit(
     fixture_dir: Path, options
 ) -> None:
@@ -1018,7 +1237,19 @@ def test_collect_arm_deployments(fixture_provider, options) -> None:
     output = collect_arm_deployments(fixture_provider, options)
     assert len(output.deployments) == 3
     assert len(output.findings) == 5
-    assert output.deployments[0].scope_type == "subscription"
+    assert output.deployments[0].name == "app-failed"
+    assert output.deployments[1].name == "sub-foundation"
+    assert output.deployments[2].name == "kv-secrets"
+
+
+def test_collect_arm_deployments_sorts_failures_and_linked_rows_first(options) -> None:
+    output = collect_arm_deployments(DriftOrderingFixtureProvider(Path(".")), options)
+
+    assert [item.name for item in output.deployments] == [
+        "mmm-rg-failed",
+        "aaa-rg-linked",
+        "zzz-sub-routine",
+    ]
 
 
 def test_collect_endpoints(fixture_provider, options) -> None:

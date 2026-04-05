@@ -111,6 +111,34 @@ def test_keyvault_table_mode_labels_implicit_open_acl(tmp_path: Path) -> None:
     assert "implicit allow (ACL omitted)" in result.stdout
 
 
+def test_automation_table_mode_surfaces_identity_worker_and_asset_cues(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "automation"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Reviewing Azure Automation accounts for identity, execution, webhook, worker, "
+        "and secure-asset posture."
+        in result.stdout
+    )
+    assert "automation account" in result.stdout
+    assert "aa-hybrid-prod" in result.stdout
+    assert "published=6/7" in result.stdout
+    assert "webhooks=2" in result.stdout
+    assert "groups=1" in result.stdout
+    assert "cred=2" in result.stdout
+    assert "vars=5 (4 enc)" in result.stdout
+    normalized_output = " ".join(result.stdout.split())
+    assert (
+        "Takeaway: 2 Automation account(s) visible; 1 carry managed identity context, "
+        "1 expose webhook start paths, 1 show Hybrid Runbook Worker reach, and 7 "
+        "published runbooks are visible."
+    ) in normalized_output
+
+
 def test_app_services_table_mode_surfaces_runtime_and_posture(tmp_path: Path) -> None:
     result = runner.invoke(
         app,

@@ -43,6 +43,9 @@ class BaseProvider(ABC):
     def arm_deployments(self) -> dict:
         raise NotImplementedError
 
+    def automation(self) -> dict:
+        return {"automation_accounts": [], "issues": []}
+
     def app_services(self) -> dict:
         return {"app_services": [], "issues": []}
 
@@ -236,6 +239,9 @@ class FixtureProvider(BaseProvider):
 
     def arm_deployments(self) -> dict:
         return self._read("arm_deployments")
+
+    def automation(self) -> dict:
+        return self._read("automation")
 
     def app_services(self) -> dict:
         return self._read("app_services")
@@ -497,6 +503,132 @@ class AzureProvider(BaseProvider):
             issues.append(_issue_from_exception("env_vars.web_apps", exc))
 
         return {"env_vars": env_vars, "issues": issues}
+
+    def automation(self) -> dict:
+        issues: list[dict] = []
+        automation_accounts: list[dict] = []
+
+        try:
+            iterator = _call_automation_operation(
+                self.clients.automation,
+                ("automation_account", "automation_accounts"),
+                "list",
+            )
+            for account in iterator:
+                account_id = getattr(account, "id", "") or ""
+                resource_group = _resource_group_from_id(account_id)
+                account_name = getattr(account, "name", None)
+
+                runbooks = None
+                schedules = None
+                job_schedules = None
+                webhooks = None
+                credentials = None
+                certificates = None
+                connections = None
+                variables = None
+                hybrid_worker_groups = None
+
+                if resource_group and account_name:
+                    runbooks, issue = _automation_list_by_account(
+                        self.clients.automation,
+                        ("runbook", "runbooks"),
+                        resource_group,
+                        account_name,
+                    )
+                    if issue:
+                        issues.append(issue)
+
+                    schedules, issue = _automation_list_by_account(
+                        self.clients.automation,
+                        ("schedule", "schedules"),
+                        resource_group,
+                        account_name,
+                    )
+                    if issue:
+                        issues.append(issue)
+
+                    job_schedules, issue = _automation_list_by_account(
+                        self.clients.automation,
+                        ("job_schedule", "job_schedules"),
+                        resource_group,
+                        account_name,
+                    )
+                    if issue:
+                        issues.append(issue)
+
+                    webhooks, issue = _automation_list_by_account(
+                        self.clients.automation,
+                        ("webhook", "webhooks"),
+                        resource_group,
+                        account_name,
+                    )
+                    if issue:
+                        issues.append(issue)
+
+                    credentials, issue = _automation_list_by_account(
+                        self.clients.automation,
+                        ("credential", "credentials"),
+                        resource_group,
+                        account_name,
+                    )
+                    if issue:
+                        issues.append(issue)
+
+                    certificates, issue = _automation_list_by_account(
+                        self.clients.automation,
+                        ("certificate", "certificates"),
+                        resource_group,
+                        account_name,
+                    )
+                    if issue:
+                        issues.append(issue)
+
+                    connections, issue = _automation_list_by_account(
+                        self.clients.automation,
+                        ("connection", "connections"),
+                        resource_group,
+                        account_name,
+                    )
+                    if issue:
+                        issues.append(issue)
+
+                    variables, issue = _automation_list_by_account(
+                        self.clients.automation,
+                        ("variable", "variables"),
+                        resource_group,
+                        account_name,
+                    )
+                    if issue:
+                        issues.append(issue)
+
+                    hybrid_worker_groups, issue = _automation_list_by_account(
+                        self.clients.automation,
+                        ("hybrid_runbook_worker_group", "hybrid_runbook_worker_groups"),
+                        resource_group,
+                        account_name,
+                    )
+                    if issue:
+                        issues.append(issue)
+
+                automation_accounts.append(
+                    _automation_account_summary(
+                        account,
+                        runbooks=runbooks,
+                        schedules=schedules,
+                        job_schedules=job_schedules,
+                        webhooks=webhooks,
+                        credentials=credentials,
+                        certificates=certificates,
+                        connections=connections,
+                        variables=variables,
+                        hybrid_worker_groups=hybrid_worker_groups,
+                    )
+                )
+        except Exception as exc:
+            issues.append(_issue_from_exception("automation.accounts", exc))
+
+        return {"automation_accounts": automation_accounts, "issues": issues}
 
     def app_services(self) -> dict:
         issues: list[dict] = []
@@ -2461,6 +2593,43 @@ def _issue_from_exception(area: str, exc: Exception) -> dict:
     }
 
 
+def _call_automation_operation(
+    client: object,
+    attrs: tuple[str, ...],
+    method_name: str,
+    *args,
+) -> object:
+    for attr in attrs:
+        operation = getattr(client, attr, None)
+        if operation is None:
+            continue
+        method = getattr(operation, method_name, None)
+        if method is None:
+            continue
+        return method(*args)
+    raise AttributeError(f"Automation client missing operation {attrs}::{method_name}")
+
+
+def _automation_list_by_account(
+    client: object,
+    attrs: tuple[str, ...],
+    resource_group: str,
+    account_name: str,
+) -> tuple[list[object] | None, dict | None]:
+    collector_name = f"automation[{resource_group}/{account_name}].{attrs[0]}"
+    try:
+        result = _call_automation_operation(
+            client,
+            attrs,
+            "list_by_automation_account",
+            resource_group,
+            account_name,
+        )
+        return list(result), None
+    except Exception as exc:
+        return None, _issue_from_exception(collector_name, exc)
+
+
 def _principal_from_claims(claims: dict[str, str], tenant_id: str | None) -> Principal:
     principal_id = claims.get("oid") or claims.get("appid") or "unknown"
 
@@ -2487,6 +2656,201 @@ def _principal_from_claims(claims: dict[str, str], tenant_id: str | None) -> Pri
         or claims.get("appid"),
         tenant_id=claims.get("tid", tenant_id),
     )
+
+
+def _automation_account_summary(
+    account: object,
+    *,
+    runbooks: list[object] | None,
+    schedules: list[object] | None,
+    job_schedules: list[object] | None,
+    webhooks: list[object] | None,
+    credentials: list[object] | None,
+    certificates: list[object] | None,
+    connections: list[object] | None,
+    variables: list[object] | None,
+    hybrid_worker_groups: list[object] | None,
+) -> dict:
+    account_id = getattr(account, "id", "") or ""
+    resource_group = _resource_group_from_id(account_id)
+    identity = getattr(account, "identity", None)
+    user_assigned_identities = getattr(identity, "user_assigned_identities", None) or {}
+    identity_ids = sorted(str(key) for key in user_assigned_identities.keys())
+
+    published_runbook_count = None
+    if runbooks is not None:
+        published_runbook_count = sum(
+            str(
+                getattr(getattr(runbook, "properties", None), "state", None)
+                or getattr(runbook, "state", None)
+                or ""
+            ).lower()
+            == "published"
+            for runbook in runbooks
+        )
+
+    encrypted_variable_count = None
+    if variables is not None:
+        encrypted_variable_count = sum(
+            bool(
+                getattr(getattr(variable, "properties", None), "is_encrypted", None)
+                if getattr(variable, "properties", None) is not None
+                else getattr(variable, "is_encrypted", None)
+            )
+            for variable in variables
+        )
+
+    return {
+        "id": account_id,
+        "name": getattr(account, "name", None),
+        "resource_group": resource_group,
+        "location": getattr(account, "location", None),
+        "state": getattr(account, "state", None),
+        "sku_name": getattr(getattr(account, "sku", None), "name", None),
+        "identity_type": getattr(identity, "type", None),
+        "principal_id": getattr(identity, "principal_id", None),
+        "client_id": getattr(identity, "client_id", None),
+        "identity_ids": identity_ids,
+        "runbook_count": _len_or_none(runbooks),
+        "published_runbook_count": published_runbook_count,
+        "schedule_count": _len_or_none(schedules),
+        "job_schedule_count": _len_or_none(job_schedules),
+        "webhook_count": _len_or_none(webhooks),
+        "hybrid_worker_group_count": _len_or_none(hybrid_worker_groups),
+        "credential_count": _len_or_none(credentials),
+        "certificate_count": _len_or_none(certificates),
+        "connection_count": _len_or_none(connections),
+        "variable_count": _len_or_none(variables),
+        "encrypted_variable_count": encrypted_variable_count,
+        "summary": _automation_account_operator_summary(
+            account_name=getattr(account, "name", None) or "unknown",
+            identity_type=getattr(identity, "type", None),
+            runbook_count=_len_or_none(runbooks),
+            published_runbook_count=published_runbook_count,
+            schedule_count=_len_or_none(schedules),
+            job_schedule_count=_len_or_none(job_schedules),
+            webhook_count=_len_or_none(webhooks),
+            hybrid_worker_group_count=_len_or_none(hybrid_worker_groups),
+            credential_count=_len_or_none(credentials),
+            certificate_count=_len_or_none(certificates),
+            connection_count=_len_or_none(connections),
+            variable_count=_len_or_none(variables),
+            encrypted_variable_count=encrypted_variable_count,
+        ),
+        "related_ids": _dedupe_strings([account_id, *identity_ids]),
+    }
+
+
+def _automation_account_operator_summary(
+    *,
+    account_name: str,
+    identity_type: object,
+    runbook_count: int | None,
+    published_runbook_count: int | None,
+    schedule_count: int | None,
+    job_schedule_count: int | None,
+    webhook_count: int | None,
+    hybrid_worker_group_count: int | None,
+    credential_count: int | None,
+    certificate_count: int | None,
+    connection_count: int | None,
+    variable_count: int | None,
+    encrypted_variable_count: int | None,
+) -> str:
+    identity_clause = (
+        f"uses managed identity ({identity_type})"
+        if identity_type
+        else "has no managed identity visible from the current read path"
+    )
+    runbook_clause = _automation_runbook_clause(runbook_count, published_runbook_count)
+    trigger_clause = _automation_trigger_clause(
+        schedule_count=schedule_count,
+        job_schedule_count=job_schedule_count,
+        webhook_count=webhook_count,
+    )
+    worker_clause = _automation_worker_clause(hybrid_worker_group_count)
+    asset_clause = _automation_asset_clause(
+        credential_count=credential_count,
+        certificate_count=certificate_count,
+        connection_count=connection_count,
+        variable_count=variable_count,
+        encrypted_variable_count=encrypted_variable_count,
+    )
+    return (
+        f"Automation account '{account_name}' {identity_clause}. "
+        f"Visible execution shape: {runbook_clause}; {trigger_clause}; {worker_clause}. "
+        f"Secure asset posture: {asset_clause}."
+    )
+
+
+def _automation_runbook_clause(
+    runbook_count: int | None,
+    published_runbook_count: int | None,
+) -> str:
+    if runbook_count is None:
+        return "runbook visibility unreadable"
+    if published_runbook_count is None:
+        return f"{runbook_count} runbook(s)"
+    return f"{published_runbook_count}/{runbook_count} published runbook(s)"
+
+
+def _automation_trigger_clause(
+    *,
+    schedule_count: int | None,
+    job_schedule_count: int | None,
+    webhook_count: int | None,
+) -> str:
+    parts: list[str] = []
+    parts.append(
+        "schedules unreadable" if schedule_count is None else f"{schedule_count} schedule(s)"
+    )
+    parts.append(
+        "job schedules unreadable"
+        if job_schedule_count is None
+        else f"{job_schedule_count} job schedule(s)"
+    )
+    parts.append("webhooks unreadable" if webhook_count is None else f"{webhook_count} webhook(s)")
+    return ", ".join(parts)
+
+
+def _automation_worker_clause(hybrid_worker_group_count: int | None) -> str:
+    if hybrid_worker_group_count is None:
+        return "Hybrid Runbook Worker visibility unreadable"
+    if hybrid_worker_group_count == 0:
+        return "no Hybrid Runbook Worker groups visible"
+    return f"{hybrid_worker_group_count} Hybrid Runbook Worker group(s)"
+
+
+def _automation_asset_clause(
+    *,
+    credential_count: int | None,
+    certificate_count: int | None,
+    connection_count: int | None,
+    variable_count: int | None,
+    encrypted_variable_count: int | None,
+) -> str:
+    parts = [
+        _count_or_unreadable("credentials", credential_count),
+        _count_or_unreadable("certificates", certificate_count),
+        _count_or_unreadable("connections", connection_count),
+    ]
+    if variable_count is None:
+        parts.append("variables unreadable")
+    elif encrypted_variable_count is None:
+        parts.append(f"variables {variable_count}")
+    else:
+        parts.append(f"variables {variable_count} ({encrypted_variable_count} encrypted)")
+    return ", ".join(parts)
+
+
+def _count_or_unreadable(label: str, count: int | None) -> str:
+    if count is None:
+        return f"{label} unreadable"
+    return f"{label} {count}"
+
+
+def _len_or_none(items: list[object] | None) -> int | None:
+    return None if items is None else len(items)
 
 
 def _merge_principal_attributes(record: dict, principal: dict) -> None:

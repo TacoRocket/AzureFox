@@ -10,6 +10,7 @@ from azurefox.models.commands import (
     AppServicesOutput,
     ArmDeploymentsOutput,
     AuthPoliciesOutput,
+    AutomationOutput,
     CrossTenantOutput,
     DatabasesOutput,
     DnsOutput,
@@ -41,6 +42,7 @@ from azurefox.models.commands import (
 MODELS = {
     "whoami": WhoAmIOutput,
     "inventory": InventoryOutput,
+    "automation": AutomationOutput,
     "app-services": AppServicesOutput,
     "acr": AcrOutput,
     "databases": DatabasesOutput,

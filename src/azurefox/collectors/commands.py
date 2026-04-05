@@ -19,6 +19,7 @@ from azurefox.models.commands import (
     AppServicesOutput,
     ArmDeploymentsOutput,
     AuthPoliciesOutput,
+    AutomationOutput,
     CrossTenantOutput,
     DatabasesOutput,
     DnsOutput,
@@ -67,13 +68,28 @@ def collect_inventory(provider: BaseProvider, options: GlobalOptions) -> Invento
     )
 
 
+def collect_automation(provider: BaseProvider, options: GlobalOptions) -> AutomationOutput:
+    data = provider.automation()
+    automation_accounts = sorted(data.get("automation_accounts", []), key=_automation_sort_key)
+    return AutomationOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "automation", options),
+            "findings": [],
+            **data,
+            "automation_accounts": automation_accounts,
+        }
+    )
+
+
 def collect_app_services(provider: BaseProvider, options: GlobalOptions) -> AppServicesOutput:
     data = provider.app_services()
+    app_services = sorted(data.get("app_services", []), key=_app_service_sort_key)
     return AppServicesOutput.model_validate(
         {
             "metadata": _metadata(provider, "app-services", options),
             "findings": [],
             **data,
+            "app_services": app_services,
         }
     )
 
@@ -183,25 +199,20 @@ def collect_api_mgmt(provider: BaseProvider, options: GlobalOptions) -> ApiMgmtO
 
 def collect_functions(provider: BaseProvider, options: GlobalOptions) -> FunctionsOutput:
     data = provider.functions()
+    function_apps = sorted(data.get("function_apps", []), key=_function_app_sort_key)
     return FunctionsOutput.model_validate(
         {
             "metadata": _metadata(provider, "functions", options),
             "findings": [],
             **data,
+            "function_apps": function_apps,
         }
     )
 
 
 def collect_arm_deployments(provider: BaseProvider, options: GlobalOptions) -> ArmDeploymentsOutput:
     data = provider.arm_deployments()
-    deployments = sorted(
-        data.get("deployments", []),
-        key=lambda item: (
-            item.get("scope_type") != "subscription",
-            item.get("resource_group") or "",
-            item.get("name") or "",
-        ),
-    )
+    deployments = sorted(data.get("deployments", []), key=_arm_deployment_sort_key)
     findings = build_arm_deployment_findings(deployments)
     return ArmDeploymentsOutput.model_validate(
         {
@@ -795,6 +806,84 @@ def _api_mgmt_priority(item: dict) -> bool:
     )
 
 
+def _app_service_sort_key(item: dict) -> tuple[bool, bool, tuple[int, int, int, int], str]:
+    return (
+        not _web_workload_exposure_priority(item),
+        not _has_workload_identity(item),
+        _app_service_hardening_rank(item),
+        item.get("name") or "",
+    )
+
+
+def _function_app_sort_key(item: dict) -> tuple[bool, bool, bool, tuple[int, int, int], str]:
+    return (
+        not _web_workload_exposure_priority(item),
+        not _has_workload_identity(item),
+        item.get("azure_webjobs_storage_value_type") != "plain-text",
+        _function_deployment_signal_rank(item),
+        item.get("name") or "",
+    )
+
+
+def _arm_deployment_sort_key(item: dict) -> tuple[int, int, int, int, bool, str, str]:
+    link_count = int(bool(item.get("template_link"))) + int(bool(item.get("parameters_link")))
+    provider_count = len(item.get("providers", []) or [])
+    return (
+        _arm_deployment_state_rank(item.get("provisioning_state")),
+        -link_count,
+        -_int_or_zero(item.get("outputs_count")),
+        -max(_int_or_zero(item.get("output_resource_count")), provider_count),
+        item.get("scope_type") == "subscription",
+        item.get("resource_group") or "",
+        item.get("name") or "",
+    )
+
+
+def _web_workload_exposure_priority(item: dict) -> bool:
+    return bool(item.get("default_hostname")) or (
+        str(item.get("public_network_access") or "").lower() == "enabled"
+    )
+
+
+def _has_workload_identity(item: dict) -> bool:
+    return bool(item.get("workload_identity_type"))
+
+
+def _app_service_hardening_rank(item: dict) -> tuple[int, int, int, int]:
+    https_rank = 0 if item.get("https_only") is False else 1
+    tls_rank = {
+        "1.0": 0,
+        "1.1": 1,
+        "1.2": 2,
+        "1.3": 3,
+    }.get(str(item.get("min_tls_version") or ""), 4)
+    ftps_rank = {
+        "allallowed": 0,
+        "ftpsonly": 1,
+        "disabled": 2,
+    }.get(str(item.get("ftps_state") or "").lower(), 3)
+    client_cert_rank = 0 if item.get("client_cert_enabled") is False else 1
+    return https_rank, tls_rank, ftps_rank, client_cert_rank
+
+
+def _function_deployment_signal_rank(item: dict) -> tuple[int, int, int]:
+    run_from_package_rank = 0 if item.get("run_from_package") is True else 1
+    key_vault_rank = -_int_or_zero(item.get("key_vault_reference_count"))
+    signal_count = int(item.get("run_from_package") is True) + int(
+        _int_or_zero(item.get("key_vault_reference_count")) > 0
+    )
+    return -signal_count, run_from_package_rank, key_vault_rank
+
+
+def _arm_deployment_state_rank(value: object) -> int:
+    normalized = str(value or "").lower()
+    if normalized == "failed":
+        return 0
+    if normalized and normalized != "succeeded":
+        return 1
+    return 2
+
+
 def _vmss_has_frontend_priority(item: dict) -> bool:
     return any(
         _int_or_zero(item.get(key)) > 0
@@ -813,6 +902,28 @@ def _vmss_orchestration_rank(value: object) -> int:
 
 def _vmss_upgrade_rank(value: object) -> int:
     return {"Manual": 0, "Rolling": 1, "Automatic": 2}.get(str(value or ""), 9)
+
+
+def _automation_sort_key(item: dict) -> tuple[bool, bool, bool, int, int, int, int, str]:
+    secure_asset_total = sum(
+        _int_or_zero(item.get(key))
+        for key in (
+            "credential_count",
+            "certificate_count",
+            "connection_count",
+            "encrypted_variable_count",
+        )
+    )
+    return (
+        _int_or_zero(item.get("hybrid_worker_group_count")) == 0,
+        not bool(item.get("identity_type")),
+        _int_or_zero(item.get("webhook_count")) == 0,
+        -_int_or_zero(item.get("published_runbook_count")),
+        -_int_or_zero(item.get("job_schedule_count")),
+        -secure_asset_total,
+        -_int_or_zero(item.get("runbook_count")),
+        item.get("name") or "",
+    )
 
 
 def _int_or_zero(value: object) -> int:

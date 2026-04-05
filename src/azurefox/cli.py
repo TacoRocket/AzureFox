@@ -82,6 +82,11 @@ def inventory(ctx: typer.Context) -> None:
     _run_single(ctx, "inventory")
 
 
+@app.command("automation")
+def automation(ctx: typer.Context) -> None:
+    _run_single(ctx, "automation")
+
+
 @app.command("app-services")
 def app_services(ctx: typer.Context) -> None:
     _run_single(ctx, "app-services")
