@@ -22,6 +22,7 @@ from azurefox.models.commands import (
     AutomationOutput,
     CrossTenantOutput,
     DatabasesOutput,
+    DevopsOutput,
     DnsOutput,
     EndpointsOutput,
     EnvVarsOutput,
@@ -77,6 +78,19 @@ def collect_automation(provider: BaseProvider, options: GlobalOptions) -> Automa
             "findings": [],
             **data,
             "automation_accounts": automation_accounts,
+        }
+    )
+
+
+def collect_devops(provider: BaseProvider, options: GlobalOptions) -> DevopsOutput:
+    data = provider.devops()
+    pipelines = sorted(data.get("pipelines", []), key=_devops_pipeline_sort_key)
+    return DevopsOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "devops", options),
+            "findings": [],
+            **data,
+            "pipelines": pipelines,
         }
     )
 
@@ -583,6 +597,7 @@ def _metadata(
         command=command,
         tenant_id=options.tenant or context.get("tenant_id"),
         subscription_id=options.subscription or context.get("subscription_id"),
+        devops_organization=options.devops_organization,
         token_source=token_source or context.get("token_source"),
     )
 
@@ -922,6 +937,19 @@ def _automation_sort_key(item: dict) -> tuple[bool, bool, bool, int, int, int, i
         -_int_or_zero(item.get("job_schedule_count")),
         -secure_asset_total,
         -_int_or_zero(item.get("runbook_count")),
+        item.get("name") or "",
+    )
+
+
+def _devops_pipeline_sort_key(item: dict) -> tuple[bool, bool, bool, bool, bool, str, str]:
+    trigger_types = {str(value).lower() for value in item.get("trigger_types", [])}
+    return (
+        len(item.get("azure_service_connection_names", []) or []) == 0,
+        _int_or_zero(item.get("secret_variable_count")) == 0,
+        len(item.get("key_vault_group_names", []) or []) == 0,
+        trigger_types.isdisjoint({"continuousintegration", "schedule"}),
+        len(item.get("target_clues", []) or []) == 0,
+        item.get("project_name") or "",
         item.get("name") or "",
     )
 

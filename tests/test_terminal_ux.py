@@ -139,6 +139,32 @@ def test_automation_table_mode_surfaces_identity_worker_and_asset_cues(tmp_path:
     ) in normalized_output
 
 
+def test_devops_table_mode_surfaces_named_change_paths(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "devops"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Reviewing Azure DevOps build definitions for named Azure change paths, "
+        "secret-bearing support, and trigger posture."
+        in result.stdout
+    )
+    assert "project" in result.stdout
+    assert "pipeline" in result.stdout
+    assert "deploy-aks-prod" in result.stdout
+    assert "kv-prod-shared" in result.stdout
+    assert "AKS/Kubernetes" in result.stdout
+    normalized_output = " ".join(result.stdout.split())
+    assert (
+        "Takeaway: 3 Azure DevOps build definition(s) surfaced; 3 show Azure-facing service "
+        "connections, 2 carry secret-bearing variable support, 2 use Key Vault-backed groups, "
+        "and 3 are auto-triggered."
+    ) in normalized_output
+
+
 def test_app_services_table_mode_surfaces_runtime_and_posture(tmp_path: Path) -> None:
     result = runner.invoke(
         app,

@@ -14,6 +14,10 @@ COMMAND_NARRATION = {
         "Reviewing Azure Automation accounts for identity, execution, webhook, worker, "
         "and secure-asset posture."
     ),
+    "devops": (
+        "Reviewing Azure DevOps build definitions for named Azure change paths, "
+        "secret-bearing support, and trigger posture."
+    ),
     "app-services": "Reviewing App Service runtime, hostname, identity, and hardening posture.",
     "acr": (
         "Reviewing Azure Container Registry login, auth, network, and registry "

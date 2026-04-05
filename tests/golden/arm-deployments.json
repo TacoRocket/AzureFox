@@ -118,6 +118,7 @@
   "issues": [],
   "metadata": {
     "command": "arm-deployments",
+    "devops_organization": null,
     "generated_at": "<generated_at>",
     "schema_version": "1.1.0",
     "subscription_id": "22222222-2222-2222-2222-222222222222",

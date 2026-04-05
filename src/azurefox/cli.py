@@ -24,6 +24,12 @@ from azurefox.registry import SECTION_NAMES, get_command_specs
 app = typer.Typer(help="AzureFox CLI")
 TENANT_OPTION = typer.Option(None, "--tenant", help="Azure tenant ID")
 SUBSCRIPTION_OPTION = typer.Option(None, "--subscription", help="Azure subscription ID")
+DEVOPS_ORGANIZATION_OPTION = typer.Option(
+    None,
+    "--devops-organization",
+    envvar="AZUREFOX_DEVOPS_ORG",
+    help="Azure DevOps organization name for devops command collection",
+)
 OUTPUT_OPTION = typer.Option(OutputMode.TABLE, "--output", help="Output format")
 OUTDIR_OPTION = typer.Option(Path("."), "--outdir", help="Output directory")
 DEBUG_OPTION = typer.Option(False, "--debug", help="Enable verbose error output")
@@ -45,7 +51,13 @@ ALL_CHECKS_ROLE_TRUSTS_MODE_OPTION = typer.Option(
     ),
 )
 HELP_FLAGS = {"-h", "--help"}
-GLOBAL_OPTIONS_WITH_VALUES = {"--tenant", "--subscription", "--output", "--outdir"}
+GLOBAL_OPTIONS_WITH_VALUES = {
+    "--tenant",
+    "--subscription",
+    "--devops-organization",
+    "--output",
+    "--outdir",
+}
 GLOBAL_FLAG_OPTIONS = {"--debug"}
 SECTION_OPTION = typer.Option(
     None,
@@ -59,6 +71,7 @@ def root(
     ctx: typer.Context,
     tenant: str | None = TENANT_OPTION,
     subscription: str | None = SUBSCRIPTION_OPTION,
+    devops_organization: str | None = DEVOPS_ORGANIZATION_OPTION,
     output: OutputMode = OUTPUT_OPTION,
     outdir: Path = OUTDIR_OPTION,
     debug: bool = DEBUG_OPTION,
@@ -66,6 +79,7 @@ def root(
     ctx.obj = GlobalOptions(
         tenant=tenant,
         subscription=subscription,
+        devops_organization=devops_organization,
         output=output,
         outdir=outdir,
         debug=debug,
@@ -85,6 +99,11 @@ def inventory(ctx: typer.Context) -> None:
 @app.command("automation")
 def automation(ctx: typer.Context) -> None:
     _run_single(ctx, "automation")
+
+
+@app.command("devops")
+def devops(ctx: typer.Context) -> None:
+    _run_single(ctx, "devops")
 
 
 @app.command("app-services")
@@ -371,6 +390,7 @@ def _build_metadata(command: str, options: GlobalOptions) -> dict[str, str | Non
         "command": command,
         "tenant_id": options.tenant,
         "subscription_id": options.subscription,
+        "devops_organization": options.devops_organization,
         "token_source": None,
     }
 

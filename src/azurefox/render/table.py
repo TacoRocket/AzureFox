@@ -126,6 +126,33 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "devops":
+        return (
+            [
+                ("project_name", "project"),
+                ("name", "pipeline"),
+                ("repository", "repo"),
+                ("triggers", "triggers"),
+                ("azure_access", "azure access"),
+                ("secret_support", "secret support"),
+                ("target_clues", "target clues"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "project_name": item.get("project_name"),
+                    "name": item.get("name"),
+                    "repository": _devops_repository_context(item),
+                    "triggers": _devops_trigger_context(item),
+                    "azure_access": _devops_access_context(item),
+                    "secret_support": _devops_secret_context(item),
+                    "target_clues": _devops_target_context(item),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("pipelines", [])
+            ],
+        )
+
     if command == "app-services":
         return (
             [
@@ -1026,6 +1053,26 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             f"managed identity context, {webhook_accounts} expose webhook start paths, "
             f"{worker_accounts} show Hybrid Runbook Worker reach, and {published_runbooks} "
             "published runbooks are visible."
+        )
+
+    if command == "devops":
+        pipelines = payload.get("pipelines", [])
+        auto_triggered = sum(
+            {
+                str(trigger).lower() for trigger in item.get("trigger_types", [])
+            }
+            & {"continuousintegration", "schedule", "pullrequest"}
+            != set()
+            for item in pipelines
+        )
+        azure_paths = sum(bool(item.get("azure_service_connection_names")) for item in pipelines)
+        secret_support = sum((item.get("secret_variable_count") or 0) > 0 for item in pipelines)
+        key_vault_backed = sum(bool(item.get("key_vault_group_names")) for item in pipelines)
+        return (
+            f"{len(pipelines)} Azure DevOps build definition(s) surfaced; "
+            f"{azure_paths} show Azure-facing service connections, {secret_support} "
+            f"carry secret-bearing variable support, {key_vault_backed} use Key Vault-backed "
+            f"groups, and {auto_triggered} are auto-triggered."
         )
 
     if command == "app-services":
@@ -2117,6 +2164,75 @@ def _keyvault_default_action_text(item: dict) -> str | None:
     if str(item.get("public_network_access") or "").lower() == "enabled":
         return "implicit allow (ACL omitted)"
     return None
+
+
+def _devops_repository_context(item: dict) -> str:
+    repo_name = item.get("repository_name")
+    default_branch = item.get("default_branch")
+    repo_type = item.get("repository_type")
+
+    parts: list[str] = []
+    if repo_name:
+        repo_label = str(repo_name)
+        if default_branch:
+            repo_label = f"{repo_label}@{default_branch}"
+        parts.append(repo_label)
+    if repo_type:
+        parts.append(str(repo_type))
+    return "; ".join(parts) if parts else "-"
+
+
+def _devops_trigger_context(item: dict) -> str:
+    trigger_types = item.get("trigger_types") or []
+    risk_cues = item.get("risk_cues") or []
+
+    parts: list[str] = []
+    if trigger_types:
+        parts.append(",".join(str(value) for value in trigger_types))
+    auto_cues = [cue for cue in risk_cues if "trigger" in str(cue)]
+    if auto_cues:
+        parts.append(",".join(str(value) for value in auto_cues))
+    return "; ".join(parts) if parts else "manual-or-unreadable"
+
+
+def _devops_access_context(item: dict) -> str:
+    names = item.get("azure_service_connection_names") or []
+    auth_schemes = item.get("azure_service_connection_auth_schemes") or []
+    endpoint_types = item.get("azure_service_connection_types") or []
+
+    parts: list[str] = []
+    if names:
+        parts.append("conn=" + ",".join(str(value) for value in names))
+    if auth_schemes:
+        parts.append("auth=" + ",".join(str(value) for value in auth_schemes))
+    if endpoint_types:
+        parts.append("type=" + ",".join(str(value) for value in endpoint_types))
+    return "; ".join(parts) if parts else "-"
+
+
+def _devops_secret_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("variable_group_names"):
+        parts.append("groups=" + ",".join(str(value) for value in item["variable_group_names"]))
+    if item.get("secret_variable_count"):
+        parts.append(f"secrets={item.get('secret_variable_count')}")
+    if item.get("key_vault_names"):
+        parts.append("kv=" + ",".join(str(value) for value in item["key_vault_names"]))
+    elif item.get("key_vault_group_names"):
+        parts.append("kv-groups=" + ",".join(str(value) for value in item["key_vault_group_names"]))
+    return "; ".join(parts) if parts else "-"
+
+
+def _devops_target_context(item: dict) -> str:
+    clues = item.get("target_clues") or []
+    risk_cues = item.get("risk_cues") or []
+
+    parts: list[str] = []
+    if clues:
+        parts.append(",".join(str(value) for value in clues))
+    if risk_cues:
+        parts.append("risk=" + ",".join(str(value) for value in risk_cues))
+    return "; ".join(parts) if parts else "-"
 
 
 def _bool_text(value: bool) -> str:

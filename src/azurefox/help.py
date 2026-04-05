@@ -95,6 +95,44 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox automation --output table",
     ),
+    "devops": CommandHelpTopic(
+        name="devops",
+        section="resource",
+        summary=(
+            "Surface Azure DevOps build definitions that already look like named Azure change "
+            "paths."
+        ),
+        offensive_question=(
+            "Which Azure DevOps build definitions combine Azure-facing service connections, "
+            "secret-bearing variable support, and trigger posture that deserve operator review "
+            "first?"
+        ),
+        cloudfox_frame=(
+            "Azure-native deployment-path triage rather than generic DevOps inventory: named "
+            "build definitions, Azure-facing service connections, safe secret-bearing variable "
+            "metadata, Key Vault-backed group cues, and trigger posture without collecting "
+            "secret values, repo content, or pipeline logs."
+        ),
+        output_highlights=(
+            "project_name",
+            "repository_name",
+            "trigger_types",
+            "azure_service_connection_names",
+            "azure_service_connection_auth_schemes",
+            "variable_group_names",
+            "secret_variable_count",
+            "secret_variable_names",
+            "key_vault_group_names",
+            "target_clues",
+            "risk_cues",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Persistence", "Server Software Component"),
+            AttackLead("Credential Access", "Unsecured Credentials"),
+        ),
+        example="azurefox --devops-organization contoso devops --output table",
+    ),
     "app-services": CommandHelpTopic(
         name="app-services",
         section="compute",

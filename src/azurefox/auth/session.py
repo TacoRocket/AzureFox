@@ -8,6 +8,7 @@ from azurefox.errors import AzureFoxError, ErrorKind
 
 MANAGEMENT_SCOPE = "https://management.azure.com/.default"
 GRAPH_SCOPE = "https://graph.microsoft.com/.default"
+DEVOPS_SCOPE = "499b84ac-1321-427f-aa17-267ca6975798/.default"
 
 
 @dataclass(slots=True)

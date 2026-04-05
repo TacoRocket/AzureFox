@@ -16,6 +16,7 @@ from azurefox.models.common import (
     CommandMetadata,
     CrossTenantPathSummary,
     DatabaseServerAsset,
+    DevopsPipelineAsset,
     DnsZoneAsset,
     EndpointSummary,
     EnvVarSummary,
@@ -67,6 +68,13 @@ class InventoryOutput(BaseModel):
 class AutomationOutput(BaseModel):
     metadata: CommandMetadata
     automation_accounts: list[AutomationAccountAsset] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class DevopsOutput(BaseModel):
+    metadata: CommandMetadata
+    pipelines: list[DevopsPipelineAsset] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 
