@@ -1,0 +1,9 @@
+{
+  "model": "DevopsOutput",
+  "top_level_fields": [
+    "metadata",
+    "pipelines",
+    "findings",
+    "issues"
+  ]
+}

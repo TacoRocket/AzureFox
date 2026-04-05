@@ -26,6 +26,7 @@ class CommandMetadata(BaseModel):
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     tenant_id: str | None = None
     subscription_id: str | None = None
+    devops_organization: str | None = None
     token_source: str | None = None
 
 
@@ -596,6 +597,31 @@ class DatabaseServerAsset(BaseModel):
     workload_principal_id: str | None = None
     workload_client_id: str | None = None
     workload_identity_ids: list[str] = Field(default_factory=list)
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
+class DevopsPipelineAsset(BaseModel):
+    id: str
+    definition_id: str
+    name: str
+    project_id: str | None = None
+    project_name: str
+    path: str | None = None
+    repository_name: str | None = None
+    repository_type: str | None = None
+    default_branch: str | None = None
+    trigger_types: list[str] = Field(default_factory=list)
+    variable_group_names: list[str] = Field(default_factory=list)
+    secret_variable_count: int = 0
+    secret_variable_names: list[str] = Field(default_factory=list)
+    key_vault_group_names: list[str] = Field(default_factory=list)
+    key_vault_names: list[str] = Field(default_factory=list)
+    azure_service_connection_names: list[str] = Field(default_factory=list)
+    azure_service_connection_types: list[str] = Field(default_factory=list)
+    azure_service_connection_auth_schemes: list[str] = Field(default_factory=list)
+    target_clues: list[str] = Field(default_factory=list)
+    risk_cues: list[str] = Field(default_factory=list)
     summary: str
     related_ids: list[str] = Field(default_factory=list)
 

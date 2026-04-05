@@ -7,12 +7,17 @@ from abc import ABC, abstractmethod
 from collections import Counter
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urlparse
+from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
 import certifi
 
-from azurefox.auth.session import MANAGEMENT_SCOPE, build_auth_session, decode_jwt_payload
+from azurefox.auth.session import (
+    DEVOPS_SCOPE,
+    MANAGEMENT_SCOPE,
+    build_auth_session,
+    decode_jwt_payload,
+)
 from azurefox.clients.factory import build_clients
 from azurefox.clients.graph import GraphClient
 from azurefox.config import GlobalOptions
@@ -45,6 +50,9 @@ class BaseProvider(ABC):
 
     def automation(self) -> dict:
         return {"automation_accounts": [], "issues": []}
+
+    def devops(self) -> dict:
+        return {"pipelines": [], "issues": []}
 
     def app_services(self) -> dict:
         return {"app_services": [], "issues": []}
@@ -242,6 +250,9 @@ class FixtureProvider(BaseProvider):
 
     def automation(self) -> dict:
         return self._read("automation")
+
+    def devops(self) -> dict:
+        return self._read("devops")
 
     def app_services(self) -> dict:
         return self._read("app_services")
@@ -629,6 +640,118 @@ class AzureProvider(BaseProvider):
             issues.append(_issue_from_exception("automation.accounts", exc))
 
         return {"automation_accounts": automation_accounts, "issues": issues}
+
+    def devops(self) -> dict:
+        organization = self.options.devops_organization
+        if not organization:
+            return {
+                "pipelines": [],
+                "issues": [
+                    {
+                        "kind": ErrorKind.UNKNOWN.value,
+                        "message": (
+                            "devops: Azure DevOps organization not configured; rerun with "
+                            "--devops-organization or set AZUREFOX_DEVOPS_ORG."
+                        ),
+                        "context": {"collector": "devops"},
+                    }
+                ],
+            }
+
+        issues: list[dict] = []
+        pipelines: list[dict] = []
+
+        try:
+            projects = self._devops_list_values(
+                f"https://dev.azure.com/{organization}/_apis/projects?api-version=7.1&$top=200"
+            )
+        except Exception as exc:
+            issues.append(_issue_from_exception("devops.projects", exc))
+            return {"pipelines": [], "issues": issues}
+
+        for project in projects:
+            project_name = str(project.get("name") or "")
+            if not project_name:
+                continue
+            project_path = quote(project_name, safe="")
+
+            try:
+                service_endpoints = self._devops_list_values(
+                    "https://dev.azure.com/"
+                    f"{organization}/{project_path}/_apis/serviceendpoint/endpoints"
+                    "?api-version=7.1"
+                )
+            except Exception as exc:
+                issues.append(
+                    _issue_from_exception(
+                        f"devops[{project_name}].service_endpoints",
+                        exc,
+                    )
+                )
+                service_endpoints = []
+
+            try:
+                variable_groups = self._devops_list_values(
+                    "https://dev.azure.com/"
+                    f"{organization}/{project_path}/_apis/distributedtask/variablegroups"
+                    "?api-version=7.1"
+                )
+            except Exception as exc:
+                issues.append(
+                    _issue_from_exception(
+                        f"devops[{project_name}].variable_groups",
+                        exc,
+                    )
+                )
+                variable_groups = []
+
+            try:
+                definitions = self._devops_list_values(
+                    "https://dev.azure.com/"
+                    f"{organization}/{project_path}/_apis/build/definitions"
+                    "?includeAllProperties=true&api-version=7.1&$top=200"
+                )
+            except Exception as exc:
+                issues.append(
+                    _issue_from_exception(
+                        f"devops[{project_name}].build_definitions",
+                        exc,
+                    )
+                )
+                definitions = []
+
+            service_endpoints_by_id, service_endpoints_by_name = _devops_service_endpoint_maps(
+                service_endpoints
+            )
+            variable_groups_by_id = _devops_variable_group_map(variable_groups)
+
+            for definition in definitions:
+                try:
+                    pipeline = _devops_pipeline_summary(
+                        organization=organization,
+                        project=project,
+                        definition=definition,
+                        service_endpoints_by_id=service_endpoints_by_id,
+                        service_endpoints_by_name=service_endpoints_by_name,
+                        variable_groups_by_id=variable_groups_by_id,
+                    )
+                except Exception as exc:
+                    definition_label = (
+                        str(definition.get("id") or "")
+                        or str(definition.get("name") or "unknown")
+                    )
+                    issues.append(
+                        _issue_from_exception(
+                            f"devops[{project_name}].definitions[{definition_label}]",
+                            exc,
+                        )
+                    )
+                    continue
+
+                if _devops_pipeline_is_interesting(pipeline):
+                    pipelines.append(pipeline)
+
+        return {"pipelines": pipelines, "issues": issues}
 
     def app_services(self) -> dict:
         issues: list[dict] = []
@@ -2450,6 +2573,55 @@ class AzureProvider(BaseProvider):
             raise AzureFoxError(
                 classify_exception(exc),
                 f"ARM request failed for {url}: {exc.reason}",
+            ) from exc
+
+    def _devops_list_values(self, url: str) -> list[dict[str, object]]:
+        items: list[dict[str, object]] = []
+        continuation_token: str | None = None
+
+        while True:
+            request_url = url
+            if continuation_token:
+                request_url = _set_query_param(url, "continuationToken", continuation_token)
+
+            payload, headers = self._devops_get(request_url)
+            values = payload.get("value", [])
+            if isinstance(values, list):
+                items.extend(item for item in values if isinstance(item, dict))
+
+            continuation_token = (
+                headers.get("x-ms-continuationtoken") or headers.get("continuationtoken")
+            )
+            if not continuation_token:
+                break
+
+        return items
+
+    def _devops_get(self, url: str) -> tuple[dict[str, object], dict[str, str]]:
+        token = self.session.credential.get_token(DEVOPS_SCOPE).token
+        request = Request(
+            url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json",
+            },
+        )
+        try:
+            with urlopen(request, context=_arm_ssl_context(), timeout=30) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+                headers = {key.lower(): value for key, value in response.headers.items()}
+                return payload, headers
+        except HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="ignore")
+            raise AzureFoxError(
+                classify_exception(exc),
+                f"Azure DevOps request failed for {url}: {exc.code} {exc.reason}",
+                details={"body": body[:500]},
+            ) from exc
+        except URLError as exc:
+            raise AzureFoxError(
+                classify_exception(exc),
+                f"Azure DevOps request failed for {url}: {exc.reason}",
             ) from exc
 
     def _count_storage_children(
@@ -6661,3 +6833,478 @@ def _partial_collection_issue(
         "message": f"{area}: {message}",
         "context": context,
     }
+
+
+def _set_query_param(url: str, key: str, value: str) -> str:
+    parsed = urlparse(url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query[key] = value
+    return urlunparse(parsed._replace(query=urlencode(query)))
+
+
+def _devops_service_endpoint_maps(
+    endpoints: list[dict[str, object]],
+) -> tuple[dict[str, dict[str, object]], dict[str, dict[str, object]]]:
+    by_id: dict[str, dict[str, object]] = {}
+    by_name: dict[str, dict[str, object]] = {}
+    for endpoint in endpoints:
+        endpoint_id = str(endpoint.get("id") or "").strip().lower()
+        endpoint_name = str(endpoint.get("name") or "").strip().lower()
+        if endpoint_id:
+            by_id[endpoint_id] = endpoint
+        if endpoint_name:
+            by_name[endpoint_name] = endpoint
+    return by_id, by_name
+
+
+def _devops_variable_group_map(
+    variable_groups: list[dict[str, object]],
+) -> dict[int, dict[str, object]]:
+    result: dict[int, dict[str, object]] = {}
+    for group in variable_groups:
+        group_id = group.get("id")
+        if isinstance(group_id, int):
+            result[group_id] = group
+            continue
+        if isinstance(group_id, str) and group_id.isdigit():
+            result[int(group_id)] = group
+    return result
+
+
+def _devops_pipeline_is_interesting(item: dict[str, object]) -> bool:
+    return any(
+        (
+            item.get("azure_service_connection_names"),
+            item.get("secret_variable_count"),
+            item.get("key_vault_group_names"),
+            item.get("target_clues"),
+        )
+    )
+
+
+def _devops_pipeline_summary(
+    *,
+    organization: str,
+    project: dict[str, object],
+    definition: dict[str, object],
+    service_endpoints_by_id: dict[str, dict[str, object]],
+    service_endpoints_by_name: dict[str, dict[str, object]],
+    variable_groups_by_id: dict[int, dict[str, object]],
+) -> dict[str, object]:
+    definition_project = definition.get("project")
+    if not isinstance(definition_project, dict):
+        definition_project = {}
+
+    project_name = str(project.get("name") or definition_project.get("name") or "unknown")
+    project_id = str(project.get("id") or definition_project.get("id") or "") or None
+    definition_id = str(definition.get("id") or "")
+    definition_name = str(definition.get("name") or f"definition-{definition_id or 'unknown'}")
+    path = str(definition.get("path") or "") or None
+    repository = definition.get("repository")
+    repository_name = None
+    repository_type = None
+    default_branch = None
+    if isinstance(repository, dict):
+        repository_name = str(repository.get("name") or "") or None
+        repository_type = str(repository.get("type") or "") or None
+        default_branch = str(repository.get("defaultBranch") or "") or None
+
+    inline_secret_count, inline_secret_names = _devops_secret_details(
+        definition.get("variables")
+    )
+
+    referenced_groups: list[dict[str, object]] = []
+    for group_id in _devops_definition_variable_group_ids(definition):
+        group = variable_groups_by_id.get(group_id)
+        if group is not None:
+            referenced_groups.append(group)
+
+    variable_group_names = _dedupe_strings(group.get("name") for group in referenced_groups)
+    group_secret_count = 0
+    group_secret_names: list[str] = []
+    key_vault_group_names: list[str] = []
+    key_vault_names: list[str] = []
+    provider_endpoint_ids: list[str] = []
+    for group in referenced_groups:
+        secret_count, secret_names = _devops_secret_details(group.get("variables"))
+        group_secret_count += secret_count
+        group_secret_names.extend(secret_names)
+        if _devops_variable_group_is_key_vault_backed(group):
+            group_name = str(group.get("name") or "")
+            if group_name:
+                key_vault_group_names.append(group_name)
+            key_vault_names.extend(_devops_key_vault_names(group.get("providerData")))
+        provider_endpoint_ids.extend(
+            _devops_service_endpoint_ids_from_provider_data(group.get("providerData"))
+        )
+
+    referenced_endpoints = _devops_definition_endpoint_refs(
+        definition,
+        service_endpoints_by_id=service_endpoints_by_id,
+        service_endpoints_by_name=service_endpoints_by_name,
+    )
+    for endpoint_id in provider_endpoint_ids:
+        endpoint = service_endpoints_by_id.get(endpoint_id.lower())
+        if endpoint is not None:
+            referenced_endpoints.append(endpoint)
+
+    azure_endpoints = [
+        endpoint for endpoint in referenced_endpoints if _devops_is_azure_endpoint(endpoint)
+    ]
+    azure_service_connection_names = _dedupe_strings(
+        endpoint.get("name") for endpoint in azure_endpoints
+    )
+    azure_service_connection_types = _dedupe_strings(
+        endpoint.get("type") for endpoint in azure_endpoints
+    )
+    azure_service_connection_auth_schemes = _dedupe_strings(
+        _devops_endpoint_auth_scheme(endpoint) for endpoint in azure_endpoints
+    )
+
+    trigger_types = _devops_trigger_types(definition)
+    secret_variable_names = _dedupe_strings([*inline_secret_names, *group_secret_names])
+    secret_variable_count = inline_secret_count + group_secret_count
+    key_vault_group_names = _dedupe_strings(key_vault_group_names)
+    key_vault_names = _dedupe_strings(key_vault_names)
+    target_clues = _devops_target_clues(definition)
+    risk_cues = _devops_risk_cues(
+        trigger_types=trigger_types,
+        azure_service_connection_names=azure_service_connection_names,
+        secret_variable_count=secret_variable_count,
+        key_vault_group_names=key_vault_group_names,
+    )
+
+    related_ids = _dedupe_strings(
+        [
+            *(
+                [
+                    "https://dev.azure.com/"
+                    f"{organization}/{quote(project_name, safe='')}/_build?definitionId="
+                    f"{definition_id}"
+                ]
+                if definition_id
+                else []
+            ),
+            *[str(endpoint.get("id") or "") for endpoint in azure_endpoints],
+            *[str(group.get("id") or "") for group in referenced_groups],
+            *(key_vault_names or []),
+        ]
+    )
+
+    return {
+        "id": (
+            "https://dev.azure.com/"
+            f"{organization}/{quote(project_name, safe='')}/_build?definitionId={definition_id}"
+            if definition_id
+            else f"devops://{organization}/{project_name}/{definition_name}"
+        ),
+        "definition_id": definition_id or definition_name,
+        "name": definition_name,
+        "project_id": project_id,
+        "project_name": project_name,
+        "path": path,
+        "repository_name": repository_name,
+        "repository_type": repository_type,
+        "default_branch": default_branch,
+        "trigger_types": trigger_types,
+        "variable_group_names": variable_group_names,
+        "secret_variable_count": secret_variable_count,
+        "secret_variable_names": secret_variable_names,
+        "key_vault_group_names": key_vault_group_names,
+        "key_vault_names": key_vault_names,
+        "azure_service_connection_names": azure_service_connection_names,
+        "azure_service_connection_types": azure_service_connection_types,
+        "azure_service_connection_auth_schemes": azure_service_connection_auth_schemes,
+        "target_clues": target_clues,
+        "risk_cues": risk_cues,
+        "summary": _devops_operator_summary(
+            definition_name=definition_name,
+            project_name=project_name,
+            repository_name=repository_name,
+            default_branch=default_branch,
+            trigger_types=trigger_types,
+            azure_service_connection_names=azure_service_connection_names,
+            variable_group_names=variable_group_names,
+            secret_variable_count=secret_variable_count,
+            key_vault_group_names=key_vault_group_names,
+            key_vault_names=key_vault_names,
+            target_clues=target_clues,
+        ),
+        "related_ids": related_ids,
+    }
+
+
+def _devops_secret_details(variables: object) -> tuple[int, list[str]]:
+    if not isinstance(variables, dict):
+        return 0, []
+
+    count = 0
+    names: list[str] = []
+    for name, value in variables.items():
+        if not isinstance(value, dict):
+            continue
+        if bool(value.get("isSecret")):
+            count += 1
+            if name:
+                names.append(str(name))
+    return count, _dedupe_strings(names)
+
+
+def _devops_definition_variable_group_ids(definition: dict[str, object]) -> list[int]:
+    raw_value = definition.get("variableGroups")
+    if not isinstance(raw_value, list):
+        return []
+
+    group_ids: list[int] = []
+    for item in raw_value:
+        if isinstance(item, int):
+            group_ids.append(item)
+        elif isinstance(item, str) and item.isdigit():
+            group_ids.append(int(item))
+        elif isinstance(item, dict):
+            group_id = item.get("id")
+            if isinstance(group_id, int):
+                group_ids.append(group_id)
+            elif isinstance(group_id, str) and group_id.isdigit():
+                group_ids.append(int(group_id))
+    return group_ids
+
+
+def _devops_variable_group_is_key_vault_backed(group: dict[str, object]) -> bool:
+    group_type = str(group.get("type") or "").lower()
+    if "azurekeyvault" in group_type:
+        return True
+
+    provider_data = group.get("providerData")
+    if not isinstance(provider_data, dict):
+        return False
+
+    return any("vault" in str(key).lower() for key in provider_data.keys())
+
+
+def _devops_service_endpoint_ids_from_provider_data(provider_data: object) -> list[str]:
+    if not isinstance(provider_data, dict):
+        return []
+
+    endpoint_ids: list[str] = []
+    for key, value in provider_data.items():
+        key_text = str(key).lower()
+        if "serviceendpoint" not in key_text and "endpoint" not in key_text:
+            continue
+        if isinstance(value, str):
+            endpoint_ids.append(value)
+    return _dedupe_strings(endpoint_ids)
+
+
+def _devops_key_vault_names(provider_data: object) -> list[str]:
+    if not isinstance(provider_data, dict):
+        return []
+
+    names: list[str] = []
+    for key, value in provider_data.items():
+        key_text = str(key).lower()
+        if "vault" not in key_text:
+            continue
+        if isinstance(value, str):
+            names.append(value)
+    return _dedupe_strings(names)
+
+
+def _devops_definition_endpoint_refs(
+    node: object,
+    *,
+    service_endpoints_by_id: dict[str, dict[str, object]],
+    service_endpoints_by_name: dict[str, dict[str, object]],
+) -> list[dict[str, object]]:
+    endpoint_keys = (
+        "serviceconnection",
+        "serviceendpoint",
+        "connectedservice",
+        "azuresubscription",
+        "azurecontainerregistry",
+        "azureresourcemanagerconnection",
+        "kubernetesserviceendpoint",
+    )
+    matches: list[dict[str, object]] = []
+
+    def walk(value: object, *, parent_key: str = "") -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                walk(child, parent_key=str(key))
+            return
+        if isinstance(value, list):
+            for child in value:
+                walk(child, parent_key=parent_key)
+            return
+        if not isinstance(value, str):
+            return
+
+        lowered_parent = parent_key.lower()
+        if not any(marker in lowered_parent for marker in endpoint_keys):
+            return
+
+        endpoint = service_endpoints_by_id.get(value.strip().lower())
+        if endpoint is None:
+            endpoint = service_endpoints_by_name.get(value.strip().lower())
+        if endpoint is not None:
+            matches.append(endpoint)
+
+    walk(node)
+    deduped: dict[str, dict[str, object]] = {}
+    for endpoint in matches:
+        endpoint_key = str(endpoint.get("id") or endpoint.get("name") or "").lower()
+        if endpoint_key:
+            deduped[endpoint_key] = endpoint
+    return list(deduped.values())
+
+
+def _devops_is_azure_endpoint(endpoint: dict[str, object]) -> bool:
+    endpoint_type = str(endpoint.get("type") or "").lower()
+    return "azure" in endpoint_type or endpoint_type in {
+        "azurerm",
+        "dockerregistry",
+        "kubernetes",
+        "acr",
+    }
+
+
+def _devops_endpoint_auth_scheme(endpoint: dict[str, object]) -> str | None:
+    authorization = endpoint.get("authorization")
+    if not isinstance(authorization, dict):
+        return None
+    scheme = authorization.get("scheme")
+    return str(scheme) if scheme else None
+
+
+def _devops_trigger_types(definition: dict[str, object]) -> list[str]:
+    triggers = definition.get("triggers")
+    if not isinstance(triggers, list):
+        return []
+
+    values: list[str] = []
+    for trigger in triggers:
+        if not isinstance(trigger, dict):
+            continue
+        trigger_type = trigger.get("triggerType") or trigger.get("type")
+        if trigger_type:
+            values.append(str(trigger_type))
+    return _dedupe_strings(values)
+
+
+def _devops_target_clues(definition: dict[str, object]) -> list[str]:
+    strings = [text.lower() for text in _recursive_strings(definition)]
+    if not strings:
+        return []
+
+    patterns = {
+        "AKS/Kubernetes": ("kubernetes", "kubectl", "helm", "aks"),
+        "App Service": ("appservice", "app service", "azurewebapp", "webapp"),
+        "Functions": ("functionapp", "function app", "azurefunctionapp"),
+        "ARM/Bicep/Terraform": ("arm", "bicep", "terraform", "az deployment"),
+        "ACR/Containers": ("containerregistry", "docker", "acr", "container image"),
+    }
+
+    clues: list[str] = []
+    for clue, keywords in patterns.items():
+        if any(keyword in text for keyword in keywords for text in strings):
+            clues.append(clue)
+    return clues
+
+
+def _devops_risk_cues(
+    *,
+    trigger_types: list[str],
+    azure_service_connection_names: list[str],
+    secret_variable_count: int,
+    key_vault_group_names: list[str],
+) -> list[str]:
+    lowered_triggers = {value.lower() for value in trigger_types}
+    cues: list[str] = []
+    if lowered_triggers & {"continuousintegration", "schedule", "pullrequest"}:
+        cues.append("auto-triggered")
+    if azure_service_connection_names:
+        cues.append("azure deployment connection")
+    if len(azure_service_connection_names) > 1:
+        cues.append("multiple azure connections")
+    if secret_variable_count > 0:
+        cues.append("secret-bearing variables")
+    if key_vault_group_names:
+        cues.append("key vault-backed variables")
+    return cues
+
+
+def _devops_operator_summary(
+    *,
+    definition_name: str,
+    project_name: str,
+    repository_name: str | None,
+    default_branch: str | None,
+    trigger_types: list[str],
+    azure_service_connection_names: list[str],
+    variable_group_names: list[str],
+    secret_variable_count: int,
+    key_vault_group_names: list[str],
+    key_vault_names: list[str],
+    target_clues: list[str],
+) -> str:
+    parts = [f"Build definition '{definition_name}' in project '{project_name}'"]
+
+    if repository_name:
+        repo_phrase = repository_name
+        if default_branch:
+            repo_phrase = f"{repo_phrase}@{default_branch}"
+        parts.append(f"reads from repo {repo_phrase}")
+
+    trigger_phrase = _devops_trigger_phrase(trigger_types)
+    if trigger_phrase:
+        parts.append(trigger_phrase)
+
+    if azure_service_connection_names:
+        parts.append(
+            "uses Azure-facing service connection(s) "
+            + ", ".join(azure_service_connection_names)
+        )
+
+    if variable_group_names:
+        parts.append(
+            "references variable group(s) " + ", ".join(variable_group_names)
+        )
+
+    if secret_variable_count > 0:
+        parts.append(f"surfaces {secret_variable_count} secret-marked variable name(s)")
+
+    if key_vault_group_names or key_vault_names:
+        kv_targets = ", ".join(key_vault_names or key_vault_group_names)
+        parts.append(f"pulls from Key Vault-backed variable support ({kv_targets})")
+
+    if target_clues:
+        parts.append("shows deployment cues for " + ", ".join(target_clues))
+
+    return ". ".join(parts) + "."
+
+
+def _devops_trigger_phrase(trigger_types: list[str]) -> str | None:
+    lowered = {value.lower() for value in trigger_types}
+    if "continuousintegration" in lowered:
+        return "auto-triggers on source changes"
+    if "schedule" in lowered:
+        return "runs on a schedule"
+    if "pullrequest" in lowered:
+        return "includes pull-request trigger posture"
+    if trigger_types:
+        return "uses trigger types " + ", ".join(trigger_types)
+    return None
+
+
+def _recursive_strings(node: object) -> list[str]:
+    values: list[str] = []
+    if isinstance(node, dict):
+        for key, value in node.items():
+            values.append(str(key))
+            values.extend(_recursive_strings(value))
+    elif isinstance(node, list):
+        for value in node:
+            values.extend(_recursive_strings(value))
+    elif isinstance(node, str):
+        values.append(node)
+    return values

@@ -62,6 +62,18 @@ def test_help_command_automation_topic() -> None:
     assert "encrypted_variable_count" in result.stdout
 
 
+def test_help_command_devops_topic() -> None:
+    result = runner.invoke(app, ["help", "devops"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: devops" in result.stdout
+    assert "build definitions" in result.stdout
+    assert "azure_service_connection_names" in result.stdout
+    assert "secret_variable_names" in result.stdout
+    assert "key_vault_group_names" in result.stdout
+    assert "--devops-organization" in result.stdout
+
+
 def test_help_command_endpoints_topic() -> None:
     result = runner.invoke(app, ["help", "endpoints"])
 

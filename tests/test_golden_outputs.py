@@ -13,6 +13,7 @@ from azurefox.collectors.commands import (
     collect_automation,
     collect_cross_tenant,
     collect_databases,
+    collect_devops,
     collect_dns,
     collect_endpoints,
     collect_env_vars,
@@ -43,6 +44,8 @@ from azurefox.collectors.commands import (
 def _normalize(payload: dict) -> dict:
     payload = json.loads(json.dumps(payload))
     payload["metadata"]["generated_at"] = "<generated_at>"
+    if payload["metadata"].get("devops_organization") is None:
+        payload["metadata"].pop("devops_organization", None)
     return payload
 
 
@@ -54,6 +57,7 @@ def test_golden_outputs(fixture_provider, options) -> None:
         "whoami": collect_whoami,
         "inventory": collect_inventory,
         "automation": collect_automation,
+        "devops": collect_devops,
         "app-services": collect_app_services,
         "acr": collect_acr,
         "databases": collect_databases,
@@ -89,4 +93,4 @@ def test_golden_outputs(fixture_provider, options) -> None:
     for command, collector in collectors.items():
         model = collector(fixture_provider, options)
         expected = json.loads((golden_dir / f"{command}.json").read_text(encoding="utf-8"))
-        assert _normalize(model.model_dump(mode="json")) == expected
+        assert _normalize(model.model_dump(mode="json")) == _normalize(expected)

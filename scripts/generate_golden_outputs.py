@@ -6,6 +6,7 @@ from pathlib import Path
 from azurefox.collectors.commands import (
     collect_arm_deployments,
     collect_cross_tenant,
+    collect_devops,
     collect_env_vars,
     collect_inventory,
     collect_keyvault,
@@ -44,6 +45,7 @@ def main() -> None:
     commands = {
         "whoami": collect_whoami,
         "inventory": collect_inventory,
+        "devops": collect_devops,
         "arm-deployments": collect_arm_deployments,
         "env-vars": collect_env_vars,
         "network-effective": collect_network_effective,
