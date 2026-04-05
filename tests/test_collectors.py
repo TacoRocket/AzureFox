@@ -1648,6 +1648,78 @@ def test_collect_cross_tenant(fixture_provider, options) -> None:
     assert output.cross_tenant_paths[3].signal_type == "lighthouse"
 
 
+def test_cross_tenant_surfaces_external_service_principal_without_principal_join() -> None:
+    provider = AzureProvider.__new__(AzureProvider)
+    provider.session = SimpleNamespace(tenant_id="11111111-1111-1111-1111-111111111111")
+    provider.graph = SimpleNamespace(
+        list_service_principals=lambda: [
+            {
+                "id": "sp-external-readable",
+                "appId": "app-external-readable",
+                "displayName": "external-readable-app",
+                "appOwnerOrganizationId": "77777777-7777-7777-7777-777777777777",
+            }
+        ]
+    )
+    provider.lighthouse = lambda: {"lighthouse_delegations": [], "issues": []}
+    provider.auth_policies = lambda: {"auth_policies": [], "issues": []}
+    provider.principals = lambda: {"principals": [], "issues": []}
+
+    data = provider.cross_tenant()
+
+    assert data["issues"] == []
+    assert len(data["cross_tenant_paths"]) == 1
+    row = data["cross_tenant_paths"][0]
+    assert row["signal_type"] == "external-sp"
+    assert row["priority"] == "low"
+    assert row["posture"] == "roles=none-visible; assignments=0; scopes=0"
+    assert "no Azure role assignments are visible through the current read path" in row["summary"]
+
+
+def test_collect_cross_tenant_keeps_subscription_lighthouse_ahead_of_resource_group_ties(
+    options,
+) -> None:
+    provider = SimpleNamespace(
+        metadata_context=lambda: {},
+        cross_tenant=lambda: {
+            "cross_tenant_paths": [
+                {
+                    "id": "rg-owner",
+                    "signal_type": "lighthouse",
+                    "name": "RG owner delegation",
+                    "tenant_id": "22222222-2222-2222-2222-222222222222",
+                    "tenant_name": None,
+                    "scope": "resource-group::rg-platform",
+                    "posture": "strongest=Owner",
+                    "attack_path": "control",
+                    "priority": "medium",
+                    "summary": "Outside tenant can manage a resource group.",
+                    "related_ids": ["rg-owner"],
+                },
+                {
+                    "id": "sub-contributor",
+                    "signal_type": "lighthouse",
+                    "name": "Subscription contributor delegation",
+                    "tenant_id": "99999999-9999-9999-9999-999999999999",
+                    "tenant_name": None,
+                    "scope": "subscription::lab-subscription",
+                    "posture": "strongest=Contributor",
+                    "attack_path": "control",
+                    "priority": "medium",
+                    "summary": "Outside tenant can manage the subscription.",
+                    "related_ids": ["sub-contributor"],
+                },
+            ],
+            "issues": [],
+        },
+    )
+
+    output = collect_cross_tenant(provider, options)
+
+    assert output.cross_tenant_paths[0].id == "sub-contributor"
+    assert output.cross_tenant_paths[1].id == "rg-owner"
+
+
 def test_vmss_summary_emits_partial_issue_when_network_profile_is_missing() -> None:
     vmss = SimpleNamespace(
         id=(

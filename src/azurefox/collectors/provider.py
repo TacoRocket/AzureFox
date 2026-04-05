@@ -1606,13 +1606,6 @@ class AzureProvider(BaseProvider):
                     continue
 
                 principal = principal_by_id.get(principal_id)
-                try:
-                    assignment_count = int(principal.get("role_assignment_count") or 0)
-                except (AttributeError, TypeError, ValueError):
-                    assignment_count = 0
-                if principal is None or assignment_count == 0:
-                    continue
-
                 cross_tenant_paths.append(
                     _cross_tenant_external_service_principal_row(service_principal, principal)
                 )
@@ -2928,38 +2921,57 @@ def _cross_tenant_lighthouse_row(item: dict) -> dict:
 
 def _cross_tenant_external_service_principal_row(
     service_principal: dict,
-    principal: dict,
+    principal: dict | None,
 ) -> dict:
-    role_names = principal.get("role_names", [])
+    principal_data = principal if isinstance(principal, dict) else {}
+    role_names = principal_data.get("role_names", [])
+    try:
+        assignment_count = int(principal_data.get("role_assignment_count") or 0)
+    except (TypeError, ValueError):
+        assignment_count = 0
+
+    scope_ids = principal_data.get("scope_ids", [])
+    role_names = principal_data.get("role_names", [])
     high_impact = any(
         str(role).lower() in _HIGH_IMPACT_ROLE_NAMES for role in role_names if isinstance(role, str)
     )
-    priority = "high" if high_impact else "medium"
+    if high_impact:
+        priority = "high"
+    elif assignment_count > 0:
+        priority = "medium"
+    else:
+        priority = "low"
+
     posture_parts = []
     if role_names:
         posture_parts.append(f"roles={','.join(role_names[:3])}")
-    try:
-        assignment_count = int(principal.get("role_assignment_count") or 0)
-    except (TypeError, ValueError):
-        assignment_count = 0
+    else:
+        posture_parts.append("roles=none-visible")
     posture_parts.append(f"assignments={assignment_count}")
-    posture_parts.append(f"scopes={len(principal.get('scope_ids', []))}")
+    posture_parts.append(f"scopes={len(scope_ids)}")
 
     display_name = (
         service_principal.get("displayName")
-        or principal.get("display_name")
+        or principal_data.get("display_name")
         or service_principal.get("appId")
         or service_principal.get("id")
         or "external service principal"
-    )
-    summary = (
-        f"Service principal '{display_name}' appears to be owned by another tenant and also "
-        "holds visible Azure role assignments in the current environment."
     )
     if high_impact:
         summary = (
             f"Service principal '{display_name}' appears to be owned by another tenant and holds "
             "high-impact Azure role assignments in the current environment."
+        )
+    elif assignment_count > 0:
+        summary = (
+            f"Service principal '{display_name}' appears to be owned by another tenant and also "
+            "holds visible Azure role assignments in the current environment."
+        )
+    else:
+        summary = (
+            f"Service principal '{display_name}' appears to be owned by another tenant and is "
+            "readable in the current tenant, but no Azure role assignments are visible through "
+            "the current read path."
         )
 
     return {

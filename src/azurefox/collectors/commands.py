@@ -361,6 +361,7 @@ def collect_cross_tenant(provider: BaseProvider, options: GlobalOptions) -> Cros
         key=lambda item: (
             _priority_rank(item.get("priority")),
             _cross_tenant_signal_rank(item),
+            _cross_tenant_scope_rank(item),
             item.get("tenant_name") or item.get("tenant_id") or "",
             item.get("name") or "",
         ),
@@ -643,6 +644,18 @@ def _cross_tenant_signal_rank(item: dict) -> int:
         "external-sp": 1,
         "policy": 2,
     }.get(str(item.get("signal_type") or "").lower(), 9)
+
+
+def _cross_tenant_scope_rank(item: dict) -> int:
+    if str(item.get("signal_type") or "").lower() != "lighthouse":
+        return 9
+
+    scope = str(item.get("scope") or "").lower()
+    if scope.startswith("subscription::"):
+        return 0
+    if scope.startswith("resource-group::"):
+        return 1
+    return 2
 
 
 def _auth_policy_has_findings(item: dict, findings: list[dict]) -> bool:
