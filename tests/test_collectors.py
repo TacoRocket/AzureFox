@@ -8,8 +8,8 @@ from azurefox.collectors.commands import (
     collect_acr,
     collect_aks,
     collect_api_mgmt,
-    collect_application_gateway,
     collect_app_services,
+    collect_application_gateway,
     collect_arm_deployments,
     collect_auth_policies,
     collect_automation,
@@ -241,9 +241,10 @@ class DriftOrderingFixtureProvider(MetadataFixtureProvider):
                     "id": "agw-public-prevention",
                     "name": "zzz-public-prevention",
                     "public_frontend_count": 1,
-                    "listener_count": 2,
-                    "request_routing_rule_count": 2,
-                    "backend_target_count": 2,
+                    "listener_count": 5,
+                    "request_routing_rule_count": 5,
+                    "backend_pool_count": 4,
+                    "backend_target_count": 6,
                     "waf_enabled": True,
                     "waf_mode": "Prevention",
                     "firewall_policy_id": "/policy/prevention",
@@ -256,6 +257,7 @@ class DriftOrderingFixtureProvider(MetadataFixtureProvider):
                     "public_frontend_count": 1,
                     "listener_count": 4,
                     "request_routing_rule_count": 4,
+                    "backend_pool_count": 3,
                     "backend_target_count": 5,
                     "waf_enabled": False,
                     "waf_mode": None,
@@ -264,11 +266,26 @@ class DriftOrderingFixtureProvider(MetadataFixtureProvider):
                     "related_ids": [],
                 },
                 {
+                    "id": "agw-public-tiny-weak",
+                    "name": "bbb-public-tiny-weak",
+                    "public_frontend_count": 1,
+                    "listener_count": 1,
+                    "request_routing_rule_count": 1,
+                    "backend_pool_count": 1,
+                    "backend_target_count": 1,
+                    "waf_enabled": False,
+                    "waf_mode": None,
+                    "firewall_policy_id": None,
+                    "summary": "tiny public gateway with weak edge posture",
+                    "related_ids": [],
+                },
+                {
                     "id": "agw-internal",
                     "name": "aaa-internal-detection",
                     "public_frontend_count": 0,
                     "listener_count": 6,
                     "request_routing_rule_count": 6,
+                    "backend_pool_count": 4,
                     "backend_target_count": 8,
                     "waf_enabled": True,
                     "waf_mode": "Detection",
@@ -928,8 +945,16 @@ class PartialDnsFixtureProvider(FixtureProvider):
 class PartialApplicationGatewayFixtureProvider(FixtureProvider):
     def application_gateway(self) -> dict:
         data = self._read("application_gateway")
+        row = dict(data["application_gateways"][0])
+        row["public_ip_addresses"] = []
+        row["summary"] = (
+            "Application Gateway 'agw-shared-edge-01' publishes 1 public frontend(s). "
+            "Visible routing breadth: 4 listener(s), 4 routing rule(s), 3 backend pool(s), "
+            "5 backend target(s). Visible WAF protection is disabled. This is a shared front "
+            "door, so if the edge is weak the apps behind it may deserve review next."
+        )
         return {
-            "application_gateways": [data["application_gateways"][0]],
+            "application_gateways": [row],
             "issues": [
                 {
                     "kind": "permission_denied",
@@ -1167,12 +1192,13 @@ def test_collect_application_gateway(fixture_provider, options) -> None:
     assert output.application_gateways[2].public_frontend_count == 0
 
 
-def test_collect_application_gateway_sorts_public_then_weaker_edge_first(options) -> None:
+def test_collect_application_gateway_sorts_public_then_shared_breadth_then_waf(options) -> None:
     output = collect_application_gateway(DriftOrderingFixtureProvider(Path(".")), options)
 
     assert [item.name for item in output.application_gateways] == [
-        "mmm-public-weak",
         "zzz-public-prevention",
+        "mmm-public-weak",
+        "bbb-public-tiny-weak",
         "aaa-internal-detection",
     ]
 
@@ -1185,6 +1211,8 @@ def test_collect_application_gateway_keeps_command_level_issue_explicit(
     output = collect_application_gateway(provider, options)
 
     assert len(output.application_gateways) == 1
+    assert output.application_gateways[0].public_ip_addresses == []
+    assert "20.30.40.50" not in output.application_gateways[0].summary
     assert output.issues[0].kind == "permission_denied"
     assert output.issues[0].context["collector"] == "application_gateway.public_ip_addresses"
 

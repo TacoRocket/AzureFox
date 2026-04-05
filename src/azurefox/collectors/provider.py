@@ -4058,7 +4058,9 @@ def _application_gateway_summary(
     frontend_ip_configurations = getattr(gateway, "frontend_ip_configurations", None) or []
     backend_address_pools = getattr(gateway, "backend_address_pools", None) or []
     waf_configuration = getattr(gateway, "web_application_firewall_configuration", None)
-    firewall_policy_id = _string_value(getattr(getattr(gateway, "firewall_policy", None), "id", None))
+    firewall_policy_id = _string_value(
+        getattr(getattr(gateway, "firewall_policy", None), "id", None)
+    )
 
     public_ip_address_ids: list[str] = []
     private_frontend_ips: list[str] = []
@@ -4521,7 +4523,10 @@ def _application_gateway_operator_summary(
             )
         )
     elif private_frontend_count:
-        exposure_phrase = f"is private-only from the current read path ({private_frontend_count} private frontend(s))"
+        exposure_phrase = (
+            "is private-only from the current read path "
+            f"({private_frontend_count} private frontend(s))"
+        )
     else:
         exposure_phrase = "does not expose readable frontend IP posture from the current read path"
 
@@ -4553,22 +4558,48 @@ def _application_gateway_operator_summary(
     else:
         waf_phrase = "No visible WAF protection is configured from the current read path."
 
-    if public_frontend_count and (backend_target_count > 1 or request_routing_rule_count > 1):
+    if public_frontend_count and _application_gateway_has_shared_breadth(
+        listener_count=listener_count,
+        request_routing_rule_count=request_routing_rule_count,
+        backend_pool_count=backend_pool_count,
+        backend_target_count=backend_target_count,
+    ):
         why_phrase = (
-            "This is a shared front door, so if the edge is weak the apps behind it may deserve review next."
+            "This is a shared front door, so if the edge is weak "
+            "the apps behind it may deserve review next."
         )
     elif public_frontend_count:
         why_phrase = (
-            "Because this gateway is public, weak edge controls here would make the backend path worth checking next."
+            "Because this gateway is public, weak edge controls here "
+            "would make the backend path worth checking next."
         )
     else:
         why_phrase = (
-            "This is still useful shared-ingress context, but it is not an obvious internet-first path."
+            "This is still useful shared-ingress context, but it is not "
+            "an obvious internet-first path."
         )
 
     return (
         f"Application Gateway '{gateway_name}' {exposure_phrase}. "
         f"{routing_phrase} {waf_phrase} {why_phrase}"
+    )
+
+
+def _application_gateway_has_shared_breadth(
+    *,
+    listener_count: int,
+    request_routing_rule_count: int,
+    backend_pool_count: int,
+    backend_target_count: int,
+) -> bool:
+    return any(
+        value > 1
+        for value in (
+            listener_count,
+            request_routing_rule_count,
+            backend_pool_count,
+            backend_target_count,
+        )
     )
 
 

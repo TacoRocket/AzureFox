@@ -1236,7 +1236,9 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         shared_public_gateways = sum(
             (item.get("public_frontend_count") or 0) > 0
             and (
-                (item.get("backend_target_count") or 0) > 1
+                (item.get("backend_pool_count") or 0) > 1
+                or (item.get("backend_target_count") or 0) > 1
+                or (item.get("listener_count") or 0) > 1
                 or (item.get("request_routing_rule_count") or 0) > 1
             )
             for item in application_gateways

@@ -655,15 +655,29 @@ def _vm_asset_sort_key(item: dict) -> tuple[bool, bool, int, int, str, str]:
     )
 
 
-def _application_gateway_sort_key(item: dict) -> tuple[bool, int, int, int, int, int, str]:
+def _application_gateway_sort_key(item: dict) -> tuple[bool, int, int, int, int, int, int, str]:
     return (
         not bool(item.get("public_frontend_count")),
-        _application_gateway_waf_rank(item),
         -_int_or_zero(item.get("public_frontend_count")),
+        -_application_gateway_shared_breadth(item),
         -_int_or_zero(item.get("listener_count")),
         -_int_or_zero(item.get("request_routing_rule_count")),
         -_int_or_zero(item.get("backend_target_count")),
+        -_int_or_zero(item.get("backend_pool_count")),
+        _application_gateway_waf_rank(item),
         item.get("name") or "",
+    )
+
+
+def _application_gateway_shared_breadth(item: dict) -> int:
+    return sum(
+        _int_or_zero(item.get(field_name))
+        for field_name in (
+            "listener_count",
+            "request_routing_rule_count",
+            "backend_target_count",
+            "backend_pool_count",
+        )
     )
 
 
