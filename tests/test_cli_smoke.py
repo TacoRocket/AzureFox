@@ -17,6 +17,7 @@ def test_cli_smoke_all_commands(tmp_path: Path) -> None:
     commands = [
         "whoami",
         "inventory",
+        "chains",
         "automation",
         "devops",
         "app-services",
@@ -53,9 +54,12 @@ def test_cli_smoke_all_commands(tmp_path: Path) -> None:
     ]
 
     for command in commands:
+        argv = ["--outdir", str(tmp_path), "--output", "json", command]
+        if command == "chains":
+            argv.append("credential-path")
         result = runner.invoke(
             app,
-            ["--outdir", str(tmp_path), "--output", "json", command],
+            argv,
             env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
         )
         assert result.exit_code == 0
@@ -64,6 +68,84 @@ def test_cli_smoke_all_commands(tmp_path: Path) -> None:
         if command == "role-trusts":
             assert payload["mode"] == "fast"
         assert (tmp_path / "loot" / f"{command}.json").exists()
+
+
+def test_cli_smoke_chains_credential_path_json(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "json", "chains", "credential-path"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["metadata"]["command"] == "chains"
+    assert payload["family"] == "credential-path"
+    assert payload["command_state"] == "extraction-only"
+    assert [item["command"] for item in payload["source_artifacts"]] == [
+        "env-vars",
+        "tokens-credentials",
+        "databases",
+        "storage",
+        "keyvault",
+    ]
+    assert len(payload["paths"]) == 3
+    assert payload["paths"][0]["target_service"] == "keyvault"
+    assert payload["paths"][0]["target_resolution"] == "named match"
+    assert payload["paths"][0]["priority"] == "high"
+    assert payload["paths"][0]["target_names"] == ["kvlabopen01"]
+    assert "Check vault access path" in payload["paths"][0]["next_review"]
+    assert payload["paths"][1]["target_service"] == "database"
+    assert payload["paths"][1]["priority"] == "medium"
+    assert payload["paths"][2]["target_service"] == "storage"
+    assert payload["paths"][2]["priority"] == "low"
+    assert {item["setting_name"] for item in payload["paths"]} == {
+        "DB_PASSWORD",
+        "AzureWebJobsStorage",
+        "PAYMENT_API_KEY",
+    }
+    assert {
+        item["target_resolution"]
+        for item in payload["paths"]
+        if item["target_service"] in {"database", "storage"}
+    } == {"narrowed candidates"}
+
+
+def test_cli_smoke_chains_credential_path_table_output(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "chains", "credential-path"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    assert "azurefox chains" in result.stdout
+    assert "kvlabopen01" in result.stdout
+    assert "priority" in result.stdout
+    assert "target resolution" in result.stdout
+    assert "next review" in result.stdout
+    assert "high" in result.stdout
+    assert "medium" in result.stdout
+    assert "low" in result.stdout
+    assert "narrowed candidates" in result.stdout
+    assert "Takeaway: 3 visible credential paths" in result.stdout
+
+
+def test_cli_smoke_chains_rejects_unimplemented_family(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "json", "chains", "deployment-path"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 2
+    assert "is not implemented yet" in result.stderr
 
 
 def test_cli_smoke_loot_keeps_top_ranked_targets_for_tokens_credentials(tmp_path: Path) -> None:

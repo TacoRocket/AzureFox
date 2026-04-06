@@ -4,6 +4,7 @@ from collections import Counter
 
 from pydantic import BaseModel, Field
 
+from azurefox.models.chains import ChainsOutput
 from azurefox.models.common import (
     AcrRegistryAsset,
     AksClusterAsset,
@@ -293,6 +294,10 @@ class VmssOutput(BaseModel):
     vmss_assets: list[VmssAsset] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class ChainsCommandOutput(ChainsOutput):
+    pass
 
 
 class WorkloadsOutput(BaseModel):

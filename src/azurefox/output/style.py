@@ -86,6 +86,10 @@ COMMAND_NARRATION = {
         "frontend network cues."
     ),
     "all-checks": "Running deprecated broad grouped sweep across the current AzureFox command set.",
+    "chains": (
+        "Correlating the first grouped chain family from emitted command artifacts and "
+        "conservative cross-command joins."
+    ),
 }
 
 

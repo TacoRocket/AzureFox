@@ -6,6 +6,8 @@ from pathlib import Path
 
 import typer
 
+from azurefox.chains import implemented_chain_families, run_chain_family
+from azurefox.chains.registry import chain_family_names, get_chain_family_spec
 from azurefox.collectors.provider import get_provider
 from azurefox.config import GlobalOptions
 from azurefox.errors import AzureFoxError
@@ -368,6 +370,47 @@ def all_checks(
         raise typer.Exit(code=1)
 
 
+@app.command("chains")
+def chains(
+    ctx: typer.Context,
+    family: str = typer.Argument(..., help="Chain family name, for example credential-path"),
+) -> None:
+    options: GlobalOptions = ctx.obj
+    family_spec = get_chain_family_spec(family)
+    if family_spec is None:
+        typer.echo(
+            f"[chains] Unknown chain family '{family}'. Valid families: "
+            f"{', '.join(chain_family_names())}",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    if family not in implemented_chain_families():
+        typer.echo(
+            f"[chains] Chain family '{family}' is not implemented yet. "
+            f"Currently supported: {', '.join(implemented_chain_families())}",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    try:
+        provider = get_provider(options)
+        if options.output != OutputMode.JSON:
+            emit_context_banner(options)
+            emit_command_intro("chains")
+        model = run_chain_family(provider, options, family)
+        artifact_paths = emit_output("chains", model, options)
+        emit_artifact_paths("chains", artifact_paths, options)
+    except AzureFoxError as exc:
+        typer.echo(f"[{exc.kind}] {exc}", err=True)
+        if options.debug and exc.details:
+            typer.echo(str(exc.details), err=True)
+        raise typer.Exit(code=2) from exc
+    except Exception as exc:  # pragma: no cover - safety rail
+        typer.echo(f"[unknown] {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+
 @app.command("help")
 def help_command(topic: str | None = typer.Argument(None)) -> None:
     try:
@@ -482,7 +525,7 @@ def _normalize_command_global_options(argv: list[str]) -> list[str]:
 
 
 def _command_names() -> set[str]:
-    return {spec.name for spec in get_command_specs()} | {"all-checks"}
+    return {spec.name for spec in get_command_specs()} | {"all-checks", "chains"}
 
 
 def _is_help_topic(token: str) -> bool:

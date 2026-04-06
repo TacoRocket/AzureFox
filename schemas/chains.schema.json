@@ -1,0 +1,17 @@
+{
+  "model": "ChainsCommandOutput",
+  "top_level_fields": [
+    "metadata",
+    "grouped_command_name",
+    "family",
+    "input_mode",
+    "command_state",
+    "summary",
+    "claim_boundary",
+    "artifact_preference_order",
+    "backing_commands",
+    "source_artifacts",
+    "paths",
+    "issues"
+  ]
+}

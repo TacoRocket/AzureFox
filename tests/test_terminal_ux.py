@@ -649,6 +649,29 @@ def test_tokens_credentials_table_mode_surfaces_findings_and_takeaway(tmp_path: 
     assert "Takeaway: 12 token or credential surfaces across 7 assets;" in result.stdout
 
 
+def test_chains_table_mode_surfaces_priority_and_next_review(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "chains", "credential-path"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    normalized_output = " ".join(result.stdout.split())
+    assert "priority" in result.stdout
+    assert "next review" in result.stdout
+    assert "note" in result.stdout
+    assert "Named target matched" in normalized_output
+    assert "visible inventory." in normalized_output
+    assert "Confirm the database" in normalized_output
+    assert "target from app config" in normalized_output
+    assert "or connection clues." in normalized_output
+    assert "Secret-shaped clue" in normalized_output
+    assert "suggests a database" in normalized_output
+    assert "path; exact target" in normalized_output
+    assert "unconfirmed." in normalized_output
+
+
 def test_auth_policies_partial_read_surfaces_collection_issue() -> None:
     payload = {
         "metadata": {"command": "auth-policies"},
@@ -667,6 +690,50 @@ def test_auth_policies_partial_read_surfaces_collection_issue() -> None:
     assert "Credential-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "auth_policies.security_defaults" in rendered
+
+
+def test_chains_partial_target_visibility_prefers_issue_over_candidate_list() -> None:
+    payload = {
+        "metadata": {"command": "chains"},
+        "paths": [
+            {
+                "priority": "low",
+                "asset_name": "app-public-api",
+                "setting_name": "DB_PASSWORD",
+                "target_service": "database",
+                "target_resolution": "visibility blocked",
+                "target_names": [],
+                "target_visibility_issue": (
+                    "permission_denied: databases.servers: current credentials do not show "
+                    "database visibility for at least one visible server"
+                ),
+                "visible_path": "Credential-like setting -> likely database path",
+                "summary": (
+                    "AppService 'app-public-api' exposes credential-like setting "
+                    "'DB_PASSWORD', and the visible naming suggests a database path. "
+                    "AzureFox cannot name candidate database targets because current "
+                    "credentials do not show enough target-side visibility."
+                ),
+            }
+        ],
+        "issues": [
+            {
+                "kind": "permission_denied",
+                "message": (
+                    "databases.servers: current credentials do not show database visibility "
+                    "for at least one visible server"
+                ),
+                "context": {"collector": "databases.servers"},
+            }
+        ],
+    }
+    rendered = render_table("chains", payload)
+
+    assert "low" in rendered
+    assert "visibility blocked" in rendered
+    assert "permission_denied: databases.servers" in rendered
+    assert "sql-public-legacy" not in rendered
+    assert "Credential-scope issues:" in rendered
 
 
 def test_app_services_partial_read_surfaces_collection_issue() -> None:
