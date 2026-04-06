@@ -2056,6 +2056,96 @@ def test_tokens_credential_next_review_hint_prefers_endpoints_for_public_imds() 
     )
 
 
+def test_collect_managed_identities_surfaces_handoff_fields(fixture_provider, options) -> None:
+    output = collect_managed_identities(fixture_provider, options)
+
+    assert output.identities[0].operator_signal == "Public VM workload pivot; direct control visible."
+    assert (
+        output.identities[0].next_review
+        == "Check permissions for direct control on this identity, then vms for the host context behind the workload pivot."
+    )
+    assert "Current scope already shows direct control" in (output.identities[0].summary or "")
+
+
+def test_collect_managed_identities_sorts_and_blocks_visibility() -> None:
+    class StubProvider:
+        def metadata_context(self) -> dict[str, str | None]:
+            return {"tenant_id": None, "subscription_id": None, "token_source": None}
+
+        def managed_identities(self) -> dict:
+            return {
+                "identities": [
+                    {
+                        "id": "identity-public-vm",
+                        "name": "ua-prod",
+                        "identity_type": "userAssigned",
+                        "principal_id": "principal-1",
+                        "client_id": None,
+                        "attached_to": [
+                            "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-edge"
+                        ],
+                        "scope_ids": ["/subscriptions/test"],
+                    },
+                    {
+                        "id": "identity-web-blocked",
+                        "name": "app-edge-system",
+                        "identity_type": "systemAssigned",
+                        "principal_id": None,
+                        "client_id": None,
+                        "attached_to": [
+                            "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Web/sites/app-edge"
+                        ],
+                        "scope_ids": ["/subscriptions/test"],
+                    },
+                ],
+                "role_assignments": [
+                    {
+                        "id": "ra-1",
+                        "scope_id": "/subscriptions/test",
+                        "principal_id": "principal-1",
+                        "principal_type": "ServicePrincipal",
+                        "role_definition_id": "rd-owner",
+                        "role_name": "Owner",
+                    }
+                ],
+                "issues": [],
+            }
+
+        def vms(self) -> dict:
+            return {
+                "vm_assets": [
+                    {
+                        "id": "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-edge",
+                        "name": "vm-edge",
+                        "public_ips": ["52.160.10.20"],
+                    }
+                ],
+                "issues": [],
+            }
+
+        def vmss(self) -> dict:
+            return {"vmss_assets": [], "issues": []}
+
+    options = GlobalOptions(
+        tenant=None,
+        subscription=None,
+        output=OutputMode.JSON,
+        outdir=Path("/tmp"),
+        debug=False,
+        role_trusts_mode=RoleTrustsMode.FAST,
+    )
+
+    output = collect_managed_identities(StubProvider(), options)
+
+    assert [item.name for item in output.identities] == ["ua-prod", "app-edge-system"]
+    assert output.identities[0].operator_signal == "Public VM workload pivot; direct control visible."
+    assert output.identities[1].operator_signal == "Web workload pivot; visibility blocked."
+    assert (
+        output.identities[1].next_review
+        == "Check env-vars for the backing workload context; current scope does not yet show direct control on this identity."
+    )
+
+
 def test_collect_inventory_metadata_falls_back_to_provider_context(
     fixture_dir: Path, tmp_path: Path
 ) -> None:
@@ -2194,6 +2284,172 @@ def test_collect_permissions(fixture_provider, options) -> None:
     assert len(output.permissions) == 2
     assert output.permissions[0].privileged is True
     assert output.permissions[0].high_impact_roles == ["Owner"]
+    assert output.permissions[0].operator_signal == "Direct control visible; current foothold."
+    assert (
+        output.permissions[0].next_review
+        == "Check privesc for the direct abuse or escalation path behind this current identity."
+    )
+    assert "direct control visible" in (output.permissions[0].summary or "").lower()
+
+
+def test_collect_permissions_prefers_workload_pivot_then_trust_expansion() -> None:
+    class StubProvider:
+        def permissions(self) -> dict:
+            return {
+                "permissions": [
+                    {
+                        "principal_id": "current-sp",
+                        "display_name": "current-sp",
+                        "principal_type": "ServicePrincipal",
+                        "high_impact_roles": ["Owner"],
+                        "all_role_names": ["Owner"],
+                        "role_assignment_count": 1,
+                        "scope_count": 1,
+                        "scope_ids": ["/subscriptions/test"],
+                        "privileged": True,
+                        "is_current_identity": True,
+                    },
+                    {
+                        "principal_id": "workload-sp",
+                        "display_name": "workload-sp",
+                        "principal_type": "ServicePrincipal",
+                        "high_impact_roles": ["Contributor"],
+                        "all_role_names": ["Contributor"],
+                        "role_assignment_count": 2,
+                        "scope_count": 1,
+                        "scope_ids": ["/subscriptions/test"],
+                        "privileged": True,
+                        "is_current_identity": False,
+                    },
+                    {
+                        "principal_id": "attachment-only-sp",
+                        "display_name": "attachment-only-sp",
+                        "principal_type": "ServicePrincipal",
+                        "high_impact_roles": ["Contributor"],
+                        "all_role_names": ["Contributor"],
+                        "role_assignment_count": 2,
+                        "scope_count": 1,
+                        "scope_ids": ["/subscriptions/test"],
+                        "privileged": True,
+                        "is_current_identity": False,
+                    },
+                    {
+                        "principal_id": "trust-sp",
+                        "display_name": "trust-sp",
+                        "principal_type": "ServicePrincipal",
+                        "high_impact_roles": ["Contributor"],
+                        "all_role_names": ["Contributor"],
+                        "role_assignment_count": 3,
+                        "scope_count": 1,
+                        "scope_ids": ["/subscriptions/test"],
+                        "privileged": True,
+                        "is_current_identity": False,
+                    },
+                ],
+                "issues": [],
+            }
+
+        def principals(self) -> dict:
+            return {
+                "principals": [
+                    {
+                        "id": "current-sp",
+                        "principal_type": "ServicePrincipal",
+                        "display_name": "current-sp",
+                        "sources": ["rbac", "whoami"],
+                        "scope_ids": ["/subscriptions/test"],
+                        "role_names": ["Owner"],
+                        "role_assignment_count": 1,
+                        "identity_names": [],
+                        "identity_types": [],
+                        "attached_to": [],
+                        "is_current_identity": True,
+                    },
+                    {
+                        "id": "workload-sp",
+                        "principal_type": "ServicePrincipal",
+                        "display_name": "workload-sp",
+                        "sources": ["rbac", "managed-identities"],
+                        "scope_ids": ["/subscriptions/test"],
+                        "role_names": ["Contributor"],
+                        "role_assignment_count": 2,
+                        "identity_names": ["ua-orders"],
+                        "identity_types": ["userAssigned"],
+                        "attached_to": [
+                            "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-edge"
+                        ],
+                        "is_current_identity": False,
+                    },
+                    {
+                        "id": "attachment-only-sp",
+                        "principal_type": "ServicePrincipal",
+                        "display_name": "attachment-only-sp",
+                        "sources": ["rbac", "managed-identities"],
+                        "scope_ids": ["/subscriptions/test"],
+                        "role_names": ["Contributor"],
+                        "role_assignment_count": 2,
+                        "identity_names": [],
+                        "identity_types": [],
+                        "attached_to": [
+                            "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Web/sites/app-edge"
+                        ],
+                        "is_current_identity": False,
+                    },
+                    {
+                        "id": "trust-sp",
+                        "principal_type": "ServicePrincipal",
+                        "display_name": "trust-sp",
+                        "sources": ["rbac"],
+                        "scope_ids": ["/subscriptions/test"],
+                        "role_names": ["Contributor"],
+                        "role_assignment_count": 3,
+                        "identity_names": [],
+                        "identity_types": [],
+                        "attached_to": [],
+                        "is_current_identity": False,
+                    },
+                ],
+                "issues": [],
+            }
+
+        def metadata_context(self) -> dict[str, str | None]:
+            return {"tenant_id": None, "subscription_id": None, "token_source": None}
+
+    options = GlobalOptions(
+        tenant=None,
+        subscription=None,
+        output=OutputMode.JSON,
+        outdir=Path("/tmp"),
+        debug=False,
+        role_trusts_mode=RoleTrustsMode.FAST,
+    )
+
+    output = collect_permissions(StubProvider(), options)
+
+    assert [item.principal_id for item in output.permissions] == [
+        "current-sp",
+        "workload-sp",
+        "attachment-only-sp",
+        "trust-sp",
+    ]
+    assert output.permissions[1].operator_signal == "Direct control visible; workload pivot visible."
+    assert (
+        output.permissions[1].next_review
+        == "Check managed-identities for the workload pivot behind this direct control row."
+    )
+    assert (
+        output.permissions[2].operator_signal
+        == "Direct control visible; workload pivot visible."
+    )
+    assert (
+        output.permissions[2].next_review
+        == "Check managed-identities for the workload pivot behind this direct control row."
+    )
+    assert output.permissions[3].operator_signal == "Direct control visible; trust expansion follow-on."
+    assert (
+        output.permissions[3].next_review
+        == "Check role-trusts for trust expansion around who can influence this principal."
+    )
 
 
 def test_collect_privesc(fixture_provider, options) -> None:

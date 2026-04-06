@@ -657,6 +657,37 @@ def test_tokens_credentials_table_mode_surfaces_findings_and_takeaway(tmp_path: 
     assert "Takeaway: 12 token or credential surfaces across 7 assets;" in result.stdout
 
 
+def test_managed_identities_table_mode_surfaces_next_review(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "managed-identities"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert "operator signal" in result.stdout
+    assert "next review" in result.stdout
+    assert "Public VM workload pivot" in result.stdout
+    assert "Check permissions for direct control" in result.stdout
+    assert "Takeaway: 1 managed identities visible; 1 exposed workload pivots" in result.stdout
+
+
+def test_permissions_table_mode_surfaces_next_review(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "permissions"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert "Ranking principals by high-impact RBAC exposure and the next likely follow-on." in result.stdout
+    assert "operator signal" in result.stdout
+    assert "next review" in result.stdout
+    assert "Direct control visible; current foothold." in result.stdout
+    assert "Check privesc" in result.stdout
+    assert "Takeaway: 1 of 2 principals hold high-impact RBAC roles;" in result.stdout
+
+
 def test_chains_table_mode_surfaces_priority_and_next_review(tmp_path: Path) -> None:
     result = runner.invoke(
         app,

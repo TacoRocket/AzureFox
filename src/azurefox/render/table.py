@@ -540,18 +540,18 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                 ("principal", "principal"),
                 ("type", "type"),
                 ("high_impact_roles", "high-impact roles"),
-                ("assignments", "assignments"),
                 ("scope_count", "scopes"),
-                ("current", "current"),
+                ("operator_signal", "operator signal"),
+                ("next_review", "next review"),
             ],
             [
                 {
                     "principal": item.get("display_name") or item.get("principal_id"),
                     "type": item.get("principal_type"),
                     "high_impact_roles": item.get("high_impact_roles", []),
-                    "assignments": item.get("role_assignment_count", 0),
                     "scope_count": item.get("scope_count", 0),
-                    "current": _bool_text(item.get("is_current_identity", False)),
+                    "operator_signal": item.get("operator_signal"),
+                    "next_review": item.get("next_review"),
                 }
                 for item in payload.get("permissions", [])
             ],
@@ -705,9 +705,19 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                 ("name", "identity"),
                 ("identity_type", "type"),
                 ("attached_to", "attached to"),
-                ("principal_id", "principal id"),
+                ("operator_signal", "operator signal"),
+                ("next_review", "next review"),
             ],
-            payload.get("identities", []),
+            [
+                {
+                    "name": item.get("name"),
+                    "identity_type": item.get("identity_type"),
+                    "attached_to": ", ".join(_display_resource_refs(item.get("attached_to"))),
+                    "operator_signal": item.get("operator_signal"),
+                    "next_review": item.get("next_review"),
+                }
+                for item in payload.get("identities", [])
+            ],
         )
 
     if command == "keyvault":
@@ -1000,12 +1010,38 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
     if command == "permissions":
         permissions = payload.get("permissions", [])
         privileged = sum(bool(item.get("privileged")) for item in permissions)
-        return f"{privileged} of {len(permissions)} principals hold high-impact RBAC roles."
+        workload_pivots = sum(
+            "workload pivot visible" in str(item.get("operator_signal") or "").lower()
+            for item in permissions
+        )
+        trust_follow_ons = sum(
+            "trust expansion follow-on" in str(item.get("operator_signal") or "").lower()
+            for item in permissions
+        )
+        return (
+            f"{privileged} of {len(permissions)} principals hold high-impact RBAC roles; "
+            f"{workload_pivots} workload-pivot follow-ons and {trust_follow_ons} trust-expansion "
+            "follow-ons."
+        )
 
     if command == "managed-identities":
         identities = payload.get("identities", [])
-        findings = payload.get("findings", [])
-        return f"{len(identities)} managed identities visible; {len(findings)} elevated findings."
+        exposed = sum(
+            "workload pivot" in str(item.get("operator_signal") or "").lower()
+            and (
+                str(item.get("operator_signal") or "").startswith("Public")
+                or str(item.get("operator_signal") or "").startswith("Exposed")
+            )
+            for item in identities
+        )
+        direct_control = sum(
+            "direct control visible" in str(item.get("operator_signal") or "").lower()
+            for item in identities
+        )
+        return (
+            f"{len(identities)} managed identities visible; {exposed} exposed workload pivots "
+            f"and {direct_control} direct-control cues from current scope."
+        )
 
     if command == "storage":
         assets = payload.get("storage_assets", [])

@@ -633,9 +633,9 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         output_highlights=(
             "high_impact_roles",
-            "assignment_count",
-            "privileged",
-            "current_identity",
+            "scope_count",
+            "operator_signal",
+            "next_review",
         ),
         attack_leads=(
             AttackLead("Discovery", "Permission Groups Discovery: Cloud Groups"),
@@ -820,7 +820,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "strongest visible Azure-control cues?"
         ),
         cloudfox_frame="Azure-native identity-abuse lens centered on workload-attached identities.",
-        output_highlights=("identities", "attached_to", "role_assignments", "findings"),
+        output_highlights=("identity_type", "attached_to", "operator_signal", "next_review"),
         attack_leads=(
             AttackLead("Credential Access", "Cloud Instance Metadata API"),
             AttackLead(
