@@ -2,13 +2,7 @@
 set -euo pipefail
 
 branch="$(git rev-parse --abbrev-ref HEAD)"
-branch_lower="$(printf '%s' "${branch}" | tr '[:upper:]' '[:lower:]')"
-
-if [[ "${branch_lower}" == *codex* ]]; then
-  echo "[guardrail] Branch names containing 'codex' are blocked: ${branch}" >&2
-  echo "[guardrail] Rename the branch before pushing." >&2
-  exit 1
-fi
+python3 scripts/validate_publish_metadata.py --branch "${branch}"
 
 if [[ "${branch}" == "main" && "${AZUREFOX_ALLOW_MAIN_PUSH:-0}" != "1" ]]; then
   echo "[guardrail] Direct pushes to main are blocked. Use a feature branch + PR." >&2

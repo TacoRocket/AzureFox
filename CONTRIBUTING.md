@@ -45,5 +45,6 @@ pytest -m integration
 - Keep PRs small and single-purpose.
 - Merge only after CI is green.
 - If command output contracts change, update schema snapshots and golden fixtures in the same PR.
-- Local pre-push hook blocks direct pushes to `main` and runs lint/tests.
+- Local pre-push hook blocks `codex` branch names, blocks direct pushes to `main`, and runs lint/tests.
+- CI blocks Codex-branded PR titles.
 - Temporary bypass for emergency push: `AZUREFOX_ALLOW_MAIN_PUSH=1 git push`.
