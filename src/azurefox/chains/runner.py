@@ -44,9 +44,9 @@ _SOURCE_MODEL_MAP = {
 _CANDIDATE_LIMIT = 3
 _JOIN_QUALITY_ORDER = {
     "named match": 0,
-    "visibility blocked": 1,
-    "narrowed candidates": 2,
-    "tenant-wide candidates": 3,
+    "narrowed candidates": 1,
+    "tenant-wide candidates": 2,
+    "visibility blocked": 3,
     "service hint only": 4,
     "named target not visible": 5,
 }
