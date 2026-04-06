@@ -2,16 +2,16 @@
 
 ## Slice Goal
 
-Surface tenant auth controls that materially affect sign-in enforcement, guest invitation,
-application registration, and consent posture.
+Surface tenant auth controls that materially widen or narrow guest entry, sign-in abuse,
+application registration, and consent-driven foothold growth.
 
 This slice is intended to answer:
-"Which tenant auth settings change how identities authenticate, register apps, invite guests, or
-gain consented access?"
+"Which tenant auth controls widen guest entry, app creation, consent abuse, or sign-in bypass
+opportunities from an existing foothold?"
 
 ## CloudFox Mapping
 
-- CloudFox-style operator framing: operator-first auth-control posture triage.
+- CloudFox-style operator framing: auth-control triage from an existing foothold.
 - AzureFox mapping: Azure-native tenant auth-policy review surface.
 - Coverage note: this is Azure-specific and does not attempt a 1:1 AWS or GCP command analogue.
 

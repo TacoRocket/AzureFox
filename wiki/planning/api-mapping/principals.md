@@ -2,7 +2,7 @@
 
 ## Slice Goal
 
-Build a practical principal census from caller context, RBAC visibility, and managed identity
+Map practical principal context from caller visibility, RBAC scope, and managed identity
 attachments.
 
 This first version answers:
@@ -36,4 +36,3 @@ identities?"
 
 - Principal visibility is bounded by readable RBAC scope and adjacent workload context
 - Missing principals do not prove absence from the tenant
-

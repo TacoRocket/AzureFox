@@ -58,7 +58,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         offensive_question=(
             "What cloud infrastructure and service surface is visible in this subscription?"
         ),
-        cloudfox_frame="Azure analogue to CloudFox inventory-first situational awareness.",
+        cloudfox_frame="Azure analogue to CloudFox inventory-first recon.",
         output_highlights=("resource_group_count", "resource_count", "top_resource_types"),
         attack_leads=(
             AttackLead("Discovery", "Cloud Infrastructure Discovery"),
@@ -141,16 +141,17 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="app-services",
         section="compute",
         summary=(
-            "Deepen App Service runtime, hostname, identity, and hardening visibility."
+            "Review App Service runtime, hostname, identity, and ingress cues that change "
+            "follow-on paths."
         ),
         offensive_question=(
-            "Which App Service apps expose the most interesting runtime, identity, and ingress "
-            "posture for operator follow-up?"
+            "Which App Service apps expose the strongest runtime, identity, and ingress cues "
+            "for operator follow-up?"
         ),
         cloudfox_frame=(
             "Azure-native App Service review that goes deeper than workload census by surfacing "
-            "runtime stack, hostname, identity, and basic hardening posture without duplicating "
-            "app-setting or function-specific analysis."
+            "runtime stack, hostname, identity, and basic ingress and runtime exposure cues "
+            "without duplicating app-setting or function-specific analysis."
         ),
         output_highlights=(
             "default_hostname",
@@ -172,16 +173,16 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         section="resource",
         summary=(
             "Summarize Azure Container Registry (ACR) login, auth, network, webhook, "
-            "replication, and policy posture."
+            "replication, and trust cues."
         ),
         offensive_question=(
-            "Which container registries expose the most interesting login, auth, network, "
-            "automation, and governance cues for operator follow-up?"
+            "Which container registries expose the strongest login, auth, network, "
+            "automation, and trust cues for operator follow-up?"
         ),
         cloudfox_frame=(
             "Azure-native container registry census that stays at management-plane posture: "
             "login visibility, broad auth switches, network boundary signals, and a narrow "
-            "amount of webhook, replication, and policy depth before any repository-content or "
+            "amount of webhook, replication, and trust depth before any repository-content or "
             "data-plane analysis."
         ),
         output_highlights=(
@@ -601,7 +602,8 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="principals",
         section="identity",
         summary=(
-            "Build a principal census from RBAC, caller context, and managed identity attachments."
+            "Map principals visible through RBAC, caller context, and managed identity "
+            "attachments."
         ),
         offensive_question=(
             "Which principals matter in this subscription, and how are "
@@ -775,10 +777,13 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
     "auth-policies": CommandHelpTopic(
         name="auth-policies",
         section="identity",
-        summary="Review tenant auth controls that affect sign-in, consent, and identity hardening.",
+        summary=(
+            "Surface tenant auth controls that widen guest, consent, app-creation, or sign-in "
+            "abuse paths."
+        ),
         offensive_question=(
-            "Which tenant auth settings materially change how identities authenticate, "
-            "register apps, invite guests, or bypass stronger sign-in controls?"
+            "Which tenant auth controls widen guest entry, app creation, consent abuse, "
+            "or sign-in bypass opportunities from an existing foothold?"
         ),
         cloudfox_frame=(
             "Azure-native auth-control triage for tenant-wide identity policy surfaces "
@@ -806,10 +811,13 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
     "managed-identities": CommandHelpTopic(
         name="managed-identities",
         section="identity",
-        summary="Enumerate managed identities, their attachments, and privileged findings.",
+        summary=(
+            "Map workload-linked managed identities, their attachments, and visible "
+            "privilege cues."
+        ),
         offensive_question=(
-            "Which workloads carry managed identities, and do any of "
-            "those identities already hold dangerous roles?"
+            "Which workloads carry managed identities, and which of those identities show the "
+            "strongest visible Azure-control cues?"
         ),
         cloudfox_frame="Azure-native identity-abuse lens centered on workload-attached identities.",
         output_highlights=("identities", "attached_to", "role_assignments", "findings"),
@@ -826,10 +834,13 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
     "keyvault": CommandHelpTopic(
         name="keyvault",
         section="secrets",
-        summary="Enumerate Key Vault assets and flag secret-management exposure or recovery risk.",
+        summary=(
+            "Enumerate Key Vault assets and flag exposure, access-model weakness, or "
+            "destructive leverage cues."
+        ),
         offensive_question=(
-            "Which Key Vaults are exposed, weakly protected, or worth deeper secret-access "
-            "review first?"
+            "Which Key Vaults are exposed, weakly protected, or most likely to change the "
+            "attack path first?"
         ),
         cloudfox_frame=(
             "Azure-native secret-management surface triage using management-plane "
@@ -1050,8 +1061,8 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="all-checks",
         section="orchestration",
         summary=(
-            "Deprecated broad orchestration sweep. Runs the implemented AzureFox commands in a "
-            "stable operator-first sequence while chains are still being wired in."
+            "Deprecated broad recon sweep. Runs the implemented AzureFox commands in a stable "
+            "broad sequence while narrower chains are still being wired in."
         ),
         offensive_question=(
             "What is the cleanest broad sweep I can run right now for this tenant or section "
@@ -1133,7 +1144,7 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
     ),
     "core": SectionHelpTopic(
         name="core",
-        summary="Tenant-wide situational awareness primitives that anchor the rest of the recon.",
+        summary="Tenant-wide recon primitives that anchor the rest of the command set.",
         operator_goal="Establish account context and visible resource surface quickly.",
         attack_lenses=(
             AttackLead("Discovery", "Cloud Infrastructure Discovery"),
@@ -1301,7 +1312,7 @@ def _render_root_help() -> str:
     lines = [
         "AzureFox Help",
         "",
-        "Operator-first Azure situational awareness with flat commands and scoped help.",
+        "Attack-path-focused Azure recon with flat commands and scoped help.",
         "",
         "Usage:",
         "  azurefox help",

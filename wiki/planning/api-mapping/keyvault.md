@@ -8,7 +8,7 @@
 
 - Public network access, firewall default action, and private endpoint presence are mapped into
   exposure findings.
-- Purge protection state is surfaced as a recovery-control finding candidate.
+- Purge protection state is surfaced as a destructive-leverage finding candidate.
 
 ## Assumptions
 

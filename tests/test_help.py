@@ -17,7 +17,7 @@ def test_help_command_generic() -> None:
     assert (
         "permissions: Triage which visible principals hold high-impact RBAC roles."
     ) in result.stdout
-    assert "all-checks: Deprecated broad orchestration sweep." in result.stdout
+    assert "all-checks: Deprecated broad recon sweep." in result.stdout
     assert "chains: Grouped family runner for higher-value preset paths" in result.stdout
     assert "Planned grouped commands:" not in result.stdout
     assert "all-checks is deprecated" in result.stdout
@@ -356,7 +356,7 @@ def test_help_command_auth_policies_topic() -> None:
     assert result.exit_code == 0
     assert "AzureFox Help :: auth-policies" in result.stdout
     assert "Conditional Access" in result.stdout
-    assert "sign-in, consent, and identity hardening" in result.stdout
+    assert "guest, consent, app-creation, or sign-in abuse paths" in result.stdout
     assert "Unreadable policy surfaces stay explicit" in result.stdout
     assert "issues" in result.stdout
 
