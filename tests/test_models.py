@@ -197,6 +197,9 @@ def test_managed_identity_defaults() -> None:
     identity = ManagedIdentity(id="id-1", name="mi-1", identity_type="userAssigned")
     assert identity.attached_to == []
     assert identity.scope_ids == []
+    assert identity.operator_signal is None
+    assert identity.next_review is None
+    assert identity.summary is None
 
 
 def test_principal_summary_defaults() -> None:
@@ -211,6 +214,9 @@ def test_permission_summary_defaults() -> None:
     assert permission.high_impact_roles == []
     assert permission.scope_ids == []
     assert permission.privileged is False
+    assert permission.operator_signal is None
+    assert permission.next_review is None
+    assert permission.summary is None
 
 
 def test_privesc_path_defaults() -> None:

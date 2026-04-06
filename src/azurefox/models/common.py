@@ -81,6 +81,9 @@ class PermissionSummary(BaseModel):
     scope_ids: list[str] = Field(default_factory=list)
     privileged: bool = False
     is_current_identity: bool = False
+    operator_signal: str | None = None
+    next_review: str | None = None
+    summary: str | None = None
 
 
 class PrivescPathSummary(BaseModel):
@@ -248,6 +251,9 @@ class ManagedIdentity(BaseModel):
     client_id: str | None = None
     attached_to: list[str] = Field(default_factory=list)
     scope_ids: list[str] = Field(default_factory=list)
+    operator_signal: str | None = None
+    next_review: str | None = None
+    summary: str | None = None
 
 
 class KeyVaultAsset(BaseModel):

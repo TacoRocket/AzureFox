@@ -12,6 +12,11 @@ from azurefox.correlation.findings import (
     build_tokens_credentials_findings,
     build_vm_findings,
 )
+from azurefox.managed_identity_hints import (
+    managed_identity_next_review_hint,
+    managed_identity_operator_signal,
+    managed_identity_summary,
+)
 from azurefox.models.commands import (
     AcrOutput,
     AksOutput,
@@ -50,6 +55,11 @@ from azurefox.models.commands import (
     WorkloadsOutput,
 )
 from azurefox.models.common import CommandMetadata
+from azurefox.permissions_hints import (
+    permissions_next_review_hint,
+    permissions_operator_signal,
+    permissions_summary,
+)
 
 
 def collect_whoami(provider: BaseProvider, options: GlobalOptions) -> WhoAmIOutput:
@@ -346,8 +356,18 @@ def collect_principals(provider: BaseProvider, options: GlobalOptions) -> Princi
 
 def collect_permissions(provider: BaseProvider, options: GlobalOptions) -> PermissionsOutput:
     data = provider.permissions()
+    principals_data = provider.principals()
+    permissions = _enrich_permission_rows(
+        data.get("permissions", []),
+        principals_data.get("principals", []),
+    )
     return PermissionsOutput.model_validate(
-        {"metadata": _metadata(provider, "permissions", options), **data}
+        {
+            "metadata": _metadata(provider, "permissions", options),
+            **data,
+            "permissions": permissions,
+            "issues": [*data.get("issues", []), *principals_data.get("issues", [])],
+        }
     )
 
 
@@ -465,8 +485,16 @@ def collect_managed_identities(
     provider: BaseProvider, options: GlobalOptions
 ) -> ManagedIdentitiesOutput:
     data = provider.managed_identities()
-    findings = build_identity_findings(
+    vms_data = provider.vms()
+    vmss_data = provider.vmss()
+    identities = _enrich_managed_identity_rows(
         data.get("identities", []),
+        data.get("role_assignments", []),
+        vms_data.get("vm_assets", []),
+        vmss_data.get("vmss_assets", []),
+    )
+    findings = build_identity_findings(
+        identities,
         data.get("role_assignments", []),
     )
     return ManagedIdentitiesOutput.model_validate(
@@ -474,6 +502,12 @@ def collect_managed_identities(
             "metadata": _metadata(provider, "managed-identities", options),
             "findings": findings,
             **data,
+            "identities": identities,
+            "issues": [
+                *data.get("issues", []),
+                *vms_data.get("issues", []),
+                *vmss_data.get("issues", []),
+            ],
         }
     )
 
@@ -1137,6 +1171,287 @@ def _devops_pipeline_sort_key(item: dict) -> tuple[bool, bool, bool, bool, bool,
         item.get("project_name") or "",
         item.get("name") or "",
     )
+
+
+def _enrich_permission_rows(permissions: list[dict], principals: list[dict]) -> list[dict]:
+    principals_by_id = {item.get("id"): item for item in principals if item.get("id")}
+    enriched: list[dict] = []
+
+    for permission in permissions:
+        item = dict(permission)
+        principal = principals_by_id.get(item.get("principal_id")) or {}
+        identity_names = [str(value) for value in principal.get("identity_names") or [] if value]
+        attached_to = [str(value) for value in principal.get("attached_to") or [] if value]
+        sources = {str(value) for value in principal.get("sources") or [] if value}
+        privileged = bool(item.get("privileged"))
+        is_current_identity = bool(item.get("is_current_identity"))
+        has_workload_pivot = bool(attached_to)
+        workload_visibility_blocked = not has_workload_pivot and bool(
+            identity_names or "managed-identities" in sources
+        )
+        workload_pivot_rank = 0 if identity_names and attached_to else 1 if attached_to else 9
+        trust_expansion_follow_on = (
+            privileged
+            and not is_current_identity
+            and not has_workload_pivot
+            and not workload_visibility_blocked
+            and (
+                str(item.get("principal_type") or "").lower() == "serviceprincipal"
+                or "managed-identities" in sources
+            )
+        )
+
+        item["operator_signal"] = permissions_operator_signal(
+            privileged=privileged,
+            is_current_identity=is_current_identity,
+            has_workload_pivot=has_workload_pivot,
+            workload_visibility_blocked=workload_visibility_blocked,
+            trust_expansion_follow_on=trust_expansion_follow_on,
+        )
+        item["next_review"] = permissions_next_review_hint(
+            privileged=privileged,
+            is_current_identity=is_current_identity,
+            has_workload_pivot=has_workload_pivot,
+            workload_visibility_blocked=workload_visibility_blocked,
+            trust_expansion_follow_on=trust_expansion_follow_on,
+        )
+        item["summary"] = permissions_summary(
+            principal_name=item.get("display_name") or item.get("principal_id") or "unknown",
+            principal_type=item.get("principal_type", "unknown"),
+            high_impact_roles=[str(value) for value in item.get("high_impact_roles") or []],
+            scope_count=_int_or_zero(item.get("scope_count")) or len(item.get("scope_ids") or []),
+            privileged=privileged,
+            is_current_identity=is_current_identity,
+            has_workload_pivot=has_workload_pivot,
+            workload_visibility_blocked=workload_visibility_blocked,
+            trust_expansion_follow_on=trust_expansion_follow_on,
+            next_review=item["next_review"],
+        )
+        item["_workload_pivot_rank"] = workload_pivot_rank
+        enriched.append(item)
+
+    return sorted(enriched, key=_permission_row_sort_key)
+
+
+def _permission_row_sort_key(item: dict) -> tuple[bool, int, int, int, int, str, str]:
+    return (
+        not bool(item.get("privileged")),
+        _permission_follow_on_rank(item.get("next_review")),
+        _int_or_zero(item.get("_workload_pivot_rank")),
+        _permission_role_rank(item.get("high_impact_roles") or []),
+        -_int_or_zero(item.get("scope_count")),
+        -_int_or_zero(item.get("role_assignment_count")),
+        item.get("display_name") or "",
+        item.get("principal_id") or "",
+    )
+
+
+def _permission_follow_on_rank(next_review: object) -> int:
+    text = str(next_review or "").lower()
+    if "check privesc" in text:
+        return 0
+    if "check managed-identities" in text:
+        return 1
+    if "check role-trusts" in text:
+        return 2
+    return 3
+
+
+def _permission_role_rank(high_impact_roles: object) -> int:
+    roles = [str(value).lower() for value in high_impact_roles or []]
+    if "owner" in roles:
+        return 0
+    if "user access administrator" in roles:
+        return 1
+    if "contributor" in roles:
+        return 2
+    return 9
+
+
+_HIGH_IMPACT_ROLE_NAMES = {
+    "owner",
+    "contributor",
+    "user access administrator",
+}
+
+
+def _enrich_managed_identity_rows(
+    identities: list[dict],
+    role_assignments: list[dict],
+    vm_assets: list[dict],
+    vmss_assets: list[dict],
+) -> list[dict]:
+    assignments_by_principal: dict[str, list[str]] = {}
+    for assignment in role_assignments:
+        principal_id = assignment.get("principal_id")
+        role_name = assignment.get("role_name")
+        if not principal_id or not role_name:
+            continue
+        assignments_by_principal.setdefault(principal_id, []).append(str(role_name))
+
+    vm_by_id = {item.get("id"): item for item in vm_assets if item.get("id")}
+    vmss_by_id = {item.get("id"): item for item in vmss_assets if item.get("id")}
+
+    enriched: list[dict] = []
+    for identity in identities:
+        item = dict(identity)
+        primary_attachment = _managed_identity_primary_attachment(
+            item.get("attached_to", []),
+            vm_by_id,
+            vmss_by_id,
+        )
+        privileged_roles = sorted(
+            {
+                role_name
+                for role_name in assignments_by_principal.get(item.get("principal_id") or "", [])
+                if role_name.lower() in _HIGH_IMPACT_ROLE_NAMES
+            }
+        )
+        attachment_count = len(item.get("attached_to", []) or [])
+        visibility_blocked = not bool(item.get("principal_id"))
+        attachment_kind = primary_attachment.get("kind")
+        next_review = managed_identity_next_review_hint(
+            attachment_kind=attachment_kind,
+            privileged=bool(privileged_roles),
+            visibility_blocked=visibility_blocked,
+        )
+        item["operator_signal"] = managed_identity_operator_signal(
+            attachment_kind=attachment_kind,
+            exposed=bool(primary_attachment.get("exposed")),
+            privileged=bool(privileged_roles),
+            visibility_blocked=visibility_blocked,
+            attachment_count=attachment_count,
+        )
+        item["next_review"] = next_review
+        item["summary"] = managed_identity_summary(
+            identity_name=item.get("name") or item.get("id") or "unknown",
+            attachment_name=primary_attachment.get("name"),
+            attachment_kind=attachment_kind,
+            exposed=bool(primary_attachment.get("exposed")),
+            privileged_roles=privileged_roles,
+            visibility_blocked=visibility_blocked,
+            next_review=next_review,
+            attachment_count=attachment_count,
+        )
+        enriched.append(item)
+
+    return sorted(enriched, key=_managed_identity_sort_key)
+
+
+def _managed_identity_primary_attachment(
+    attached_to: object,
+    vm_by_id: dict[str, dict],
+    vmss_by_id: dict[str, dict],
+) -> dict[str, object]:
+    attachment_ids = [str(value) for value in attached_to or [] if value]
+    candidates = [
+        _managed_identity_attachment_context(value, vm_by_id, vmss_by_id)
+        for value in attachment_ids
+    ]
+    candidates = [item for item in candidates if item]
+    if not candidates:
+        return {"kind": None, "name": None, "exposed": False}
+    return min(candidates, key=_managed_identity_attachment_sort_key)
+
+
+def _managed_identity_attachment_context(
+    resource_id: str,
+    vm_by_id: dict[str, dict],
+    vmss_by_id: dict[str, dict],
+) -> dict[str, object]:
+    vm_asset = vm_by_id.get(resource_id)
+    if vm_asset:
+        return {
+            "kind": "VM",
+            "name": vm_asset.get("name") or _arm_name(resource_id),
+            "exposed": bool(vm_asset.get("public_ips")),
+        }
+
+    vmss_asset = vmss_by_id.get(resource_id)
+    if vmss_asset:
+        return {
+            "kind": "VMSS",
+            "name": vmss_asset.get("name") or _arm_name(resource_id),
+            "exposed": any(
+                _int_or_zero(vmss_asset.get(key)) > 0
+                for key in ("public_ip_configuration_count", "inbound_nat_pool_count")
+            ),
+        }
+
+    lowered = resource_id.lower()
+    if "/providers/microsoft.web/sites/" in lowered:
+        return {
+            "kind": "WebWorkload",
+            "name": _arm_name(resource_id),
+            "exposed": False,
+        }
+    if "/providers/microsoft.compute/virtualmachines/" in lowered:
+        return {
+            "kind": "VM",
+            "name": _arm_name(resource_id),
+            "exposed": False,
+        }
+    if "/providers/microsoft.compute/virtualmachinescalesets/" in lowered:
+        return {
+            "kind": "VMSS",
+            "name": _arm_name(resource_id),
+            "exposed": False,
+        }
+    return {
+        "kind": None,
+        "name": _arm_name(resource_id),
+        "exposed": False,
+    }
+
+
+def _managed_identity_attachment_sort_key(item: dict[str, object]) -> tuple[bool, int, str]:
+    kind_rank = {
+        "VM": 0,
+        "VMSS": 1,
+        "FunctionApp": 2,
+        "AppService": 3,
+        "WebWorkload": 4,
+        None: 9,
+    }
+    return (
+        not bool(item.get("exposed")),
+        kind_rank.get(item.get("kind"), 8),
+        str(item.get("name") or ""),
+    )
+
+
+def _managed_identity_sort_key(item: dict) -> tuple[bool, bool, bool, int, str, str]:
+    operator_signal = str(item.get("operator_signal") or "")
+    exposed = "workload pivot" in operator_signal.lower() and (
+        operator_signal.startswith("Public") or operator_signal.startswith("Exposed")
+    )
+    direct_control = "direct control visible" in operator_signal.lower()
+    repeated = "reused across" in operator_signal.lower()
+    kind_rank = {
+        "VM": 0,
+        "VMSS": 1,
+        "FunctionApp": 2,
+        "AppService": 3,
+        "WebWorkload": 4,
+        None: 9,
+    }
+    primary_kind = _managed_identity_attachment_context(
+        str((item.get("attached_to") or [""])[0]),
+        {},
+        {},
+    ).get("kind")
+    return (
+        not exposed,
+        not direct_control,
+        not repeated,
+        kind_rank.get(primary_kind, 8),
+        item.get("name") or "",
+        item.get("id") or "",
+    )
+
+
+def _arm_name(resource_id: str) -> str:
+    return resource_id.rstrip("/").split("/")[-1]
 
 
 def _int_or_zero(value: object) -> int:

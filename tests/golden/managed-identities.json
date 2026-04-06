@@ -20,10 +20,13 @@
       "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-app",
       "identity_type": "userAssigned",
       "name": "ua-app",
+      "next_review": "Check permissions for direct control on this identity, then vms for the host context behind the workload pivot.",
+      "operator_signal": "Public VM workload pivot; direct control visible.",
       "principal_id": "33333333-3333-3333-3333-333333333333",
       "scope_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222"
-      ]
+      ],
+      "summary": "VM 'vm-web-01' gives a public workload pivot into managed identity 'ua-app'. Current scope already shows direct control through high-impact roles (Owner). Check permissions for direct control on this identity, then vms for the host context behind the workload pivot."
     }
   ],
   "issues": [],

@@ -58,7 +58,7 @@ COMMAND_NARRATION = {
     ),
     "rbac": "Collecting raw RBAC assignments across the current subscription.",
     "principals": "Mapping visible principals, identity footholds, and follow-on candidates.",
-    "permissions": "Ranking principals by high-impact RBAC exposure.",
+    "permissions": "Ranking principals by high-impact RBAC exposure and the next likely follow-on.",
     "privesc": "Triage likely privilege-escalation and workload identity abuse paths.",
     "role-trusts": (
         "Reviewing high-signal identity trust edges without implying delegated or admin consent."
