@@ -114,6 +114,7 @@ def test_cli_smoke_all_checks_json_summary(tmp_path: Path) -> None:
     assert payload["metadata"]["command"] == "all-checks"
     assert len(payload["results"]) == 35
     assert (tmp_path / "run-summary.json").exists()
+    assert "deprecated: broad grouped sweeps are being replaced by chains" in result.stderr
 
 
 def test_cli_smoke_devops_accepts_organization_after_command(tmp_path: Path) -> None:

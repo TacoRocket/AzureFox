@@ -19,7 +19,6 @@ else, pass `--outdir`:
 
 ```bash
 azurefox --outdir ./azurefox-demo whoami --output table
-azurefox --outdir ./azurefox-demo all-checks --output table
 ```
 
 ## Currently Supported Azure Commands
@@ -34,7 +33,7 @@ azurefox --outdir ./azurefox-demo all-checks --output table
 | `storage` | `storage` |
 | `network` | `nics`, `dns`, `endpoints`, `network-effective`, `network-ports` |
 | `compute` | `workloads`, `app-services`, `functions`, `aks`, `vms`, `vmss`, `snapshots-disks` |
-| orchestration | `all-checks` |
+| orchestration | `all-checks` (deprecated) |
 
 ## Need A Test Lab?
 
@@ -165,8 +164,14 @@ Artifact intent:
 
 AzureFox keeps flat standalone commands and also supports grouped execution:
 
+`all-checks` is deprecated.
+It remains available while grouped chain families are being implemented, but the long-term
+direction is narrower `chains` surfaces plus direct flat-command execution.
+
 ```bash
+# deprecated broad sweep
 azurefox all-checks
+# deprecated section sweep
 azurefox all-checks --section identity
 azurefox all-checks --section config
 azurefox all-checks --section secrets
@@ -176,8 +181,13 @@ azurefox all-checks --section storage
 azurefox all-checks --section compute
 ```
 
-Treat `all-checks` as a broader validation pass, not a quick spot check. It can take much longer
-than a single command, especially when a full section is writing grouped artifacts.
+Treat `all-checks` as a temporary broad validation pass, not a quick spot check. It can take much
+longer than a single command, especially when a full section is writing grouped artifacts.
+
+For narrower current work:
+
+- run the flat commands directly when you already know the lane you want
+- use `all-checks` only when you still want the deprecated broad grouped sweep
 
 Current section mappings:
 
@@ -205,6 +215,8 @@ azurefox -h permissions
 
 Command help includes ATT&CK cloud leads as investigation prompts, not proof that a technique
 occurred.
+
+Help also marks deprecated surfaces such as `all-checks` and broad section sweeps explicitly.
 
 For ad hoc demos or local testing, use a dedicated path like `--outdir ./azurefox-demo` so
 artifacts do not pile up in the repo root.

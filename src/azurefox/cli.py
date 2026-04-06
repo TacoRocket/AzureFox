@@ -292,6 +292,18 @@ def all_checks(
 
     if options.output != OutputMode.JSON:
         emit_context_banner(options)
+        emit_command_status(
+            "all-checks",
+            "deprecated: broad grouped sweeps are being replaced by chains; use flat commands "
+            "directly for narrower runs.",
+        )
+    else:
+        emit_command_status(
+            "all-checks",
+            "deprecated: broad grouped sweeps are being replaced by chains; use flat commands "
+            "directly for narrower runs.",
+            err=True,
+        )
 
     results: list[RunCommandResult] = []
     for spec in specs:

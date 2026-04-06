@@ -7676,7 +7676,9 @@ def _devops_operator_summary(
         parts.append("shows deployment cues for " + ", ".join(target_clues))
 
     if partial_read_reasons:
-        parts.append("keeps explicit partial-read evidence: " + "; ".join(partial_read_reasons))
+        parts.append(
+            "current credentials leave unresolved refs: " + "; ".join(partial_read_reasons)
+        )
 
     return ". ".join(parts) + "."
 
