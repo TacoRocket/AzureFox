@@ -1,6 +1,24 @@
 from __future__ import annotations
 
-from scripts.validate_publish_metadata import validate_branch_name, validate_pr_title
+import importlib.util
+from pathlib import Path
+
+
+def _load_publish_metadata_module():
+    script_path = (
+        Path(__file__).resolve().parents[1] / "scripts" / "validate_publish_metadata.py"
+    )
+    spec = importlib.util.spec_from_file_location("validate_publish_metadata", script_path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_PUBLISH_METADATA = _load_publish_metadata_module()
+validate_branch_name = _PUBLISH_METADATA.validate_branch_name
+validate_pr_title = _PUBLISH_METADATA.validate_pr_title
 
 
 def test_validate_branch_name_blocks_codex_branch() -> None:
