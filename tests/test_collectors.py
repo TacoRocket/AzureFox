@@ -58,6 +58,8 @@ from azurefox.collectors.provider import (
     _web_asset_kind,
 )
 from azurefox.config import GlobalOptions
+from azurefox.devops_hints import devops_next_review_hint
+from azurefox.env_var_hints import env_var_next_review_hint
 from azurefox.models.common import OutputMode, RoleTrustsMode
 
 
@@ -1916,7 +1918,9 @@ def test_collect_env_vars(fixture_provider, options) -> None:
     assert len(output.findings) == 2
     assert output.env_vars[0].setting_name == "DB_PASSWORD"
     assert output.env_vars[0].workload_identity_type == "SystemAssigned"
+    assert "tokens-credentials first" in output.env_vars[0].summary
     assert output.env_vars[1].key_vault_reference_identity == "SystemAssigned"
+    assert "Check keyvault" in output.env_vars[1].summary
 
 
 def test_collect_tokens_credentials(fixture_provider, options) -> None:
@@ -1926,6 +1930,7 @@ def test_collect_tokens_credentials(fixture_provider, options) -> None:
     assert len({finding.id for finding in output.findings}) == len(output.findings)
     assert output.surfaces[0].surface_type == "plain-text-secret"
     assert output.surfaces[1].operator_signal == "setting=AzureWebJobsStorage"
+    assert "Check env-vars" in output.surfaces[0].summary
     assert any(item.asset_name == "app-empty-mi" for item in output.surfaces)
     assert any(item.asset_name == "vmss-edge-01" for item in output.surfaces)
     assert any(
@@ -1996,9 +2001,59 @@ def test_devops_pipeline_summary_surfaces_partial_read_refs() -> None:
 
     assert pipeline["partial_read"] is True
     assert "partial-read" in pipeline["risk_cues"]
+    assert (
+        "Restore service-connection or variable-group visibility before choosing the next Azure "
+        "follow-up."
+        in pipeline["summary"]
+    )
     assert len(issues) == 2
     assert issues[0]["kind"] == "partial_collection"
     assert "unresolved variable group refs" in issues[0]["message"]
+
+
+def test_devops_next_review_hint_prefers_target_then_keyvault() -> None:
+    hint = devops_next_review_hint(
+        target_clues=["AKS/Kubernetes", "ACR/Containers"],
+        key_vault_names=["kv-prod-shared"],
+        key_vault_group_names=["prod-kv-release"],
+        azure_service_connection_names=["prod-subscription"],
+        partial_read=False,
+    )
+
+    assert hint == (
+        "Check aks for the named deployment target; review permissions and role-trusts for "
+        "Azure control; review keyvault for the vault-backed support."
+    )
+
+
+def test_env_var_next_review_hint_prefers_keyvault_then_identity() -> None:
+    hint = env_var_next_review_hint(
+        setting_name="PAYMENT_API_KEY",
+        value_type="keyvault-ref",
+        looks_sensitive=True,
+        reference_target="kvlabopen01.vault.azure.net/secrets/payment-api-key",
+        workload_identity_type="SystemAssigned, UserAssigned",
+    )
+
+    assert hint == (
+        "Check keyvault for the referenced secret path; review managed-identities for the "
+        "workload token path."
+    )
+
+
+def test_tokens_credential_next_review_hint_prefers_endpoints_for_public_imds() -> None:
+    from azurefox.tokens_credential_hints import tokens_credential_next_review_hint
+
+    hint = tokens_credential_next_review_hint(
+        surface_type="managed-identity-token",
+        access_path="imds",
+        operator_signal="public-ip=52.160.10.20; identities=1",
+    )
+
+    assert hint == (
+        "Check endpoints for the ingress path, then managed-identities and permissions for "
+        "Azure control."
+    )
 
 
 def test_collect_inventory_metadata_falls_back_to_provider_context(

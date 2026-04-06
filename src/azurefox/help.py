@@ -104,18 +104,18 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         section="resource",
         summary=(
             "Surface Azure DevOps build definitions that already look like named Azure change "
-            "paths."
+            "paths and point to the next Azure review."
         ),
         offensive_question=(
             "Which Azure DevOps build definitions combine Azure-facing service connections, "
-            "secret-bearing variable support, and trigger posture that deserve operator review "
-            "first?"
+            "secret-bearing variable support, trigger posture, and the clearest next Azure "
+            "follow-up that deserve operator review first?"
         ),
         cloudfox_frame=(
             "Azure-native deployment-path triage rather than generic DevOps inventory: named "
             "build definitions, Azure-facing service connections, safe secret-bearing variable "
-            "metadata, Key Vault-backed group cues, and trigger posture without collecting "
-            "secret values, repo content, or pipeline logs."
+            "metadata, Key Vault-backed group cues, trigger posture, and concise next-review "
+            "hints without collecting secret values, repo content, or pipeline logs."
         ),
         output_highlights=(
             "project_name",
@@ -515,15 +515,17 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         section="config",
         summary=(
             "Review App Service and Function App settings for plain-text secrets and Key Vault "
-            "references."
+            "references, with clearer next-step follow-up."
         ),
         offensive_question=(
             "Which workload app settings expose plain-text secrets, high-signal config names, "
-            "or Key Vault-backed configuration paths worth review?"
+            "or Key Vault-backed configuration paths worth review first, and what command "
+            "should I pivot to next?"
         ),
         cloudfox_frame=(
             "Azure-native config triage focused on workload environment variables exposed through "
-            "management-plane app settings."
+            "management-plane app settings with concise hints toward credential, Key Vault, or "
+            "identity follow-up."
         ),
         output_highlights=(
             "asset_kind",
@@ -546,15 +548,16 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         section="secrets",
         summary=(
             "Correlate readable token and credential surfaces across workloads, app settings, "
-            "and deployment history."
+            "and deployment history with clearer next-step follow-up."
         ),
         offensive_question=(
             "Which workloads can mint tokens or expose credential-bearing metadata paths worth "
-            "operator follow-up first?"
+            "operator follow-up first, and what should I pivot to next?"
         ),
         cloudfox_frame=(
             "Azure-native credential leverage review that combines workload identity, readable "
-            "app settings, and deployment-history clues into one operator-first surface."
+            "app settings, and deployment-history clues into one operator-first surface while "
+            "still pointing to the next honest follow-up."
         ),
         output_highlights=(
             "surface_type",

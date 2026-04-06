@@ -44,10 +44,14 @@ COMMAND_NARRATION = {
     "network-effective": (
         "Prioritizing likely public-IP reachability by combining visible endpoint and NSG evidence."
     ),
-    "env-vars": "Reviewing App Service and Function App settings for exposed config paths.",
+    "env-vars": (
+        "Reviewing App Service and Function App settings for exposed config paths and likely "
+        "credential or secret follow-on."
+    ),
     "network-ports": "Tracing likely inbound port exposure from visible NIC and subnet NSG rules.",
     "tokens-credentials": (
-        "Correlating token-minting workloads and credential-bearing metadata paths."
+        "Correlating token-minting workloads, credential-bearing metadata paths, "
+        "and the next likely follow-on."
     ),
     "rbac": "Collecting raw RBAC assignments across the current subscription.",
     "principals": "Building an operator-first principal census from RBAC and identity context.",

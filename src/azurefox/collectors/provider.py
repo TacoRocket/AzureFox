@@ -22,6 +22,8 @@ from azurefox.clients.factory import build_clients
 from azurefox.clients.graph import GraphClient
 from azurefox.config import GlobalOptions
 from azurefox.correlation.findings import build_keyvault_findings, build_storage_findings
+from azurefox.devops_hints import devops_next_review_hint
+from azurefox.env_var_hints import env_var_next_review_hint
 from azurefox.errors import AzureFoxError, ErrorKind, classify_exception
 from azurefox.models.common import (
     Principal,
@@ -30,6 +32,7 @@ from azurefox.models.common import (
     ScopeRef,
     is_private_network_prefix,
 )
+from azurefox.tokens_credential_hints import tokens_credential_next_review_hint
 
 _DNS_RESOURCE_API_VERSION = {
     "microsoft.network/dnszones": "2018-05-01",
@@ -4451,6 +4454,17 @@ def _env_var_summary(
             f"app settings ({value_type})."
         )
 
+    summary = (
+        f"{summary[:-1]} "
+        f"{env_var_next_review_hint(
+            setting_name=setting_name,
+            value_type=value_type,
+            looks_sensitive=looks_sensitive,
+            reference_target=reference_target,
+            workload_identity_type=workload_identity_type,
+        )}"
+    )
+
     return {
         "asset_id": app_id or f"/unknown/{app_name}",
         "asset_name": app_name,
@@ -5907,7 +5921,12 @@ def _token_credential_surfaces_from_web_workloads(workloads: list[dict]) -> list
                 "operator_signal": identity_signal,
                 "summary": (
                     f"{asset_kind} '{asset_name}' can request tokens through attached "
-                    f"managed identity ({item.get('workload_identity_type')})."
+                    f"managed identity ({item.get('workload_identity_type')}). "
+                    f"{tokens_credential_next_review_hint(
+                        surface_type='managed-identity-token',
+                        access_path='workload-identity',
+                        operator_signal=identity_signal,
+                    )}"
                 ),
                 "related_ids": _dedupe_strings(related_ids),
             }
@@ -6363,7 +6382,12 @@ def _tokens_credentials_surfaces_from_env_vars(env_vars: list[dict]) -> list[dic
                     "operator_signal": f"setting={setting_name}",
                     "summary": (
                         f"{asset_kind} '{asset_name}' exposes credential-like setting "
-                        f"'{setting_name}' as plain-text management-plane app configuration."
+                        f"'{setting_name}' as plain-text management-plane app configuration. "
+                        f"{tokens_credential_next_review_hint(
+                            surface_type='plain-text-secret',
+                            access_path='app-setting',
+                            operator_signal=f'setting={setting_name}',
+                        )}"
                     ),
                     "related_ids": _dedupe_strings(related_ids),
                 }
@@ -6394,7 +6418,12 @@ def _tokens_credentials_surfaces_from_env_vars(env_vars: list[dict]) -> list[dic
                     "operator_signal": "; ".join(signal_parts),
                     "summary": (
                         f"{asset_kind} '{asset_name}' uses setting '{setting_name}' to reach "
-                        f"Key Vault-backed secret material{target_suffix}{identity_suffix}."
+                        f"Key Vault-backed secret material{target_suffix}{identity_suffix}. "
+                        f"{tokens_credential_next_review_hint(
+                            surface_type='keyvault-reference',
+                            access_path='app-setting',
+                            operator_signal='; '.join(signal_parts),
+                        )}"
                     ),
                     "related_ids": _dedupe_strings(related_ids),
                 }
@@ -6412,6 +6441,10 @@ def _token_credential_surfaces_from_arm_deployments(deployments: list[dict]) -> 
         related_ids = [str(deployment_id)] if deployment_id else []
 
         if (item.get("outputs_count") or 0) > 0:
+            output_signal = (
+                f"outputs={item.get('outputs_count', 0)}; "
+                f"providers={len(item.get('providers', []))}"
+            )
             surfaces.append(
                 {
                     "asset_id": deployment_id or f"/unknown/{deployment_name}",
@@ -6422,13 +6455,15 @@ def _token_credential_surfaces_from_arm_deployments(deployments: list[dict]) -> 
                     "surface_type": "deployment-output",
                     "access_path": "deployment-history",
                     "priority": "medium",
-                    "operator_signal": (
-                        f"outputs={item.get('outputs_count', 0)}; "
-                        f"providers={len(item.get('providers', []))}"
-                    ),
+                    "operator_signal": output_signal,
                     "summary": (
                         f"Deployment '{deployment_name}' recorded {item.get('outputs_count', 0)} "
-                        "output values in deployment history."
+                        "output values in deployment history. "
+                        f"{tokens_credential_next_review_hint(
+                            surface_type='deployment-output',
+                            access_path='deployment-history',
+                            operator_signal=output_signal,
+                        )}"
                     ),
                     "related_ids": related_ids,
                 }
@@ -6454,7 +6489,12 @@ def _token_credential_surfaces_from_arm_deployments(deployments: list[dict]) -> 
                     "operator_signal": "; ".join(link_parts),
                     "summary": (
                         f"Deployment '{deployment_name}' references remote template or parameter "
-                        "content that may expose reusable configuration or credential context."
+                        "content that may expose reusable configuration or credential context. "
+                        f"{tokens_credential_next_review_hint(
+                            surface_type='linked-deployment-content',
+                            access_path='deployment-history',
+                            operator_signal='; '.join(link_parts),
+                        )}"
                     ),
                     "related_ids": related_ids,
                 }
@@ -6491,10 +6531,20 @@ def _token_credential_surfaces_from_vms(vm_assets: list[dict]) -> list[dict]:
                 "summary": (
                     f"{str(item.get('vm_type') or 'vm').upper()} '{asset_name}' is publicly "
                     "reachable and exposes a token minting path through IMDS for its attached "
-                    "managed identity."
+                    "managed identity. "
+                    f"{tokens_credential_next_review_hint(
+                        surface_type='managed-identity-token',
+                        access_path='imds',
+                        operator_signal=f'{public_signal}; identities={len(identity_ids)}',
+                    )}"
                     if public_ips
                     else f"{str(item.get('vm_type') or 'vm').upper()} '{asset_name}' exposes a "
-                    "token minting path through IMDS for its attached managed identity."
+                    "token minting path through IMDS for its attached managed identity. "
+                    f"{tokens_credential_next_review_hint(
+                        surface_type='managed-identity-token',
+                        access_path='imds',
+                        operator_signal=f'{public_signal}; identities={len(identity_ids)}',
+                    )}"
                 ),
                 "related_ids": _dedupe_strings([*([asset_id] if asset_id else []), *identity_ids]),
             }
@@ -7642,7 +7692,10 @@ def _devops_operator_summary(
     target_clues: list[str],
     partial_read_reasons: list[str],
 ) -> str:
-    parts = [f"Build definition '{definition_name}' in project '{project_name}'"]
+    parts = [
+        f"Build definition '{definition_name}' in project '{project_name}' "
+        "looks like a named Azure change path"
+    ]
 
     if repository_name:
         repo_phrase = repository_name
@@ -7678,6 +7731,27 @@ def _devops_operator_summary(
     if partial_read_reasons:
         parts.append(
             "current credentials leave unresolved refs: " + "; ".join(partial_read_reasons)
+        )
+    else:
+        parts.append(
+            devops_next_review_hint(
+                target_clues=target_clues,
+                key_vault_names=key_vault_names,
+                key_vault_group_names=key_vault_group_names,
+                azure_service_connection_names=azure_service_connection_names,
+                partial_read=False,
+            ).rstrip(".")
+        )
+
+    if partial_read_reasons:
+        parts.append(
+            devops_next_review_hint(
+                target_clues=target_clues,
+                key_vault_names=key_vault_names,
+                key_vault_group_names=key_vault_group_names,
+                azure_service_connection_names=azure_service_connection_names,
+                partial_read=True,
+            ).rstrip(".")
         )
 
     return ". ".join(parts) + "."

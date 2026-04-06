@@ -16,6 +16,7 @@ from azurefox.chains.semantics import (
 )
 from azurefox.collectors.provider import BaseProvider
 from azurefox.config import GlobalOptions
+from azurefox.env_var_hints import env_var_target_service
 from azurefox.models.chains import (
     ChainSourceArtifact,
     ChainsOutput,
@@ -434,18 +435,7 @@ def _is_credential_like_env_var(env: dict, joined_surfaces: list[dict]) -> bool:
 
 
 def _target_service_for_env_var(env: dict) -> str | None:
-    setting_name = str(env.get("setting_name") or "").lower()
-
-    if setting_name == "azurewebjobsstorage":
-        return "storage"
-    if any(
-        token in setting_name
-        for token in ("storage", "blob", "queue", "table", "share", "file", "container")
-    ):
-        return "storage"
-    if any(token in setting_name for token in ("db", "database", "sql", "mysql", "postgres")):
-        return "database"
-    return None
+    return env_var_target_service(str(env.get("setting_name") or ""))
 
 
 def _candidate_summary(
