@@ -793,8 +793,9 @@ def test_databases_partial_read_surfaces_collection_issue() -> None:
     assert "Credential-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "databases[rg-data/sql-public-legacy].databases" in rendered
-    assert "current credentials do not show database visibility on at least one visible server" in " ".join(
-        rendered.split()
+    assert (
+        "current credentials do not show database visibility on at least one visible server"
+        in " ".join(rendered.split())
     )
     assert "least one visible server" in rendered
 

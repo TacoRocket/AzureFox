@@ -33,7 +33,10 @@ def test_help_command_section() -> None:
         "permissions: Triage which visible principals hold high-impact RBAC roles."
     ) in result.stdout
     assert "ATT&CK cloud lenses:" in result.stdout
-    assert "Deprecation: The broad `all-checks --section identity` sweep is deprecated" in result.stdout
+    assert (
+        "Deprecation: The broad `all-checks --section identity` sweep is deprecated"
+        in result.stdout
+    )
 
 
 def test_help_command_command_topic() -> None:
@@ -287,7 +290,10 @@ def test_help_command_all_checks_topic_sets_runtime_expectations() -> None:
     assert result.exit_code == 0
     assert "AzureFox Help :: all-checks" in result.stdout
     assert "implemented command (deprecated)" in result.stdout
-    assert "Broad all-checks sweeps and section-filtered variants are being replaced by chains" in result.stdout
+    assert (
+        "Broad all-checks sweeps and section-filtered variants are being replaced by chains"
+        in result.stdout
+    )
     assert "grouped results" in result.stdout
 
 

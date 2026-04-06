@@ -1372,7 +1372,7 @@ def _render_section_help(topic: SectionHelpTopic) -> str:
             *_render_attack_leads(topic.attack_lenses),
             "",
             "Examples:",
-            f"  # deprecated broad sweep",
+            "  # deprecated broad sweep",
             f"  azurefox all-checks --section {topic.name}",
             f"  azurefox help {topic.name}",
         ]
