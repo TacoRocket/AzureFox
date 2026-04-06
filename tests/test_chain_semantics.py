@@ -71,7 +71,10 @@ def test_blocked_candidate_record_does_not_leak_candidate_names_into_summary() -
     record = _build_candidate_record(
         "credential-path",
         {
-            "asset_id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Web/sites/app-public-api",
+            "asset_id": (
+                "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Web/sites/"
+                "app-public-api"
+            ),
             "asset_name": "app-public-api",
             "asset_kind": "AppService",
             "location": "eastus",
@@ -82,7 +85,10 @@ def test_blocked_candidate_record_does_not_leak_candidate_names_into_summary() -
         "database",
         [
             {
-                "id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Sql/servers/sql-public-legacy",
+                "id": (
+                    "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Sql/servers/"
+                    "sql-public-legacy"
+                ),
                 "name": "sql-public-legacy",
                 "location": "eastus",
             }

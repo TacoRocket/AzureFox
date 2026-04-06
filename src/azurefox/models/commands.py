@@ -4,6 +4,7 @@ from collections import Counter
 
 from pydantic import BaseModel, Field
 
+from azurefox.models.chains import ChainsOutput
 from azurefox.models.common import (
     AcrRegistryAsset,
     AksClusterAsset,
@@ -46,7 +47,6 @@ from azurefox.models.common import (
     VmssAsset,
     WorkloadSummary,
 )
-from azurefox.models.chains import ChainsOutput
 
 
 class WhoAmIOutput(BaseModel):

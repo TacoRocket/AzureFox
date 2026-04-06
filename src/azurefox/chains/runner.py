@@ -157,7 +157,9 @@ def _build_credential_path_output(
                 surface.model_dump(mode="json")
             )
 
-    database_candidates = [item.model_dump(mode="json") for item in database_output.database_servers]
+    database_candidates = [
+        item.model_dump(mode="json") for item in database_output.database_servers
+    ]
     storage_candidates = [item.model_dump(mode="json") for item in storage_output.storage_assets]
     keyvaults = [item.model_dump(mode="json") for item in keyvault_output.key_vaults]
 
@@ -348,7 +350,10 @@ def _build_candidate_record(
     visibility_note: str | None = None,
     visibility_issue: str | None = None,
 ) -> CredentialPathRecord:
-    scoped_candidates, target_resolution = _select_candidates_for_location(candidates, env.get("location"))
+    scoped_candidates, target_resolution = _select_candidates_for_location(
+        candidates,
+        env.get("location"),
+    )
     target_names = [item.get("name") for item in scoped_candidates if item.get("name")]
     target_ids = [item.get("id") for item in scoped_candidates if item.get("id")]
     if visibility_issue:
@@ -385,7 +390,11 @@ def _build_candidate_record(
         visible_path=visible_path,
         target_service=target_service,
         target_resolution=target_resolution,
-        evidence_commands=["env-vars", "tokens-credentials", target_service + "s" if target_service == "database" else target_service],
+        evidence_commands=[
+            "env-vars",
+            "tokens-credentials",
+            target_service + "s" if target_service == "database" else target_service,
+        ],
         joined_surface_types=_joined_surface_types(joined_surfaces, fallback="plain-text-secret"),
         target_count=len(target_ids),
         target_ids=target_ids,
@@ -429,7 +438,10 @@ def _target_service_for_env_var(env: dict) -> str | None:
 
     if setting_name == "azurewebjobsstorage":
         return "storage"
-    if any(token in setting_name for token in ("storage", "blob", "queue", "table", "share", "file", "container")):
+    if any(
+        token in setting_name
+        for token in ("storage", "blob", "queue", "table", "share", "file", "container")
+    ):
         return "storage"
     if any(token in setting_name for token in ("db", "database", "sql", "mysql", "postgres")):
         return "database"
@@ -507,7 +519,11 @@ def _target_visibility_issue(issues: list[CollectionIssue]) -> str | None:
 
 def _joined_surface_types(joined_surfaces: list[dict], *, fallback: str) -> list[str]:
     surface_types = sorted(
-        {str(surface.get("surface_type")) for surface in joined_surfaces if surface.get("surface_type")}
+        {
+            str(surface.get("surface_type"))
+            for surface in joined_surfaces
+            if surface.get("surface_type")
+        }
     )
     return surface_types or [fallback]
 

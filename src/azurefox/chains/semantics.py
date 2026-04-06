@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
 SEMANTIC_PRIORITY_ORDER = {
     "high": 0,
     "medium": 1,

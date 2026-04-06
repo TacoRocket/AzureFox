@@ -719,7 +719,10 @@ def test_chains_partial_target_visibility_prefers_issue_over_candidate_list() ->
         "issues": [
             {
                 "kind": "permission_denied",
-                "message": "databases.servers: current credentials do not show database visibility for at least one visible server",
+                "message": (
+                    "databases.servers: current credentials do not show database visibility "
+                    "for at least one visible server"
+                ),
                 "context": {"collector": "databases.servers"},
             }
         ],

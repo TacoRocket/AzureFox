@@ -1338,7 +1338,10 @@ def _render_root_help() -> str:
             "work before or after the command."
         ),
         "  - Command help includes ATT&CK cloud leads to guide investigation.",
-        "  - Grouped command help stays visible even while additional chain families are still landing.",
+        (
+            "  - Grouped command help stays visible even while additional chain families are "
+            "still landing."
+        ),
         "  - all-checks is deprecated and is being replaced by narrower chains plus flat commands.",
         "  - ATT&CK references are investigative context, not proof that a technique occurred.",
         ]
