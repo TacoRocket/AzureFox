@@ -4454,16 +4454,14 @@ def _env_var_summary(
             f"app settings ({value_type})."
         )
 
-    summary = (
-        f"{summary[:-1]} "
-        f"{env_var_next_review_hint(
-            setting_name=setting_name,
-            value_type=value_type,
-            looks_sensitive=looks_sensitive,
-            reference_target=reference_target,
-            workload_identity_type=workload_identity_type,
-        )}"
+    next_review_hint = env_var_next_review_hint(
+        setting_name=setting_name,
+        value_type=value_type,
+        looks_sensitive=looks_sensitive,
+        reference_target=reference_target,
+        workload_identity_type=workload_identity_type,
     )
+    summary = f"{summary[:-1]} {next_review_hint}"
 
     return {
         "asset_id": app_id or f"/unknown/{app_name}",
@@ -5908,6 +5906,11 @@ def _token_credential_surfaces_from_web_workloads(workloads: list[dict]) -> list
         if user_assigned_count:
             identity_signal = f"{identity_signal}; user-assigned={user_assigned_count}"
 
+        next_review_hint = tokens_credential_next_review_hint(
+            surface_type="managed-identity-token",
+            access_path="workload-identity",
+            operator_signal=identity_signal,
+        )
         surfaces.append(
             {
                 "asset_id": asset_id or f"/unknown/{asset_name}",
@@ -5922,11 +5925,7 @@ def _token_credential_surfaces_from_web_workloads(workloads: list[dict]) -> list
                 "summary": (
                     f"{asset_kind} '{asset_name}' can request tokens through attached "
                     f"managed identity ({item.get('workload_identity_type')}). "
-                    f"{tokens_credential_next_review_hint(
-                        surface_type='managed-identity-token',
-                        access_path='workload-identity',
-                        operator_signal=identity_signal,
-                    )}"
+                    f"{next_review_hint}"
                 ),
                 "related_ids": _dedupe_strings(related_ids),
             }
@@ -6369,6 +6368,11 @@ def _tokens_credentials_surfaces_from_env_vars(env_vars: list[dict]) -> list[dic
             or normalized_setting_name in _TOKENS_CREDENTIALS_PLAIN_TEXT_NAMES
         )
         if plain_text_credential:
+            next_review_hint = tokens_credential_next_review_hint(
+                surface_type="plain-text-secret",
+                access_path="app-setting",
+                operator_signal=f"setting={setting_name}",
+            )
             surfaces.append(
                 {
                     "asset_id": asset_id or f"/unknown/{asset_name}",
@@ -6383,11 +6387,7 @@ def _tokens_credentials_surfaces_from_env_vars(env_vars: list[dict]) -> list[dic
                     "summary": (
                         f"{asset_kind} '{asset_name}' exposes credential-like setting "
                         f"'{setting_name}' as plain-text management-plane app configuration. "
-                        f"{tokens_credential_next_review_hint(
-                            surface_type='plain-text-secret',
-                            access_path='app-setting',
-                            operator_signal=f'setting={setting_name}',
-                        )}"
+                        f"{next_review_hint}"
                     ),
                     "related_ids": _dedupe_strings(related_ids),
                 }
@@ -6405,6 +6405,11 @@ def _tokens_credentials_surfaces_from_env_vars(env_vars: list[dict]) -> list[dic
             )
             identity_suffix = f" via {kv_identity}" if kv_identity else ""
 
+            next_review_hint = tokens_credential_next_review_hint(
+                surface_type="keyvault-reference",
+                access_path="app-setting",
+                operator_signal="; ".join(signal_parts),
+            )
             surfaces.append(
                 {
                     "asset_id": asset_id or f"/unknown/{asset_name}",
@@ -6419,11 +6424,7 @@ def _tokens_credentials_surfaces_from_env_vars(env_vars: list[dict]) -> list[dic
                     "summary": (
                         f"{asset_kind} '{asset_name}' uses setting '{setting_name}' to reach "
                         f"Key Vault-backed secret material{target_suffix}{identity_suffix}. "
-                        f"{tokens_credential_next_review_hint(
-                            surface_type='keyvault-reference',
-                            access_path='app-setting',
-                            operator_signal='; '.join(signal_parts),
-                        )}"
+                        f"{next_review_hint}"
                     ),
                     "related_ids": _dedupe_strings(related_ids),
                 }
@@ -6445,6 +6446,11 @@ def _token_credential_surfaces_from_arm_deployments(deployments: list[dict]) -> 
                 f"outputs={item.get('outputs_count', 0)}; "
                 f"providers={len(item.get('providers', []))}"
             )
+            next_review_hint = tokens_credential_next_review_hint(
+                surface_type="deployment-output",
+                access_path="deployment-history",
+                operator_signal=output_signal,
+            )
             surfaces.append(
                 {
                     "asset_id": deployment_id or f"/unknown/{deployment_name}",
@@ -6459,11 +6465,7 @@ def _token_credential_surfaces_from_arm_deployments(deployments: list[dict]) -> 
                     "summary": (
                         f"Deployment '{deployment_name}' recorded {item.get('outputs_count', 0)} "
                         "output values in deployment history. "
-                        f"{tokens_credential_next_review_hint(
-                            surface_type='deployment-output',
-                            access_path='deployment-history',
-                            operator_signal=output_signal,
-                        )}"
+                        f"{next_review_hint}"
                     ),
                     "related_ids": related_ids,
                 }
@@ -6476,6 +6478,11 @@ def _token_credential_surfaces_from_arm_deployments(deployments: list[dict]) -> 
             if item.get("parameters_link"):
                 link_parts.append(f"parameters={_compact_link(item.get('parameters_link'))}")
 
+            next_review_hint = tokens_credential_next_review_hint(
+                surface_type="linked-deployment-content",
+                access_path="deployment-history",
+                operator_signal="; ".join(link_parts),
+            )
             surfaces.append(
                 {
                     "asset_id": deployment_id or f"/unknown/{deployment_name}",
@@ -6490,11 +6497,7 @@ def _token_credential_surfaces_from_arm_deployments(deployments: list[dict]) -> 
                     "summary": (
                         f"Deployment '{deployment_name}' references remote template or parameter "
                         "content that may expose reusable configuration or credential context. "
-                        f"{tokens_credential_next_review_hint(
-                            surface_type='linked-deployment-content',
-                            access_path='deployment-history',
-                            operator_signal='; '.join(link_parts),
-                        )}"
+                        f"{next_review_hint}"
                     ),
                     "related_ids": related_ids,
                 }
@@ -6517,6 +6520,11 @@ def _token_credential_surfaces_from_vms(vm_assets: list[dict]) -> list[dict]:
         public_signal = f"public-ip={public_ips[0]}" if public_ips else "public-ip=none"
         priority = "high" if public_ips else "medium"
 
+        next_review_hint = tokens_credential_next_review_hint(
+            surface_type="managed-identity-token",
+            access_path="imds",
+            operator_signal=f"{public_signal}; identities={len(identity_ids)}",
+        )
         surfaces.append(
             {
                 "asset_id": asset_id or f"/unknown/{asset_name}",
@@ -6532,19 +6540,11 @@ def _token_credential_surfaces_from_vms(vm_assets: list[dict]) -> list[dict]:
                     f"{str(item.get('vm_type') or 'vm').upper()} '{asset_name}' is publicly "
                     "reachable and exposes a token minting path through IMDS for its attached "
                     "managed identity. "
-                    f"{tokens_credential_next_review_hint(
-                        surface_type='managed-identity-token',
-                        access_path='imds',
-                        operator_signal=f'{public_signal}; identities={len(identity_ids)}',
-                    )}"
+                    f"{next_review_hint}"
                     if public_ips
                     else f"{str(item.get('vm_type') or 'vm').upper()} '{asset_name}' exposes a "
                     "token minting path through IMDS for its attached managed identity. "
-                    f"{tokens_credential_next_review_hint(
-                        surface_type='managed-identity-token',
-                        access_path='imds',
-                        operator_signal=f'{public_signal}; identities={len(identity_ids)}',
-                    )}"
+                    f"{next_review_hint}"
                 ),
                 "related_ids": _dedupe_strings([*([asset_id] if asset_id else []), *identity_ids]),
             }
