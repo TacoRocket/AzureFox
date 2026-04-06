@@ -472,6 +472,33 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
         )
 
+    if command == "chains":
+        return (
+            [
+                ("priority", "priority"),
+                ("asset_name", "asset"),
+                ("setting_name", "setting"),
+                ("target_service", "target"),
+                ("target_resolution", "target resolution"),
+                ("target_names", "visible targets"),
+                ("next_review", "next review"),
+                ("note", "note"),
+            ],
+            [
+                {
+                    "priority": item.get("priority"),
+                    "asset_name": item.get("asset_name"),
+                    "setting_name": item.get("setting_name"),
+                    "target_service": item.get("target_service"),
+                    "target_resolution": item.get("target_resolution"),
+                    "target_names": _chains_target_context(item),
+                    "next_review": item.get("next_review"),
+                    "note": _chains_note(item),
+                }
+                for item in payload.get("paths", [])
+            ],
+        )
+
     if command == "principals":
         return (
             [
@@ -1407,6 +1434,21 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             f"{counts or 'no surfaces visible'} and {len(findings)} findings."
         )
 
+    if command == "chains":
+        paths = payload.get("paths", [])
+        priorities = Counter(item.get("priority") or "unknown" for item in paths)
+        services = Counter(item.get("target_service") or "unknown" for item in paths)
+        priority_order = ("high", "medium", "low", "unknown")
+        priority_counts = ", ".join(
+            f"{priorities[name]} {name}" for name in priority_order if priorities.get(name)
+        )
+        counts = ", ".join(f"{count} {name}" for name, count in sorted(services.items()))
+        return (
+            f"{len(paths)} visible credential paths; "
+            f"{priority_counts or 'no ranked paths'}, "
+            f"{counts or 'no joined downstream services'}."
+        )
+
     if command == "rbac":
         assignments = payload.get("role_assignments", [])
         principals = payload.get("principals", [])
@@ -1516,6 +1558,37 @@ def _env_var_signal(item: dict) -> str:
     if not parts:
         return "-"
     return "; ".join(parts)
+
+
+def _chains_target_context(item: dict) -> str:
+    if item.get("target_visibility_issue"):
+        return str(item.get("target_visibility_issue"))
+    target_names = item.get("target_names") or []
+    if target_names:
+        return ",".join(str(value) for value in target_names[:3])
+    target_count = item.get("target_count") or 0
+    if target_count:
+        return f"{target_count} visible target(s)"
+    return "none joined"
+
+
+def _chains_note(item: dict) -> str:
+    resolution = str(item.get("target_resolution") or "")
+    target_service = str(item.get("target_service") or "target")
+
+    if resolution == "named match":
+        return "Named target matched visible inventory."
+    if resolution == "visibility blocked":
+        return f"{target_service} visibility is blocked; do not infer a target."
+    if resolution == "narrowed candidates":
+        return f"Secret-shaped clue suggests a {target_service} path; exact target unconfirmed."
+    if resolution == "tenant-wide candidates":
+        return f"{target_service} family is visible, but narrowing is still broad."
+    if resolution == "service hint only":
+        return f"{target_service} path is suggested, but no target inventory is visible."
+    if resolution == "named target not visible":
+        return "The named target is not visible in current inventory."
+    return item.get("summary") or "-"
 
 
 def _app_service_identity_context(item: dict) -> str:

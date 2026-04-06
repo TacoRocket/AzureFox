@@ -18,8 +18,8 @@ def test_help_command_generic() -> None:
         "permissions: Triage which visible principals hold high-impact RBAC roles."
     ) in result.stdout
     assert "all-checks: Deprecated broad orchestration sweep." in result.stdout
-    assert "Planned grouped commands:" in result.stdout
-    assert "chains: Planned grouped family runner" in result.stdout
+    assert "chains: Grouped family runner for higher-value preset paths" in result.stdout
+    assert "Planned grouped commands:" not in result.stdout
     assert "all-checks is deprecated" in result.stdout
 
 
@@ -302,8 +302,9 @@ def test_help_command_chains_topic_sets_planned_runtime_expectations() -> None:
 
     assert result.exit_code == 0
     assert "AzureFox Help :: chains" in result.stdout
-    assert "planned grouped surface" in result.stdout
-    assert "help-visible planning surface only" in result.stdout
+    assert "implemented command" in result.stdout
+    assert "credential-path is exposed now" in result.stdout
+    assert "deployment-path and workload-identity-path remain planned" in result.stdout
     assert "credential-path" in result.stdout
 
 

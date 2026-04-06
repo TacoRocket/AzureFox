@@ -1075,24 +1075,27 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="chains",
         section="orchestration",
         summary=(
-            "Planned grouped family runner for higher-value preset paths such as "
-            "credential-path and deployment-path."
+            "Grouped family runner for higher-value preset paths, with credential-path "
+            "available first."
         ),
         offensive_question=(
             "Which grouped Azure path should I run end to end when I want the value-added "
             "family answer instead of every underlying command on its own?"
         ),
         cloudfox_frame=(
-            "Future AzureFox orchestration layer for targeted grouped runs that are meant to "
-            "replace broad all-checks section sweeps with narrower, operator-first presets. "
-            "Current state: help-visible planning surface only while family execution is wired "
-            "in later slices."
+            "AzureFox orchestration layer for targeted grouped runs that are meant to replace "
+            "broad all-checks section sweeps with narrower, operator-first presets. Current "
+            "state: credential-path is exposed now with conservative extraction-first joins; "
+            "deployment-path and workload-identity-path remain planned."
         ),
         output_highlights=(
             "family selectors",
             "backing_commands",
-            "claim_boundaries",
-            "execution_state",
+            "target_resolution",
+            "priority",
+            "target_names",
+            "target_visibility_issue",
+            "next_review",
         ),
         attack_leads=(
             AttackLead("Discovery", "Cloud Service Discovery"),
@@ -1100,7 +1103,6 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             AttackLead("Persistence", "Server Software Component"),
         ),
         example="azurefox chains credential-path --output table",
-        implemented=False,
     ),
 }
 
@@ -1336,7 +1338,7 @@ def _render_root_help() -> str:
             "work before or after the command."
         ),
         "  - Command help includes ATT&CK cloud leads to guide investigation.",
-        "  - Planned grouped command topics are help-visible before public execution lands.",
+        "  - Grouped command help stays visible even while additional chain families are still landing.",
         "  - all-checks is deprecated and is being replaced by narrower chains plus flat commands.",
         "  - ATT&CK references are investigative context, not proof that a technique occurred.",
         ]

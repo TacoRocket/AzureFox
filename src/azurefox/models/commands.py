@@ -46,6 +46,7 @@ from azurefox.models.common import (
     VmssAsset,
     WorkloadSummary,
 )
+from azurefox.models.chains import ChainsOutput
 
 
 class WhoAmIOutput(BaseModel):
@@ -293,6 +294,10 @@ class VmssOutput(BaseModel):
     vmss_assets: list[VmssAsset] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class ChainsCommandOutput(ChainsOutput):
+    pass
 
 
 class WorkloadsOutput(BaseModel):

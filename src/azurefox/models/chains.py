@@ -31,3 +31,48 @@ class ChainsScaffoldOutput(BaseModel):
     selected_family: str | None = None
     families: list[ChainFamilyDescriptor] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class ChainSourceArtifact(BaseModel):
+    command: str
+    artifact_type: str
+    path: str
+
+
+class CredentialPathRecord(BaseModel):
+    chain_id: str
+    asset_id: str
+    asset_name: str
+    asset_kind: str
+    location: str | None = None
+    setting_name: str
+    clue_type: str
+    priority: str
+    visible_path: str
+    target_service: str
+    target_resolution: str
+    evidence_commands: list[str] = Field(default_factory=list)
+    joined_surface_types: list[str] = Field(default_factory=list)
+    target_count: int = 0
+    target_ids: list[str] = Field(default_factory=list)
+    target_names: list[str] = Field(default_factory=list)
+    target_visibility_issue: str | None = None
+    next_review: str
+    summary: str
+    missing_confirmation: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
+class ChainsOutput(BaseModel):
+    metadata: CommandMetadata
+    grouped_command_name: str
+    family: str
+    input_mode: str
+    command_state: str
+    summary: str
+    claim_boundary: str
+    artifact_preference_order: list[str] = Field(default_factory=list)
+    backing_commands: list[str] = Field(default_factory=list)
+    source_artifacts: list[ChainSourceArtifact] = Field(default_factory=list)
+    paths: list[CredentialPathRecord] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)

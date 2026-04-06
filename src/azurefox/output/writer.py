@@ -40,6 +40,7 @@ PRIMARY_COLLECTION_KEYS = {
     "managed-identities": "identities",
     "keyvault": "key_vaults",
     "storage": "storage_assets",
+    "chains": "paths",
     "snapshots-disks": "snapshot_disk_assets",
     "nics": "nic_assets",
     "workloads": "workloads",
