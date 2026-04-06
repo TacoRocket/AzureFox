@@ -7,6 +7,10 @@ from urllib.parse import urlparse
 from rich.console import Console
 from rich.table import Table
 
+from azurefox.devops_hints import devops_next_review_hint
+from azurefox.env_var_hints import env_var_next_review_hint
+from azurefox.tokens_credential_hints import tokens_credential_next_review_hint
+
 
 def render_table(command: str, payload: dict) -> str:
     sio = StringIO()
@@ -136,6 +140,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                 ("azure_access", "azure access"),
                 ("secret_support", "secret support"),
                 ("target_clues", "target clues"),
+                ("next_review", "next review"),
                 ("why_it_matters", "why it matters"),
             ],
             [
@@ -147,6 +152,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     "azure_access": _devops_access_context(item),
                     "secret_support": _devops_secret_context(item),
                     "target_clues": _devops_target_context(item),
+                    "next_review": _devops_next_review(item),
                     "why_it_matters": item.get("summary"),
                 }
                 for item in payload.get("pipelines", [])
@@ -431,6 +437,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                 ("setting_name", "setting"),
                 ("value_type", "value type"),
                 ("signal", "signal"),
+                ("next_review", "next review"),
                 ("why_it_matters", "why it matters"),
             ],
             [
@@ -441,6 +448,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     "setting_name": item.get("setting_name"),
                     "value_type": item.get("value_type"),
                     "signal": _env_var_signal(item),
+                    "next_review": _env_var_next_review(item),
                     "why_it_matters": item.get("summary"),
                 }
                 for item in payload.get("env_vars", [])
@@ -456,6 +464,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                 ("access_path", "access path"),
                 ("priority", "priority"),
                 ("operator_signal", "operator signal"),
+                ("next_review", "next review"),
                 ("why_it_matters", "why it matters"),
             ],
             [
@@ -466,6 +475,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     "access_path": item.get("access_path"),
                     "priority": item.get("priority"),
                     "operator_signal": item.get("operator_signal"),
+                    "next_review": _tokens_credential_next_review(item),
                     "why_it_matters": item.get("summary"),
                 }
                 for item in payload.get("surfaces", [])
@@ -1560,6 +1570,30 @@ def _env_var_signal(item: dict) -> str:
     return "; ".join(parts)
 
 
+def _env_var_next_review(item: dict) -> str:
+    return env_var_next_review_hint(
+        setting_name=str(item.get("setting_name") or ""),
+        value_type=str(item.get("value_type") or ""),
+        looks_sensitive=bool(item.get("looks_sensitive")),
+        reference_target=(
+            str(item.get("reference_target")) if item.get("reference_target") else None
+        ),
+        workload_identity_type=(
+            str(item.get("workload_identity_type"))
+            if item.get("workload_identity_type")
+            else None
+        ),
+    )
+
+
+def _tokens_credential_next_review(item: dict) -> str:
+    return tokens_credential_next_review_hint(
+        surface_type=str(item.get("surface_type") or ""),
+        access_path=str(item.get("access_path") or ""),
+        operator_signal=str(item.get("operator_signal") or ""),
+    )
+
+
 def _chains_target_context(item: dict) -> str:
     if item.get("target_visibility_issue"):
         return str(item.get("target_visibility_issue"))
@@ -2459,6 +2493,18 @@ def _devops_target_context(item: dict) -> str:
     if risk_cues:
         parts.append("risk=" + ",".join(str(value) for value in risk_cues))
     return "; ".join(parts) if parts else "-"
+
+
+def _devops_next_review(item: dict) -> str:
+    return devops_next_review_hint(
+        target_clues=[str(value) for value in item.get("target_clues") or []],
+        key_vault_names=[str(value) for value in item.get("key_vault_names") or []],
+        key_vault_group_names=[str(value) for value in item.get("key_vault_group_names") or []],
+        azure_service_connection_names=[
+            str(value) for value in item.get("azure_service_connection_names") or []
+        ],
+        partial_read=bool(item.get("partial_read")),
+    )
 
 
 def _bool_text(value: bool) -> str:

@@ -15,7 +15,7 @@
       "value_type": "plain-text",
       "looks_sensitive": false,
       "reference_target": null,
-      "summary": "AppService 'app-public-api' exposes setting 'API_BASE_URL' through management-plane app settings (plain-text).",
+      "summary": "AppService 'app-public-api' exposes setting 'API_BASE_URL' through management-plane app settings (plain-text). Check managed-identities for the workload token path behind this setting.",
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api"
       ]
@@ -35,7 +35,7 @@
       "value_type": "plain-text",
       "looks_sensitive": true,
       "reference_target": null,
-      "summary": "AppService 'app-public-api' stores sensitive-looking setting 'DB_PASSWORD' as plain-text app configuration.",
+      "summary": "AppService 'app-public-api' stores sensitive-looking setting 'DB_PASSWORD' as plain-text app configuration. Check tokens-credentials first; this likely feeds a database credential path.",
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api"
       ]
@@ -57,7 +57,7 @@
       "value_type": "plain-text",
       "looks_sensitive": false,
       "reference_target": null,
-      "summary": "FunctionApp 'func-orders' exposes setting 'AzureWebJobsStorage' through management-plane app settings (plain-text).",
+      "summary": "FunctionApp 'func-orders' exposes setting 'AzureWebJobsStorage' through management-plane app settings (plain-text). Check tokens-credentials for the config-backed access path, then managed-identities for the workload token path.",
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders"
       ]
@@ -79,7 +79,7 @@
       "value_type": "keyvault-ref",
       "looks_sensitive": true,
       "reference_target": "kvlabopen01.vault.azure.net/secrets/payment-api-key",
-      "summary": "FunctionApp 'func-orders' maps setting 'PAYMENT_API_KEY' to Key Vault-backed configuration (kvlabopen01.vault.azure.net/secrets/payment-api-key) via SystemAssigned identity.",
+      "summary": "FunctionApp 'func-orders' maps setting 'PAYMENT_API_KEY' to Key Vault-backed configuration (kvlabopen01.vault.azure.net/secrets/payment-api-key) via SystemAssigned identity. Check keyvault for the referenced secret path; review managed-identities for the workload token path.",
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders"
       ]

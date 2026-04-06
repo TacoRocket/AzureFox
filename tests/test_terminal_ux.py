@@ -154,9 +154,11 @@ def test_devops_table_mode_surfaces_named_change_paths(tmp_path: Path) -> None:
     )
     assert "project" in result.stdout
     assert "pipeline" in result.stdout
+    assert "next review" in result.stdout
     assert "deploy-aks-prod" in result.stdout
-    assert "kv-prod-shared" in result.stdout
     assert "AKS/Kubernetes" in result.stdout
+    assert "vault-backed" in result.stdout
+    assert "Check aks for" in result.stdout
     normalized_output = " ".join(result.stdout.split())
     assert (
         "Takeaway: 3 Azure DevOps build definition(s) surfaced; 3 show Azure-facing service "
@@ -626,11 +628,13 @@ def test_env_vars_table_mode_surfaces_findings_and_takeaway(tmp_path: Path) -> N
     )
 
     assert result.exit_code == 0
-    assert "Reviewing App Service and Function App settings" in result.stdout
+    assert "credential or secret follow-on" in result.stdout
     assert "identity" in result.stdout
+    assert "next review" in result.stdout
     assert "SystemAssigned" in result.stdout
     assert "sensitive-name" in result.stdout
     assert "Key Vault-backed configuration" in result.stdout
+    assert "Check keyvault for" in result.stdout
     assert "Takeaway: 4 settings across 2 workloads;" in result.stdout
 
 
@@ -642,10 +646,12 @@ def test_tokens_credentials_table_mode_surfaces_findings_and_takeaway(tmp_path: 
     )
 
     assert result.exit_code == 0
-    assert "Correlating token-minting workloads" in result.stdout
+    assert "next likely follow-on" in result.stdout
     assert "operator signal" in result.stdout
+    assert "next review" in result.stdout
     assert "plain-text-secret" in result.stdout
     assert "deployment-history" in result.stdout
+    assert "Check env-vars" in result.stdout
     assert "Takeaway: 12 token or credential surfaces across 7 assets;" in result.stdout
 
 

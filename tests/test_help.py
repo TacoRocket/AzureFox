@@ -314,6 +314,7 @@ def test_help_command_env_vars_topic() -> None:
     assert result.exit_code == 0
     assert "AzureFox Help :: env-vars" in result.stdout
     assert "Key Vault references" in result.stdout
+    assert "pivot to next" in result.stdout
     assert "workload_identity_type" in result.stdout
     assert "setting_name" in result.stdout
 
@@ -323,6 +324,7 @@ def test_help_command_tokens_credentials_topic() -> None:
 
     assert result.exit_code == 0
     assert "AzureFox Help :: tokens-credentials" in result.stdout
+    assert "pivot to next" in result.stdout
     assert "mint tokens" in result.stdout
     assert "operator_signal" in result.stdout
 

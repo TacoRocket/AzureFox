@@ -50,7 +50,7 @@
         "PROD_DB_PASSWORD",
         "PROD_SIGNING_KEY"
       ],
-      "summary": "Build definition 'deploy-aks-prod' in project 'prod-platform'. reads from repo platform-api@refs/heads/main. auto-triggers on source changes. uses Azure-facing service connection(s) prod-subscription. references variable group(s) prod-release-secrets, prod-kv-release. surfaces 8 secret-marked variable name(s). pulls from Key Vault-backed variable support (kv-prod-shared). shows deployment cues for AKS/Kubernetes, ACR/Containers.",
+      "summary": "Build definition 'deploy-aks-prod' in project 'prod-platform' looks like a named Azure change path. reads from repo platform-api@refs/heads/main. auto-triggers on source changes. uses Azure-facing service connection(s) prod-subscription. references variable group(s) prod-release-secrets, prod-kv-release. surfaces 8 secret-marked variable name(s). pulls from Key Vault-backed variable support (kv-prod-shared). shows deployment cues for AKS/Kubernetes, ACR/Containers. Check aks for the named deployment target; review permissions and role-trusts for Azure control; review keyvault for the vault-backed support.",
       "target_clues": [
         "AKS/Kubernetes",
         "ACR/Containers"
@@ -100,7 +100,7 @@
         "PROD_SLOT_PUBLISH_PROFILE",
         "WEBSITE_SWAP_AUTH"
       ],
-      "summary": "Build definition 'deploy-appservice-prod' in project 'prod-platform'. reads from repo customer-portal@refs/heads/main. includes pull-request trigger posture. uses Azure-facing service connection(s) prod-appsvc-wif. references variable group(s) prod-appsvc-release. surfaces 3 secret-marked variable name(s). shows deployment cues for App Service.",
+      "summary": "Build definition 'deploy-appservice-prod' in project 'prod-platform' looks like a named Azure change path. reads from repo customer-portal@refs/heads/main. includes pull-request trigger posture. uses Azure-facing service connection(s) prod-appsvc-wif. references variable group(s) prod-appsvc-release. surfaces 3 secret-marked variable name(s). shows deployment cues for App Service. Check app-services for the named deployment target; review permissions and role-trusts for Azure control.",
       "target_clues": [
         "App Service"
       ],
@@ -149,7 +149,7 @@
       ],
       "secret_variable_count": 0,
       "secret_variable_names": [],
-      "summary": "Build definition 'plan-infra-prod' in project 'platform-infra'. reads from repo infra-live@refs/heads/main. runs on a schedule. uses Azure-facing service connection(s) infra-subscription. references variable group(s) platform-kv. pulls from Key Vault-backed variable support (kv-platform-shared). shows deployment cues for ARM/Bicep/Terraform.",
+      "summary": "Build definition 'plan-infra-prod' in project 'platform-infra' looks like a named Azure change path. reads from repo infra-live@refs/heads/main. runs on a schedule. uses Azure-facing service connection(s) infra-subscription. references variable group(s) platform-kv. pulls from Key Vault-backed variable support (kv-platform-shared). shows deployment cues for ARM/Bicep/Terraform. Check arm-deployments for the named deployment target; review permissions and role-trusts for Azure control; review keyvault for the vault-backed support.",
       "target_clues": [
         "ARM/Bicep/Terraform"
       ],
