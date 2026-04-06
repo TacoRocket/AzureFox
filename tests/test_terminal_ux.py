@@ -680,7 +680,10 @@ def test_permissions_table_mode_surfaces_next_review(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0
-    assert "Ranking principals by high-impact RBAC exposure and the next likely follow-on." in result.stdout
+    assert (
+        "Ranking principals by high-impact RBAC exposure and the next likely follow-on."
+        in result.stdout
+    )
     assert "operator signal" in result.stdout
     assert "next review" in result.stdout
     assert "Direct control visible; current foothold." in result.stdout

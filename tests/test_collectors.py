@@ -2059,10 +2059,14 @@ def test_tokens_credential_next_review_hint_prefers_endpoints_for_public_imds() 
 def test_collect_managed_identities_surfaces_handoff_fields(fixture_provider, options) -> None:
     output = collect_managed_identities(fixture_provider, options)
 
-    assert output.identities[0].operator_signal == "Public VM workload pivot; direct control visible."
+    assert (
+        output.identities[0].operator_signal
+        == "Public VM workload pivot; direct control visible."
+    )
     assert (
         output.identities[0].next_review
-        == "Check permissions for direct control on this identity, then vms for the host context behind the workload pivot."
+        == "Check permissions for direct control on this identity, then vms for the host "
+        "context behind the workload pivot."
     )
     assert "Current scope already shows direct control" in (output.identities[0].summary or "")
 
@@ -2115,7 +2119,10 @@ def test_collect_managed_identities_sorts_and_blocks_visibility() -> None:
             return {
                 "vm_assets": [
                     {
-                        "id": "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-edge",
+                        "id": (
+                            "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/"
+                            "virtualMachines/vm-edge"
+                        ),
                         "name": "vm-edge",
                         "public_ips": ["52.160.10.20"],
                     }
@@ -2138,11 +2145,15 @@ def test_collect_managed_identities_sorts_and_blocks_visibility() -> None:
     output = collect_managed_identities(StubProvider(), options)
 
     assert [item.name for item in output.identities] == ["ua-prod", "app-edge-system"]
-    assert output.identities[0].operator_signal == "Public VM workload pivot; direct control visible."
+    assert (
+        output.identities[0].operator_signal
+        == "Public VM workload pivot; direct control visible."
+    )
     assert output.identities[1].operator_signal == "Web workload pivot; visibility blocked."
     assert (
         output.identities[1].next_review
-        == "Check env-vars for the backing workload context; current scope does not yet show direct control on this identity."
+        == "Check env-vars for the backing workload context; current scope does not yet show "
+        "direct control on this identity."
     )
 
 
@@ -2432,7 +2443,10 @@ def test_collect_permissions_prefers_workload_pivot_then_trust_expansion() -> No
         "attachment-only-sp",
         "trust-sp",
     ]
-    assert output.permissions[1].operator_signal == "Direct control visible; workload pivot visible."
+    assert (
+        output.permissions[1].operator_signal
+        == "Direct control visible; workload pivot visible."
+    )
     assert (
         output.permissions[1].next_review
         == "Check managed-identities for the workload pivot behind this direct control row."
@@ -2445,7 +2459,10 @@ def test_collect_permissions_prefers_workload_pivot_then_trust_expansion() -> No
         output.permissions[2].next_review
         == "Check managed-identities for the workload pivot behind this direct control row."
     )
-    assert output.permissions[3].operator_signal == "Direct control visible; trust expansion follow-on."
+    assert (
+        output.permissions[3].operator_signal
+        == "Direct control visible; trust expansion follow-on."
+    )
     assert (
         output.permissions[3].next_review
         == "Check role-trusts for trust expansion around who can influence this principal."

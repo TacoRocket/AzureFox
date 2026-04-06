@@ -17,11 +17,6 @@ from azurefox.managed_identity_hints import (
     managed_identity_operator_signal,
     managed_identity_summary,
 )
-from azurefox.permissions_hints import (
-    permissions_next_review_hint,
-    permissions_operator_signal,
-    permissions_summary,
-)
 from azurefox.models.commands import (
     AcrOutput,
     AksOutput,
@@ -60,6 +55,11 @@ from azurefox.models.commands import (
     WorkloadsOutput,
 )
 from azurefox.models.common import CommandMetadata
+from azurefox.permissions_hints import (
+    permissions_next_review_hint,
+    permissions_operator_signal,
+    permissions_summary,
+)
 
 
 def collect_whoami(provider: BaseProvider, options: GlobalOptions) -> WhoAmIOutput:
