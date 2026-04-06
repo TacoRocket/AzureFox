@@ -41,10 +41,10 @@ def test_auth_policies_table_mode_surfaces_findings_and_issues(tmp_path: Path) -
     )
 
     assert result.exit_code == 0
-    assert "current read path" in result.stdout
+    assert "current credentials" in result.stdout
     assert "Findings:" in result.stdout
     assert "Security defaults are disabled" in result.stdout
-    assert "Takeaway: 4 policy rows, 5 findings, and 0 collection issues" in result.stdout
+    assert "Takeaway: 4 policy rows, 5 findings, and 0 credential-scope issues" in result.stdout
 
 
 def test_lighthouse_table_mode_surfaces_cross_tenant_scope_and_access(tmp_path: Path) -> None:
@@ -664,7 +664,7 @@ def test_auth_policies_partial_read_surfaces_collection_issue() -> None:
     }
     rendered = render_table("auth-policies", payload)
 
-    assert "Collection issues:" in rendered
+    assert "Credential-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "auth_policies.security_defaults" in rendered
 
@@ -697,7 +697,7 @@ def test_app_services_partial_read_surfaces_collection_issue() -> None:
     }
     rendered = render_table("app-services", payload)
 
-    assert "Collection issues:" in rendered
+    assert "Credential-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "app_services[rg-apps/app-empty-mi].configuration" in rendered
 
@@ -718,7 +718,7 @@ def test_acr_collection_issue_surfaces_in_table_output() -> None:
     rendered = render_table("acr", payload)
 
     assert "No records" in rendered
-    assert "Collection issues:" in rendered
+    assert "Credential-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "acr.registries" in rendered
 
@@ -755,7 +755,7 @@ def test_acr_partial_replication_read_stays_explicit_in_takeaway() -> None:
 
     normalized_rendered = " ".join(rendered.split())
     assert (
-        "replication visibility is unreadable from at least one visible registry"
+        "current credentials do not show replication visibility on at least one visible registry"
         in normalized_rendered
     )
     assert "acr[rg-containers/acr-public-legacy].replications" in rendered
@@ -790,10 +790,10 @@ def test_databases_partial_read_surfaces_collection_issue() -> None:
     }
     rendered = render_table("databases", payload)
 
-    assert "Collection issues:" in rendered
+    assert "Credential-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "databases[rg-data/sql-public-legacy].databases" in rendered
-    assert "database visibility is unreadable from at least one visible server" in " ".join(
+    assert "current credentials do not show database visibility on at least one visible server" in " ".join(
         rendered.split()
     )
     assert "least one visible server" in rendered
@@ -815,7 +815,7 @@ def test_dns_collection_issue_surfaces_in_table_output() -> None:
     rendered = render_table("dns", payload)
 
     assert "No records" in rendered
-    assert "Collection issues:" in rendered
+    assert "Credential-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "dns.resources" in rendered
 
@@ -870,7 +870,7 @@ def test_application_gateway_collection_issue_surfaces_in_table_output() -> None
     rendered = render_table("application-gateway", payload)
 
     assert "No records" in rendered
-    assert "Collection issues:" in rendered
+    assert "Credential-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "application_gateway.gateways" in rendered
 
@@ -916,7 +916,7 @@ def test_application_gateway_partial_read_keeps_public_frontend_without_ip_strin
 
     assert "public=1; subnets=1" in rendered
     assert "20.30.40.50" not in rendered
-    assert "Collection issues:" in rendered
+    assert "Credential-scope issues:" in rendered
 
 
 def test_application_gateway_takeaway_counts_backend_pool_breadth_as_shared_signal() -> None:
@@ -1043,7 +1043,7 @@ def test_functions_partial_read_surfaces_collection_issue() -> None:
     }
     rendered = render_table("functions", payload)
 
-    assert "Collection issues:" in rendered
+    assert "Credential-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "functions[rg-apps/func-orders].app_settings" in rendered
 
@@ -1079,10 +1079,10 @@ def test_api_mgmt_partial_read_surfaces_collection_issue() -> None:
     }
     rendered = render_table("api-mgmt", payload)
 
-    assert "Collection issues:" in rendered
+    assert "Credential-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "api_mgmt[rg-apps/apim-edge-01].named_values" in rendered
-    assert "named value visibility is unreadable" in rendered
+    assert "current credentials do not show named values" in " ".join(rendered.split())
     assert "at least one visible service" in rendered
 
 
@@ -1102,6 +1102,6 @@ def test_aks_collection_issue_surfaces_in_table_output() -> None:
     rendered = render_table("aks", payload)
 
     assert "No records" in rendered
-    assert "Collection issues:" in rendered
+    assert "Credential-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "aks.managed_clusters" in rendered

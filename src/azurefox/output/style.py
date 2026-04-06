@@ -85,7 +85,7 @@ COMMAND_NARRATION = {
         "Reviewing Virtual Machine Scale Sets (VMSS) for fleet posture, identity, and "
         "frontend network cues."
     ),
-    "all-checks": "Running the current AzureFox command set in operator-first sequence.",
+    "all-checks": "Running deprecated broad grouped sweep across the current AzureFox command set.",
 }
 
 

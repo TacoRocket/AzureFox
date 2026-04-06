@@ -41,13 +41,13 @@ def render_table(command: str, payload: dict) -> str:
     issues = payload.get("issues", [])
     if issues:
         console.print("")
-        console.print("Collection issues:")
+        console.print("Credential-scope issues:")
         for issue in issues[:5]:
             kind = issue.get("kind") or "unknown"
             console.print(f"- {kind}: {issue.get('message')}", markup=False)
         remaining = len(issues) - 5
         if remaining > 0:
-            console.print(f"- ... plus {remaining} more collection issues in JSON artifacts.")
+            console.print(f"- ... plus {remaining} more credential-scope issues in JSON artifacts.")
 
     takeaway = _takeaway_for_command(command, payload)
     if takeaway:
@@ -957,7 +957,7 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         issues = payload.get("issues", [])
         return (
             f"{len(policies)} policy rows, {len(findings)} findings, and "
-            f"{len(issues)} collection issues visible from the current read path."
+            f"{len(issues)} credential-scope issues visible from current credentials."
         )
 
     if command == "permissions":
@@ -1137,11 +1137,12 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             if readable_webhooks:
                 webhook_phrase = (
                     f"at least {readable_webhooks} webhooks are visible, with some "
-                    "registries unreadable"
+                    "registries outside current credential visibility"
                 )
             else:
                 webhook_phrase = (
-                    "webhook visibility is unreadable from at least one visible registry"
+                    "current credentials do not show webhook visibility on at least one "
+                    "visible registry"
                 )
         else:
             webhook_phrase = f"{readable_webhooks} webhooks are visible"
@@ -1155,11 +1156,12 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             if readable_replicated:
                 replication_phrase = (
                     f"at least {readable_replicated} registries show replicated regions, "
-                    "with some registries unreadable"
+                    "with some registries outside current credential visibility"
                 )
             else:
                 replication_phrase = (
-                    "replication visibility is unreadable from at least one visible registry"
+                    "current credentials do not show replication visibility on at least one "
+                    "visible registry"
                 )
         elif readable_replicated == 1:
             replication_phrase = "1 registry replicates content into additional regions"
@@ -1187,11 +1189,12 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             if readable_databases:
                 database_phrase = (
                     f"at least {readable_databases} user databases are visible, with some "
-                    "servers unreadable"
+                    "servers outside current credential visibility"
                 )
             else:
                 database_phrase = (
-                    "database visibility is unreadable from at least one visible server"
+                    "current credentials do not show database visibility on at least one "
+                    "visible server"
                 )
         else:
             database_phrase = f"{readable_databases} user databases are visible"
@@ -1214,11 +1217,12 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             if readable_records:
                 record_phrase = (
                     f"at least {readable_records} record sets are visible, with some zones "
-                    "unreadable"
+                    "outside current credential visibility"
                 )
             else:
                 record_phrase = (
-                    "record-set totals are unreadable from at least one visible zone"
+                    "current credentials do not show record-set totals on at least one "
+                    "visible zone"
                 )
         else:
             record_phrase = f"{readable_records} record sets are visible"
@@ -1303,11 +1307,12 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             if readable_named_values:
                 named_value_phrase = (
                     f"at least {readable_named_values} named values are visible, with some "
-                    "services unreadable"
+                    "services outside current credential visibility"
                 )
             else:
                 named_value_phrase = (
-                    "named value visibility is unreadable from at least one visible service"
+                    "current credentials do not show named values on at least one "
+                    "visible service"
                 )
         else:
             named_value_phrase = f"{readable_named_values} named values are visible"

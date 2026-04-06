@@ -22,6 +22,8 @@ class CommandHelpTopic:
     attack_leads: tuple[AttackLead, ...]
     example: str
     implemented: bool = True
+    deprecated: bool = False
+    deprecation_note: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,6 +32,7 @@ class SectionHelpTopic:
     summary: str
     operator_goal: str
     attack_lenses: tuple[AttackLead, ...]
+    deprecation_note: str | None = None
 
 
 COMMAND_HELP: dict[str, CommandHelpTopic] = {
@@ -1044,14 +1047,17 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="all-checks",
         section="orchestration",
         summary=(
-            "Run the implemented AzureFox commands in a stable operator-first sequence. "
-            "This broader pass can take materially longer than a single command."
+            "Deprecated broad orchestration sweep. Runs the implemented AzureFox commands in a "
+            "stable operator-first sequence while chains are still being wired in."
         ),
         offensive_question=(
             "What is the cleanest broad sweep I can run right now for this tenant or section "
             "when I want grouped results and can wait on a longer pass?"
         ),
-        cloudfox_frame="Direct AzureFox analogue to a CloudFox grouped recon pass.",
+        cloudfox_frame=(
+            "Legacy AzureFox analogue to a CloudFox grouped recon pass. Planned chains are the "
+            "replacement direction for narrower, higher-value grouped execution."
+        ),
         output_highlights=("results", "run-summary.json", "section filtering"),
         attack_leads=(
             AttackLead("Discovery", "Cloud Account"),
@@ -1059,6 +1065,11 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             AttackLead("Discovery", "Permission Groups Discovery: Cloud Groups"),
         ),
         example="azurefox all-checks --section identity",
+        deprecated=True,
+        deprecation_note=(
+            "Broad all-checks sweeps and section-filtered variants are being replaced by chains. "
+            "Prefer flat commands directly for narrower runs until grouped chain families land."
+        ),
     ),
     "chains": CommandHelpTopic(
         name="chains",
@@ -1110,6 +1121,10 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
             AttackLead("Persistence", "Account Manipulation: Additional Cloud Roles"),
             AttackLead("Privilege Escalation", "Account Manipulation: Additional Cloud Roles"),
         ),
+        deprecation_note=(
+            "The broad `all-checks --section identity` sweep is deprecated and will be replaced by "
+            "chains plus flat commands. Use the listed commands directly for now."
+        ),
     ),
     "core": SectionHelpTopic(
         name="core",
@@ -1118,6 +1133,10 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
         attack_lenses=(
             AttackLead("Discovery", "Cloud Infrastructure Discovery"),
             AttackLead("Discovery", "Cloud Service Discovery"),
+        ),
+        deprecation_note=(
+            "The broad `all-checks --section core` sweep is deprecated and will be replaced by "
+            "chains plus flat commands. Use the listed commands directly for now."
         ),
     ),
     "config": SectionHelpTopic(
@@ -1134,6 +1153,10 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
             AttackLead("Collection", "Data from Information Repositories"),
             AttackLead("Credential Access", "Unsecured Credentials"),
         ),
+        deprecation_note=(
+            "The broad `all-checks --section config` sweep is deprecated and will be replaced by "
+            "chains plus flat commands. Use the listed commands directly for now."
+        ),
     ),
     "storage": SectionHelpTopic(
         name="storage",
@@ -1142,6 +1165,10 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
         attack_lenses=(
             AttackLead("Discovery", "Cloud Storage Object Discovery"),
             AttackLead("Collection", "Data from Cloud Storage"),
+        ),
+        deprecation_note=(
+            "The broad `all-checks --section storage` sweep is deprecated and will be replaced by "
+            "chains plus flat commands. Use the listed commands directly for now."
         ),
     ),
     "secrets": SectionHelpTopic(
@@ -1162,6 +1189,10 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
                 "Steal or Forge Authentication Certificates",
             ),
         ),
+        deprecation_note=(
+            "The broad `all-checks --section secrets` sweep is deprecated and will be replaced by "
+            "chains plus flat commands. Use the listed commands directly for now."
+        ),
     ),
     "resource": SectionHelpTopic(
         name="resource",
@@ -1178,6 +1209,10 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
             AttackLead("Initial Access", "Exploit Public-Facing Application"),
             AttackLead("Collection", "Data from Cloud Storage"),
         ),
+        deprecation_note=(
+            "The broad `all-checks --section resource` sweep is deprecated and will be replaced by "
+            "chains plus flat commands. Use the listed commands directly for now."
+        ),
     ),
     "compute": SectionHelpTopic(
         name="compute",
@@ -1188,6 +1223,10 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
         attack_lenses=(
             AttackLead("Discovery", "Cloud Infrastructure Discovery"),
             AttackLead("Lateral Movement", "Remote Services: Direct Cloud VM Connections"),
+        ),
+        deprecation_note=(
+            "The broad `all-checks --section compute` sweep is deprecated and will be replaced by "
+            "chains plus flat commands. Use the listed commands directly for now."
         ),
     ),
     "network": SectionHelpTopic(
@@ -1200,6 +1239,10 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
         attack_lenses=(
             AttackLead("Discovery", "Network Service Discovery"),
             AttackLead("Lateral Movement", "Remote Services: Direct Cloud VM Connections"),
+        ),
+        deprecation_note=(
+            "The broad `all-checks --section network` sweep is deprecated and will be replaced by "
+            "chains plus flat commands. Use the listed commands directly for now."
         ),
     ),
     "ai": SectionHelpTopic(
@@ -1215,6 +1258,10 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
                 "Credential Access",
                 "Use Alternate Authentication Material: Application Access Token",
             ),
+        ),
+        deprecation_note=(
+            "The broad `all-checks --section ai` sweep is deprecated and will be replaced by "
+            "chains plus flat commands if AI coverage lands later."
         ),
     ),
 }
@@ -1270,6 +1317,8 @@ def _render_root_help() -> str:
     lines.extend(["", "Commands:"])
     for name in command_names:
         summary = COMMAND_HELP[name].summary
+        if COMMAND_HELP[name].deprecated:
+            summary = f"{summary} [deprecated]"
         lines.append(f"  {name}: {summary}")
 
     if planned_command_names:
@@ -1283,12 +1332,13 @@ def _render_root_help() -> str:
             "",
             "Notes:",
             (
-                "  - Shared flags such as --tenant, --subscription, --output, and --outdir "
-                "work before or after the command."
-            ),
-            "  - Command help includes ATT&CK cloud leads to guide investigation.",
-            "  - Planned grouped command topics are help-visible before public execution lands.",
-            "  - ATT&CK references are investigative context, not proof that a technique occurred.",
+            "  - Shared flags such as --tenant, --subscription, --output, and --outdir "
+            "work before or after the command."
+        ),
+        "  - Command help includes ATT&CK cloud leads to guide investigation.",
+        "  - Planned grouped command topics are help-visible before public execution lands.",
+        "  - all-checks is deprecated and is being replaced by narrower chains plus flat commands.",
+        "  - ATT&CK references are investigative context, not proof that a technique occurred.",
         ]
     )
     return "\n".join(lines)
@@ -1302,9 +1352,12 @@ def _render_section_help(topic: SectionHelpTopic) -> str:
         topic.summary,
         "",
         f"Operator goal: {topic.operator_goal}",
-        "",
-        "Implemented commands:",
     ]
+
+    if topic.deprecation_note:
+        lines.extend(["", f"Deprecation: {topic.deprecation_note}"])
+
+    lines.extend(["", "Implemented commands:"])
 
     if commands:
         for command in commands:
@@ -1319,6 +1372,7 @@ def _render_section_help(topic: SectionHelpTopic) -> str:
             *_render_attack_leads(topic.attack_lenses),
             "",
             "Examples:",
+            f"  # deprecated broad sweep",
             f"  azurefox all-checks --section {topic.name}",
             f"  azurefox help {topic.name}",
         ]
@@ -1335,7 +1389,11 @@ def _render_command_help(topic: CommandHelpTopic) -> str:
         (
             "Status: planned grouped surface; public execution is not exposed yet."
             if not topic.implemented
-            else "Status: implemented command."
+            else (
+                "Status: implemented command (deprecated)."
+                if topic.deprecated
+                else "Status: implemented command."
+            )
         ),
         f"Section: {topic.section}",
         f"Offensive question: {topic.offensive_question}",
@@ -1345,6 +1403,9 @@ def _render_command_help(topic: CommandHelpTopic) -> str:
     ]
     for item in topic.output_highlights:
         lines.append(f"  {item}")
+
+    if topic.deprecated and topic.deprecation_note:
+        lines.extend(["", f"Deprecation: {topic.deprecation_note}"])
 
     lines.extend(
         [
