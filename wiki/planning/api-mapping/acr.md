@@ -5,7 +5,7 @@
 Surface Azure Container Registry posture with a narrow management-plane depth pass.
 
 This version answers:
-"Which registries expose interesting login, auth, network, automation, and governance cues worth
+"Which registries expose the strongest login, auth, network, automation, and trust cues worth
 operator follow-up?"
 
 ## Initial Scope
@@ -17,7 +17,7 @@ operator follow-up?"
 - Managed identity and basic service-shape cues
 - Webhook counts, action types, and broad scope cues
 - Replication counts and replicated region names
-- Quarantine, retention, and content-trust policy posture
+- Quarantine, retention, and content-trust cues
 
 ## Explicit Non-Goals For V1
 
@@ -35,7 +35,7 @@ operator follow-up?"
 ## Correlation / Joins
 
 - Normalize registry posture into operator-first rows that emphasize exposure, auth, automation,
-  replication, and policy cues
+  replication, and trust cues
 - Keep nested read gaps explicit when webhook or replication visibility is denied
 - Keep data-plane content analysis out of the first slice
 
@@ -43,4 +43,4 @@ operator follow-up?"
 
 - Registry posture does not prove repository contents are readable
 - Webhook and replication cues do not prove downstream trust or exploitability
-- Policy posture does not prove content-governance enforcement is operating as intended
+- Trust cues do not prove content-governance enforcement is operating as intended

@@ -176,7 +176,9 @@ def test_app_services_table_mode_surfaces_runtime_and_posture(tmp_path: Path) ->
 
     assert result.exit_code == 0
     assert (
-        "Reviewing App Service runtime, hostname, identity, and hardening posture." in result.stdout
+        "Reviewing App Service runtime, hostname, identity, and ingress cues that change "
+        "follow-on paths."
+        in result.stdout
     )
     assert "app service" in result.stdout
     assert "DOTNETCORE|8.0" in result.stdout
@@ -199,7 +201,7 @@ def test_acr_table_mode_surfaces_login_server_and_posture(tmp_path: Path) -> Non
     assert result.exit_code == 0
     assert (
         "Reviewing Azure Container Registry login, auth, network, and registry "
-        "automation/governance cues."
+        "automation/trust cues."
         in result.stdout
     )
     assert "registry" in result.stdout

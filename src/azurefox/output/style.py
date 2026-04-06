@@ -18,10 +18,13 @@ COMMAND_NARRATION = {
         "Reviewing Azure DevOps build definitions for named Azure change paths, "
         "secret-bearing support, and trigger posture."
     ),
-    "app-services": "Reviewing App Service runtime, hostname, identity, and hardening posture.",
+    "app-services": (
+        "Reviewing App Service runtime, hostname, identity, and ingress cues "
+        "that change follow-on paths."
+    ),
     "acr": (
         "Reviewing Azure Container Registry login, auth, network, and registry "
-        "automation/governance cues."
+        "automation/trust cues."
     ),
     "databases": (
         "Reviewing relational database server posture across Azure SQL, PostgreSQL Flexible, "
@@ -54,7 +57,7 @@ COMMAND_NARRATION = {
         "and the next likely follow-on."
     ),
     "rbac": "Collecting raw RBAC assignments across the current subscription.",
-    "principals": "Building an operator-first principal census from RBAC and identity context.",
+    "principals": "Mapping visible principals, identity footholds, and follow-on candidates.",
     "permissions": "Ranking principals by high-impact RBAC exposure.",
     "privesc": "Triage likely privilege-escalation and workload identity abuse paths.",
     "role-trusts": (
@@ -69,11 +72,15 @@ COMMAND_NARRATION = {
         "high-impact access cues."
     ),
     "auth-policies": (
-        "Reviewing tenant auth controls, findings, and any partial-read gaps on the "
-        "current read path."
+        "Reviewing tenant auth controls that widen guest, consent, app-creation, "
+        "or sign-in abuse paths."
     ),
-    "managed-identities": "Enumerating workload identities and attached privilege exposure.",
-    "keyvault": "Reviewing Key Vault posture for exposed or weakly protected secret surfaces.",
+    "managed-identities": (
+        "Mapping workload-linked managed identities and their visible privilege cues."
+    ),
+    "keyvault": (
+        "Reviewing Key Vault exposure, access-model weakness, and destructive leverage cues."
+    ),
     "resource-trusts": (
         "Correlating resource trust surfaces across public network and private-link paths."
     ),
@@ -89,7 +96,9 @@ COMMAND_NARRATION = {
         "Reviewing Virtual Machine Scale Sets (VMSS) for fleet posture, identity, and "
         "frontend network cues."
     ),
-    "all-checks": "Running deprecated broad grouped sweep across the current AzureFox command set.",
+    "all-checks": (
+        "Running the deprecated broad recon sweep across the current AzureFox command set."
+    ),
     "chains": (
         "Correlating the first grouped chain family from emitted command artifacts and "
         "conservative cross-command joins."
@@ -98,7 +107,7 @@ COMMAND_NARRATION = {
 
 
 def emit_context_banner(options: GlobalOptions) -> None:
-    typer.echo("AzureFox :: operator-first Azure situational awareness")
+    typer.echo("AzureFox :: attack-path-focused Azure recon")
     typer.echo(
         "context :: tenant="
         f"{options.tenant or 'auto'} "

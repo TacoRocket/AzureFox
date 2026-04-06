@@ -2,11 +2,12 @@
 
 ## Slice Goal
 
-Deepen App Service posture beyond workload census while staying inside management-plane evidence.
+Deepen App Service runtime and ingress context beyond workload census while staying inside
+management-plane evidence.
 
 This first version answers:
-"Which App Service apps expose the most interesting runtime, identity, hostname, and basic
-hardening posture for operator follow-up?"
+"Which App Service apps expose the strongest runtime, identity, hostname, and ingress cues for
+operator follow-up?"
 
 ## Initial Scope
 
@@ -36,4 +37,3 @@ hardening posture for operator follow-up?"
 
 - Hostname visibility does not prove a public route is actually reachable
 - Missing runtime or posture fields can reflect partial-read limits rather than a negative state
-

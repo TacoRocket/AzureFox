@@ -4,9 +4,9 @@
   <img src="docs/branding/azurefox-logo.png" alt="AzureFox logo" width="180" />
 </p>
 
-AzureFox is a Python CLI for offensive-focused Azure situational awareness.
-It helps operators and testers figure out what Azure identity, network, secrets, and workload
-exposure they can actually see from management-plane read paths.
+AzureFox is a Python CLI for offensive-focused Azure recon.
+It helps operators and testers map what Azure identity, network, secrets, and workload exposure
+they can actually see from management-plane read paths.
 
 ## Quickstart
 
@@ -183,7 +183,7 @@ azurefox all-checks --section storage
 azurefox all-checks --section compute
 ```
 
-Treat `all-checks` as a temporary broad validation pass, not a quick spot check. It can take much
+Treat `all-checks` as a temporary broad recon pass, not a quick spot check. It can take much
 longer than a single command, especially when a full section is writing grouped artifacts.
 
 For narrower current work:

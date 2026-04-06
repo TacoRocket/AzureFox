@@ -2,11 +2,11 @@
 
 ## Slice Goal
 
-Provide a stable operator-first orchestration path across implemented commands and sections.
+Provide a stable broad recon path across implemented commands and sections.
 
 This first version answers:
-"What is the cleanest grouped sweep I can run right now for this tenant or one section, and where
-did each command write its artifacts?"
+"What is the cleanest broad recon sweep I can run right now for this tenant or one section, and
+where did each command write its artifacts?"
 
 ## Initial Scope
 
@@ -28,11 +28,10 @@ did each command write its artifacts?"
 
 ## Correlation / Joins
 
-- Run the implemented commands in a stable operator-first sequence and summarize their outcomes
+- Run the implemented commands in a stable broad sequence and summarize their outcomes
 - Keep orchestration metadata explicit so operators can inspect per-command artifacts directly
 
 ## Blind Spots
 
 - `all-checks` is an orchestration layer, not a separate evidence source
 - A slower grouped run does not imply broader proof than the underlying command outputs provide
-

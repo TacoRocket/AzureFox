@@ -33,7 +33,7 @@ constrained to private-link style access?"
 
 - Normalize public-network and private-endpoint posture into trust rows
 - Reuse Storage findings and only the trust-relevant Key Vault exposure findings so evidence stays
-  consistent with the underlying collectors without pulling in non-trust recovery posture
+  consistent with the underlying collectors without pulling in non-trust destructive-leverage cues
 
 ## Blind Spots
 
