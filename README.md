@@ -25,15 +25,17 @@ azurefox --outdir ./azurefox-demo whoami --output table
 
 | Section | Commands |
 | --- | --- |
-| `core` | `inventory` |
-| `identity` | `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `lighthouse`, `auth-policies`, `managed-identities` |
-| `config` | `arm-deployments`, `env-vars` |
-| `secrets` | `keyvault`, `tokens-credentials` |
-| `resource` | `automation`, `devops`, `acr`, `api-mgmt`, `databases`, `resource-trusts` |
-| `storage` | `storage` |
-| `network` | `nics`, `dns`, `endpoints`, `network-effective`, `network-ports` |
-| `compute` | `workloads`, `app-services`, `functions`, `aks`, `vms`, `vmss`, `snapshots-disks` |
-| orchestration | `all-checks` (deprecated) |
+| `core` | [`inventory`](wiki/planning/api-mapping/inventory.md) |
+| `identity` | [`whoami`](wiki/planning/api-mapping/whoami.md), [`rbac`](wiki/planning/api-mapping/rbac.md), [`principals`](wiki/planning/api-mapping/principals.md), [`permissions`](wiki/planning/api-mapping/permissions.md), [`privesc`](wiki/planning/api-mapping/privesc.md), [`role-trusts`](wiki/planning/api-mapping/role-trusts.md), `lighthouse`, [`auth-policies`](wiki/planning/api-mapping/auth-policies.md), [`managed-identities`](wiki/planning/api-mapping/managed-identities.md) |
+| `config` | [`arm-deployments`](wiki/planning/api-mapping/arm-deployments.md), [`env-vars`](wiki/planning/api-mapping/env-vars.md) |
+| `secrets` | [`keyvault`](wiki/planning/api-mapping/keyvault.md), [`tokens-credentials`](wiki/planning/api-mapping/tokens-credentials.md) |
+| `resource` | `automation`, `devops`, [`acr`](wiki/planning/api-mapping/acr.md), [`api-mgmt`](wiki/planning/api-mapping/api-mgmt.md), [`databases`](wiki/planning/api-mapping/databases.md), [`resource-trusts`](wiki/planning/api-mapping/resource-trusts.md) |
+| `storage` | [`storage`](wiki/planning/api-mapping/storage.md) |
+| `network` | [`nics`](wiki/planning/api-mapping/nics.md), [`dns`](wiki/planning/api-mapping/dns.md), [`endpoints`](wiki/planning/api-mapping/endpoints.md), `network-effective`, [`network-ports`](wiki/planning/api-mapping/network-ports.md) |
+| `compute` | [`workloads`](wiki/planning/api-mapping/workloads.md), [`app-services`](wiki/planning/api-mapping/app-services.md), [`functions`](wiki/planning/api-mapping/functions.md), [`aks`](wiki/planning/api-mapping/aks.md), [`vms`](wiki/planning/api-mapping/vms.md), `vmss`, `snapshots-disks` |
+| orchestration | [`all-checks`](wiki/planning/api-mapping/all-checks.md) (deprecated) |
+
+Commands without links do not have a dedicated wiki source page in the repo yet.
 
 ## Need A Test Lab?
 
