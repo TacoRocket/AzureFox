@@ -18,6 +18,8 @@ def test_help_command_generic() -> None:
         "permissions: Triage which visible principals hold high-impact RBAC roles."
     ) in result.stdout
     assert "all-checks: Run the implemented AzureFox commands" in result.stdout
+    assert "Planned grouped commands:" in result.stdout
+    assert "chains: Planned grouped family runner" in result.stdout
 
 
 def test_help_command_section() -> None:
@@ -286,6 +288,16 @@ def test_help_command_all_checks_topic_sets_runtime_expectations() -> None:
     assert "grouped results" in result.stdout
 
 
+def test_help_command_chains_topic_sets_planned_runtime_expectations() -> None:
+    result = runner.invoke(app, ["help", "chains"])
+
+    assert result.exit_code == 0
+    assert "AzureFox Help :: chains" in result.stdout
+    assert "planned grouped surface" in result.stdout
+    assert "help-visible planning surface only" in result.stdout
+    assert "credential-path" in result.stdout
+
+
 def test_help_command_env_vars_topic() -> None:
     result = runner.invoke(app, ["help", "env-vars"])
 
@@ -382,6 +394,12 @@ def test_normalize_argv_help_shorthand() -> None:
     ]
     assert _normalize_argv(["azurefox", "dns", "--help"]) == ["azurefox", "help", "dns"]
     assert _normalize_argv(["azurefox", "dns", "-h"]) == ["azurefox", "help", "dns"]
+    assert _normalize_argv(["azurefox", "chains", "--help"]) == [
+        "azurefox",
+        "help",
+        "chains",
+    ]
+    assert _normalize_argv(["azurefox", "chains", "-h"]) == ["azurefox", "help", "chains"]
 
 
 def test_normalize_argv_command_level_global_options() -> None:

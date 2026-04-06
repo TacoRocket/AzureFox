@@ -66,6 +66,40 @@ def test_cli_smoke_all_commands(tmp_path: Path) -> None:
         assert (tmp_path / "loot" / f"{command}.json").exists()
 
 
+def test_cli_smoke_loot_keeps_top_ranked_targets_for_tokens_credentials(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "json", "tokens-credentials"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    json_payload = json.loads(
+        (tmp_path / "json" / "tokens-credentials.json").read_text(encoding="utf-8")
+    )
+    loot_payload = json.loads(
+        (tmp_path / "loot" / "tokens-credentials.json").read_text(encoding="utf-8")
+    )
+
+    assert loot_payload["metadata"] == {
+        "schema_version": json_payload["metadata"]["schema_version"],
+        "command": "tokens-credentials",
+    }
+    assert "generated_at" not in loot_payload["metadata"]
+    assert loot_payload["surfaces"] == json_payload["surfaces"][:10]
+    assert len(loot_payload["surfaces"]) == 10
+    assert loot_payload["findings"] == json_payload["findings"]
+    assert "issues" not in loot_payload
+    assert loot_payload["loot_scope"] == {
+        "selection": "top-ranked-targets",
+        "source_count": len(json_payload["surfaces"]),
+        "returned_count": 10,
+        "limit": 10,
+    }
+
+
 def test_cli_smoke_all_checks_json_summary(tmp_path: Path) -> None:
     fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
 

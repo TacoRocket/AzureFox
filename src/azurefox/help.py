@@ -21,6 +21,7 @@ class CommandHelpTopic:
     output_highlights: tuple[str, ...]
     attack_leads: tuple[AttackLead, ...]
     example: str
+    implemented: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -1059,6 +1060,37 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox all-checks --section identity",
     ),
+    "chains": CommandHelpTopic(
+        name="chains",
+        section="orchestration",
+        summary=(
+            "Planned grouped family runner for higher-value preset paths such as "
+            "credential-path and deployment-path."
+        ),
+        offensive_question=(
+            "Which grouped Azure path should I run end to end when I want the value-added "
+            "family answer instead of every underlying command on its own?"
+        ),
+        cloudfox_frame=(
+            "Future AzureFox orchestration layer for targeted grouped runs that are meant to "
+            "replace broad all-checks section sweeps with narrower, operator-first presets. "
+            "Current state: help-visible planning surface only while family execution is wired "
+            "in later slices."
+        ),
+        output_highlights=(
+            "family selectors",
+            "backing_commands",
+            "claim_boundaries",
+            "execution_state",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Credential Access", "Unsecured Credentials"),
+            AttackLead("Persistence", "Server Software Component"),
+        ),
+        example="azurefox chains credential-path --output table",
+        implemented=False,
+    ),
 }
 
 
@@ -1188,6 +1220,10 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
 }
 
 
+def help_topic_names() -> set[str]:
+    return set(COMMAND_HELP) | set(SECTION_HELP)
+
+
 def render_help(topic: str | None = None) -> str:
     if topic is None:
         return _render_root_help()
@@ -1205,9 +1241,10 @@ def render_help(topic: str | None = None) -> str:
 
 def _render_root_help() -> str:
     command_names = [spec.name for spec in get_command_specs()]
-    for name in COMMAND_HELP:
-        if name not in command_names:
+    for name, topic in COMMAND_HELP.items():
+        if topic.implemented and name not in command_names:
             command_names.append(name)
+    planned_command_names = [name for name, topic in COMMAND_HELP.items() if not topic.implemented]
 
     lines = [
         "AzureFox Help",
@@ -1235,6 +1272,12 @@ def _render_root_help() -> str:
         summary = COMMAND_HELP[name].summary
         lines.append(f"  {name}: {summary}")
 
+    if planned_command_names:
+        lines.extend(["", "Planned grouped commands:"])
+        for name in planned_command_names:
+            summary = COMMAND_HELP[name].summary
+            lines.append(f"  {name}: {summary}")
+
     lines.extend(
         [
             "",
@@ -1244,6 +1287,7 @@ def _render_root_help() -> str:
                 "work before or after the command."
             ),
             "  - Command help includes ATT&CK cloud leads to guide investigation.",
+            "  - Planned grouped command topics are help-visible before public execution lands.",
             "  - ATT&CK references are investigative context, not proof that a technique occurred.",
         ]
     )
@@ -1288,6 +1332,11 @@ def _render_command_help(topic: CommandHelpTopic) -> str:
         "",
         topic.summary,
         "",
+        (
+            "Status: planned grouped surface; public execution is not exposed yet."
+            if not topic.implemented
+            else "Status: implemented command."
+        ),
         f"Section: {topic.section}",
         f"Offensive question: {topic.offensive_question}",
         f"CloudFox frame: {topic.cloudfox_frame}",

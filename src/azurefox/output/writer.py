@@ -10,6 +10,43 @@ from azurefox.config import GlobalOptions
 from azurefox.models.common import OutputMode
 from azurefox.render.table import render_table
 
+LOOT_TARGET_LIMIT = 10
+
+PRIMARY_COLLECTION_KEYS = {
+    "automation": "automation_accounts",
+    "app-services": "app_services",
+    "acr": "registries",
+    "databases": "database_servers",
+    "dns": "dns_zones",
+    "application-gateway": "application_gateways",
+    "aks": "aks_clusters",
+    "api-mgmt": "api_management_services",
+    "functions": "function_apps",
+    "arm-deployments": "deployments",
+    "endpoints": "endpoints",
+    "env-vars": "env_vars",
+    "network-ports": "network_ports",
+    "tokens-credentials": "surfaces",
+    "rbac": "role_assignments",
+    "principals": "principals",
+    "permissions": "permissions",
+    "privesc": "paths",
+    "devops": "pipelines",
+    "role-trusts": "trusts",
+    "cross-tenant": "cross_tenant_paths",
+    "lighthouse": "lighthouse_delegations",
+    "resource-trusts": "resource_trusts",
+    "auth-policies": "auth_policies",
+    "managed-identities": "identities",
+    "keyvault": "key_vaults",
+    "storage": "storage_assets",
+    "snapshots-disks": "snapshot_disk_assets",
+    "nics": "nic_assets",
+    "workloads": "workloads",
+    "vms": "vm_assets",
+    "vmss": "vmss_assets",
+}
+
 
 def emit_output(
     command: str,
@@ -44,7 +81,7 @@ def write_artifacts(command: str, payload: dict, options: GlobalOptions) -> dict
     options.table_dir.mkdir(parents=True, exist_ok=True)
     options.csv_dir.mkdir(parents=True, exist_ok=True)
 
-    loot_path = _write_loot(command, payload, options.loot_dir)
+    loot_path = _write_loot(command, _build_loot_payload(command, payload), options.loot_dir)
     json_path = _write_json(command, payload, options.json_dir)
     table_path = _write_text(
         command,
@@ -69,6 +106,44 @@ def _write_loot(command: str, payload: dict, loot_dir: Path) -> None:
     return path
 
 
+def _build_loot_payload(command: str, payload: dict) -> dict:
+    loot_payload: dict = {}
+    primary_key = PRIMARY_COLLECTION_KEYS.get(command)
+    truncated_source_count: int | None = None
+
+    for key, value in payload.items():
+        if key == "metadata":
+            loot_payload[key] = _build_loot_metadata(value)
+            continue
+        if key == primary_key and isinstance(value, list):
+            loot_payload[key] = value[:LOOT_TARGET_LIMIT]
+            if len(value) > LOOT_TARGET_LIMIT:
+                truncated_source_count = len(value)
+            continue
+        if key in {"findings", "issues"} and not value:
+            continue
+        loot_payload[key] = value
+
+    if primary_key and truncated_source_count is not None:
+        loot_payload["loot_scope"] = {
+            "selection": "top-ranked-targets",
+            "source_count": truncated_source_count,
+            "returned_count": len(loot_payload[primary_key]),
+            "limit": LOOT_TARGET_LIMIT,
+        }
+    return loot_payload
+
+
+def _build_loot_metadata(metadata: object) -> object:
+    if not isinstance(metadata, dict):
+        return metadata
+    return {
+        key: metadata[key]
+        for key in ("schema_version", "command")
+        if metadata.get(key) is not None
+    }
+
+
 def _write_json(command: str, payload: dict, outdir: Path) -> Path:
     outdir.mkdir(parents=True, exist_ok=True)
     path = outdir / f"{command}.json"
@@ -84,44 +159,7 @@ def _write_text(command: str, content: str, outdir: Path, *, suffix: str) -> Pat
 
 
 def _to_csv(command: str, payload: dict) -> str:
-    key_mapping = {
-        "whoami": None,
-        "inventory": None,
-        "automation": "automation_accounts",
-        "app-services": "app_services",
-        "acr": "registries",
-        "databases": "database_servers",
-        "dns": "dns_zones",
-        "application-gateway": "application_gateways",
-        "aks": "aks_clusters",
-        "api-mgmt": "api_management_services",
-        "functions": "function_apps",
-        "arm-deployments": "deployments",
-        "endpoints": "endpoints",
-        "env-vars": "env_vars",
-        "network-ports": "network_ports",
-        "tokens-credentials": "surfaces",
-        "rbac": "role_assignments",
-        "principals": "principals",
-        "permissions": "permissions",
-        "privesc": "paths",
-        "devops": "pipelines",
-        "role-trusts": "trusts",
-        "cross-tenant": "cross_tenant_paths",
-        "lighthouse": "lighthouse_delegations",
-        "resource-trusts": "resource_trusts",
-        "auth-policies": "auth_policies",
-        "managed-identities": "identities",
-        "keyvault": "key_vaults",
-        "storage": "storage_assets",
-        "snapshots-disks": "snapshot_disk_assets",
-        "nics": "nic_assets",
-        "workloads": "workloads",
-        "vms": "vm_assets",
-        "vmss": "vmss_assets",
-    }
-
-    key = key_mapping.get(command)
+    key = PRIMARY_COLLECTION_KEYS.get(command)
     if key is None:
         rows = [_flatten_single(command, payload)]
     else:

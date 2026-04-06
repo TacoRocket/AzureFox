@@ -154,6 +154,13 @@ All commands write artifacts under `<outdir>/`:
 - `csv/<command>.csv`
 - `run-summary.json` for `all-checks`
 
+Artifact intent:
+
+- `json/` is the full structured command record.
+- `loot/` is the smaller high-value handoff, focused on the top-ranked targets for quick operator
+  follow-up and later chain-oriented workflows.
+- `table/` and `csv/` are convenience views rendered from the same underlying command result.
+
 ## Sections And All-Checks
 
 AzureFox keeps flat standalone commands and also supports grouped execution:

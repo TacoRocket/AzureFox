@@ -9,7 +9,7 @@ import typer
 from azurefox.collectors.provider import get_provider
 from azurefox.config import GlobalOptions
 from azurefox.errors import AzureFoxError
-from azurefox.help import render_help
+from azurefox.help import help_topic_names, render_help
 from azurefox.models.common import OutputMode, RoleTrustsMode
 from azurefox.models.run import AllChecksSummary, RunCommandResult
 from azurefox.output.style import (
@@ -474,4 +474,4 @@ def _command_names() -> set[str]:
 
 
 def _is_help_topic(token: str) -> bool:
-    return token in _command_names() or token in SECTION_NAMES
+    return token in help_topic_names()
