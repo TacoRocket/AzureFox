@@ -93,6 +93,9 @@
           "visibility_state": "visible",
           "current_operator_access_state": "read",
           "current_operator_can_poison": false,
+          "trusted_input_evidence_basis": "repository-permission",
+          "trusted_input_permission_source": "azure-devops-git-permissions",
+          "trusted_input_permission_detail": "GenericRead allowed",
           "surface_types": [
             "repo-content"
           ],
@@ -249,6 +252,9 @@
           "visibility_state": "visible",
           "current_operator_access_state": "write",
           "current_operator_can_poison": true,
+          "trusted_input_evidence_basis": "repository-permission",
+          "trusted_input_permission_source": "azure-devops-git-permissions",
+          "trusted_input_permission_detail": "GenericContribute allowed",
           "surface_types": [
             "repo-content",
             "pull-request"
@@ -404,6 +410,9 @@
           "visibility_state": "visible",
           "current_operator_access_state": "exists-only",
           "current_operator_can_poison": false,
+          "trusted_input_evidence_basis": "definition-reference",
+          "trusted_input_permission_source": "pipeline-definition",
+          "trusted_input_permission_detail": "visible reference only",
           "surface_types": [
             "pipeline-artifact"
           ],
@@ -417,6 +426,9 @@
           "visibility_state": "visible",
           "current_operator_access_state": "exists-only",
           "current_operator_can_poison": false,
+          "trusted_input_evidence_basis": "definition-reference",
+          "trusted_input_permission_source": "pipeline-definition",
+          "trusted_input_permission_detail": "visible reference only",
           "surface_types": [
             "template-repo"
           ],
@@ -431,6 +443,9 @@
           "visibility_state": "visible",
           "current_operator_access_state": "exists-only",
           "current_operator_can_poison": false,
+          "trusted_input_evidence_basis": "definition-reference",
+          "trusted_input_permission_source": "pipeline-definition",
+          "trusted_input_permission_detail": "visible reference only",
           "surface_types": [
             "feed-package"
           ],
@@ -444,6 +459,9 @@
           "visibility_state": "visible",
           "current_operator_access_state": "exists-only",
           "current_operator_can_poison": false,
+          "trusted_input_evidence_basis": "definition-reference",
+          "trusted_input_permission_source": "pipeline-definition",
+          "trusted_input_permission_detail": "visible reference only",
           "surface_types": [
             "secure-file"
           ],
@@ -457,6 +475,9 @@
           "visibility_state": "external-reference",
           "current_operator_access_state": "exists-only",
           "current_operator_can_poison": false,
+          "trusted_input_evidence_basis": "definition-reference",
+          "trusted_input_permission_source": "pipeline-definition",
+          "trusted_input_permission_detail": "external reference only",
           "surface_types": [
             "registry-image"
           ],
@@ -470,6 +491,9 @@
           "visibility_state": "external-reference",
           "current_operator_access_state": "exists-only",
           "current_operator_can_poison": false,
+          "trusted_input_evidence_basis": "definition-reference",
+          "trusted_input_permission_source": "pipeline-definition",
+          "trusted_input_permission_detail": "external reference only",
           "surface_types": [
             "external-download"
           ],
@@ -483,6 +507,9 @@
           "visibility_state": "visible",
           "current_operator_access_state": "read",
           "current_operator_can_poison": false,
+          "trusted_input_evidence_basis": "repository-permission",
+          "trusted_input_permission_source": "azure-devops-git-permissions",
+          "trusted_input_permission_detail": "GenericRead allowed",
           "surface_types": [
             "repo-content"
           ],
@@ -654,6 +681,9 @@
           "visibility_state": "external-reference",
           "current_operator_access_state": "exists-only",
           "current_operator_can_poison": false,
+          "trusted_input_evidence_basis": "definition-reference",
+          "trusted_input_permission_source": "pipeline-definition",
+          "trusted_input_permission_detail": "external reference only",
           "surface_types": [
             "repo-content"
           ],

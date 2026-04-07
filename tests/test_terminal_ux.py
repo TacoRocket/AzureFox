@@ -723,18 +723,42 @@ def test_deployment_chains_table_mode_surfaces_source_oriented_columns(tmp_path:
 
     assert result.exit_code == 0
     normalized_output = " ".join(result.stdout.split())
+    assert "likely azure impact" in result.stdout
+    assert "next review" in result.stdout
     assert "why care" in result.stdout
+    assert "priority" in result.stdout
+    assert "path type" in result.stdout
+    assert "confidence boundary" in result.stdout
     assert "deploy-aks-prod" in result.stdout
     assert "deploy-appservice-prod" in result.stdout
     assert "deploy-artifact-app-p" in result.stdout
     assert "plan-infra-prod" in result.stdout
     assert "aa-hybrid-prod" in result.stdout
     assert "aa-lab-quiet" in result.stdout
-    assert "path type" in result.stdout
-    assert "confidence boundary" in result.stdout
+    assert "upstream producer control" in normalized_output
     assert "trusted input" in normalized_output
     assert "execution hub" in normalized_output
     assert "secret-backed support" in normalized_output
+
+
+def test_deployment_chains_table_mode_renders_why_care_as_detail_rows(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "chains", "deployment-path"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    lines = result.stdout.splitlines()
+    main_header_lines = [line for line in lines if "┃ priority" in line]
+    detail_header_lines = [line for line in lines if line.startswith("┃ why care")]
+
+    assert main_header_lines
+    assert all("why care" not in line for line in main_header_lines)
+    assert detail_header_lines
+    assert "Current credentials can already poison that trusted input" in result.stdout
+    assert "Current evidence only shows that the trusted input exists" in result.stdout
+    assert len(detail_header_lines) == 6
 
 
 def test_auth_policies_partial_read_surfaces_collection_issue() -> None:

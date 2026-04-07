@@ -146,6 +146,9 @@
         {
           "current_operator_access_state": "read",
           "current_operator_can_poison": false,
+          "trusted_input_evidence_basis": "repository-permission",
+          "trusted_input_permission_source": "azure-devops-git-permissions",
+          "trusted_input_permission_detail": "GenericRead allowed",
           "input_type": "repository",
           "join_ids": [
             "devops-repo://contoso/4f90f8a6-1111-4444-8888-0a12b45c67de/9fd58d4d-1111-4444-9999-0df1c8d70117",
@@ -300,6 +303,9 @@
         {
           "current_operator_access_state": "write",
           "current_operator_can_poison": true,
+          "trusted_input_evidence_basis": "repository-permission",
+          "trusted_input_permission_source": "azure-devops-git-permissions",
+          "trusted_input_permission_detail": "GenericContribute allowed",
           "input_type": "repository",
           "join_ids": [
             "devops-repo://contoso/4f90f8a6-1111-4444-8888-0a12b45c67de/c1a0ad4a-2222-4b22-9f91-01b2f34c8823",
@@ -474,6 +480,9 @@
         {
           "current_operator_access_state": "exists-only",
           "current_operator_can_poison": false,
+          "trusted_input_evidence_basis": "definition-reference",
+          "trusted_input_permission_source": "pipeline-definition",
+          "trusted_input_permission_detail": "visible reference only",
           "input_type": "pipeline-artifact",
           "join_ids": [
             "devops-pipeline-artifact://contoso/prod-platform/shared-build"
@@ -487,6 +496,9 @@
         {
           "current_operator_access_state": "exists-only",
           "current_operator_can_poison": false,
+          "trusted_input_evidence_basis": "definition-reference",
+          "trusted_input_permission_source": "pipeline-definition",
+          "trusted_input_permission_detail": "visible reference only",
           "input_type": "template-repository",
           "join_ids": [
             "devops-repo://contoso/4f90f8a6-1111-4444-8888-0a12b45c67de/ab1ca44d-4444-4b22-9f91-01b2f34c8899",
@@ -501,6 +513,9 @@
         {
           "current_operator_access_state": "exists-only",
           "current_operator_can_poison": false,
+          "trusted_input_evidence_basis": "definition-reference",
+          "trusted_input_permission_source": "pipeline-definition",
+          "trusted_input_permission_detail": "visible reference only",
           "input_type": "package-feed",
           "join_ids": [
             "devops-feed://contoso/prod-platform/prod-platform%2Fshared-feed"
@@ -514,6 +529,9 @@
         {
           "current_operator_access_state": "exists-only",
           "current_operator_can_poison": false,
+          "trusted_input_evidence_basis": "definition-reference",
+          "trusted_input_permission_source": "pipeline-definition",
+          "trusted_input_permission_detail": "visible reference only",
           "input_type": "secure-file",
           "join_ids": [
             "devops-secure-file://contoso/prod-platform/codesign-cert.pfx"
@@ -527,6 +545,9 @@
         {
           "current_operator_access_state": "exists-only",
           "current_operator_can_poison": false,
+          "trusted_input_evidence_basis": "definition-reference",
+          "trusted_input_permission_source": "pipeline-definition",
+          "trusted_input_permission_detail": "external reference only",
           "input_type": "registry-image",
           "join_ids": [
             "image-ref://contoso.azurecr.io/base/web:1.2.3"
@@ -540,6 +561,9 @@
         {
           "current_operator_access_state": "exists-only",
           "current_operator_can_poison": false,
+          "trusted_input_evidence_basis": "definition-reference",
+          "trusted_input_permission_source": "pipeline-definition",
+          "trusted_input_permission_detail": "external reference only",
           "input_type": "external-url",
           "join_ids": [
             "url://https://example.invalid/bootstrap.ps1"
@@ -553,6 +577,9 @@
         {
           "current_operator_access_state": "read",
           "current_operator_can_poison": false,
+          "trusted_input_evidence_basis": "repository-permission",
+          "trusted_input_permission_source": "azure-devops-git-permissions",
+          "trusted_input_permission_detail": "GenericRead allowed",
           "input_type": "repository",
           "join_ids": [
             "devops-repo://contoso/4f90f8a6-1111-4444-8888-0a12b45c67de/f9f4ad4a-3333-4b22-9f91-01b2f34c8834",
@@ -695,6 +722,9 @@
         {
           "current_operator_access_state": "exists-only",
           "current_operator_can_poison": false,
+          "trusted_input_evidence_basis": "definition-reference",
+          "trusted_input_permission_source": "pipeline-definition",
+          "trusted_input_permission_detail": "external reference only",
           "input_type": "repository",
           "join_ids": [
             "repo-url://https://github.com/contoso/infra-live",

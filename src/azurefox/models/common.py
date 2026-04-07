@@ -643,6 +643,9 @@ class DevopsTrustedInput(BaseModel):
     visibility_state: str | None = None
     current_operator_access_state: str | None = None
     current_operator_can_poison: bool | None = None
+    trusted_input_evidence_basis: str | None = None
+    trusted_input_permission_source: str | None = None
+    trusted_input_permission_detail: str | None = None
     surface_types: list[str] = Field(default_factory=list)
     join_ids: list[str] = Field(default_factory=list)
 
