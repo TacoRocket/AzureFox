@@ -1329,23 +1329,19 @@ def _deployment_summary(
             f"The likeliest downstream Azure footprint is narrowed to {len(target_names)} visible "
             f"{target_label} candidate(s): {', '.join(target_names[:_CANDIDATE_LIMIT])}."
         )
-    summary = (
-        f"{summary} {impact_sentence} "
-        f"{
-            _deployment_confidence_boundary(
-                target_label=target_label,
-                target_resolution=target_resolution,
-                confirmation_basis=confirmation_basis,
-                current_operator_can_drive=_source_current_operator_can_drive(
-                    source_command, source
-                ),
-                current_operator_can_inject=_source_current_operator_can_inject(
-                    source_command, source
-                ),
-                missing_target_mapping=assessment.missing_target_mapping,
-            )
-        }"
+    confidence_boundary = _deployment_confidence_boundary(
+        target_label=target_label,
+        target_resolution=target_resolution,
+        confirmation_basis=confirmation_basis,
+        current_operator_can_drive=_source_current_operator_can_drive(
+            source_command, source
+        ),
+        current_operator_can_inject=_source_current_operator_can_inject(
+            source_command, source
+        ),
+        missing_target_mapping=assessment.missing_target_mapping,
     )
+    summary = f"{summary} {impact_sentence} {confidence_boundary}"
 
     if supporting_deployments:
         deployment_names = ", ".join(
