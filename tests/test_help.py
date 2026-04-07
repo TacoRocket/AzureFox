@@ -303,8 +303,9 @@ def test_help_command_chains_topic_sets_planned_runtime_expectations() -> None:
     assert result.exit_code == 0
     assert "AzureFox Help :: chains" in result.stdout
     assert "implemented command" in result.stdout
-    assert "credential-path is exposed now" in result.stdout
-    assert "deployment-path and workload-identity-path remain planned" in result.stdout
+    assert "credential-path and deployment-path are exposed now" in result.stdout
+    assert "deployment-path are exposed now" in result.stdout
+    assert "workload-identity-path remains planned" in result.stdout
     assert "credential-path" in result.stdout
 
 

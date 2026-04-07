@@ -135,7 +135,30 @@ def test_cli_smoke_chains_credential_path_table_output(tmp_path: Path) -> None:
     assert "Takeaway: 3 visible credential paths" in result.stdout
 
 
-def test_cli_smoke_chains_rejects_unimplemented_family(tmp_path: Path) -> None:
+def test_cli_smoke_chains_deployment_path_table_output(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "chains", "deployment-path"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    assert "azurefox chains" in result.stdout
+    assert "why care" in result.stdout
+    assert "deploy-aks-prod" in result.stdout
+    assert "deploy-appservice-prod" in result.stdout
+    assert "plan-infra-prod" in result.stdout
+    assert "aa-hybrid-prod" in result.stdout
+    assert "Azure service connection" in result.stdout
+    assert "managed identity" in result.stdout
+    assert "Review the narrowed" in result.stdout
+    assert "visibility blocked" in result.stdout
+    assert "Takeaway: 4 visible deployment paths" in result.stdout
+
+
+def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
     fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
 
     result = runner.invoke(
@@ -144,8 +167,39 @@ def test_cli_smoke_chains_rejects_unimplemented_family(tmp_path: Path) -> None:
         env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
     )
 
-    assert result.exit_code == 2
-    assert "is not implemented yet" in result.stderr
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["metadata"]["command"] == "chains"
+    assert payload["family"] == "deployment-path"
+    assert payload["command_state"] == "extraction-only"
+    assert [item["command"] for item in payload["source_artifacts"]] == [
+        "devops",
+        "automation",
+        "arm-deployments",
+        "aks",
+        "functions",
+        "app-services",
+    ]
+    assert len(payload["paths"]) == 4
+    assert {item["asset_name"] for item in payload["paths"]} == {
+        "deploy-aks-prod",
+        "deploy-appservice-prod",
+        "plan-infra-prod",
+        "aa-hybrid-prod",
+    }
+    assert {item["target_service"] for item in payload["paths"]} == {
+        "aks",
+        "app-service",
+        "arm-deployment",
+    }
+    assert {item["target_resolution"] for item in payload["paths"]} == {
+        "narrowed candidates",
+        "visibility blocked",
+    }
+    assert {item["priority"] for item in payload["paths"]} == {"medium", "low"}
+    automation_row = next(item for item in payload["paths"] if item["asset_name"] == "aa-hybrid-prod")
+    assert automation_row["target_resolution"] == "visibility blocked"
+    assert "managed identity" in automation_row["why_care"]
 
 
 def test_cli_smoke_loot_keeps_top_ranked_targets_for_tokens_credentials(tmp_path: Path) -> None:

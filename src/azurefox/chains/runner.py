@@ -9,6 +9,12 @@ from azurefox.chains.registry import (
     PREFERRED_ARTIFACT_ORDER,
     get_chain_family_spec,
 )
+from azurefox.chains.deployment_path import (
+    DeploymentSourceAssessment,
+    admit_deployment_path_row,
+    assess_deployment_source,
+    target_family_hints_from_arm_deployment,
+)
 from azurefox.chains.semantics import (
     ChainSemanticContext,
     evaluate_chain_semantics,
@@ -18,25 +24,37 @@ from azurefox.collectors.provider import BaseProvider
 from azurefox.config import GlobalOptions
 from azurefox.env_var_hints import env_var_target_service
 from azurefox.models.chains import (
+    ChainPathRecord,
     ChainSourceArtifact,
     ChainsOutput,
-    CredentialPathRecord,
 )
 from azurefox.models.commands import (
+    AksOutput,
+    AppServicesOutput,
+    ArmDeploymentsOutput,
+    AutomationOutput,
     ChainsCommandOutput,
     DatabasesOutput,
+    DevopsOutput,
     EnvVarsOutput,
+    FunctionsOutput,
     KeyVaultOutput,
     StorageOutput,
     TokensCredentialsOutput,
 )
-from azurefox.models.common import CollectionIssue, CommandMetadata
+from azurefox.models.common import ArmDeploymentSummary, CollectionIssue, CommandMetadata
 from azurefox.output.writer import emit_output
 from azurefox.registry import get_command_specs
 
-_SUPPORTED_IMPLEMENTED_FAMILIES = {"credential-path"}
+_SUPPORTED_IMPLEMENTED_FAMILIES = {"credential-path", "deployment-path"}
 _SOURCE_MODEL_MAP = {
+    "aks": AksOutput,
+    "app-services": AppServicesOutput,
+    "arm-deployments": ArmDeploymentsOutput,
+    "automation": AutomationOutput,
+    "devops": DevopsOutput,
     "env-vars": EnvVarsOutput,
+    "functions": FunctionsOutput,
     "tokens-credentials": TokensCredentialsOutput,
     "databases": DatabasesOutput,
     "storage": StorageOutput,
@@ -50,6 +68,32 @@ _JOIN_QUALITY_ORDER = {
     "visibility blocked": 3,
     "service hint only": 4,
     "named target not visible": 5,
+}
+_DEPLOYMENT_TARGET_SPECS = {
+    "aks": {
+        "command": "aks",
+        "label": "AKS cluster",
+        "service": "aks",
+        "collection_key": "aks_clusters",
+    },
+    "app-services": {
+        "command": "app-services",
+        "label": "App Service",
+        "service": "app-service",
+        "collection_key": "app_services",
+    },
+    "functions": {
+        "command": "functions",
+        "label": "Function App",
+        "service": "function-app",
+        "collection_key": "function_apps",
+    },
+    "arm-deployments": {
+        "command": "arm-deployments",
+        "label": "ARM deployment",
+        "service": "arm-deployment",
+        "collection_key": "deployments",
+    },
 }
 
 
@@ -72,6 +116,8 @@ def run_chain_family(
     source_artifacts = _collect_family_artifacts(provider, options, family_name)
     if family_name == "credential-path":
         return _build_credential_path_output(options, family_name, source_artifacts)
+    if family_name == "deployment-path":
+        return _build_deployment_path_output(options, family_name, source_artifacts)
 
     raise ValueError(f"Unsupported chain family '{family_name}'")
 
@@ -164,7 +210,7 @@ def _build_credential_path_output(
     storage_candidates = [item.model_dump(mode="json") for item in storage_output.storage_assets]
     keyvaults = [item.model_dump(mode="json") for item in keyvault_output.key_vaults]
 
-    paths: list[CredentialPathRecord] = []
+    paths: list[ChainPathRecord] = []
     issues: list[CollectionIssue] = []
 
     for env_var in env_output.env_vars:
@@ -255,6 +301,158 @@ def _build_credential_path_output(
     )
 
 
+def _build_deployment_path_output(
+    options: GlobalOptions,
+    family_name: str,
+    source_artifacts: list[ChainSourceArtifact],
+) -> ChainsCommandOutput:
+    family = get_chain_family_spec(family_name)
+    assert family is not None  # pragma: no cover - guarded above
+
+    loaded = {source.command: _load_source_output(source) for source in source_artifacts}
+    devops_output = loaded["devops"]
+    automation_output = loaded["automation"]
+    arm_output = loaded["arm-deployments"]
+    app_services_output = loaded["app-services"]
+    functions_output = loaded["functions"]
+    aks_output = loaded["aks"]
+
+    target_candidates = {
+        command_name: [
+            item.model_dump(mode="json")
+            for item in getattr(output, _DEPLOYMENT_TARGET_SPECS[command_name]["collection_key"])
+        ]
+        for command_name, output in (
+            ("aks", aks_output),
+            ("app-services", app_services_output),
+            ("functions", functions_output),
+            ("arm-deployments", arm_output),
+        )
+    }
+    target_visibility_notes = {
+        "aks": _target_visibility_note("AKS", getattr(aks_output, "issues", [])),
+        "app-services": _target_visibility_note(
+            "App Service", getattr(app_services_output, "issues", [])
+        ),
+        "functions": _target_visibility_note(
+            "Function App", getattr(functions_output, "issues", [])
+        ),
+        "arm-deployments": _target_visibility_note(
+            "ARM deployment", getattr(arm_output, "issues", [])
+        ),
+    }
+    target_visibility_issues = {
+        "aks": _target_visibility_issue(getattr(aks_output, "issues", [])),
+        "app-services": _target_visibility_issue(getattr(app_services_output, "issues", [])),
+        "functions": _target_visibility_issue(getattr(functions_output, "issues", [])),
+        "arm-deployments": _target_visibility_issue(getattr(arm_output, "issues", [])),
+    }
+    arm_correlations = _arm_correlations_by_target_family(
+        [item.model_dump(mode="json") for item in arm_output.deployments]
+    )
+
+    paths: list[ChainPathRecord] = []
+    for pipeline in devops_output.pipelines:
+        pipeline_dict = pipeline.model_dump(mode="json")
+        assessment = assess_deployment_source(pipeline)
+        for target_family in assessment.target_family_hints:
+            target_spec = _DEPLOYMENT_TARGET_SPECS.get(target_family)
+            if target_spec is None:
+                continue
+            exact_targets, confirmation_basis = _structured_deployment_target_matches(
+                pipeline_dict,
+                target_family,
+                target_candidates[target_family],
+            )
+            record = _build_deployment_source_record(
+                family_name,
+                source=pipeline_dict,
+                source_command="devops",
+                source_context=pipeline.project_name,
+                asset_kind="DevOpsPipeline",
+                clue_type="azure-service-connection",
+                assessment_change_signals=assessment.change_signals,
+                target_family=target_family,
+                target_candidates=target_candidates[target_family],
+                exact_targets=exact_targets,
+                confirmation_basis=confirmation_basis,
+                target_visibility_note=target_visibility_notes[target_family],
+                target_visibility_issue=target_visibility_issues[target_family],
+                supporting_deployments=arm_correlations.get(target_family, []),
+            )
+            if record is not None:
+                paths.append(record)
+
+    for account in automation_output.automation_accounts:
+        account_dict = account.model_dump(mode="json")
+        assessment = assess_deployment_source(account)
+        if assessment.posture != "can already change Azure here":
+            continue
+        record = _build_deployment_source_record(
+            family_name,
+            source=account_dict,
+            source_command="automation",
+            source_context=account.identity_type,
+            asset_kind="AutomationAccount",
+            clue_type="automation-execution-hub",
+            assessment_change_signals=assessment.change_signals,
+            target_family="arm-deployments",
+            target_candidates=[],
+            exact_targets=[],
+            confirmation_basis=None,
+            target_visibility_note=target_visibility_notes["arm-deployments"],
+            target_visibility_issue=(
+                target_visibility_issues["arm-deployments"]
+                or "current automation surface does not name downstream Azure targets"
+            ),
+            supporting_deployments=[],
+        )
+        if record is not None:
+            paths.append(record)
+
+    paths.sort(
+        key=lambda item: (
+            semantic_priority_sort_value(item.priority),
+            _JOIN_QUALITY_ORDER.get(item.target_resolution, 9),
+            item.asset_name,
+            item.target_service,
+            item.source_command or "",
+        )
+    )
+
+    issues: list[CollectionIssue] = []
+    for source_name in (
+        "devops",
+        "automation",
+        "arm-deployments",
+        "app-services",
+        "functions",
+        "aks",
+    ):
+        issues.extend(getattr(loaded[source_name], "issues", []))
+
+    return ChainsCommandOutput(
+        metadata=CommandMetadata(
+            command=GROUPED_COMMAND_NAME,
+            tenant_id=options.tenant,
+            subscription_id=options.subscription,
+            devops_organization=options.devops_organization,
+            token_source=None,
+        ),
+        grouped_command_name=GROUPED_COMMAND_NAME,
+        family=family_name,
+        input_mode="live",
+        command_state="extraction-only",
+        summary=family.summary,
+        claim_boundary=family.allowed_claim,
+        artifact_preference_order=list(PREFERRED_ARTIFACT_ORDER),
+        backing_commands=[source.command for source in family.source_commands],
+        source_artifacts=source_artifacts,
+        paths=paths,
+        issues=issues,
+    )
+
+
 def _load_source_output(source: ChainSourceArtifact):
     model = _SOURCE_MODEL_MAP[source.command]
     payload = json.loads(Path(source.path).read_text(encoding="utf-8"))
@@ -268,7 +466,7 @@ def _build_keyvault_record(
     keyvaults: list[dict],
     *,
     visibility_note: str | None = None,
-) -> CredentialPathRecord | None:
+) -> ChainPathRecord | None:
     reference_target = env.get("reference_target")
     if not reference_target:
         return None
@@ -313,7 +511,7 @@ def _build_keyvault_record(
         )
     )
 
-    return CredentialPathRecord(
+    return ChainPathRecord(
         chain_id=_chain_id(env["asset_id"], env["setting_name"], "keyvault"),
         asset_id=env["asset_id"],
         asset_name=env["asset_name"],
@@ -321,6 +519,7 @@ def _build_keyvault_record(
         location=env.get("location"),
         setting_name=env["setting_name"],
         clue_type="keyvault-reference",
+        confirmation_basis="normalized-uri-match" if matched_vaults else None,
         priority=semantic.priority,
         visible_path=visible_path,
         target_service="keyvault",
@@ -350,7 +549,7 @@ def _build_candidate_record(
     *,
     visibility_note: str | None = None,
     visibility_issue: str | None = None,
-) -> CredentialPathRecord:
+) -> ChainPathRecord:
     scoped_candidates, target_resolution = _select_candidates_for_location(
         candidates,
         env.get("location"),
@@ -379,7 +578,7 @@ def _build_candidate_record(
         )
     )
 
-    return CredentialPathRecord(
+    return ChainPathRecord(
         chain_id=_chain_id(env["asset_id"], env["setting_name"], target_service),
         asset_id=env["asset_id"],
         asset_name=env["asset_name"],
@@ -387,6 +586,7 @@ def _build_candidate_record(
         location=env.get("location"),
         setting_name=env["setting_name"],
         clue_type="plain-text-secret",
+        confirmation_basis="name-only-inference",
         priority=semantic.priority,
         visible_path=visible_path,
         target_service=target_service,
@@ -489,12 +689,341 @@ def _candidate_summary(
     return summary
 
 
+def _build_deployment_source_record(
+    family_name: str,
+    *,
+    source: dict,
+    source_command: str,
+    source_context: str | None,
+    asset_kind: str,
+    clue_type: str,
+    assessment_change_signals: tuple[str, ...],
+    target_family: str,
+    target_candidates: list[dict],
+    exact_targets: list[dict],
+    confirmation_basis: str | None,
+    target_visibility_note: str | None,
+    target_visibility_issue: str | None,
+    supporting_deployments: list[dict],
+) -> ChainPathRecord | None:
+    target_spec = _DEPLOYMENT_TARGET_SPECS[target_family]
+    admission = admit_deployment_path_row(
+        DeploymentSourceAssessment(
+            source_command=source_command,
+            source_name=str(source.get("name") or source.get("id") or ""),
+            posture="can already change Azure here",
+            change_signals=assessment_change_signals,
+        ),
+        exact_target_count=len(exact_targets),
+        narrowed_candidate_count=len(target_candidates),
+        confirmation_basis=confirmation_basis,
+        visibility_issue=target_visibility_issue,
+    )
+    if not admission.admitted:
+        return None
+
+    selected_targets = exact_targets if admission.state == "named match" else target_candidates
+    target_names = [item.get("name") for item in selected_targets if item.get("name")]
+    target_ids = [item.get("id") for item in selected_targets if item.get("id")]
+    if target_visibility_issue and admission.state == "visibility blocked":
+        target_names = []
+        target_ids = []
+
+    record_confirmation_basis = confirmation_basis
+    if record_confirmation_basis is None and admission.state == "narrowed candidates":
+        record_confirmation_basis = "name-only-inference"
+    elif (
+        record_confirmation_basis is None
+        and target_visibility_issue
+        and (
+            target_visibility_issue.startswith("permission_denied:")
+            or target_visibility_issue.startswith("partial_collection:")
+        )
+    ):
+        record_confirmation_basis = "source-issue-present"
+
+    semantic = evaluate_chain_semantics(
+        ChainSemanticContext(
+            family=family_name,
+            clue_type=clue_type,
+            target_service=target_spec["service"],
+            target_resolution=admission.state,
+            target_count=len(target_ids),
+        )
+    )
+
+    return ChainPathRecord(
+        chain_id=_source_chain_id(
+            family_name,
+            str(source.get("id") or source.get("name") or source_command),
+            target_spec["service"],
+        ),
+        asset_id=str(source.get("id") or source.get("name") or ""),
+        asset_name=str(source.get("name") or source.get("id") or source_command),
+        asset_kind=asset_kind,
+        location=source.get("location"),
+        source_command=source_command,
+        source_context=source_context,
+        clue_type=clue_type,
+        confirmation_basis=record_confirmation_basis,
+        priority=semantic.priority,
+        visible_path=_deployment_visible_path(source_command, target_spec["label"]),
+        why_care=_deployment_why_care(source_command, source),
+        target_service=target_spec["service"],
+        target_resolution=admission.state,
+        evidence_commands=_deployment_evidence_commands(
+            source_command,
+            target_family,
+            supporting_deployments=supporting_deployments,
+        ),
+        joined_surface_types=_deployment_joined_surfaces(
+            source_command,
+            assessment_change_signals,
+            supporting_deployments=supporting_deployments,
+        ),
+        target_count=len(target_ids),
+        target_ids=target_ids,
+        target_names=target_names,
+        target_visibility_issue=target_visibility_issue,
+        next_review=semantic.next_review,
+        summary=_deployment_summary(
+            source=source,
+            source_command=source_command,
+            target_label=target_spec["label"],
+            target_names=target_names,
+            target_resolution=admission.state,
+            target_visibility_note=target_visibility_note,
+            supporting_deployments=supporting_deployments,
+        ),
+        missing_confirmation=_deployment_missing_confirmation(
+            source_command=source_command,
+            target_label=target_spec["label"],
+        ),
+        related_ids=_merge_related_ids(
+            source.get("related_ids", []),
+            target_ids,
+            *[item.get("related_ids", []) for item in supporting_deployments],
+        ),
+    )
+
+
+def _deployment_visible_path(source_command: str, target_label: str) -> str:
+    if source_command == "devops":
+        return f"Azure-facing pipeline -> likely {target_label}"
+    if source_command == "automation":
+        return f"Automation execution hub -> likely {target_label}"
+    return f"Deployment source -> likely {target_label}"
+
+
+def _deployment_why_care(source_command: str, source: dict) -> str:
+    if source_command == "devops":
+        parts = ["Azure service connection"]
+        trigger_types = set(source.get("trigger_types", []) or [])
+        if "continuousIntegration" in trigger_types:
+            parts.append("auto-triggered")
+        elif "pullRequest" in trigger_types:
+            parts.append("pull-request trigger")
+        elif "schedule" in trigger_types:
+            parts.append("scheduled pipeline")
+        secret_count = int(source.get("secret_variable_count") or 0)
+        if secret_count > 0:
+            parts.append(f"{secret_count} secret variable(s)")
+        if source.get("key_vault_names") or source.get("key_vault_group_names"):
+            parts.append("Key Vault-backed support")
+        if source.get("target_clues"):
+            parts.append("named Azure target cues")
+        return "; ".join(parts)
+
+    if source_command == "automation":
+        parts: list[str] = []
+        if source.get("identity_type"):
+            parts.append("managed identity")
+        published = int(source.get("published_runbook_count") or 0)
+        if published > 0:
+            parts.append(f"{published} published runbook(s)")
+        webhooks = int(source.get("webhook_count") or 0)
+        if webhooks > 0:
+            parts.append(f"{webhooks} webhook(s)")
+        workers = int(source.get("hybrid_worker_group_count") or 0)
+        if workers > 0:
+            parts.append(f"{workers} Hybrid Worker group(s)")
+        schedules = int(source.get("schedule_count") or 0)
+        if schedules > 0:
+            parts.append(f"{schedules} schedule(s)")
+        assets = (
+            int(source.get("credential_count") or 0)
+            + int(source.get("certificate_count") or 0)
+            + int(source.get("connection_count") or 0)
+            + int(source.get("encrypted_variable_count") or 0)
+        )
+        if assets > 0:
+            parts.append("secure assets concentrated")
+        return "; ".join(parts) or "Execution-capable automation surface"
+
+    return "Visible source evidence suggests Azure change capability"
+
+
+def _deployment_evidence_commands(
+    source_command: str,
+    target_family: str,
+    *,
+    supporting_deployments: list[dict],
+) -> list[str]:
+    commands = [source_command, _DEPLOYMENT_TARGET_SPECS[target_family]["command"]]
+    if supporting_deployments and "arm-deployments" not in commands:
+        commands.append("arm-deployments")
+    return commands
+
+
+def _deployment_joined_surfaces(
+    source_command: str,
+    change_signals: tuple[str, ...],
+    *,
+    supporting_deployments: list[dict],
+) -> list[str]:
+    joined = [source_command, *change_signals]
+    if supporting_deployments:
+        joined.append("provider-family-match")
+    return sorted(dict.fromkeys(joined))
+
+
+def _deployment_summary(
+    *,
+    source: dict,
+    source_command: str,
+    target_label: str,
+    target_names: list[str],
+    target_resolution: str,
+    target_visibility_note: str | None,
+    supporting_deployments: list[dict],
+) -> str:
+    source_name = str(source.get("name") or source.get("id") or source_command)
+    if source_command == "devops":
+        prefix = (
+            f"Pipeline '{source_name}' already looks like an Azure change path, and the visible "
+            f"target clues point toward {target_label}. "
+        )
+    else:
+        prefix = (
+            f"Automation account '{source_name}' already looks like an Azure execution hub, and "
+            f"the visible evidence points toward {target_label}. "
+        )
+
+    if target_resolution == "visibility blocked":
+        summary = (
+            f"{prefix}Current scope does not confirm which downstream {target_label} assets are "
+            "visible enough to name."
+        )
+    elif target_resolution == "named match":
+        summary = (
+            f"{prefix}AzureFox can name the exact visible {target_label} target: "
+            f"{', '.join(target_names[:_CANDIDATE_LIMIT])}."
+        )
+    else:
+        summary = (
+            f"{prefix}AzureFox narrows the next review set to {len(target_names)} visible "
+            f"{target_label} candidate(s): {', '.join(target_names[:_CANDIDATE_LIMIT])}."
+        )
+
+    if supporting_deployments:
+        deployment_names = ", ".join(
+            item.get("name")
+            for item in supporting_deployments[:_CANDIDATE_LIMIT]
+            if item.get("name")
+        )
+        if deployment_names:
+            summary = (
+                f"{summary} Visible ARM deployment history for the same target family includes "
+                f"{deployment_names}."
+            )
+
+    if target_visibility_note:
+        summary = f"{summary} {target_visibility_note}"
+    return summary
+
+
+def _structured_deployment_target_matches(
+    source: dict,
+    target_family: str,
+    candidates: list[dict],
+) -> tuple[list[dict], str | None]:
+    structured_names = _structured_target_names(source, target_family)
+    if not structured_names:
+        return [], None
+    matched = [
+        item
+        for item in candidates
+        if _normalize_target_name(str(item.get("name") or "")) in structured_names
+    ]
+    if matched:
+        return matched, "parsed-config-target"
+    return [], "parsed-config-target"
+
+
+def _structured_target_names(source: dict, target_family: str) -> set[str]:
+    family_tokens = {
+        "aks": {"aks", "kubernetes"},
+        "app-services": {"appservice", "app-service"},
+        "functions": {"function", "functions", "functionapp", "function-app"},
+        "arm-deployments": {"deployment", "arm", "bicep", "terraform"},
+    }[target_family]
+    normalized_names: set[str] = set()
+    for clue in source.get("target_clues", []) or []:
+        text = str(clue).strip()
+        lowered = text.lower()
+        if ":" in text:
+            prefix, raw_name = text.split(":", 1)
+            prefix_tokens = {
+                token.strip().lower().replace(" ", "").replace("/", "")
+                for token in prefix.split("/")
+                if token.strip()
+            }
+            if prefix_tokens & family_tokens and raw_name.strip():
+                normalized_names.add(_normalize_target_name(raw_name))
+        elif lowered.startswith("target="):
+            normalized_names.add(_normalize_target_name(text.split("=", 1)[1]))
+    return normalized_names
+
+
+def _normalize_target_name(value: str) -> str:
+    return (
+        value.strip()
+        .lower()
+        .replace(" ", "")
+        .replace("_", "")
+        .replace("/", "")
+        .replace("\\", "")
+    )
+
+
+def _deployment_missing_confirmation(*, source_command: str, target_label: str) -> str:
+    if source_command == "devops":
+        return (
+            f"Current artifacts do not confirm that this pipeline can successfully redeploy the "
+            f"exact {target_label} target or that edit, rerun, or source-control footholds are "
+            "available now."
+        )
+    return (
+        f"Current artifacts do not confirm that this automation surface can successfully change "
+        f"the exact {target_label} target or which runbook path performs that change."
+    )
+
+
+def _arm_correlations_by_target_family(deployments: list[dict]) -> dict[str, list[dict]]:
+    correlated: dict[str, list[dict]] = defaultdict(list)
+    for deployment in deployments:
+        deployment_summary = ArmDeploymentSummary.model_validate(deployment)
+        for family in target_family_hints_from_arm_deployment(deployment_summary):
+            correlated[family].append(deployment)
+    return correlated
+
+
 def _target_visibility_note(target_label: str, issues: list[CollectionIssue]) -> str | None:
     if not issues:
         return None
     if any(issue.kind in {"permission_denied", "partial_collection"} for issue in issues):
         return (
-            f"Current credentials may not show full {target_label} visibility, so this target "
+            f"Current scope may not show full {target_label} visibility, so this target "
             "picture may be incomplete."
         )
     return None
@@ -553,3 +1082,7 @@ def _merge_related_ids(*groups: list[str]) -> list[str]:
 def _chain_id(asset_id: str, setting_name: str, target_service: str) -> str:
     normalized_setting = setting_name.lower().replace("_", "-")
     return f"credential-path::{asset_id}::{normalized_setting}::{target_service}"
+
+
+def _source_chain_id(family_name: str, asset_id: str, target_service: str) -> str:
+    return f"{family_name}::{asset_id}::{target_service}"

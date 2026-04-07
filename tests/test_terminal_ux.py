@@ -721,6 +721,25 @@ def test_chains_table_mode_surfaces_priority_and_next_review(tmp_path: Path) -> 
     assert "unconfirmed." in normalized_output
 
 
+def test_deployment_chains_table_mode_surfaces_source_oriented_columns(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "chains", "deployment-path"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    normalized_output = " ".join(result.stdout.split())
+    assert "why care" in result.stdout
+    assert "deploy-aks-prod" in result.stdout
+    assert "deploy-appservice-prod" in result.stdout
+    assert "plan-infra-prod" in result.stdout
+    assert "aa-hybrid-prod" in result.stdout
+    assert "Review the narrowed" in normalized_output
+    assert "Azure service connection" in normalized_output
+    assert "managed identity" in normalized_output
+
+
 def test_auth_policies_partial_read_surfaces_collection_issue() -> None:
     payload = {
         "metadata": {"command": "auth-policies"},

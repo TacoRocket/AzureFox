@@ -59,7 +59,22 @@ def test_chain_semantics_have_default_path_for_other_families() -> None:
     )
 
     assert decision.priority == "high"
-    assert "Validate the exact named target" in decision.next_review
+    assert "deployment evidence" in decision.next_review
+
+
+def test_deployment_path_semantics_promote_narrowed_devops_targets() -> None:
+    decision = evaluate_chain_semantics(
+        ChainSemanticContext(
+            family="deployment-path",
+            clue_type="azure-service-connection",
+            target_service="aks",
+            target_resolution="narrowed candidates",
+            target_count=2,
+        )
+    )
+
+    assert decision.priority == "medium"
+    assert "narrowed deployment targets" in decision.next_review
 
 
 def test_semantic_priority_sort_value_orders_highest_first() -> None:

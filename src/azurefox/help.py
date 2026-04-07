@@ -1091,7 +1091,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         section="orchestration",
         summary=(
             "Grouped family runner for higher-value preset paths, with credential-path "
-            "available first."
+            "and deployment-path available now."
         ),
         offensive_question=(
             "Which grouped Azure path should I run end to end when I want the value-added "
@@ -1100,8 +1100,8 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         cloudfox_frame=(
             "AzureFox orchestration layer for targeted grouped runs that are meant to replace "
             "broad all-checks section sweeps with narrower, operator-first presets. Current "
-            "state: credential-path is exposed now with conservative extraction-first joins; "
-            "deployment-path and workload-identity-path remain planned."
+            "state: credential-path and deployment-path are exposed now with conservative "
+            "extraction-first joins; workload-identity-path remains planned."
         ),
         output_highlights=(
             "family selectors",

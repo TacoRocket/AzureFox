@@ -483,6 +483,31 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
         )
 
     if command == "chains":
+        family = str(payload.get("family") or "")
+        if family == "deployment-path":
+            return (
+                [
+                    ("priority", "priority"),
+                    ("asset_name", "source"),
+                    ("why_care", "why care"),
+                    ("target_service", "target"),
+                    ("target_resolution", "target resolution"),
+                    ("target_names", "visible targets"),
+                    ("next_review", "next review"),
+                ],
+                [
+                    {
+                        "priority": item.get("priority"),
+                        "asset_name": item.get("asset_name"),
+                        "why_care": item.get("why_care") or item.get("asset_kind"),
+                        "target_service": item.get("target_service"),
+                        "target_resolution": item.get("target_resolution"),
+                        "target_names": _chains_target_context(item),
+                        "next_review": item.get("next_review"),
+                    }
+                    for item in payload.get("paths", [])
+                ],
+            )
         return (
             [
                 ("priority", "priority"),
@@ -503,7 +528,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     "target_resolution": item.get("target_resolution"),
                     "target_names": _chains_target_context(item),
                     "next_review": item.get("next_review"),
-                    "note": _chains_note(item),
+                    "note": _chains_note(item, family=family),
                 }
                 for item in payload.get("paths", [])
             ],
@@ -1501,15 +1526,21 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         paths = payload.get("paths", [])
         priorities = Counter(item.get("priority") or "unknown" for item in paths)
         services = Counter(item.get("target_service") or "unknown" for item in paths)
+        family = str(payload.get("family") or "chain")
+        family_label = "credential paths"
+        if family == "deployment-path":
+            family_label = "deployment paths"
+        elif family == "workload-identity-path":
+            family_label = "workload-identity paths"
         priority_order = ("high", "medium", "low", "unknown")
         priority_counts = ", ".join(
             f"{priorities[name]} {name}" for name in priority_order if priorities.get(name)
         )
         counts = ", ".join(f"{count} {name}" for name, count in sorted(services.items()))
         return (
-            f"{len(paths)} visible credential paths; "
+            f"{len(paths)} visible {family_label}; "
             f"{priority_counts or 'no ranked paths'}, "
-            f"{counts or 'no joined downstream services'}."
+            f"{counts or 'no joined downstream targets'}."
         )
 
     if command == "rbac":
@@ -1659,7 +1690,7 @@ def _chains_target_context(item: dict) -> str:
     return "none joined"
 
 
-def _chains_note(item: dict) -> str:
+def _chains_note(item: dict, *, family: str = "") -> str:
     resolution = str(item.get("target_resolution") or "")
     target_service = str(item.get("target_service") or "target")
 
@@ -1668,6 +1699,8 @@ def _chains_note(item: dict) -> str:
     if resolution == "visibility blocked":
         return f"{target_service} visibility is blocked; do not infer a target."
     if resolution == "narrowed candidates":
+        if family == "deployment-path":
+            return "Change-capable source narrows the next review set; exact target unconfirmed."
         return f"Secret-shaped clue suggests a {target_service} path; exact target unconfirmed."
     if resolution == "tenant-wide candidates":
         return f"{target_service} family is visible, but narrowing is still broad."

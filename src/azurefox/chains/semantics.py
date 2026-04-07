@@ -127,8 +127,35 @@ def _default_chain_semantics(context: ChainSemanticContext) -> ChainSemanticDeci
     )
 
 
+def _deployment_path_semantics(context: ChainSemanticContext) -> ChainSemanticDecision:
+    if context.target_resolution == "named match":
+        return ChainSemanticDecision(
+            priority="high",
+            next_review="Validate the exact named target from deployment evidence.",
+        )
+
+    if context.target_resolution == "visibility blocked":
+        return ChainSemanticDecision(
+            priority="low",
+            next_review=f"Restore {context.target_service} visibility before trusting the path.",
+        )
+
+    if context.target_resolution == "narrowed candidates":
+        if context.clue_type == "azure-service-connection":
+            return ChainSemanticDecision(
+                priority="medium",
+                next_review="Review the narrowed deployment targets and the backing Azure path.",
+            )
+        return ChainSemanticDecision(
+            priority="low",
+            next_review="Review the narrowed deployment targets before deeper follow-up.",
+        )
+
+    return _default_chain_semantics(context)
+
+
 _FAMILY_EVALUATORS = {
     "credential-path": _credential_path_semantics,
-    "deployment-path": _default_chain_semantics,
+    "deployment-path": _deployment_path_semantics,
     "workload-identity-path": _default_chain_semantics,
 }
