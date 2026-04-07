@@ -1,9 +1,0 @@
-                                 azurefox inventory                                  
-┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┓
-┃ resource groups ┃ resources ┃ top type                                   ┃ issues ┃
-┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━┩
-│ 4               │ 30        │ Microsoft.ContainerService/managedClusters │ 0      │
-└─────────────────┴───────────┴────────────────────────────────────────────┴────────┘
-
-Takeaway: 30 resources across 4 resource groups.
-
