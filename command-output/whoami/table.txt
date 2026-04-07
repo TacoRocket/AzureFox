@@ -1,0 +1,9 @@
+                                   azurefox whoami                                    
+┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┓
+┃ subscription     ┃ principal       ┃ type             ┃ token   ┃ scope            ┃
+┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━┩
+│ azurefox-lab-sub │ azurefox-lab-sp │ ServicePrincipal │ fixture │ azurefox-lab-sub │
+└──────────────────┴─────────────────┴──────────────────┴─────────┴──────────────────┘
+
+Takeaway: Operating as azurefox-lab-sp (ServicePrincipal) in azurefox-lab-sub.
+

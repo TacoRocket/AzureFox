@@ -1,0 +1,89 @@
+                                                                          azurefox acr                                                                          
+┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
+┃ registry          ┃ login server      ┃ identity       ┃ auth              ┃ exposure           ┃ depth             ┃ posture            ┃ why it matters    ┃
+┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩
+│ acr-public-legacy │ acr-public-legac… │ -              │ admin=yes;        │ public=Enabled;    │ webhooks=2;       │ Standard;          │ Container         │
+│                   │                   │                │ anon-pull=yes     │ default=Allow;     │ enabled=1;        │ bypass=AzureServi… │ Registry          │
+│                   │                   │                │                   │ pe=0               │ wide-scopes=1;    │ data-endpoint=yes; │ 'acr-public-lega… │
+│                   │                   │                │                   │                    │ actions=delete,p… │ quarantine=disabl… │ publishes login   │
+│                   │                   │                │                   │                    │ replications=0    │ retention=disable… │ server            │
+│                   │                   │                │                   │                    │                   │ trust=disabled     │ 'acr-public-lega… │
+│                   │                   │                │                   │                    │                   │                    │ and has no        │
+│                   │                   │                │                   │                    │                   │                    │ managed identity  │
+│                   │                   │                │                   │                    │                   │                    │ visible from the  │
+│                   │                   │                │                   │                    │                   │                    │ current read      │
+│                   │                   │                │                   │                    │                   │                    │ path. Visible     │
+│                   │                   │                │                   │                    │                   │                    │ auth posture:     │
+│                   │                   │                │                   │                    │                   │                    │ admin user        │
+│                   │                   │                │                   │                    │                   │                    │ enabled,          │
+│                   │                   │                │                   │                    │                   │                    │ anonymous pull    │
+│                   │                   │                │                   │                    │                   │                    │ enabled. Visible  │
+│                   │                   │                │                   │                    │                   │                    │ network posture:  │
+│                   │                   │                │                   │                    │                   │                    │ public network    │
+│                   │                   │                │                   │                    │                   │                    │ access Enabled,   │
+│                   │                   │                │                   │                    │                   │                    │ default action    │
+│                   │                   │                │                   │                    │                   │                    │ Allow, bypass     │
+│                   │                   │                │                   │                    │                   │                    │ AzureServices, no │
+│                   │                   │                │                   │                    │                   │                    │ private endpoints │
+│                   │                   │                │                   │                    │                   │                    │ visible. Visible  │
+│                   │                   │                │                   │                    │                   │                    │ service shape:    │
+│                   │                   │                │                   │                    │                   │                    │ SKU Standard,     │
+│                   │                   │                │                   │                    │                   │                    │ data endpoint     │
+│                   │                   │                │                   │                    │                   │                    │ enabled. Depth    │
+│                   │                   │                │                   │                    │                   │                    │ cues: 2 webhooks  │
+│                   │                   │                │                   │                    │                   │                    │ (1 enabled), 1    │
+│                   │                   │                │                   │                    │                   │                    │ broad webhook     │
+│                   │                   │                │                   │                    │                   │                    │ scope(s), webhook │
+│                   │                   │                │                   │                    │                   │                    │ actions delete,   │
+│                   │                   │                │                   │                    │                   │                    │ push, 0           │
+│                   │                   │                │                   │                    │                   │                    │ replications,     │
+│                   │                   │                │                   │                    │                   │                    │ quarantine        │
+│                   │                   │                │                   │                    │                   │                    │ disabled,         │
+│                   │                   │                │                   │                    │                   │                    │ retention         │
+│                   │                   │                │                   │                    │                   │                    │ disabled, content │
+│                   │                   │                │                   │                    │                   │                    │ trust disabled.   │
+│ acr-ops-01        │ acr-ops-01.azure… │ SystemAssigned │ admin=no;         │ public=Disabled;   │ webhooks=1;       │ Premium;           │ Container         │
+│                   │                   │                │ anon-pull=no      │ default=Deny; pe=1 │ enabled=1;        │ bypass=None;       │ Registry          │
+│                   │                   │                │                   │                    │ actions=push;     │ data-endpoint=no;  │ 'acr-ops-01'      │
+│                   │                   │                │                   │                    │ replications=2;   │ quarantine=enable… │ publishes login   │
+│                   │                   │                │                   │                    │ regions=northeur… │ retention=30d;     │ server            │
+│                   │                   │                │                   │                    │                   │ trust=notary       │ 'acr-ops-01.azur… │
+│                   │                   │                │                   │                    │                   │                    │ and uses managed  │
+│                   │                   │                │                   │                    │                   │                    │ identity          │
+│                   │                   │                │                   │                    │                   │                    │ (SystemAssigned). │
+│                   │                   │                │                   │                    │                   │                    │ Visible auth      │
+│                   │                   │                │                   │                    │                   │                    │ posture: admin    │
+│                   │                   │                │                   │                    │                   │                    │ user disabled,    │
+│                   │                   │                │                   │                    │                   │                    │ anonymous pull    │
+│                   │                   │                │                   │                    │                   │                    │ disabled. Visible │
+│                   │                   │                │                   │                    │                   │                    │ network posture:  │
+│                   │                   │                │                   │                    │                   │                    │ public network    │
+│                   │                   │                │                   │                    │                   │                    │ access Disabled,  │
+│                   │                   │                │                   │                    │                   │                    │ default action    │
+│                   │                   │                │                   │                    │                   │                    │ Deny, bypass      │
+│                   │                   │                │                   │                    │                   │                    │ None, 1 private   │
+│                   │                   │                │                   │                    │                   │                    │ endpoint(s).      │
+│                   │                   │                │                   │                    │                   │                    │ Visible service   │
+│                   │                   │                │                   │                    │                   │                    │ shape: SKU        │
+│                   │                   │                │                   │                    │                   │                    │ Premium, data     │
+│                   │                   │                │                   │                    │                   │                    │ endpoint          │
+│                   │                   │                │                   │                    │                   │                    │ disabled. Depth   │
+│                   │                   │                │                   │                    │                   │                    │ cues: 1 webhooks  │
+│                   │                   │                │                   │                    │                   │                    │ (1 enabled),      │
+│                   │                   │                │                   │                    │                   │                    │ webhook actions   │
+│                   │                   │                │                   │                    │                   │                    │ push, 2           │
+│                   │                   │                │                   │                    │                   │                    │ replications      │
+│                   │                   │                │                   │                    │                   │                    │ across            │
+│                   │                   │                │                   │                    │                   │                    │ northeurope,      │
+│                   │                   │                │                   │                    │                   │                    │ westus2,          │
+│                   │                   │                │                   │                    │                   │                    │ quarantine        │
+│                   │                   │                │                   │                    │                   │                    │ enabled,          │
+│                   │                   │                │                   │                    │                   │                    │ retention enabled │
+│                   │                   │                │                   │                    │                   │                    │ (30d), content    │
+│                   │                   │                │                   │                    │                   │                    │ trust enabled     │
+│                   │                   │                │                   │                    │                   │                    │ (notary).         │
+└───────────────────┴───────────────────┴────────────────┴───────────────────┴────────────────────┴───────────────────┴────────────────────┴───────────────────┘
+
+Takeaway: 2 registries visible; 1 keep public network access enabled, 1 allow admin-user auth, 3 webhooks are visible, and 1 registry replicates content into 
+additional regions.
+

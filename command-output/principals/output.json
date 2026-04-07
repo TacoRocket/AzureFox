@@ -1,0 +1,61 @@
+{
+  "issues": [],
+  "metadata": {
+    "command": "principals",
+    "generated_at": "<generated_at>",
+    "schema_version": "1.2.0",
+    "subscription_id": "22222222-2222-2222-2222-222222222222",
+    "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "token_source": null
+  },
+  "principals": [
+    {
+      "attached_to": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01"
+      ],
+      "display_name": "azurefox-lab-sp",
+      "id": "33333333-3333-3333-3333-333333333333",
+      "identity_names": [
+        "ua-app"
+      ],
+      "identity_types": [
+        "userAssigned"
+      ],
+      "is_current_identity": true,
+      "principal_type": "ServicePrincipal",
+      "role_assignment_count": 1,
+      "role_names": [
+        "Owner"
+      ],
+      "scope_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222"
+      ],
+      "sources": [
+        "rbac",
+        "whoami",
+        "managed-identities"
+      ],
+      "tenant_id": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "attached_to": [],
+      "display_name": "operator@lab.local",
+      "id": "44444444-4444-4444-4444-444444444444",
+      "identity_names": [],
+      "identity_types": [],
+      "is_current_identity": false,
+      "principal_type": "User",
+      "role_assignment_count": 1,
+      "role_names": [
+        "Reader"
+      ],
+      "scope_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222"
+      ],
+      "sources": [
+        "rbac"
+      ],
+      "tenant_id": "11111111-1111-1111-1111-111111111111"
+    }
+  ]
+}

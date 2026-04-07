@@ -2517,6 +2517,68 @@ def test_collect_role_trusts(fixture_provider, options) -> None:
     assert output.trusts[0].trust_type == "federated-credential"
     assert output.trusts[1].trust_type == "service-principal-owner"
     assert output.trusts[2].trust_type == "app-owner"
+    assert (
+        output.trusts[0].operator_signal
+        == "Trust expansion visible; privilege confirmation next."
+    )
+    assert (
+        output.trusts[0].next_review
+        == "Check permissions for Azure control on service principal 'build-sp'."
+    )
+    assert (
+        output.trusts[1].operator_signal
+        == "Indirect control visible; ownership review next."
+    )
+    assert (
+        output.trusts[1].next_review
+        == "Review ownership around service principal 'build-sp', then confirm Azure control in permissions."
+    )
+
+
+def test_collect_role_trusts_outside_tenant_follow_on_prefers_cross_tenant(options) -> None:
+    class StubProvider:
+        def role_trusts(self, mode: RoleTrustsMode) -> dict:
+            return {
+                "trusts": [
+                    {
+                        "trust_type": "federated-credential",
+                        "source_object_id": "app-1",
+                        "source_name": "external-build-app",
+                        "source_type": "Application",
+                        "target_object_id": "sp-1",
+                        "target_name": "external-build-sp",
+                        "target_type": "ServicePrincipal",
+                        "evidence_type": "graph-federated-credential",
+                        "confidence": "confirmed",
+                        "summary": (
+                            "Application 'external-build-app' trusts an outside-tenant "
+                            "federated subject for service principal 'external-build-sp'."
+                        ),
+                        "related_ids": ["app-1", "sp-1"],
+                    }
+                ],
+                "issues": [],
+            }
+
+        def metadata_context(self) -> dict[str, str | None]:
+            return {"tenant_id": None, "subscription_id": None, "token_source": None}
+
+    options = GlobalOptions(
+        tenant=None,
+        subscription=None,
+        output=OutputMode.JSON,
+        outdir=Path("/tmp"),
+        debug=False,
+        role_trusts_mode=RoleTrustsMode.FAST,
+    )
+
+    output = collect_role_trusts(StubProvider(), options)
+
+    assert output.trusts[0].operator_signal == "Trust expansion visible; outside-tenant follow-on."
+    assert (
+        output.trusts[0].next_review
+        == "Check cross-tenant for related outside-tenant control or delegated-management paths around service principal 'external-build-sp'."
+    )
 
 
 def test_collect_role_trusts_enumerates_graph_edges_without_principal_seed(options) -> None:

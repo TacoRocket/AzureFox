@@ -1,0 +1,67 @@
+                                                                       azurefox databases                                                                       
+┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
+┃ server            ┃ engine            ┃ endpoint          ┃ identity       ┃ inventory          ┃ exposure          ┃ posture            ┃ why it matters    ┃
+┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩
+│ sql-public-legacy │ AzureSql          │ sql-public-legac… │ -              │ dbs=2;             │ fqdn;             │ tls=1.2;           │ Azure SQL server  │
+│                   │                   │                   │                │ orders,reporting   │ public=Enabled    │ version=12.0;      │ 'sql-public-lega… │
+│                   │                   │                   │                │                    │                   │ state=Ready        │ publishes         │
+│                   │                   │                   │                │                    │                   │                    │ endpoint          │
+│                   │                   │                   │                │                    │                   │                    │ 'sql-public-lega… │
+│                   │                   │                   │                │                    │                   │                    │ and has no        │
+│                   │                   │                   │                │                    │                   │                    │ managed identity  │
+│                   │                   │                   │                │                    │                   │                    │ visible from the  │
+│                   │                   │                   │                │                    │                   │                    │ current read      │
+│                   │                   │                   │                │                    │                   │                    │ path. Visible     │
+│                   │                   │                   │                │                    │                   │                    │ inventory: 2 user │
+│                   │                   │                   │                │                    │                   │                    │ database(s),      │
+│                   │                   │                   │                │                    │                   │                    │ names: orders,    │
+│                   │                   │                   │                │                    │                   │                    │ reporting.        │
+│                   │                   │                   │                │                    │                   │                    │ Visible posture:  │
+│                   │                   │                   │                │                    │                   │                    │ public network    │
+│                   │                   │                   │                │                    │                   │                    │ access Enabled,   │
+│                   │                   │                   │                │                    │                   │                    │ minimal TLS 1.2,  │
+│                   │                   │                   │                │                    │                   │                    │ server version    │
+│                   │                   │                   │                │                    │                   │                    │ 12.0.             │
+│ pg-public-legacy  │ PostgreSqlFlexib… │ pg-public-legacy… │ -              │ dbs=2; app,orders  │ fqdn;             │ version=16;        │ PostgreSQL        │
+│                   │                   │                   │                │                    │ public=Enabled    │ ha=disabled;       │ Flexible server   │
+│                   │                   │                   │                │                    │                   │ state=Ready        │ 'pg-public-legac… │
+│                   │                   │                   │                │                    │                   │                    │ publishes         │
+│                   │                   │                   │                │                    │                   │                    │ endpoint          │
+│                   │                   │                   │                │                    │                   │                    │ 'pg-public-legac… │
+│                   │                   │                   │                │                    │                   │                    │ and has no        │
+│                   │                   │                   │                │                    │                   │                    │ managed identity  │
+│                   │                   │                   │                │                    │                   │                    │ visible from the  │
+│                   │                   │                   │                │                    │                   │                    │ current read      │
+│                   │                   │                   │                │                    │                   │                    │ path. Visible     │
+│                   │                   │                   │                │                    │                   │                    │ inventory: 2 user │
+│                   │                   │                   │                │                    │                   │                    │ database(s),      │
+│                   │                   │                   │                │                    │                   │                    │ names: app,       │
+│                   │                   │                   │                │                    │                   │                    │ orders. Visible   │
+│                   │                   │                   │                │                    │                   │                    │ posture: public   │
+│                   │                   │                   │                │                    │                   │                    │ network access    │
+│                   │                   │                   │                │                    │                   │                    │ Enabled, server   │
+│                   │                   │                   │                │                    │                   │                    │ version 16, HA    │
+│                   │                   │                   │                │                    │                   │                    │ disabled.         │
+│ sql-ops-01        │ AzureSql          │ sql-ops-01.datab… │ SystemAssigned │ dbs=1; appdb       │ fqdn;             │ tls=1.2;           │ Azure SQL server  │
+│                   │                   │                   │                │                    │ public=Disabled   │ version=12.0;      │ 'sql-ops-01'      │
+│                   │                   │                   │                │                    │                   │ state=Ready        │ publishes         │
+│                   │                   │                   │                │                    │                   │                    │ endpoint          │
+│                   │                   │                   │                │                    │                   │                    │ 'sql-ops-01.data… │
+│                   │                   │                   │                │                    │                   │                    │ and uses managed  │
+│                   │                   │                   │                │                    │                   │                    │ identity          │
+│                   │                   │                   │                │                    │                   │                    │ (SystemAssigned). │
+│                   │                   │                   │                │                    │                   │                    │ Visible           │
+│                   │                   │                   │                │                    │                   │                    │ inventory: 1 user │
+│                   │                   │                   │                │                    │                   │                    │ database(s),      │
+│                   │                   │                   │                │                    │                   │                    │ names: appdb.     │
+│                   │                   │                   │                │                    │                   │                    │ Visible posture:  │
+│                   │                   │                   │                │                    │                   │                    │ public network    │
+│                   │                   │                   │                │                    │                   │                    │ access Disabled,  │
+│                   │                   │                   │                │                    │                   │                    │ minimal TLS 1.2,  │
+│                   │                   │                   │                │                    │                   │                    │ server version    │
+│                   │                   │                   │                │                    │                   │                    │ 12.0.             │
+└───────────────────┴───────────────────┴───────────────────┴────────────────┴────────────────────┴───────────────────┴────────────────────┴───────────────────┘
+
+Takeaway: 3 relational database servers visible across 2 engine families; 2 keep public network access enabled, 1 carry managed identity context, and 5 user 
+databases are visible.
+

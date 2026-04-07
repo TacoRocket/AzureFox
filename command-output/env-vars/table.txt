@@ -1,0 +1,52 @@
+                                                                       azurefox env-vars                                                                        
+┏━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ workload       ┃ kind        ┃ identity              ┃ setting         ┃ value type   ┃ signal                ┃ next review          ┃ why it matters        ┃
+┡━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━┩
+│ app-public-api │ AppService  │ SystemAssigned        │ DB_PASSWORD     │ plain-text   │ sensitive-name        │ Check                │ AppService            │
+│                │             │                       │                 │              │                       │ tokens-credentials   │ 'app-public-api'      │
+│                │             │                       │                 │              │                       │ first; this likely   │ stores                │
+│                │             │                       │                 │              │                       │ feeds a database     │ sensitive-looking     │
+│                │             │                       │                 │              │                       │ credential path.     │ setting 'DB_PASSWORD' │
+│                │             │                       │                 │              │                       │                      │ as plain-text app     │
+│                │             │                       │                 │              │                       │                      │ configuration. Check  │
+│                │             │                       │                 │              │                       │                      │ tokens-credentials    │
+│                │             │                       │                 │              │                       │                      │ first; this likely    │
+│                │             │                       │                 │              │                       │                      │ feeds a database      │
+│                │             │                       │                 │              │                       │                      │ credential path.      │
+│ func-orders    │ FunctionApp │ SystemAssigned,       │ PAYMENT_API_KEY │ keyvault-ref │ sensitive-name;       │ Check keyvault for   │ FunctionApp           │
+│                │             │ UserAssigned;         │                 │              │ keyvault-ref;         │ the referenced       │ 'func-orders' maps    │
+│                │             │ user-assigned=1;      │                 │              │ kvlabopen01.vault.az… │ secret path; review  │ setting               │
+│                │             │ kv-ref=SystemAssigned │                 │              │                       │ managed-identities   │ 'PAYMENT_API_KEY' to  │
+│                │             │                       │                 │              │                       │ for the workload     │ Key Vault-backed      │
+│                │             │                       │                 │              │                       │ token path.          │ configuration         │
+│                │             │                       │                 │              │                       │                      │ (kvlabopen01.vault.a… │
+│                │             │                       │                 │              │                       │                      │ via SystemAssigned    │
+│                │             │                       │                 │              │                       │                      │ identity. Check       │
+│                │             │                       │                 │              │                       │                      │ keyvault for the      │
+│                │             │                       │                 │              │                       │                      │ referenced secret     │
+│                │             │                       │                 │              │                       │                      │ path; review          │
+│                │             │                       │                 │              │                       │                      │ managed-identities    │
+│                │             │                       │                 │              │                       │                      │ for the workload      │
+│                │             │                       │                 │              │                       │                      │ token path.           │
+│ app-public-api │ AppService  │ SystemAssigned        │ API_BASE_URL    │ plain-text   │ -                     │ Check                │ AppService            │
+│                │             │                       │                 │              │                       │ managed-identities   │ 'app-public-api'      │
+│                │             │                       │                 │              │                       │ for the workload     │ exposes setting       │
+│                │             │                       │                 │              │                       │ token path behind    │ 'API_BASE_URL'        │
+│                │             │                       │                 │              │                       │ this setting.        │ through               │
+│                │             │                       │                 │              │                       │                      │ management-plane app  │
+│                │             │                       │                 │              │                       │                      │ settings              │
+│                │             │                       │                 │              │                       │                      │ (plain-text). Check   │
+│                │             │                       │                 │              │                       │                      │ managed-identities    │
+│                │             │                       │                 │              │                       │                      │ for the workload      │
+│                │             │                       │                 │              │                       │                      │ token path behind     │
+│                │             │                       │                 │              │                       │                      │ this setting.         │
+└────────────────┴─────────────┴───────────────────────┴─────────────────┴──────────────┴───────────────────────┴──────────────────────┴───────────────────────┘
+
+Findings:
+- MEDIUM: Sensitive-looking app setting is stored in plain text
+  AppService 'app-public-api' stores setting 'DB_PASSWORD' as plain-text management-plane config.
+- LOW: App setting references Key Vault
+  FunctionApp 'func-orders' maps setting 'PAYMENT_API_KEY' to Key Vault-backed configuration (kvlabopen01.vault.azure.net/secrets/payment-api-key).
+
+Takeaway: 3 settings across 2 workloads; 1 plain-text sensitive settings, 1 Key Vault references, and 2 findings.
+

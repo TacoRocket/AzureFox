@@ -1,0 +1,26 @@
+                                                                    azurefox resource-trusts                                                                    
+┏━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ resource    ┃ type           ┃ trust                 ┃ target         ┃ exposure ┃ why it matters                                                            ┃
+┡━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ kvlabopen01 │ KeyVault       │ public-network        │ public-network │ high     │ Key Vault 'kvlabopen01' remains reachable through a public network path.  │
+│ stlabpub01  │ StorageAccount │ anonymous-blob-access │ public-network │ high     │ Storage account 'stlabpub01' permits public blob access from the public   │
+│             │                │                       │                │          │ network.                                                                  │
+│ kvlabdeny01 │ KeyVault       │ public-network        │ public-network │ medium   │ Key Vault 'kvlabdeny01' remains reachable through a public network path.  │
+└─────────────┴────────────────┴───────────────────────┴────────────────┴──────────┴───────────────────────────────────────────────────────────────────────────┘
+
+Findings:
+- HIGH: Storage account allows public blob access
+  Storage account 'stlabpub01' has blob public access enabled. Validate anonymous access and exposed data paths.
+- MEDIUM: Storage account network default action is Allow
+  Storage account 'stlabpub01' default firewall action is Allow. Review allowed network sources and private endpoint posture.
+- HIGH: Key Vault is broadly reachable on the public network
+  Key Vault 'kvlabopen01' has public network access enabled, Azure omitted the network ACL object, and no private endpoint is visible. Azure can return that 
+shape for a fully open vault. Review whether that secret-management surface is intentionally internet reachable.
+- MEDIUM: Key Vault remains reachable through a public network path
+  Key Vault 'kvlabdeny01' keeps public network access enabled with default network action 'Deny' and no private endpoint visible. Review whether that public 
+path is still intended.
+- LOW: Key Vault keeps a public network path alongside Private Link
+  Key Vault 'kvlabhybrid01' has public network access enabled while a private endpoint is also present. Validate whether the public path is still required.
+
+Takeaway: 3 resource trust surfaces visible; 2 high, 1 medium.
+

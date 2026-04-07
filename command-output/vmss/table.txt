@@ -1,0 +1,61 @@
+                                                                         azurefox vmss                                                                          
+┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┓
+┃ scale set     ┃ location  ┃ sku / capacity      ┃ orchestration       ┃ identity            ┃ frontend            ┃ network             ┃ why it matters     ┃
+┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━┩
+│ vmss-edge-01  │ eastus    │ Standard_D4s_v5;    │ Uniform;            │ SystemAssigned;     │ public-ip=1;        │ nic-configs=1;      │ Virtual Machine    │
+│               │           │ instances=6;        │ upgrade=Rolling;    │ ids=1               │ nat-pools=1;        │ subnet=app;         │ Scale Sets (VMSS)  │
+│               │           │ zones=2             │ spg=no;             │                     │ lb-backends=1       │ zone-balance=yes    │ asset              │
+│               │           │                     │ overprov=yes        │                     │                     │                     │ 'vmss-edge-01'     │
+│               │           │                     │                     │                     │                     │                     │ carries SKU        │
+│               │           │                     │                     │                     │                     │                     │ Standard_D4s_v5, 6 │
+│               │           │                     │                     │                     │                     │                     │ configured         │
+│               │           │                     │                     │                     │                     │                     │ instance(s) and    │
+│               │           │                     │                     │                     │                     │                     │ uses managed       │
+│               │           │                     │                     │                     │                     │                     │ identity           │
+│               │           │                     │                     │                     │                     │                     │ (SystemAssigned).  │
+│               │           │                     │                     │                     │                     │                     │ Visible frontend   │
+│               │           │                     │                     │                     │                     │                     │ or network cues: 1 │
+│               │           │                     │                     │                     │                     │                     │ public IP          │
+│               │           │                     │                     │                     │                     │                     │ config(s), 1       │
+│               │           │                     │                     │                     │                     │                     │ inbound NAT pool   │
+│               │           │                     │                     │                     │                     │                     │ ref(s), 1 LB       │
+│               │           │                     │                     │                     │                     │                     │ backend pool       │
+│               │           │                     │                     │                     │                     │                     │ ref(s), 1 NIC      │
+│               │           │                     │                     │                     │                     │                     │ config(s), 1       │
+│               │           │                     │                     │                     │                     │                     │ subnet ref(s).     │
+│               │           │                     │                     │                     │                     │                     │ Visible posture:   │
+│               │           │                     │                     │                     │                     │                     │ orchestration      │
+│               │           │                     │                     │                     │                     │                     │ Uniform, upgrade   │
+│               │           │                     │                     │                     │                     │                     │ Rolling,           │
+│               │           │                     │                     │                     │                     │                     │ single-placement-… │
+│               │           │                     │                     │                     │                     │                     │ no, overprovision  │
+│               │           │                     │                     │                     │                     │                     │ yes, zone-balance  │
+│               │           │                     │                     │                     │                     │                     │ yes, zones 1,2.    │
+│ vmss-batch-01 │ centralus │ Standard_D2s_v5;    │ Flexible;           │ -                   │ -                   │ nic-configs=1;      │ Virtual Machine    │
+│               │           │ instances=2         │ upgrade=Manual;     │                     │                     │ subnet=workers;     │ Scale Sets (VMSS)  │
+│               │           │                     │ spg=yes;            │                     │                     │ zone-balance=no     │ asset              │
+│               │           │                     │ overprov=no         │                     │                     │                     │ 'vmss-batch-01'    │
+│               │           │                     │                     │                     │                     │                     │ carries SKU        │
+│               │           │                     │                     │                     │                     │                     │ Standard_D2s_v5, 2 │
+│               │           │                     │                     │                     │                     │                     │ configured         │
+│               │           │                     │                     │                     │                     │                     │ instance(s) and    │
+│               │           │                     │                     │                     │                     │                     │ has no managed     │
+│               │           │                     │                     │                     │                     │                     │ identity visible   │
+│               │           │                     │                     │                     │                     │                     │ from the current   │
+│               │           │                     │                     │                     │                     │                     │ read path. Visible │
+│               │           │                     │                     │                     │                     │                     │ frontend or        │
+│               │           │                     │                     │                     │                     │                     │ network cues: 1    │
+│               │           │                     │                     │                     │                     │                     │ NIC config(s), 1   │
+│               │           │                     │                     │                     │                     │                     │ subnet ref(s).     │
+│               │           │                     │                     │                     │                     │                     │ Visible posture:   │
+│               │           │                     │                     │                     │                     │                     │ orchestration      │
+│               │           │                     │                     │                     │                     │                     │ Flexible, upgrade  │
+│               │           │                     │                     │                     │                     │                     │ Manual,            │
+│               │           │                     │                     │                     │                     │                     │ single-placement-… │
+│               │           │                     │                     │                     │                     │                     │ yes, overprovision │
+│               │           │                     │                     │                     │                     │                     │ no, zone-balance   │
+│               │           │                     │                     │                     │                     │                     │ no.                │
+└───────────────┴───────────┴─────────────────────┴─────────────────────┴─────────────────────┴─────────────────────┴─────────────────────┴────────────────────┘
+
+Takeaway: 2 VM scale sets visible; 1 show public frontend cues, 1 carry managed identity context, and 8 configured instances are visible.
+

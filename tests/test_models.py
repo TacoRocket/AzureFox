@@ -245,6 +245,8 @@ def test_role_trust_summary_defaults() -> None:
         summary="test",
     )
     assert trust.source_name is None
+    assert trust.operator_signal is None
+    assert trust.next_review is None
     assert trust.related_ids == []
 
 

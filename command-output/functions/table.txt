@@ -1,0 +1,31 @@
+                                                                       azurefox functions                                                                       
+┏━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ function app ┃ hostname              ┃ runtime               ┃ identity              ┃ deployment            ┃ posture               ┃ why it matters        ┃
+┡━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━┩
+│ func-orders  │ func-orders.azureweb… │ PYTHON|3.11;          │ SystemAssigned,       │ storage=plain-text;   │ https=yes; tls=1.2;   │ Function App          │
+│              │                       │ functions=~4          │ UserAssigned;         │ kv-refs=1             │ ftps=Disabled;        │ 'func-orders'         │
+│              │                       │                       │ user-assigned=1       │                       │ always-on=yes         │ publishes hostname    │
+│              │                       │                       │                       │                       │                       │ 'func-orders.azurewe… │
+│              │                       │                       │                       │                       │                       │ runs runtime          │
+│              │                       │                       │                       │                       │                       │ 'PYTHON|3.11',        │
+│              │                       │                       │                       │                       │                       │ targets Functions     │
+│              │                       │                       │                       │                       │                       │ runtime '~4', and     │
+│              │                       │                       │                       │                       │                       │ uses managed identity │
+│              │                       │                       │                       │                       │                       │ (SystemAssigned,      │
+│              │                       │                       │                       │                       │                       │ UserAssigned).        │
+│              │                       │                       │                       │                       │                       │ Deployment signals:   │
+│              │                       │                       │                       │                       │                       │ AzureWebJobsStorage   │
+│              │                       │                       │                       │                       │                       │ as plain-text app     │
+│              │                       │                       │                       │                       │                       │ setting, 1 Key        │
+│              │                       │                       │                       │                       │                       │ Vault-backed          │
+│              │                       │                       │                       │                       │                       │ setting(s). Visible   │
+│              │                       │                       │                       │                       │                       │ posture: public       │
+│              │                       │                       │                       │                       │                       │ network access        │
+│              │                       │                       │                       │                       │                       │ Enabled, HTTPS-only   │
+│              │                       │                       │                       │                       │                       │ enabled, TLS 1.2,     │
+│              │                       │                       │                       │                       │                       │ FTPS Disabled, Always │
+│              │                       │                       │                       │                       │                       │ On enabled.           │
+└──────────────┴───────────────────────┴───────────────────────┴───────────────────────┴───────────────────────┴───────────────────────┴───────────────────────┘
+
+Takeaway: 1 Function Apps visible; 1 carry managed identity context, 0 show run-from-package deployment, and 1 include Key Vault-backed settings.
+

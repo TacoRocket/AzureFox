@@ -1,0 +1,13 @@
+                                                                          azurefox vms                                                                          
+┏━━━━━━━━━━━┳━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ asset     ┃ type ┃ public ips   ┃ private ips ┃ identities                                                                                                   ┃
+┡━━━━━━━━━━━╇━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ vm-web-01 │ vm   │ 52.160.10.20 │ 10.0.1.4    │ /subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ManagedI… │
+└───────────┴──────┴──────────────┴─────────────┴──────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Findings:
+- MEDIUM: Public workload with attached identity
+  Workload 'vm-web-01' has public IP exposure and one or more managed identities. Validate identity privileges and ingress hardening.
+
+Takeaway: 1 compute assets visible; 1 have public IP exposure.
+

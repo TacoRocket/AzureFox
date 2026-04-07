@@ -1,0 +1,37 @@
+                                                                    azurefox snapshots-disks                                                                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ asset                  ┃ kind     ┃ priority               ┃ attachment / source   ┃ sharing / export       ┃ encryption            ┃ why it matters         ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ data-detached-legacy   │ disk     │ detached, public-net,  │ detached              │ policy=AllowAll;       │ type=EncryptionAtRes… │ Detached managed disk; │
+│                        │          │ allow-all, shared=3,   │                       │ public=Enabled;        │ des=no; size=512g     │ public network         │
+│                        │          │ disk-access            │                       │ max-shares=3;          │                       │ Enabled, network       │
+│                        │          │                        │                       │ disk-access=yes        │                       │ access AllowAll, max   │
+│                        │          │                        │                       │                        │                       │ shares 3, disk access  │
+│                        │          │                        │                       │                        │                       │ resource visible;      │
+│                        │          │                        │                       │                        │                       │ encryption posture:    │
+│                        │          │                        │                       │                        │                       │ EncryptionAtRestWithP… │
+│ data-detached-legacy-… │ snapshot │ offline-copy,          │ source=data-detached… │ policy=AllowAll;       │ type=EncryptionAtRes… │ Snapshot of            │
+│                        │          │ public-net, allow-all, │ incremental=yes       │ public=Enabled;        │ des=no; size=512g     │ data-detached-legacy;  │
+│                        │          │ disk-access            │                       │ disk-access=yes        │                       │ incremental copy path  │
+│                        │          │                        │                       │                        │                       │ visible; public        │
+│                        │          │                        │                       │                        │                       │ network Enabled,       │
+│                        │          │                        │                       │                        │                       │ network access         │
+│                        │          │                        │                       │                        │                       │ AllowAll, disk access  │
+│                        │          │                        │                       │                        │                       │ resource visible;      │
+│                        │          │                        │                       │                        │                       │ encryption posture:    │
+│                        │          │                        │                       │                        │                       │ EncryptionAtRestWithP… │
+│ vm-web-01-os-snap      │ snapshot │ offline-copy           │ source=vm-web-01-os;  │ policy=AllowPrivate;   │ type=EncryptionAtRes… │ Snapshot of            │
+│                        │          │                        │ incremental=yes       │ public=Disabled        │ des=yes; os=Linux;    │ vm-web-01-os;          │
+│                        │          │                        │                       │                        │ size=128g             │ incremental copy path  │
+│                        │          │                        │                       │                        │                       │ visible; public        │
+│                        │          │                        │                       │                        │                       │ network Disabled,      │
+│                        │          │                        │                       │                        │                       │ network access         │
+│                        │          │                        │                       │                        │                       │ AllowPrivate;          │
+│                        │          │                        │                       │                        │                       │ encryption posture:    │
+│                        │          │                        │                       │                        │                       │ EncryptionAtRestWithC… │
+│                        │          │                        │                       │                        │                       │ disk encryption set    │
+│                        │          │                        │                       │                        │                       │ linked.                │
+└────────────────────────┴──────────┴────────────────────────┴───────────────────────┴────────────────────────┴───────────────────────┴────────────────────────┘
+
+Takeaway: 3 disk-backed assets visible; 2 snapshots, 1 detached disk, and 2 show broader sharing or export posture.
+

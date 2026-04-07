@@ -60,6 +60,11 @@ from azurefox.permissions_hints import (
     permissions_operator_signal,
     permissions_summary,
 )
+from azurefox.role_trust_hints import (
+    role_trust_next_review_hint,
+    role_trust_operator_signal,
+    role_trust_summary,
+)
 
 
 def collect_whoami(provider: BaseProvider, options: GlobalOptions) -> WhoAmIOutput:
@@ -380,11 +385,13 @@ def collect_privesc(provider: BaseProvider, options: GlobalOptions) -> PrivescOu
 
 def collect_role_trusts(provider: BaseProvider, options: GlobalOptions) -> RoleTrustsOutput:
     data = provider.role_trusts(options.role_trusts_mode)
+    trusts = _enrich_role_trust_rows(data.get("trusts", []))
     trusts = sorted(
-        data.get("trusts", []),
+        trusts,
         key=lambda item: (
             str(item.get("confidence") or "").lower() != "confirmed",
             _role_trust_priority(item),
+            _role_trust_follow_on_rank(item.get("next_review")),
             item.get("source_name") or item.get("source_object_id") or "",
             item.get("target_name") or item.get("target_object_id") or "",
         ),
@@ -864,6 +871,17 @@ def _role_trust_priority(item: dict) -> tuple[int, int]:
     return trust_rank, evidence_rank
 
 
+def _role_trust_follow_on_rank(next_review: object) -> int:
+    text = str(next_review or "").lower()
+    if "check permissions" in text:
+        return 0
+    if "review ownership" in text:
+        return 1
+    if "check cross-tenant" in text:
+        return 2
+    return 3
+
+
 def _storage_priority_rank(item: dict) -> tuple[int, int, int, int, int, int]:
     public_access_rank = 0 if item.get("public_access") else 1
 
@@ -1231,6 +1249,43 @@ def _enrich_permission_rows(permissions: list[dict], principals: list[dict]) -> 
         enriched.append(item)
 
     return sorted(enriched, key=_permission_row_sort_key)
+
+
+def _enrich_role_trust_rows(trusts: list[dict]) -> list[dict]:
+    enriched: list[dict] = []
+
+    for trust in trusts:
+        item = dict(trust)
+        trust_type = str(item.get("trust_type") or "")
+        source_name = item.get("source_name")
+        target_name = item.get("target_name")
+        summary = str(item.get("summary") or "")
+
+        item["operator_signal"] = role_trust_operator_signal(
+            trust_type=trust_type,
+            source_name=source_name,
+            target_name=target_name,
+            summary=summary,
+        )
+        item["next_review"] = role_trust_next_review_hint(
+            trust_type=trust_type,
+            source_name=source_name,
+            source_object_id=item.get("source_object_id") or "unknown",
+            target_name=target_name,
+            target_object_id=item.get("target_object_id") or "unknown",
+            target_type=str(item.get("target_type") or "identity"),
+            summary=summary,
+        )
+        item["summary"] = role_trust_summary(
+            trust_type=trust_type,
+            source_name=source_name,
+            target_name=target_name,
+            summary=summary,
+            next_review=item["next_review"],
+        )
+        enriched.append(item)
+
+    return enriched
 
 
 def _permission_row_sort_key(item: dict) -> tuple[bool, int, int, int, int, str, str]:
