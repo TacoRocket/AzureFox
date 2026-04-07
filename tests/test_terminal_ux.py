@@ -64,8 +64,7 @@ def test_lighthouse_table_mode_surfaces_cross_tenant_scope_and_access(tmp_path: 
     assert result.exit_code == 0
     assert (
         "Reviewing Azure Lighthouse delegations for cross-tenant management scope and "
-        "high-impact access cues."
-        in result.stdout
+        "high-impact access cues." in result.stdout
     )
     assert "managing tenant" in result.stdout
     assert "managed tenant" in result.stdout
@@ -92,8 +91,7 @@ def test_cross_tenant_table_mode_surfaces_control_pivot_and_policy_cues(tmp_path
     assert result.exit_code == 0
     assert (
         "Reviewing outside-tenant trust, delegated management, and tenant policy cues that most "
-        "change control or pivot paths."
-        in result.stdout
+        "change control or pivot paths." in result.stdout
     )
     assert "control via lighthouse" in result.stdout
     assert "pivot via external-sp" in result.stdout
@@ -128,8 +126,7 @@ def test_automation_table_mode_surfaces_identity_worker_and_asset_cues(tmp_path:
     assert result.exit_code == 0
     assert (
         "Reviewing Azure Automation accounts for identity, execution, webhook, worker, "
-        "and secure-asset posture."
-        in result.stdout
+        "and secure-asset posture." in result.stdout
     )
     assert "automation account" in result.stdout
     assert "aa-hybrid-prod" in result.stdout
@@ -155,22 +152,28 @@ def test_devops_table_mode_surfaces_named_change_paths(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert (
-        "Reviewing Azure DevOps build definitions for named Azure change paths, "
-        "secret-bearing support, and trigger posture."
-        in result.stdout
+        "Reviewing Azure DevOps build definitions for trusted source inputs, visible injection "
+        "surfaces, and Azure-facing change paths." in result.stdout
     )
     assert "project" in result.stdout
     assert "pipeline" in result.stdout
+    assert "source" in result.stdout
+    assert "execution path" in result.stdout
+    assert "injection" in result.stdout
+    assert "control path" in result.stdout
+    assert "impact point" in result.stdout
     assert "next review" in result.stdout
     assert "deploy-aks-prod" in result.stdout
-    assert "AKS/Kubernetes" in result.stdout
-    assert "vault-backed" in result.stdout
-    assert "Check aks for" in result.stdout
+    assert "azure-repos" in result.stdout
+    assert "github" in result.stdout
+    assert "state=visible" in result.stdout
+    assert "why it matters" in result.stdout
     normalized_output = " ".join(result.stdout.split())
     assert (
-        "Takeaway: 3 Azure DevOps build definition(s) surfaced; 3 show Azure-facing service "
-        "connections, 2 carry secret-bearing variable support, 2 use Key Vault-backed groups, "
-        "and 3 are auto-triggered."
+        "Takeaway: 4 Azure DevOps build definition(s) surfaced; 1 expose a proven "
+        "current-credential injection point, 1 add queue-only support without poisoning proof, "
+        "3 point to visible Azure Repos sources, 1 point to external sources, 1 trust non-repo "
+        "inputs, and 4 show Azure-facing service connections."
     ) in normalized_output
 
 
@@ -184,8 +187,7 @@ def test_app_services_table_mode_surfaces_runtime_and_posture(tmp_path: Path) ->
     assert result.exit_code == 0
     assert (
         "Reviewing App Service runtime, hostname, identity, and ingress cues that change "
-        "follow-on paths."
-        in result.stdout
+        "follow-on paths." in result.stdout
     )
     assert "app service" in result.stdout
     assert "DOTNETCORE|8.0" in result.stdout
@@ -208,8 +210,7 @@ def test_acr_table_mode_surfaces_login_server_and_posture(tmp_path: Path) -> Non
     assert result.exit_code == 0
     assert (
         "Reviewing Azure Container Registry login, auth, network, and registry "
-        "automation/trust cues."
-        in result.stdout
+        "automation/trust cues." in result.stdout
     )
     assert "registry" in result.stdout
     assert "acr-public-legacy" in result.stdout
@@ -241,8 +242,7 @@ def test_databases_table_mode_surfaces_server_inventory_and_posture(tmp_path: Pa
     assert result.exit_code == 0
     assert (
         "Reviewing relational database server posture across Azure SQL, PostgreSQL Flexible, "
-        "and MySQL Flexible."
-        in result.stdout
+        "and MySQL Flexible." in result.stdout
     )
     assert "server" in result.stdout
     assert "pg-public-legacy" in result.stdout
@@ -275,8 +275,7 @@ def test_snapshots_disks_table_mode_surfaces_priority_first_targets(tmp_path: Pa
     assert result.exit_code == 0
     assert (
         "Reviewing managed disks and snapshots for offline-copy, sharing/export, and "
-        "encryption posture with highest-value targets first."
-        in result.stdout
+        "encryption posture with highest-value targets first." in result.stdout
     )
     assert "priority" in result.stdout
     assert "data-detached-legacy" in result.stdout
@@ -351,8 +350,7 @@ def test_dns_table_mode_surfaces_zone_inventory_and_namespace_context(tmp_path: 
 
     assert result.exit_code == 0
     assert (
-        "Reviewing public and private DNS zone inventory and namespace boundaries."
-        in result.stdout
+        "Reviewing public and private DNS zone inventory and namespace boundaries." in result.stdout
     )
     assert "zone" in result.stdout
     assert "corp.example.com" in result.stdout
@@ -362,8 +360,7 @@ def test_dns_table_mode_surfaces_zone_inventory_and_namespace_context(tmp_path: 
     assert "pe-refs=2" in result.stdout
     assert (
         "Takeaway: 3 DNS zones visible; 2 public, 1 private, 1 private zone(s) show visible "
-        "private endpoint references, and 19 record sets are visible."
-        in result.stdout
+        "private endpoint references, and 19 record sets are visible." in result.stdout
     )
 
 
@@ -377,8 +374,7 @@ def test_vmss_table_mode_surfaces_identity_and_frontend_cues(tmp_path: Path) -> 
     assert result.exit_code == 0
     assert (
         "Reviewing Virtual Machine Scale Sets (VMSS) for fleet posture, identity, and "
-        "frontend network cues."
-        in result.stdout
+        "frontend network cues." in result.stdout
     )
     assert "scale set" in result.stdout
     assert "location" in result.stdout
@@ -405,8 +401,7 @@ def test_aks_table_mode_surfaces_endpoint_and_auth_posture(tmp_path: Path) -> No
     assert result.exit_code == 0
     assert (
         "Reviewing AKS control-plane endpoint, identity, auth posture, and Azure-side "
-        "federation and addon cues."
-        in result.stdout
+        "federation and addon cues." in result.stdout
     )
     assert "cluster" in result.stdout
     assert "aks-public-legacy" in result.stdout
@@ -438,8 +433,7 @@ def test_api_mgmt_table_mode_surfaces_gateway_and_inventory(tmp_path: Path) -> N
     assert result.exit_code == 0
     assert (
         "Reviewing API Management gateway hostnames, identity, subscription, backend, and "
-        "secret posture."
-        in result.stdout
+        "secret posture." in result.stdout
     )
     assert "service" in result.stdout
     assert "apim-edge-01" in result.stdout
@@ -605,8 +599,7 @@ def test_network_effective_table_mode_surfaces_prioritized_reachability(
     assert "TCP/22" in result.stdout
     assert "TCP/443" in result.stdout
     assert (
-        "Takeaway: 1 public-IP exposure summaries visible; 1 high, 0 medium, 0 low"
-        in result.stdout
+        "Takeaway: 1 public-IP exposure summaries visible; 1 high, 0 medium, 0 low" in result.stdout
     )
 
 
@@ -733,11 +726,15 @@ def test_deployment_chains_table_mode_surfaces_source_oriented_columns(tmp_path:
     assert "why care" in result.stdout
     assert "deploy-aks-prod" in result.stdout
     assert "deploy-appservice-prod" in result.stdout
+    assert "deploy-artifact-app-p" in result.stdout
     assert "plan-infra-prod" in result.stdout
     assert "aa-hybrid-prod" in result.stdout
-    assert "Review the narrowed" in normalized_output
-    assert "Azure service connection" in normalized_output
-    assert "managed identity" in normalized_output
+    assert "aa-lab-quiet" in result.stdout
+    assert "path type" in result.stdout
+    assert "confidence boundary" in result.stdout
+    assert "trusted input" in normalized_output
+    assert "execution hub" in normalized_output
+    assert "secret-backed support" in normalized_output
 
 
 def test_auth_policies_partial_read_surfaces_collection_issue() -> None:
@@ -880,9 +877,7 @@ def test_acr_partial_replication_read_stays_explicit_in_takeaway() -> None:
             {
                 "kind": "permission_denied",
                 "message": "acr[rg-containers/acr-public-legacy].replications: 403 Forbidden",
-                "context": {
-                    "collector": "acr[rg-containers/acr-public-legacy].replications"
-                },
+                "context": {"collector": "acr[rg-containers/acr-public-legacy].replications"},
             }
         ],
     }

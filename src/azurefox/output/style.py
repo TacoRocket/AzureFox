@@ -15,8 +15,8 @@ COMMAND_NARRATION = {
         "and secure-asset posture."
     ),
     "devops": (
-        "Reviewing Azure DevOps build definitions for named Azure change paths, "
-        "secret-bearing support, and trigger posture."
+        "Reviewing Azure DevOps build definitions for trusted source inputs, visible injection "
+        "surfaces, and Azure-facing change paths."
     ),
     "app-services": (
         "Reviewing App Service runtime, hostname, identity, and ingress cues "

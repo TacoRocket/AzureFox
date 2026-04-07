@@ -22,7 +22,9 @@ def test_devops_pipeline_with_service_connection_is_change_capable() -> None:
     assessment = assess_deployment_source(pipeline)
 
     assert assessment.posture == "can already change Azure here"
+    assert assessment.path_concept == "controllable-change-path"
     assert "azure-service-connection" in assessment.change_signals
+    assert "redeploy-workload" in assessment.consequence_types
     assert assessment.target_family_hints == ("aks",)
 
 
@@ -42,6 +44,7 @@ def test_devops_pipeline_with_only_secret_support_is_not_change_capable() -> Non
     assessment = assess_deployment_source(pipeline)
 
     assert assessment.posture == "stores secrets here"
+    assert assessment.path_concept == "secret-escalation-support"
     assert "secret-variables" in assessment.secret_support_signals
     assert "keyvault-backed-support" in assessment.secret_support_signals
 
@@ -52,9 +55,11 @@ def test_automation_account_with_identity_and_execution_surface_is_change_capabl
     assessment = assess_deployment_source(account)
 
     assert assessment.posture == "can already change Azure here"
+    assert assessment.path_concept == "execution-hub"
     assert "managed-identity" in assessment.change_signals
     assert "published-runbooks" in assessment.change_signals
-    assert "webhook-execution" in assessment.change_signals
+    assert "webhook-start" in assessment.change_signals
+    assert "run-recurring-execution" in assessment.consequence_types
 
 
 def test_automation_account_without_identity_stays_secret_support_only() -> None:
@@ -106,7 +111,7 @@ def test_exact_named_match_survives_visibility_issue() -> None:
     assert admission.state == "named match"
 
 
-def test_secret_support_source_does_not_admit_named_match_rows() -> None:
+def test_secret_support_source_without_consequence_grounding_stays_blocked() -> None:
     source = assess_deployment_source(
         DevopsPipelineAsset(
             id="devops/pipeline/release-secrets-only",
@@ -129,7 +134,79 @@ def test_secret_support_source_does_not_admit_named_match_rows() -> None:
 
     assert admission.admitted is False
     assert admission.state == "blocked"
-    assert "secret-bearing support alone" in admission.reason
+    assert "defended Azure impact point" in admission.reason
+
+
+def test_secret_support_source_admits_visibility_blocked_rows_when_mapping_is_missing() -> None:
+    source = assess_deployment_source(
+        AutomationAccountAsset(
+            id="automation/account/quiet-secret-support",
+            name="quiet-secret-support",
+            encrypted_variable_count=1,
+            connection_count=1,
+            consequence_types=["consume-secret-backed-deployment-material"],
+            missing_execution_path=False,
+            missing_target_mapping=True,
+            summary="Secret-backed support exists but target mapping is missing.",
+        )
+    )
+
+    admission = admit_deployment_path_row(source)
+
+    assert admission.admitted is True
+    assert admission.state == "visibility blocked"
+    assert "stronger target mapping" in admission.reason
+
+
+def test_missing_execution_path_blocks_deployment_row_even_with_target_hints() -> None:
+    source = assess_deployment_source(
+        DevopsPipelineAsset(
+            id="devops/pipeline/missing-foothold",
+            definition_id="109",
+            name="missing-foothold",
+            project_name="prod-platform",
+            azure_service_connection_names=["prod-subscription"],
+            target_clues=["App Service"],
+            consequence_types=["redeploy-workload"],
+            missing_execution_path=True,
+            summary="Target hints exist, but no visible execution foothold is exposed.",
+        )
+    )
+
+    admission = admit_deployment_path_row(
+        source,
+        narrowed_candidate_count=2,
+        confirmation_basis="name-only-inference",
+    )
+
+    assert admission.admitted is False
+    assert admission.state == "blocked"
+    assert "execution foothold" in admission.reason
+
+
+def test_visible_edit_or_queue_foothold_can_keep_deployment_row_admissible() -> None:
+    source = assess_deployment_source(
+        DevopsPipelineAsset(
+            id="devops/pipeline/manual-but-actionable",
+            definition_id="110",
+            name="manual-but-actionable",
+            project_name="prod-platform",
+            azure_service_connection_names=["prod-subscription"],
+            target_clues=["App Service"],
+            consequence_types=["redeploy-workload"],
+            missing_execution_path=False,
+            summary="Current credentials can still queue or edit this manual definition.",
+        )
+    )
+
+    admission = admit_deployment_path_row(
+        source,
+        narrowed_candidate_count=1,
+        confirmation_basis="name-only-inference",
+    )
+
+    assert admission.admitted is True
+    assert admission.state == "narrowed candidates"
 
 
 def test_arm_deployment_provider_hints_narrow_to_supported_workload_families() -> None:
@@ -181,9 +258,9 @@ def _load_devops_pipeline(name: str) -> DevopsPipelineAsset:
 
 def _load_automation_account(name: str) -> AutomationAccountAsset:
     payload = json.loads(
-        (
-            Path(__file__).resolve().parent / "fixtures" / "lab_tenant" / "automation.json"
-        ).read_text(encoding="utf-8")
+        (Path(__file__).resolve().parent / "fixtures" / "lab_tenant" / "automation.json").read_text(
+            encoding="utf-8"
+        )
     )
     for item in payload["automation_accounts"]:
         if item["name"] == name:

@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 from rich.console import Console
 from rich.table import Table
 
-from azurefox.devops_hints import devops_next_review_hint
+from azurefox.devops_hints import describe_trusted_input, devops_next_review_hint
 from azurefox.env_var_hints import env_var_next_review_hint
 from azurefox.tokens_credential_hints import tokens_credential_next_review_hint
 
@@ -16,19 +16,22 @@ def render_table(command: str, payload: dict) -> str:
     sio = StringIO()
     console = Console(file=sio, force_terminal=False, color_system=None, width=160)
 
-    columns, records = _table_spec(command, payload)
-    table = Table(title=f"azurefox {command}")
-
-    if not records:
-        table.add_column("info")
-        table.add_row("No records")
+    if command == "devops":
+        _render_devops_table(console, payload)
     else:
-        for _key, label in columns:
-            table.add_column(label)
-        for record in records:
-            table.add_row(*[_value_to_string(record.get(key)) for key, _ in columns])
+        columns, records = _table_spec(command, payload)
+        table = Table(title=f"azurefox {command}")
 
-    console.print(table)
+        if not records:
+            table.add_column("info")
+            table.add_row("No records")
+        else:
+            for _key, label in columns:
+                table.add_column(label)
+            for record in records:
+                table.add_row(*[_value_to_string(record.get(key)) for key, _ in columns])
+
+        console.print(table)
 
     findings = payload.get("findings", [])
     if findings:
@@ -59,6 +62,32 @@ def render_table(command: str, payload: dict) -> str:
         console.print(f"Takeaway: {takeaway}")
 
     return sio.getvalue()
+
+
+def _render_devops_table(console: Console, payload: dict) -> None:
+    columns, records = _table_spec("devops", payload)
+    display_columns = [item for item in columns if item[0] != "why_it_matters"]
+
+    if not records:
+        table = Table(title="azurefox devops")
+        table.add_column("info")
+        table.add_row("No records")
+        console.print(table)
+        return
+
+    for index, record in enumerate(records):
+        table = Table(title="azurefox devops" if index == 0 else None)
+        for _key, label in display_columns:
+            table.add_column(label)
+        table.add_row(*[_value_to_string(record.get(key)) for key, _ in display_columns])
+        console.print(table)
+        if record.get("why_it_matters"):
+            detail = Table(expand=True)
+            detail.add_column("why it matters")
+            detail.add_row(_value_to_string(record.get("why_it_matters")))
+            console.print(detail)
+        if index != len(records) - 1:
+            console.print("")
 
 
 def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], list[dict]]:
@@ -135,11 +164,12 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             [
                 ("project_name", "project"),
                 ("name", "pipeline"),
-                ("repository", "repo"),
-                ("triggers", "triggers"),
-                ("azure_access", "azure access"),
+                ("repository", "source"),
+                ("triggers", "execution path"),
+                ("injection", "injection"),
+                ("azure_access", "control path"),
                 ("secret_support", "secret support"),
-                ("target_clues", "target clues"),
+                ("target_clues", "impact point"),
                 ("next_review", "next review"),
                 ("why_it_matters", "why it matters"),
             ],
@@ -149,6 +179,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     "name": item.get("name"),
                     "repository": _devops_repository_context(item),
                     "triggers": _devops_trigger_context(item),
+                    "injection": _devops_injection_context(item),
                     "azure_access": _devops_access_context(item),
                     "secret_support": _devops_secret_context(item),
                     "target_clues": _devops_target_context(item),
@@ -489,20 +520,21 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                 [
                     ("priority", "priority"),
                     ("asset_name", "source"),
+                    ("path_concept", "path type"),
                     ("why_care", "why care"),
-                    ("target_service", "target"),
-                    ("target_resolution", "target resolution"),
-                    ("target_names", "visible targets"),
+                    ("likely_impact", "likely azure impact"),
+                    ("confidence_boundary", "confidence boundary"),
                     ("next_review", "next review"),
                 ],
                 [
                     {
                         "priority": item.get("priority"),
                         "asset_name": item.get("asset_name"),
+                        "path_concept": _deployment_path_type(item),
                         "why_care": item.get("why_care") or item.get("asset_kind"),
-                        "target_service": item.get("target_service"),
-                        "target_resolution": item.get("target_resolution"),
-                        "target_names": _chains_target_context(item),
+                        "likely_impact": item.get("likely_impact") or _chains_target_context(item),
+                        "confidence_boundary": item.get("confidence_boundary")
+                        or _chains_note(item, family=family),
                         "next_review": item.get("next_review"),
                     }
                     for item in payload.get("paths", [])
@@ -647,9 +679,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                         or "-"
                     ),
                     "managed_tenant": (
-                        item.get("managee_tenant_name")
-                        or item.get("managee_tenant_id")
-                        or "-"
+                        item.get("managee_tenant_name") or item.get("managee_tenant_id") or "-"
                     ),
                     "access": _lighthouse_access_context(item),
                     "state": _lighthouse_state_context(item),
@@ -1089,8 +1119,7 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         assets = payload.get("storage_assets", [])
         public_assets = sum(bool(item.get("public_access")) for item in assets)
         public_network_assets = sum(
-            str(item.get("public_network_access") or "").lower() == "enabled"
-            for item in assets
+            str(item.get("public_network_access") or "").lower() == "enabled" for item in assets
         )
         shared_key_assets = sum(item.get("allow_shared_key_access") is True for item in assets)
         public_network_unreadable = sum(
@@ -1207,22 +1236,36 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
 
     if command == "devops":
         pipelines = payload.get("pipelines", [])
-        auto_triggered = sum(
-            {
-                str(trigger).lower() for trigger in item.get("trigger_types", [])
-            }
-            & {"continuousintegration", "schedule", "pullrequest"}
-            != set()
+        proven_injection = sum(
+            bool(item.get("current_operator_injection_surface_types")) for item in pipelines
+        )
+        queue_only = sum(
+            bool(item.get("current_operator_can_queue"))
+            and not bool(item.get("current_operator_injection_surface_types"))
+            for item in pipelines
+        )
+        non_repo_trust = sum(
+            any(str(value) != "repository" for value in (item.get("trusted_input_types") or []))
             for item in pipelines
         )
         azure_paths = sum(bool(item.get("azure_service_connection_names")) for item in pipelines)
-        secret_support = sum((item.get("secret_variable_count") or 0) > 0 for item in pipelines)
-        key_vault_backed = sum(bool(item.get("key_vault_group_names")) for item in pipelines)
+        visible_azure_repos = sum(
+            item.get("repository_host_type") == "azure-repos"
+            and item.get("source_visibility_state") == "visible"
+            for item in pipelines
+        )
+        external_sources = sum(
+            str(item.get("source_visibility_state") or "") == "external-reference"
+            for item in pipelines
+        )
         return (
             f"{len(pipelines)} Azure DevOps build definition(s) surfaced; "
-            f"{azure_paths} show Azure-facing service connections, {secret_support} "
-            f"carry secret-bearing variable support, {key_vault_backed} use Key Vault-backed "
-            f"groups, and {auto_triggered} are auto-triggered."
+            f"{proven_injection} expose a proven current-credential injection point, "
+            f"{queue_only} add queue-only support without poisoning proof, "
+            f"{visible_azure_repos} "
+            f"point to visible Azure Repos sources, {external_sources} point to external "
+            f"sources, {non_repo_trust} trust non-repo inputs, and {azure_paths} show "
+            f"Azure-facing service connections."
         )
 
     if command == "app-services":
@@ -1242,8 +1285,7 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
     if command == "acr":
         registries = payload.get("registries", [])
         public_network = sum(
-            str(item.get("public_network_access") or "").lower() == "enabled"
-            for item in registries
+            str(item.get("public_network_access") or "").lower() == "enabled" for item in registries
         )
         admin_auth = sum(item.get("admin_user_enabled") is True for item in registries)
         webhook_counts = [item.get("webhook_count") for item in registries]
@@ -1336,8 +1378,7 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
                 )
             else:
                 record_phrase = (
-                    "current credentials do not show record-set totals on at least one "
-                    "visible zone"
+                    "current credentials do not show record-set totals on at least one visible zone"
                 )
         else:
             record_phrase = f"{readable_records} record sets are visible"
@@ -1363,8 +1404,7 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             for item in application_gateways
         )
         weak_public_gateways = sum(
-            (item.get("public_frontend_count") or 0) > 0
-            and _application_gateway_waf_rank(item) < 3
+            (item.get("public_frontend_count") or 0) > 0 and _application_gateway_waf_rank(item) < 3
             for item in application_gateways
         )
         return (
@@ -1378,8 +1418,7 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
     if command == "network-effective":
         effective_exposures = payload.get("effective_exposures", [])
         by_confidence = Counter(
-            str(item.get("effective_exposure") or "unknown").lower()
-            for item in effective_exposures
+            str(item.get("effective_exposure") or "unknown").lower() for item in effective_exposures
         )
         internet_exposed = sum(
             1 for item in effective_exposures if item.get("internet_exposed_ports")
@@ -1397,8 +1436,7 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         identities = sum(bool(item.get("cluster_identity_type")) for item in clusters)
         azure_rbac = sum(item.get("azure_rbac_enabled") is True for item in clusters)
         federation = sum(
-            item.get("oidc_issuer_enabled") is True
-            or item.get("workload_identity_enabled") is True
+            item.get("oidc_issuer_enabled") is True or item.get("workload_identity_enabled") is True
             for item in clusters
         )
         return (
@@ -1410,14 +1448,11 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
     if command == "api-mgmt":
         services = payload.get("api_management_services", [])
         public_network = sum(
-            str(item.get("public_network_access") or "").lower() == "enabled"
-            for item in services
+            str(item.get("public_network_access") or "").lower() == "enabled" for item in services
         )
         identities = sum(bool(item.get("workload_identity_type")) for item in services)
         named_value_counts = [item.get("named_value_count") for item in services]
-        readable_named_values = sum(
-            count for count in named_value_counts if isinstance(count, int)
-        )
+        readable_named_values = sum(count for count in named_value_counts if isinstance(count, int))
         if named_value_counts and any(count is None for count in named_value_counts):
             if readable_named_values:
                 named_value_phrase = (
@@ -1426,14 +1461,11 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
                 )
             else:
                 named_value_phrase = (
-                    "current credentials do not show named values on at least one "
-                    "visible service"
+                    "current credentials do not show named values on at least one visible service"
                 )
         else:
             named_value_phrase = f"{readable_named_values} named values are visible"
-        secret_named_value_counts = [
-            item.get("named_value_secret_count") for item in services
-        ]
+        secret_named_value_counts = [item.get("named_value_secret_count") for item in services]
         readable_secret_named_values = sum(
             count for count in secret_named_value_counts if isinstance(count, int)
         )
@@ -1525,7 +1557,6 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
     if command == "chains":
         paths = payload.get("paths", [])
         priorities = Counter(item.get("priority") or "unknown" for item in paths)
-        services = Counter(item.get("target_service") or "unknown" for item in paths)
         family = str(payload.get("family") or "chain")
         family_label = "credential paths"
         if family == "deployment-path":
@@ -1536,6 +1567,19 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         priority_counts = ", ".join(
             f"{priorities[name]} {name}" for name in priority_order if priorities.get(name)
         )
+        if family == "deployment-path":
+            concepts = Counter(item.get("path_concept") or "unknown" for item in paths)
+            concept_counts = ", ".join(
+                f"{count} {_deployment_path_type({'path_concept': name})}"
+                for name, count in concepts.items()
+                if name != "unknown"
+            )
+            return (
+                f"{len(paths)} visible {family_label}; "
+                f"{priority_counts or 'no ranked paths'}, "
+                f"{concept_counts or 'no source-side actionability story'}."
+            )
+        services = Counter(item.get("target_service") or "unknown" for item in paths)
         counts = ", ".join(f"{count} {name}" for name, count in sorted(services.items()))
         return (
             f"{len(paths)} visible {family_label}; "
@@ -1663,9 +1707,7 @@ def _env_var_next_review(item: dict) -> str:
             str(item.get("reference_target")) if item.get("reference_target") else None
         ),
         workload_identity_type=(
-            str(item.get("workload_identity_type"))
-            if item.get("workload_identity_type")
-            else None
+            str(item.get("workload_identity_type")) if item.get("workload_identity_type") else None
         ),
     )
 
@@ -1688,6 +1730,16 @@ def _chains_target_context(item: dict) -> str:
     if target_count:
         return f"{target_count} visible target(s)"
     return "none joined"
+
+
+def _deployment_path_type(item: dict) -> str:
+    concept = str(item.get("path_concept") or "")
+    labels = {
+        "controllable-change-path": "controllable change path",
+        "execution-hub": "execution hub",
+        "secret-escalation-support": "secret-backed support",
+    }
+    return labels.get(concept, concept or "-")
 
 
 def _chains_note(item: dict, *, family: str = "") -> str:
@@ -2348,9 +2400,7 @@ def _vmss_rollout_context(item: dict) -> str:
     if item.get("upgrade_mode"):
         parts.append(f"upgrade={item.get('upgrade_mode')}")
     if item.get("single_placement_group") is not None:
-        parts.append(
-            "spg=yes" if item.get("single_placement_group") else "spg=no"
-        )
+        parts.append("spg=yes" if item.get("single_placement_group") else "spg=no")
     if item.get("overprovision") is not None:
         parts.append("overprov=yes" if item.get("overprovision") else "overprov=no")
     if not parts:
@@ -2513,40 +2563,87 @@ def _keyvault_default_action_text(item: dict) -> str | None:
 
 
 def _devops_repository_context(item: dict) -> str:
+    primary_input = _devops_primary_trusted_input(item)
+    trusted_inputs = [
+        value for value in item.get("trusted_inputs") or [] if isinstance(value, dict)
+    ]
+    if primary_input is not None:
+        parts = [
+            "primary="
+            + describe_trusted_input(
+                input_type=str(primary_input.get("input_type") or "") or None,
+                ref=str(primary_input.get("ref") or "") or None,
+            )
+        ]
+        if primary_input.get("visibility_state"):
+            parts.append(f"state={primary_input.get('visibility_state')}")
+        if primary_input.get("current_operator_access_state"):
+            parts.append(f"current={primary_input.get('current_operator_access_state')}")
+        if len(trusted_inputs) > 1:
+            parts.append(f"extra={len(trusted_inputs) - 1}")
+        return "; ".join(parts)
+
+    repo_host = item.get("repository_host_type")
+    visibility = item.get("source_visibility_state")
     repo_name = item.get("repository_name")
     default_branch = item.get("default_branch")
-    repo_type = item.get("repository_type")
+    can_view = item.get("current_operator_can_view_source")
+    can_contribute = item.get("current_operator_can_contribute_source")
 
     parts: list[str] = []
+    if repo_host:
+        parts.append(str(repo_host))
     if repo_name:
         repo_label = str(repo_name)
         if default_branch:
             repo_label = f"{repo_label}@{default_branch}"
         parts.append(repo_label)
-    if repo_type:
-        parts.append(str(repo_type))
+    if visibility:
+        parts.append(f"state={visibility}")
+    if isinstance(can_view, bool) or isinstance(can_contribute, bool):
+        parts.append(
+            f"current=read={_tri_state_text(can_view)},write={_tri_state_text(can_contribute)}"
+        )
     return "; ".join(parts) if parts else "-"
 
 
 def _devops_trigger_context(item: dict) -> str:
-    trigger_types = item.get("trigger_types") or []
-    risk_cues = item.get("risk_cues") or []
+    execution_modes = item.get("execution_modes") or []
+    upstream_sources = item.get("upstream_sources") or []
 
     parts: list[str] = []
-    if trigger_types:
-        parts.append(",".join(str(value) for value in trigger_types))
-    auto_cues = [cue for cue in risk_cues if "trigger" in str(cue)]
-    if auto_cues:
-        parts.append(",".join(str(value) for value in auto_cues))
+    if execution_modes:
+        parts.append("modes=" + ",".join(str(value) for value in execution_modes))
+    if upstream_sources:
+        parts.append("from=" + ",".join(str(value) for value in upstream_sources))
     return "; ".join(parts) if parts else "manual-or-unreadable"
+
+
+def _devops_injection_context(item: dict) -> str:
+    visible = item.get("injection_surface_types") or []
+    current = item.get("current_operator_injection_surface_types") or []
+    parts: list[str] = []
+    if item.get("primary_injection_surface"):
+        parts.append("primary=" + str(item.get("primary_injection_surface")))
+    if visible:
+        parts.append("visible=" + ",".join(str(value) for value in visible))
+    if current:
+        parts.append("current=" + ",".join(str(value) for value in current))
+    elif item.get("missing_injection_point"):
+        parts.append("current=unproven")
+    return "; ".join(parts) if parts else "-"
 
 
 def _devops_access_context(item: dict) -> str:
     names = item.get("azure_service_connection_names") or []
     auth_schemes = item.get("azure_service_connection_auth_schemes") or []
     endpoint_types = item.get("azure_service_connection_types") or []
+    can_queue = item.get("current_operator_can_queue")
+    can_edit = item.get("current_operator_can_edit")
 
     parts: list[str] = []
+    if isinstance(can_queue, bool) or isinstance(can_edit, bool):
+        parts.append(f"current=queue={_tri_state_text(can_queue)},edit={_tri_state_text(can_edit)}")
     if names:
         parts.append("conn=" + ",".join(str(value) for value in names))
     if auth_schemes:
@@ -2558,6 +2655,13 @@ def _devops_access_context(item: dict) -> str:
 
 def _devops_secret_context(item: dict) -> str:
     parts: list[str] = []
+    support_types = [
+        str(value)
+        for value in item.get("secret_support_types") or []
+        if str(value) != "variable-groups"
+    ]
+    if support_types:
+        parts.append("types=" + ",".join(support_types))
     if item.get("variable_group_names"):
         parts.append("groups=" + ",".join(str(value) for value in item["variable_group_names"]))
     if item.get("secret_variable_count"):
@@ -2571,17 +2675,18 @@ def _devops_secret_context(item: dict) -> str:
 
 def _devops_target_context(item: dict) -> str:
     clues = item.get("target_clues") or []
-    risk_cues = item.get("risk_cues") or []
+    consequences = item.get("consequence_types") or []
 
     parts: list[str] = []
+    if consequences:
+        parts.append("consequence=" + ",".join(str(value) for value in consequences))
     if clues:
-        parts.append(",".join(str(value) for value in clues))
-    if risk_cues:
-        parts.append("risk=" + ",".join(str(value) for value in risk_cues))
+        parts.append("clue=" + ",".join(str(value) for value in clues))
     return "; ".join(parts) if parts else "-"
 
 
 def _devops_next_review(item: dict) -> str:
+    primary_input = _devops_primary_trusted_input(item)
     return devops_next_review_hint(
         target_clues=[str(value) for value in item.get("target_clues") or []],
         key_vault_names=[str(value) for value in item.get("key_vault_names") or []],
@@ -2590,11 +2695,47 @@ def _devops_next_review(item: dict) -> str:
             str(value) for value in item.get("azure_service_connection_names") or []
         ],
         partial_read=bool(item.get("partial_read")),
+        current_operator_can_queue=item.get("current_operator_can_queue"),
+        current_operator_can_edit=item.get("current_operator_can_edit"),
+        current_operator_can_contribute_source=item.get("current_operator_can_contribute_source"),
+        current_operator_injection_surface_types=[
+            str(value) for value in item.get("current_operator_injection_surface_types") or []
+        ],
+        primary_trusted_input_type=(
+            str(primary_input.get("input_type")) if primary_input else None
+        ),
+        primary_trusted_input_ref=(str(primary_input.get("ref")) if primary_input else None),
+        primary_injection_surface=str(item.get("primary_injection_surface") or "") or None,
+        primary_trusted_input_access_state=(
+            str(primary_input.get("current_operator_access_state"))
+            if primary_input and primary_input.get("current_operator_access_state")
+            else None
+        ),
+        repository_host_type=str(item.get("repository_host_type") or "") or None,
+        source_visibility_state=str(item.get("source_visibility_state") or "") or None,
     )
+
+
+def _devops_primary_trusted_input(item: dict) -> dict | None:
+    trusted_inputs = [
+        value for value in item.get("trusted_inputs") or [] if isinstance(value, dict)
+    ]
+    primary_ref = str(item.get("primary_trusted_input_ref") or "") or None
+    if primary_ref:
+        for trusted_input in trusted_inputs:
+            if str(trusted_input.get("ref") or "") == primary_ref:
+                return trusted_input
+    return trusted_inputs[0] if trusted_inputs else None
 
 
 def _bool_text(value: bool) -> str:
     return "yes" if value else "no"
+
+
+def _tri_state_text(value: bool | None) -> str:
+    if value is None:
+        return "unknown"
+    return _bool_text(value)
 
 
 def _value_to_string(value: object) -> str:

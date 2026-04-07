@@ -4,16 +4,16 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
-from azurefox.chains.registry import (
-    GROUPED_COMMAND_NAME,
-    PREFERRED_ARTIFACT_ORDER,
-    get_chain_family_spec,
-)
 from azurefox.chains.deployment_path import (
     DeploymentSourceAssessment,
     admit_deployment_path_row,
     assess_deployment_source,
     target_family_hints_from_arm_deployment,
+)
+from azurefox.chains.registry import (
+    GROUPED_COMMAND_NAME,
+    PREFERRED_ARTIFACT_ORDER,
+    get_chain_family_spec,
 )
 from azurefox.chains.semantics import (
     ChainSemanticContext,
@@ -22,6 +22,7 @@ from azurefox.chains.semantics import (
 )
 from azurefox.collectors.provider import BaseProvider
 from azurefox.config import GlobalOptions
+from azurefox.devops_hints import describe_trusted_input
 from azurefox.env_var_hints import env_var_target_service
 from azurefox.models.chains import (
     ChainPathRecord,
@@ -169,10 +170,7 @@ def _build_credential_path_output(
     family = get_chain_family_spec(family_name)
     assert family is not None  # pragma: no cover - guarded above
 
-    loaded = {
-        source.command: _load_source_output(source)
-        for source in source_artifacts
-    }
+    loaded = {source.command: _load_source_output(source) for source in source_artifacts}
     env_output = loaded["env-vars"]
     token_output = loaded["tokens-credentials"]
     database_output = loaded["databases"]
@@ -370,8 +368,7 @@ def _build_deployment_path_output(
                 source_command="devops",
                 source_context=pipeline.project_name,
                 asset_kind="DevOpsPipeline",
-                clue_type="azure-service-connection",
-                assessment_change_signals=assessment.change_signals,
+                assessment=assessment,
                 target_family=target_family,
                 target_candidates=target_candidates[target_family],
                 exact_targets=exact_targets,
@@ -386,7 +383,7 @@ def _build_deployment_path_output(
     for account in automation_output.automation_accounts:
         account_dict = account.model_dump(mode="json")
         assessment = assess_deployment_source(account)
-        if assessment.posture != "can already change Azure here":
+        if assessment.posture == "insufficient evidence":
             continue
         record = _build_deployment_source_record(
             family_name,
@@ -394,8 +391,7 @@ def _build_deployment_path_output(
             source_command="automation",
             source_context=account.identity_type,
             asset_kind="AutomationAccount",
-            clue_type="automation-execution-hub",
-            assessment_change_signals=assessment.change_signals,
+            assessment=assessment,
             target_family="arm-deployments",
             target_candidates=[],
             exact_targets=[],
@@ -696,8 +692,7 @@ def _build_deployment_source_record(
     source_command: str,
     source_context: str | None,
     asset_kind: str,
-    clue_type: str,
-    assessment_change_signals: tuple[str, ...],
+    assessment: DeploymentSourceAssessment,
     target_family: str,
     target_candidates: list[dict],
     exact_targets: list[dict],
@@ -708,12 +703,7 @@ def _build_deployment_source_record(
 ) -> ChainPathRecord | None:
     target_spec = _DEPLOYMENT_TARGET_SPECS[target_family]
     admission = admit_deployment_path_row(
-        DeploymentSourceAssessment(
-            source_command=source_command,
-            source_name=str(source.get("name") or source.get("id") or ""),
-            posture="can already change Azure here",
-            change_signals=assessment_change_signals,
-        ),
+        assessment,
         exact_target_count=len(exact_targets),
         narrowed_candidate_count=len(target_candidates),
         confirmation_basis=confirmation_basis,
@@ -745,10 +735,14 @@ def _build_deployment_source_record(
     semantic = evaluate_chain_semantics(
         ChainSemanticContext(
             family=family_name,
-            clue_type=clue_type,
+            clue_type=assessment.path_concept or source_command,
             target_service=target_spec["service"],
             target_resolution=admission.state,
             target_count=len(target_ids),
+            source_command=source_command,
+            path_concept=assessment.path_concept,
+            current_operator_can_drive=_source_current_operator_can_drive(source_command, source),
+            current_operator_can_inject=_source_current_operator_can_inject(source_command, source),
         )
     )
 
@@ -764,40 +758,85 @@ def _build_deployment_source_record(
         location=source.get("location"),
         source_command=source_command,
         source_context=source_context,
-        clue_type=clue_type,
+        clue_type=assessment.path_concept or source_command,
         confirmation_basis=record_confirmation_basis,
         priority=semantic.priority,
-        visible_path=_deployment_visible_path(source_command, target_spec["label"]),
-        why_care=_deployment_why_care(source_command, source),
+        visible_path=_deployment_visible_path(
+            source_command,
+            assessment.path_concept,
+            target_spec["label"],
+        ),
+        path_concept=assessment.path_concept,
+        primary_injection_surface=(
+            str(source.get("primary_injection_surface"))
+            if source.get("primary_injection_surface")
+            else None
+        ),
+        primary_trusted_input_ref=(
+            str(source.get("primary_trusted_input_ref"))
+            if source.get("primary_trusted_input_ref")
+            else None
+        ),
+        why_care=_deployment_why_care(
+            source_command,
+            source,
+            assessment=assessment,
+        ),
+        likely_impact=_deployment_likely_impact(
+            target_label=target_spec["label"],
+            target_names=target_names,
+            target_resolution=admission.state,
+            missing_target_mapping=assessment.missing_target_mapping,
+        ),
+        confidence_boundary=_deployment_confidence_boundary(
+            target_label=target_spec["label"],
+            target_resolution=admission.state,
+            confirmation_basis=record_confirmation_basis,
+            current_operator_can_drive=_source_current_operator_can_drive(source_command, source),
+            current_operator_can_inject=_source_current_operator_can_inject(source_command, source),
+            missing_target_mapping=assessment.missing_target_mapping,
+        ),
         target_service=target_spec["service"],
         target_resolution=admission.state,
         evidence_commands=_deployment_evidence_commands(
             source_command,
+            source,
             target_family,
             supporting_deployments=supporting_deployments,
         ),
         joined_surface_types=_deployment_joined_surfaces(
             source_command,
-            assessment_change_signals,
+            assessment.change_signals,
             supporting_deployments=supporting_deployments,
         ),
         target_count=len(target_ids),
         target_ids=target_ids,
         target_names=target_names,
         target_visibility_issue=target_visibility_issue,
-        next_review=semantic.next_review,
+        next_review=_deployment_next_review(
+            source_command=source_command,
+            source=source,
+            path_concept=assessment.path_concept,
+            target_family=target_family,
+            target_resolution=admission.state,
+        ),
         summary=_deployment_summary(
             source=source,
             source_command=source_command,
+            assessment=assessment,
             target_label=target_spec["label"],
             target_names=target_names,
             target_resolution=admission.state,
+            confirmation_basis=record_confirmation_basis,
             target_visibility_note=target_visibility_note,
             supporting_deployments=supporting_deployments,
         ),
         missing_confirmation=_deployment_missing_confirmation(
             source_command=source_command,
+            path_concept=assessment.path_concept,
             target_label=target_spec["label"],
+            target_resolution=admission.state,
+            missing_target_mapping=assessment.missing_target_mapping,
         ),
         related_ids=_merge_related_ids(
             source.get("related_ids", []),
@@ -807,7 +846,20 @@ def _build_deployment_source_record(
     )
 
 
-def _deployment_visible_path(source_command: str, target_label: str) -> str:
+def _deployment_visible_path(
+    source_command: str,
+    path_concept: str | None,
+    target_label: str,
+) -> str:
+    if path_concept == "controllable-change-path":
+        return f"Controllable Azure pipeline -> likely {target_label}"
+    if path_concept == "execution-hub":
+        return f"Managed-identity execution hub -> likely {target_label}"
+    if path_concept == "secret-escalation-support":
+        if source_command == "devops":
+            return f"Secret-backed deployment support -> likely {target_label}"
+        if source_command == "automation":
+            return f"Secret-backed automation support -> likely {target_label}"
     if source_command == "devops":
         return f"Azure-facing pipeline -> likely {target_label}"
     if source_command == "automation":
@@ -815,64 +867,421 @@ def _deployment_visible_path(source_command: str, target_label: str) -> str:
     return f"Deployment source -> likely {target_label}"
 
 
-def _deployment_why_care(source_command: str, source: dict) -> str:
+def _deployment_why_care(
+    source_command: str,
+    source: dict,
+    *,
+    assessment: DeploymentSourceAssessment,
+) -> str:
+    source_name = str(source.get("name") or source.get("id") or source_command)
+    consequence_phrase = _deployment_consequence_phrase(source)
+    support_parts = _deployment_support_phrase_parts(source)
+    support_phrase = (
+        " and ".join(support_parts) if support_parts else "secret-backed deployment support"
+    )
+
+    if assessment.path_concept == "secret-escalation-support":
+        if source_command == "devops":
+            sentence = (
+                f"This path is not yet a proven attacker-usable Azure change path, but it "
+                f"concentrates {support_phrase} around an Azure-facing deployment route. "
+                f"Another foothold that can start or control execution could "
+                f"{consequence_phrase}."
+            )
+        elif source_command == "automation":
+            sentence = (
+                f"Automation account '{source_name}' is not yet a proven attacker-usable Azure "
+                f"change path on its own, but it concentrates {support_phrase} around reusable "
+                f"automation. Another foothold that can start or control execution could "
+                f"{consequence_phrase}."
+            )
+        else:
+            sentence = (
+                "Secret-backed deployment support is visible, but another foothold is still "
+                "needed before it becomes an attacker-usable Azure change path."
+            )
+        current_operator_suffix = _deployment_current_operator_suffix(source_command, source)
+        if current_operator_suffix:
+            sentence = f"{sentence} {current_operator_suffix}"
+        if source.get("missing_target_mapping"):
+            sentence = (
+                f"{sentence} AzureFox has not yet mapped the downstream Azure footprint cleanly."
+            )
+        return sentence
+
     if source_command == "devops":
-        parts = ["Azure service connection"]
-        trigger_types = set(source.get("trigger_types", []) or [])
-        if "continuousIntegration" in trigger_types:
-            parts.append("auto-triggered")
-        elif "pullRequest" in trigger_types:
-            parts.append("pull-request trigger")
-        elif "schedule" in trigger_types:
-            parts.append("scheduled pipeline")
-        secret_count = int(source.get("secret_variable_count") or 0)
-        if secret_count > 0:
-            parts.append(f"{secret_count} secret variable(s)")
-        if source.get("key_vault_names") or source.get("key_vault_group_names"):
-            parts.append("Key Vault-backed support")
-        if source.get("target_clues"):
-            parts.append("named Azure target cues")
-        return "; ".join(parts)
+        trusted_input = _devops_primary_trusted_input(source)
+        sentence = (
+            f"This path trusts {_devops_trusted_input_text(trusted_input)}; poisoning it would "
+            f"execute under {_deployment_execution_context(source_command, source)} and could "
+            f"{consequence_phrase}."
+        )
+        current_operator_suffix = _deployment_current_operator_suffix(source_command, source)
+        if current_operator_suffix:
+            sentence = f"{sentence} {current_operator_suffix}"
+
+        if support_parts:
+            sentence = (
+                f"{sentence} The surrounding deployment support also includes "
+                + " and ".join(support_parts)
+                + ", which could widen blast radius once execution is controlled."
+            )
+        if source.get("missing_target_mapping"):
+            sentence = (
+                f"{sentence} AzureFox has not yet mapped the downstream Azure footprint cleanly."
+            )
+        return sentence
 
     if source_command == "automation":
-        parts: list[str] = []
+        surface_parts: list[str] = []
         if source.get("identity_type"):
-            parts.append("managed identity")
+            surface_parts.append("managed identity")
         published = int(source.get("published_runbook_count") or 0)
         if published > 0:
-            parts.append(f"{published} published runbook(s)")
-        webhooks = int(source.get("webhook_count") or 0)
-        if webhooks > 0:
-            parts.append(f"{webhooks} webhook(s)")
-        workers = int(source.get("hybrid_worker_group_count") or 0)
-        if workers > 0:
-            parts.append(f"{workers} Hybrid Worker group(s)")
-        schedules = int(source.get("schedule_count") or 0)
-        if schedules > 0:
-            parts.append(f"{schedules} schedule(s)")
-        assets = (
-            int(source.get("credential_count") or 0)
-            + int(source.get("certificate_count") or 0)
-            + int(source.get("connection_count") or 0)
-            + int(source.get("encrypted_variable_count") or 0)
+            surface_parts.append(f"{published} published runbook(s)")
+        if "webhook-start" in assessment.change_signals:
+            webhooks = int(source.get("webhook_count") or 0)
+            surface_parts.append(f"{webhooks} webhook start path(s)")
+        if "scheduled-start" in assessment.change_signals:
+            schedules = int(source.get("schedule_count") or 0)
+            surface_parts.append(f"{schedules} schedule-backed run path(s)")
+        if "hybrid-worker-reach" in assessment.change_signals:
+            workers = int(source.get("hybrid_worker_group_count") or 0)
+            surface_parts.append(f"{workers} Hybrid Worker reach point(s)")
+        sentence = (
+            f"Automation account '{source_name}' combines "
+            + ", ".join(surface_parts)
+            + f", so control of this execution hub could {consequence_phrase} rather than stay "
+            "at passive automation visibility."
         )
-        if assets > 0:
-            parts.append("secure assets concentrated")
-        return "; ".join(parts) or "Execution-capable automation surface"
+        if _deployment_support_phrase_parts(source):
+            sentence = (
+                f"{sentence} Secure assets around the account could widen blast radius once a "
+                "run path is started or modified."
+            )
+        if source.get("missing_target_mapping"):
+            sentence = (
+                f"{sentence} AzureFox has not yet mapped the downstream Azure footprint cleanly."
+            )
+        return sentence
 
     return "Visible source evidence suggests Azure change capability"
 
 
+def _deployment_consequence_phrase(source: dict) -> str:
+    labels = {
+        "consume-secret-backed-deployment-material": "consume secret-backed deployment material",
+        "modify-infra": "modify Azure infrastructure",
+        "redeploy-workload": "redeploy Azure workloads",
+        "reintroduce-config": "reintroduce Azure configuration changes",
+        "run-recurring-execution": "run recurring Azure-facing execution",
+    }
+    consequence_order = {
+        "modify-infra": 0,
+        "redeploy-workload": 1,
+        "consume-secret-backed-deployment-material": 2,
+        "reintroduce-config": 3,
+        "run-recurring-execution": 4,
+    }
+    phrases = [
+        labels.get(value, value.replace("-", " "))
+        for value in sorted(
+            [str(value) for value in source.get("consequence_types", []) or []],
+            key=lambda value: consequence_order.get(value, 9),
+        )
+    ]
+    if not phrases:
+        return "change Azure state"
+    if len(phrases) == 1:
+        return phrases[0]
+    if len(phrases) == 2:
+        return f"{phrases[0]} and {phrases[1]}"
+    return ", ".join(phrases[:-1]) + f", and {phrases[-1]}"
+
+
+def _deployment_support_phrase_parts(source: dict) -> list[str]:
+    support_labels = {
+        "credentials": "credentials",
+        "deployment-creds": "deployment credentials",
+        "encrypted-variables": "encrypted variables",
+        "keyvault-backed-inputs": "Key Vault-backed inputs",
+        "publish-profiles": "publish profiles",
+        "registry-creds": "registry credentials",
+        "secret-variables": "secret variables",
+        "signing-keys": "signing keys",
+    }
+    return [
+        support_labels.get(str(value), str(value).replace("-", " "))
+        for value in source.get("secret_support_types", []) or []
+        if value != "variable-groups"
+    ]
+
+
+def _deployment_current_operator_suffix(source_command: str, source: dict) -> str:
+    if source_command == "devops":
+        injection_surfaces = [
+            str(value) for value in (source.get("current_operator_injection_surface_types") or [])
+        ]
+        primary_input = _devops_primary_trusted_input(source)
+        queue = source.get("current_operator_can_queue")
+        edit = source.get("current_operator_can_edit")
+        if any(value != "definition-edit" for value in injection_surfaces):
+            return (
+                "Current credentials can already poison that trusted input through "
+                + ", ".join(value for value in injection_surfaces if value != "definition-edit")
+                + "."
+            )
+        if "definition-edit" in injection_surfaces or edit:
+            return "Current credentials can already edit the pipeline definition directly."
+        if queue:
+            return (
+                "Current credentials can already queue this pipeline, but AzureFox has not yet "
+                "proven that they can poison the trusted input."
+            )
+        access_state = (
+            str(primary_input.get("current_operator_access_state"))
+            if primary_input and primary_input.get("current_operator_access_state")
+            else None
+        )
+        if access_state == "read":
+            return (
+                "Current credentials can read that trusted input, but Azure DevOps evidence here "
+                "does not prove a write path."
+            )
+        if access_state == "exists-only":
+            return "Current evidence only shows that the trusted input exists."
+        if source.get("missing_injection_point"):
+            return "AzureFox has not yet proven a poisonable trusted input for current credentials."
+    return ""
+
+
+def _source_current_operator_can_drive(source_command: str, source: dict) -> bool | None:
+    if source_command == "devops":
+        queue = source.get("current_operator_can_queue")
+        edit = source.get("current_operator_can_edit")
+        if isinstance(queue, bool) or isinstance(edit, bool):
+            return bool(queue or edit)
+    return None
+
+
+def _source_current_operator_can_inject(source_command: str, source: dict) -> bool | None:
+    if source_command == "devops":
+        injection_surfaces = source.get("current_operator_injection_surface_types") or []
+        queue = source.get("current_operator_can_queue")
+        edit = source.get("current_operator_can_edit")
+        if injection_surfaces or isinstance(queue, bool) or isinstance(edit, bool):
+            return bool(injection_surfaces)
+    return None
+
+
+def _deployment_execution_context(source_command: str, source: dict) -> str:
+    if source_command == "devops":
+        names = [
+            str(value) for value in (source.get("azure_service_connection_names") or []) if value
+        ]
+        if names:
+            return "Azure service connection " + ", ".join(names)
+        return "the authenticated Azure deployment path behind this pipeline"
+    if source_command == "automation":
+        identity_type = str(source.get("identity_type") or "").strip()
+        if identity_type:
+            return f"automation identity {identity_type}"
+        return "the automation execution context"
+    return "the visible execution context"
+
+
+def _devops_primary_trusted_input(source: dict) -> dict | None:
+    trusted_inputs = [
+        value for value in source.get("trusted_inputs") or [] if isinstance(value, dict)
+    ]
+    primary_ref = str(source.get("primary_trusted_input_ref") or "") or None
+    if primary_ref:
+        for trusted_input in trusted_inputs:
+            if str(trusted_input.get("ref") or "") == primary_ref:
+                return trusted_input
+    return trusted_inputs[0] if trusted_inputs else None
+
+
+def _devops_trusted_input_text(trusted_input: dict | None) -> str:
+    if trusted_input is None:
+        return "the visible deployment input"
+    return describe_trusted_input(
+        input_type=str(trusted_input.get("input_type") or "") or None,
+        ref=str(trusted_input.get("ref") or "") or None,
+    )
+
+
+def _deployment_likely_impact(
+    *,
+    target_label: str,
+    target_names: list[str],
+    target_resolution: str,
+    missing_target_mapping: bool,
+) -> str:
+    lowered_label = target_label.lower()
+    if missing_target_mapping:
+        return f"Azure footprint not yet mapped; {lowered_label} evidence is consequence grounding"
+    if target_resolution == "named match":
+        return f"exact {lowered_label}: {', '.join(target_names[:_CANDIDATE_LIMIT])}"
+    if target_resolution == "narrowed candidates":
+        return f"{len(target_names)} visible {lowered_label} candidate(s)"
+    if target_resolution == "visibility blocked":
+        return f"likely {lowered_label}; target-side visibility blocked"
+    return f"likely {lowered_label}; exact target unconfirmed"
+
+
+def _deployment_confidence_boundary(
+    *,
+    target_label: str,
+    target_resolution: str,
+    confirmation_basis: str | None,
+    current_operator_can_drive: bool | None,
+    current_operator_can_inject: bool | None,
+    missing_target_mapping: bool,
+) -> str:
+    if missing_target_mapping:
+        if current_operator_can_inject:
+            return (
+                "Current credentials can control the source side, but AzureFox has not yet "
+                f"mapped the downstream Azure footprint beyond {target_label} consequence "
+                "grounding."
+            )
+        if current_operator_can_drive:
+            return (
+                "Current credentials can start or edit the source path, but AzureFox has not yet "
+                f"mapped the downstream Azure footprint beyond {target_label} consequence "
+                "grounding."
+            )
+        return (
+            "Current artifacts show meaningful deployment support, but AzureFox has not yet "
+            f"mapped the downstream Azure footprint beyond {target_label} consequence grounding."
+        )
+
+    if current_operator_can_inject:
+        if target_resolution == "named match":
+            return (
+                f"Impact is visible, the current credentials can poison a trusted input, and "
+                f"the {target_label} target is joined strongly enough to "
+                "validate next."
+            )
+        if target_resolution == "narrowed candidates":
+            return (
+                f"Impact is visible and the current credentials can poison a trusted input, but "
+                f"the exact {target_label} target is still unconfirmed."
+            )
+        if target_resolution == "visibility blocked":
+            return (
+                f"Current credentials can poison a trusted input, but current scope cannot name "
+                f"the downstream {target_label} target yet."
+            )
+
+    if current_operator_can_drive:
+        if target_resolution == "named match":
+            return (
+                "Impact is visible and current credentials can start or edit this path, but "
+                "AzureFox has not yet proven a poisonable trusted input."
+            )
+        if target_resolution == "narrowed candidates":
+            return (
+                f"Impact is visible and current credentials can start this path, but AzureFox "
+                f"has not yet proven a poisonable trusted input or the exact {target_label} "
+                "target."
+            )
+        if target_resolution == "visibility blocked":
+            return (
+                f"Current credentials can start this path, but AzureFox has not yet proven a "
+                f"poisonable trusted input and current scope cannot name the downstream "
+                f"{target_label} target."
+            )
+
+    if target_resolution == "named match":
+        if confirmation_basis == "parsed-config-target":
+            return (
+                f"Impact is visible and the {target_label} target is joined from parsed source "
+                "clues, but AzureFox has not yet proven that the current credentials can invoke "
+                "this path."
+            )
+        return (
+            f"Impact is visible and the {target_label} target is backed by a stronger visible "
+            "join, but AzureFox has not yet proven that the current credentials can invoke this "
+            "path."
+        )
+    if target_resolution == "narrowed candidates":
+        return (
+            f"Impact is visible, but AzureFox has not yet proven current-credential invocation "
+            f"or the exact {target_label} target."
+        )
+    if target_resolution == "visibility blocked":
+        return (
+            f"Impact is partially visible, but AzureFox has not yet proven current-credential "
+            f"invocation and current scope cannot name the downstream {target_label} target."
+        )
+    return (
+        f"Current evidence does not yet hold a defensible {target_label} target story or prove "
+        "that the current credentials can drive the source path."
+    )
+
+
 def _deployment_evidence_commands(
     source_command: str,
+    source: dict,
     target_family: str,
     *,
     supporting_deployments: list[dict],
 ) -> list[str]:
-    commands = [source_command, _DEPLOYMENT_TARGET_SPECS[target_family]["command"]]
+    commands = [source_command, "permissions"]
+    if source.get("azure_service_connection_client_ids") or source.get(
+        "azure_service_connection_principal_ids"
+    ):
+        commands.append("role-trusts")
+    if "keyvault-backed-inputs" in (source.get("secret_support_types") or []):
+        commands.append("keyvault")
+    commands.append(_DEPLOYMENT_TARGET_SPECS[target_family]["command"])
     if supporting_deployments and "arm-deployments" not in commands:
         commands.append("arm-deployments")
     return commands
+
+
+def _deployment_next_review(
+    *,
+    source_command: str,
+    source: dict,
+    path_concept: str | None,
+    target_family: str,
+    target_resolution: str,
+) -> str:
+    if path_concept == "secret-escalation-support":
+        steps: list[str] = ["Confirm what separate foothold could reuse this secret-backed support"]
+    elif _source_current_operator_can_inject(source_command, source):
+        steps: list[str] = ["Current credentials can already poison a trusted input"]
+    elif _source_current_operator_can_drive(source_command, source):
+        steps = [
+            "Current credentials can already start this path, but trusted-input poisoning is "
+            "not yet proven"
+        ]
+    else:
+        steps = ["Check permissions for the backing identity or service connection"]
+    if source_command == "devops" and source.get("missing_injection_point"):
+        steps.append(
+            "confirm which trusted input can actually be poisoned from current credentials"
+        )
+    if source.get("azure_service_connection_client_ids") or source.get(
+        "azure_service_connection_principal_ids"
+    ):
+        steps.append("review role-trusts for controllable identity links")
+    if "keyvault-backed-inputs" in (source.get("secret_support_types") or []):
+        steps.append("review keyvault for secret-backed deployment support")
+
+    target_command = _DEPLOYMENT_TARGET_SPECS[target_family]["command"]
+    if source.get("missing_target_mapping"):
+        steps.append(
+            f"use {target_command} as consequence grounding because target mapping is still missing"
+        )
+    elif target_resolution == "visibility blocked":
+        steps.append(f"restore {target_command} visibility for consequence grounding")
+    else:
+        steps.append(f"open {target_command} to validate the likely Azure impact")
+    return "; ".join(steps) + "."
 
 
 def _deployment_joined_surfaces(
@@ -891,39 +1300,52 @@ def _deployment_summary(
     *,
     source: dict,
     source_command: str,
+    assessment: DeploymentSourceAssessment,
     target_label: str,
     target_names: list[str],
     target_resolution: str,
+    confirmation_basis: str | None,
     target_visibility_note: str | None,
     supporting_deployments: list[dict],
 ) -> str:
-    source_name = str(source.get("name") or source.get("id") or source_command)
-    if source_command == "devops":
-        prefix = (
-            f"Pipeline '{source_name}' already looks like an Azure change path, and the visible "
-            f"target clues point toward {target_label}. "
+    summary = _deployment_why_care(source_command, source, assessment=assessment)
+    if assessment.missing_target_mapping:
+        impact_sentence = (
+            f"AzureFox has not yet mapped the downstream Azure footprint cleanly, so "
+            f"{target_label} evidence is only consequence grounding right now."
         )
-    else:
-        prefix = (
-            f"Automation account '{source_name}' already looks like an Azure execution hub, and "
-            f"the visible evidence points toward {target_label}. "
-        )
-
-    if target_resolution == "visibility blocked":
-        summary = (
-            f"{prefix}Current scope does not confirm which downstream {target_label} assets are "
-            "visible enough to name."
+    elif target_resolution == "visibility blocked":
+        impact_sentence = (
+            f"The most likely downstream Azure footprint is still unresolved because current "
+            f"scope cannot name visible {target_label} targets."
         )
     elif target_resolution == "named match":
-        summary = (
-            f"{prefix}AzureFox can name the exact visible {target_label} target: "
+        impact_sentence = (
+            f"The likeliest downstream Azure footprint is the exact visible {target_label} target "
             f"{', '.join(target_names[:_CANDIDATE_LIMIT])}."
         )
     else:
-        summary = (
-            f"{prefix}AzureFox narrows the next review set to {len(target_names)} visible "
+        impact_sentence = (
+            f"The likeliest downstream Azure footprint is narrowed to {len(target_names)} visible "
             f"{target_label} candidate(s): {', '.join(target_names[:_CANDIDATE_LIMIT])}."
         )
+    summary = (
+        f"{summary} {impact_sentence} "
+        f"{
+            _deployment_confidence_boundary(
+                target_label=target_label,
+                target_resolution=target_resolution,
+                confirmation_basis=confirmation_basis,
+                current_operator_can_drive=_source_current_operator_can_drive(
+                    source_command, source
+                ),
+                current_operator_can_inject=_source_current_operator_can_inject(
+                    source_command, source
+                ),
+                missing_target_mapping=assessment.missing_target_mapping,
+            )
+        }"
+    )
 
     if supporting_deployments:
         deployment_names = ", ".join(
@@ -933,8 +1355,9 @@ def _deployment_summary(
         )
         if deployment_names:
             summary = (
-                f"{summary} Visible ARM deployment history for the same target family includes "
-                f"{deployment_names}."
+                f"{summary} Supporting ARM deployment history for the same target family includes "
+                f"{deployment_names}, which supports the likely Azure footprint without proving "
+                "the exact target."
             )
 
     if target_visibility_note:
@@ -987,25 +1410,68 @@ def _structured_target_names(source: dict, target_family: str) -> set[str]:
 
 def _normalize_target_name(value: str) -> str:
     return (
-        value.strip()
-        .lower()
-        .replace(" ", "")
-        .replace("_", "")
-        .replace("/", "")
-        .replace("\\", "")
+        value.strip().lower().replace(" ", "").replace("_", "").replace("/", "").replace("\\", "")
     )
 
 
-def _deployment_missing_confirmation(*, source_command: str, target_label: str) -> str:
+def _deployment_missing_confirmation(
+    *,
+    source_command: str,
+    path_concept: str | None,
+    target_label: str,
+    target_resolution: str,
+    missing_target_mapping: bool,
+) -> str:
+    if path_concept == "secret-escalation-support":
+        if missing_target_mapping:
+            return (
+                "Missing exact target mapping and a separate execution foothold; current "
+                "artifacts only show secret-backed support around a live Azure change path."
+            )
+        if target_resolution == "visibility blocked":
+            return (
+                f"Missing target-side visibility for the downstream {target_label} footprint, "
+                "and current artifacts only show secret-backed support rather than a directly "
+                "attacker-usable execution path."
+            )
+        return (
+            f"Current artifacts narrow the likely {target_label} footprint, but another foothold "
+            "is still needed before the secret-backed support becomes attacker-usable."
+        )
+
+    if target_resolution == "visibility blocked":
+        if source_command == "devops":
+            return (
+                f"Missing target-side visibility for the downstream {target_label} footprint, "
+                "and current artifacts still do not prove a poisonable trusted input or a "
+                "definition-edit path for current credentials."
+            )
+        return (
+            f"Missing target-side visibility for the downstream {target_label} footprint, and "
+            "current artifacts do not show that the current credentials can start the runbook "
+            "path that performs the Azure change."
+        )
+    if target_resolution == "named match":
+        if source_command == "devops":
+            return (
+                f"Current artifacts name the likely {target_label} target, but do not confirm a "
+                "poisonable trusted input or a current-credential definition-edit path on the "
+                "source side."
+            )
+        return (
+            f"Current artifacts name the likely {target_label} target, but do not confirm which "
+            "specific runbook or current-credential start path performs that Azure change."
+        )
     if source_command == "devops":
         return (
-            f"Current artifacts do not confirm that this pipeline can successfully redeploy the "
-            f"exact {target_label} target or that edit, rerun, or source-control footholds are "
-            "available now."
+            f"Missing exact {target_label} mapping and source-side poisoning proof; current "
+            "artifacts do not confirm a poisonable trusted input or a current-credential "
+            "definition-edit path."
         )
     return (
-        f"Current artifacts do not confirm that this automation surface can successfully change "
-        f"the exact {target_label} target or which runbook path performs that change."
+        f"Missing exact {target_label} mapping and runbook-level execution proof; current "
+        "artifacts do not show that the current credentials can start the published runbook path "
+        "that performs the Azure change."
     )
 
 

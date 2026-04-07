@@ -103,32 +103,49 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="devops",
         section="resource",
         summary=(
-            "Surface Azure DevOps build definitions that already look like named Azure change "
-            "paths and point to the next Azure review."
+            "Surface Azure DevOps build definitions as controllable Azure change paths with "
+            "source provenance, injection surfaces, execution posture, and backing "
+            "identity context."
         ),
         offensive_question=(
-            "Which Azure DevOps build definitions combine Azure-facing service connections, "
-            "secret-bearing variable support, trigger posture, and the clearest next Azure "
-            "follow-up that deserve operator review first?"
+            "Which Azure DevOps build definitions expose a trusted input that could be poisoned, "
+            "what can current credentials see or change along that path, and what Azure "
+            "consequence "
+            "would it unlock?"
         ),
         cloudfox_frame=(
-            "Azure-native deployment-path triage rather than generic DevOps inventory: named "
-            "build definitions, Azure-facing service connections, safe secret-bearing variable "
-            "metadata, Key Vault-backed group cues, trigger posture, and concise next-review "
-            "hints without collecting secret values, repo content, or pipeline logs."
+            "Azure-native deployment-path triage rather than generic DevOps inventory: source "
+            "host and visibility cues, visible injection surfaces, current-caller queue/edit and "
+            "Azure Repos read/write posture when the API can prove it, Azure-facing service "
+            "connections and joinable identity fields, and safe secret-bearing deployment metadata "
+            "without collecting secret values, repo content, or pipeline logs."
         ),
         output_highlights=(
             "project_name",
+            "repository_host_type",
             "repository_name",
-            "trigger_types",
+            "source_visibility_state",
+            "execution_modes",
+            "upstream_sources",
+            "trusted_inputs",
+            "trusted_input_types",
+            "trusted_input_refs",
+            "trusted_input_join_ids",
+            "primary_injection_surface",
+            "primary_trusted_input_ref",
+            "injection_surface_types",
+            "current_operator_injection_surface_types",
             "azure_service_connection_names",
+            "current_operator_can_queue",
+            "current_operator_can_edit",
+            "current_operator_can_view_source",
+            "current_operator_can_contribute_source",
             "azure_service_connection_auth_schemes",
-            "variable_group_names",
-            "secret_variable_count",
-            "secret_variable_names",
-            "key_vault_group_names",
+            "secret_support_types",
+            "secret_dependency_ids",
+            "missing_injection_point",
             "target_clues",
-            "risk_cues",
+            "consequence_types",
         ),
         attack_leads=(
             AttackLead("Discovery", "Cloud Service Discovery"),
@@ -460,9 +477,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
     "network-effective": CommandHelpTopic(
         name="network-effective",
         section="network",
-        summary=(
-            "Summarize likely public-IP reachability by combining endpoint and NSG evidence."
-        ),
+        summary=("Summarize likely public-IP reachability by combining endpoint and NSG evidence."),
         offensive_question=(
             "Which public-IP-backed assets look most worth investigating first once I combine "
             "visible endpoint and inbound-rule evidence?"
@@ -602,8 +617,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="principals",
         section="identity",
         summary=(
-            "Map principals visible through RBAC, caller context, and managed identity "
-            "attachments."
+            "Map principals visible through RBAC, caller context, and managed identity attachments."
         ),
         offensive_question=(
             "Which principals matter in this subscription, and how are "
@@ -813,8 +827,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="managed-identities",
         section="identity",
         summary=(
-            "Map workload-linked managed identities, their attachments, and visible "
-            "privilege cues."
+            "Map workload-linked managed identities, their attachments, and visible privilege cues."
         ),
         offensive_question=(
             "Which workloads carry managed identities, and which of those identities show the "
@@ -1349,16 +1362,19 @@ def _render_root_help() -> str:
             "",
             "Notes:",
             (
-            "  - Shared flags such as --tenant, --subscription, --output, and --outdir "
-            "work before or after the command."
-        ),
-        "  - Command help includes ATT&CK cloud leads to guide investigation.",
-        (
-            "  - Grouped command help stays visible even while additional chain families are "
-            "still landing."
-        ),
-        "  - all-checks is deprecated and is being replaced by narrower chains plus flat commands.",
-        "  - ATT&CK references are investigative context, not proof that a technique occurred.",
+                "  - Shared flags such as --tenant, --subscription, --output, and --outdir "
+                "work before or after the command."
+            ),
+            "  - Command help includes ATT&CK cloud leads to guide investigation.",
+            (
+                "  - Grouped command help stays visible even while additional chain families are "
+                "still landing."
+            ),
+            (
+                "  - all-checks is deprecated and is being replaced by narrower chains "
+                "plus flat commands."
+            ),
+            "  - ATT&CK references are investigative context, not proof that a technique occurred.",
         ]
     )
     return "\n".join(lines)

@@ -52,7 +52,12 @@ class ChainPathRecord(BaseModel):
     confirmation_basis: str | None = None
     priority: str
     visible_path: str
+    path_concept: str | None = None
+    primary_injection_surface: str | None = None
+    primary_trusted_input_ref: str | None = None
     why_care: str | None = None
+    likely_impact: str | None = None
+    confidence_boundary: str | None = None
     target_service: str
     target_resolution: str
     evidence_commands: list[str] = Field(default_factory=list)

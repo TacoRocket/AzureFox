@@ -147,15 +147,22 @@ def test_cli_smoke_chains_deployment_path_table_output(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "azurefox chains" in result.stdout
     assert "why care" in result.stdout
+    assert "path type" in result.stdout
+    assert "likely azure impact" in result.stdout
+    assert "confidence boundary" in result.stdout
     assert "deploy-aks-prod" in result.stdout
     assert "deploy-appservice-prod" in result.stdout
+    assert "deploy-artifact-app-p" in result.stdout
     assert "plan-infra-prod" in result.stdout
     assert "aa-hybrid-prod" in result.stdout
-    assert "Azure service connection" in result.stdout
-    assert "managed identity" in result.stdout
-    assert "Review the narrowed" in result.stdout
-    assert "visibility blocked" in result.stdout
-    assert "Takeaway: 4 visible deployment paths" in result.stdout
+    assert "trusted input" in result.stdout
+    assert "Automation account" in result.stdout
+    assert "controllable change" in result.stdout
+    assert "execution hub" in result.stdout
+    assert "secret-backed support" in result.stdout
+    assert "Check permissions for" in result.stdout
+    assert "consequence grounding" in result.stdout
+    assert "Takeaway: 6 visible deployment paths" in result.stdout
 
 
 def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
@@ -180,12 +187,14 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
         "functions",
         "app-services",
     ]
-    assert len(payload["paths"]) == 4
+    assert len(payload["paths"]) == 6
     assert {item["asset_name"] for item in payload["paths"]} == {
         "deploy-aks-prod",
         "deploy-appservice-prod",
+        "deploy-artifact-app-prod",
         "plan-infra-prod",
         "aa-hybrid-prod",
+        "aa-lab-quiet",
     }
     assert {item["target_service"] for item in payload["paths"]} == {
         "aks",
@@ -196,10 +205,28 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
         "narrowed candidates",
         "visibility blocked",
     }
-    assert {item["priority"] for item in payload["paths"]} == {"medium", "low"}
-    automation_row = next(item for item in payload["paths"] if item["asset_name"] == "aa-hybrid-prod")
+    assert {item["priority"] for item in payload["paths"]} == {"high", "low", "medium"}
+    assert {item["path_concept"] for item in payload["paths"]} == {
+        "controllable-change-path",
+        "execution-hub",
+        "secret-escalation-support",
+    }
+    support_row = next(item for item in payload["paths"] if item["asset_name"] == "aa-lab-quiet")
+    assert support_row["priority"] == "low"
+    assert "Another foothold" in support_row["why_care"]
+    assert "target mapping is still missing" in support_row["next_review"]
+    automation_row = next(
+        item for item in payload["paths"] if item["asset_name"] == "aa-hybrid-prod"
+    )
     assert automation_row["target_resolution"] == "visibility blocked"
-    assert "managed identity" in automation_row["why_care"]
+    assert "run recurring Azure-facing execution" in automation_row["why_care"]
+    support_row = next(item for item in payload["paths"] if item["asset_name"] == "aa-lab-quiet")
+    assert support_row["priority"] == "low"
+    assert "Another foothold" in support_row["why_care"]
+    assert "target mapping is still missing" in support_row["next_review"]
+    aks_row = next(item for item in payload["paths"] if item["asset_name"] == "deploy-aks-prod")
+    assert "permissions" in aks_row["evidence_commands"]
+    assert "keyvault" in aks_row["evidence_commands"]
 
 
 def test_cli_smoke_loot_keeps_top_ranked_targets_for_tokens_credentials(tmp_path: Path) -> None:
