@@ -1,0 +1,18 @@
+                                                                          azurefox dns                                                                          
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ zone                             ┃ kind    ┃ inventory       ┃ namespace                            ┃ why it matters                                         ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ corp.example.com                 │ public  │ records=9/10000 │ ns=4                                 │ Public DNS zone 'corp.example.com' shows 9 visible     │
+│                                  │         │                 │                                      │ record set(s) and delegates authority through 4        │
+│                                  │         │                 │                                      │ visible Azure name server(s).                          │
+│ partner.example.net              │ public  │ records=4/10000 │ ns=4                                 │ Public DNS zone 'partner.example.net' shows 4 visible  │
+│                                  │         │                 │                                      │ record set(s) and delegates authority through 4        │
+│                                  │         │                 │                                      │ visible Azure name server(s).                          │
+│ privatelink.database.windows.net │ private │ records=6/25000 │ vnet-links=2; reg-links=1; pe-refs=2 │ Private DNS zone 'privatelink.database.windows.net'    │
+│                                  │         │                 │                                      │ shows 6 visible record set(s) and tracks 2 virtual     │
+│                                  │         │                 │                                      │ network link(s), 1 registration-enabled link(s), 2     │
+│                                  │         │                 │                                      │ visible private endpoint reference(s).                 │
+└──────────────────────────────────┴─────────┴─────────────────┴──────────────────────────────────────┴────────────────────────────────────────────────────────┘
+
+Takeaway: 3 DNS zones visible; 2 public, 1 private, 1 private zone(s) show visible private endpoint references, and 19 record sets are visible.
+

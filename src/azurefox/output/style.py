@@ -61,7 +61,8 @@ COMMAND_NARRATION = {
     "permissions": "Ranking principals by high-impact RBAC exposure and the next likely follow-on.",
     "privesc": "Triage likely privilege-escalation and workload identity abuse paths.",
     "role-trusts": (
-        "Reviewing high-signal identity trust edges without implying delegated or admin consent."
+        "Reviewing high-signal identity trust edges and the clearest next review without "
+        "implying delegated or admin consent."
     ),
     "cross-tenant": (
         "Reviewing outside-tenant trust, delegated management, and tenant policy cues that most "

@@ -1,0 +1,32 @@
+                                                                       azurefox workloads                                                                       
+┏━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ workload       ┃ kind       ┃ identity            ┃ endpoints                        ┃ ingress                        ┃ why it matters                       ┃
+┡━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ vm-web-01      │ VM         │ UserAssigned; ids=1 │ 52.160.10.20                     │ direct-vm-ip                   │ VM 'vm-web-01' exposes reachable     │
+│                │            │                     │                                  │                                │ endpoint '52.160.10.20' and carries  │
+│                │            │                     │                                  │                                │ managed identity context             │
+│                │            │                     │                                  │                                │ (UserAssigned). Visible signals:     │
+│                │            │                     │                                  │                                │ public-ip=1, private-ip=1, nic=1.    │
+│                │            │                     │                                  │                                │ Use this as a quick workload census  │
+│                │            │                     │                                  │                                │ pivot before deeper service-specific │
+│                │            │                     │                                  │                                │ review.                              │
+│ app-empty-mi   │ AppService │ SystemAssigned      │ app-empty-mi.azurewebsites.net   │ azurewebsites-default-hostname │ AppService 'app-empty-mi' publishes  │
+│                │            │                     │                                  │                                │ visible endpoint hostname            │
+│                │            │                     │                                  │                                │ 'app-empty-mi.azurewebsites.net' and │
+│                │            │                     │                                  │                                │ carries managed identity context     │
+│                │            │                     │                                  │                                │ (SystemAssigned). Visible signals:   │
+│                │            │                     │                                  │                                │ default-hostname. Use this as a      │
+│                │            │                     │                                  │                                │ quick workload census pivot before   │
+│                │            │                     │                                  │                                │ deeper service-specific review.      │
+│ app-public-api │ AppService │ SystemAssigned      │ app-public-api.azurewebsites.net │ azurewebsites-default-hostname │ AppService 'app-public-api'          │
+│                │            │                     │                                  │                                │ publishes visible endpoint hostname  │
+│                │            │                     │                                  │                                │ 'app-public-api.azurewebsites.net'   │
+│                │            │                     │                                  │                                │ and carries managed identity context │
+│                │            │                     │                                  │                                │ (SystemAssigned). Visible signals:   │
+│                │            │                     │                                  │                                │ default-hostname. Use this as a      │
+│                │            │                     │                                  │                                │ quick workload census pivot before   │
+│                │            │                     │                                  │                                │ deeper service-specific review.      │
+└────────────────┴────────────┴─────────────────────┴──────────────────────────────────┴────────────────────────────────┴──────────────────────────────────────┘
+
+Takeaway: 3 workloads visible; 3 with visible endpoint paths, 3 with identity context, across 1 compute and 2 web assets.
+

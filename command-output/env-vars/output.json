@@ -1,0 +1,95 @@
+{
+  "env_vars": [
+    {
+      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api",
+      "asset_kind": "AppService",
+      "asset_name": "app-public-api",
+      "key_vault_reference_identity": null,
+      "location": "eastus",
+      "looks_sensitive": true,
+      "reference_target": null,
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api"
+      ],
+      "resource_group": "rg-apps",
+      "setting_name": "DB_PASSWORD",
+      "summary": "AppService 'app-public-api' stores sensitive-looking setting 'DB_PASSWORD' as plain-text app configuration. Check tokens-credentials first; this likely feeds a database credential path.",
+      "value_type": "plain-text",
+      "workload_client_id": "bbbb1111-1111-1111-1111-111111111111",
+      "workload_identity_ids": [],
+      "workload_identity_type": "SystemAssigned",
+      "workload_principal_id": "aaaa1111-1111-1111-1111-111111111111"
+    },
+    {
+      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders",
+      "asset_kind": "FunctionApp",
+      "asset_name": "func-orders",
+      "key_vault_reference_identity": "SystemAssigned",
+      "location": "eastus",
+      "looks_sensitive": true,
+      "reference_target": "kvlabopen01.vault.azure.net/secrets/payment-api-key",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders"
+      ],
+      "resource_group": "rg-apps",
+      "setting_name": "PAYMENT_API_KEY",
+      "summary": "FunctionApp 'func-orders' maps setting 'PAYMENT_API_KEY' to Key Vault-backed configuration (kvlabopen01.vault.azure.net/secrets/payment-api-key) via SystemAssigned identity. Check keyvault for the referenced secret path; review managed-identities for the workload token path.",
+      "value_type": "keyvault-ref",
+      "workload_client_id": "dddd2222-2222-2222-2222-222222222222",
+      "workload_identity_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-orders"
+      ],
+      "workload_identity_type": "SystemAssigned, UserAssigned",
+      "workload_principal_id": "cccc2222-2222-2222-2222-222222222222"
+    },
+    {
+      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api",
+      "asset_kind": "AppService",
+      "asset_name": "app-public-api",
+      "key_vault_reference_identity": null,
+      "location": "eastus",
+      "looks_sensitive": false,
+      "reference_target": null,
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api"
+      ],
+      "resource_group": "rg-apps",
+      "setting_name": "API_BASE_URL",
+      "summary": "AppService 'app-public-api' exposes setting 'API_BASE_URL' through management-plane app settings (plain-text). Check managed-identities for the workload token path behind this setting.",
+      "value_type": "plain-text",
+      "workload_client_id": "bbbb1111-1111-1111-1111-111111111111",
+      "workload_identity_ids": [],
+      "workload_identity_type": "SystemAssigned",
+      "workload_principal_id": "aaaa1111-1111-1111-1111-111111111111"
+    }
+  ],
+  "findings": [
+    {
+      "description": "AppService 'app-public-api' stores setting 'DB_PASSWORD' as plain-text management-plane config.",
+      "id": "env-var-plain-sensitive-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api-DB_PASSWORD",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api"
+      ],
+      "severity": "medium",
+      "title": "Sensitive-looking app setting is stored in plain text"
+    },
+    {
+      "description": "FunctionApp 'func-orders' maps setting 'PAYMENT_API_KEY' to Key Vault-backed configuration (kvlabopen01.vault.azure.net/secrets/payment-api-key).",
+      "id": "env-var-keyvault-ref-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders-PAYMENT_API_KEY",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders"
+      ],
+      "severity": "low",
+      "title": "App setting references Key Vault"
+    }
+  ],
+  "issues": [],
+  "metadata": {
+    "command": "env-vars",
+    "generated_at": "<generated_at>",
+    "schema_version": "1.2.0",
+    "subscription_id": "22222222-2222-2222-2222-222222222222",
+    "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "token_source": null
+  }
+}

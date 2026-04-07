@@ -587,7 +587,8 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                 ("source", "source"),
                 ("target", "target"),
                 ("confidence", "confidence"),
-                ("why_it_matters", "why it matters"),
+                ("operator_signal", "operator signal"),
+                ("next_review", "next review"),
             ],
             [
                 {
@@ -595,7 +596,8 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     "source": item.get("source_name") or item.get("source_object_id"),
                     "target": item.get("target_name") or item.get("target_object_id"),
                     "confidence": item.get("confidence"),
-                    "why_it_matters": item.get("summary"),
+                    "operator_signal": item.get("operator_signal"),
+                    "next_review": item.get("next_review"),
                 }
                 for item in payload.get("trusts", [])
             ],
@@ -957,9 +959,24 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         mode = payload.get("mode") or "fast"
         families = Counter(item.get("trust_type") or "unknown" for item in trusts)
         counts = ", ".join(f"{count} {name}" for name, count in sorted(families.items()))
+        privilege_follow_ons = sum(
+            "privilege confirmation next" in str(item.get("operator_signal") or "").lower()
+            for item in trusts
+        )
+        ownership_follow_ons = sum(
+            "ownership review next" in str(item.get("operator_signal") or "").lower()
+            for item in trusts
+        )
+        outside_follow_ons = sum(
+            "outside-tenant follow-on" in str(item.get("operator_signal") or "").lower()
+            for item in trusts
+        )
         return (
             f"{len(trusts)} trust edges surfaced in {mode} mode; "
             f"{counts or 'no trust edges visible'}. "
+            f"{privilege_follow_ons} privilege-confirmation follow-ons, "
+            f"{ownership_follow_ons} ownership-review follow-ons, and "
+            f"{outside_follow_ons} outside-tenant follow-ons. "
             "Delegated and admin consent grants are out of scope for this command."
         )
 

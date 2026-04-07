@@ -1,0 +1,10 @@
+                                                             azurefox principals                                                             
+┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┓
+┃ principal          ┃ type             ┃ roles  ┃ assignments ┃ identity context              ┃ sources                          ┃ current ┃
+┡━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━┩
+│ azurefox-lab-sp    │ ServicePrincipal │ Owner  │ 1           │ identities=ua-app; attached=1 │ rbac, whoami, managed-identities │ yes     │
+│ operator@lab.local │ User             │ Reader │ 1           │ -                             │ rbac                             │ no      │
+└────────────────────┴──────────────────┴────────┴─────────────┴───────────────────────────────┴──────────────────────────────────┴─────────┘
+
+Takeaway: 2 principals visible; 1 hold Owner and 1 match the current identity.
+

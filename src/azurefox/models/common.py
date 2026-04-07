@@ -109,6 +109,8 @@ class RoleTrustSummary(BaseModel):
     target_type: str
     evidence_type: str
     confidence: str
+    operator_signal: str | None = None
+    next_review: str | None = None
     summary: str
     related_ids: list[str] = Field(default_factory=list)
 

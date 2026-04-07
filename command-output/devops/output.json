@@ -1,0 +1,176 @@
+{
+  "findings": [],
+  "issues": [],
+  "metadata": {
+    "command": "devops",
+    "generated_at": "<generated_at>",
+    "schema_version": "1.2.0",
+    "subscription_id": "22222222-2222-2222-2222-222222222222",
+    "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "token_source": null
+  },
+  "pipelines": [
+    {
+      "azure_service_connection_auth_schemes": [
+        "ServicePrincipal"
+      ],
+      "azure_service_connection_names": [
+        "prod-subscription"
+      ],
+      "azure_service_connection_types": [
+        "azurerm"
+      ],
+      "default_branch": "refs/heads/main",
+      "definition_id": "17",
+      "id": "https://dev.azure.com/contoso/prod-platform/_build?definitionId=17",
+      "key_vault_group_names": [
+        "prod-kv-release"
+      ],
+      "key_vault_names": [
+        "kv-prod-shared"
+      ],
+      "name": "deploy-aks-prod",
+      "partial_read": false,
+      "path": "\\Production",
+      "project_id": "4f90f8a6-1111-4444-8888-0a12b45c67de",
+      "project_name": "prod-platform",
+      "related_ids": [
+        "https://dev.azure.com/contoso/prod-platform/_build?definitionId=17",
+        "08d28dfa-11d2-4c61-8d71-a9524cfdfdf0",
+        "91",
+        "92",
+        "kv-prod-shared"
+      ],
+      "repository_name": "platform-api",
+      "repository_type": "TfsGit",
+      "risk_cues": [
+        "auto-triggered",
+        "azure deployment connection",
+        "secret-bearing variables",
+        "key vault-backed variables"
+      ],
+      "secret_variable_count": 8,
+      "secret_variable_names": [
+        "ACR_PUSH_PASSWORD",
+        "AKS_CLUSTER_NAME",
+        "AKS_RESOURCE_GROUP",
+        "HELM_REPO_PASSWORD",
+        "PROD_API_TOKEN",
+        "PROD_CLIENT_SECRET",
+        "PROD_DB_PASSWORD",
+        "PROD_SIGNING_KEY"
+      ],
+      "summary": "Build definition 'deploy-aks-prod' in project 'prod-platform' looks like a named Azure change path. reads from repo platform-api@refs/heads/main. auto-triggers on source changes. uses Azure-facing service connection(s) prod-subscription. references variable group(s) prod-release-secrets, prod-kv-release. surfaces 8 secret-marked variable name(s). pulls from Key Vault-backed variable support (kv-prod-shared). shows deployment cues for AKS/Kubernetes, ACR/Containers. Check aks for the named deployment target; review permissions and role-trusts for Azure control; review keyvault for the vault-backed support.",
+      "target_clues": [
+        "AKS/Kubernetes",
+        "ACR/Containers"
+      ],
+      "trigger_types": [
+        "continuousIntegration"
+      ],
+      "variable_group_names": [
+        "prod-release-secrets",
+        "prod-kv-release"
+      ]
+    },
+    {
+      "azure_service_connection_auth_schemes": [
+        "WorkloadIdentityFederation"
+      ],
+      "azure_service_connection_names": [
+        "prod-appsvc-wif"
+      ],
+      "azure_service_connection_types": [
+        "azurerm"
+      ],
+      "default_branch": "refs/heads/main",
+      "definition_id": "23",
+      "id": "https://dev.azure.com/contoso/prod-platform/_build?definitionId=23",
+      "key_vault_group_names": [],
+      "key_vault_names": [],
+      "name": "deploy-appservice-prod",
+      "partial_read": false,
+      "path": "\\Production",
+      "project_id": "4f90f8a6-1111-4444-8888-0a12b45c67de",
+      "project_name": "prod-platform",
+      "related_ids": [
+        "https://dev.azure.com/contoso/prod-platform/_build?definitionId=23",
+        "42b8f88f-2bf0-4c2d-b9db-e4475f9b1176",
+        "87"
+      ],
+      "repository_name": "customer-portal",
+      "repository_type": "TfsGit",
+      "risk_cues": [
+        "auto-triggered",
+        "azure deployment connection",
+        "secret-bearing variables"
+      ],
+      "secret_variable_count": 3,
+      "secret_variable_names": [
+        "APPINSIGHTS_KEY",
+        "PROD_SLOT_PUBLISH_PROFILE",
+        "WEBSITE_SWAP_AUTH"
+      ],
+      "summary": "Build definition 'deploy-appservice-prod' in project 'prod-platform' looks like a named Azure change path. reads from repo customer-portal@refs/heads/main. includes pull-request trigger posture. uses Azure-facing service connection(s) prod-appsvc-wif. references variable group(s) prod-appsvc-release. surfaces 3 secret-marked variable name(s). shows deployment cues for App Service. Check app-services for the named deployment target; review permissions and role-trusts for Azure control.",
+      "target_clues": [
+        "App Service"
+      ],
+      "trigger_types": [
+        "pullRequest"
+      ],
+      "variable_group_names": [
+        "prod-appsvc-release"
+      ]
+    },
+    {
+      "azure_service_connection_auth_schemes": [
+        "ManagedServiceIdentity"
+      ],
+      "azure_service_connection_names": [
+        "infra-subscription"
+      ],
+      "azure_service_connection_types": [
+        "azurerm"
+      ],
+      "default_branch": "refs/heads/main",
+      "definition_id": "34",
+      "id": "https://dev.azure.com/contoso/platform-infra/_build?definitionId=34",
+      "key_vault_group_names": [
+        "platform-kv"
+      ],
+      "key_vault_names": [
+        "kv-platform-shared"
+      ],
+      "name": "plan-infra-prod",
+      "partial_read": false,
+      "path": "\\Infra",
+      "project_id": "145c7175-2222-4bc2-b4d1-f31f0a8f962a",
+      "project_name": "platform-infra",
+      "related_ids": [
+        "https://dev.azure.com/contoso/platform-infra/_build?definitionId=34",
+        "7d9fe45d-9114-402c-a49d-f8ac1c1910ea",
+        "12",
+        "kv-platform-shared"
+      ],
+      "repository_name": "infra-live",
+      "repository_type": "GitHub",
+      "risk_cues": [
+        "auto-triggered",
+        "azure deployment connection",
+        "key vault-backed variables"
+      ],
+      "secret_variable_count": 0,
+      "secret_variable_names": [],
+      "summary": "Build definition 'plan-infra-prod' in project 'platform-infra' looks like a named Azure change path. reads from repo infra-live@refs/heads/main. runs on a schedule. uses Azure-facing service connection(s) infra-subscription. references variable group(s) platform-kv. pulls from Key Vault-backed variable support (kv-platform-shared). shows deployment cues for ARM/Bicep/Terraform. Check arm-deployments for the named deployment target; review permissions and role-trusts for Azure control; review keyvault for the vault-backed support.",
+      "target_clues": [
+        "ARM/Bicep/Terraform"
+      ],
+      "trigger_types": [
+        "schedule"
+      ],
+      "variable_group_names": [
+        "platform-kv"
+      ]
+    }
+  ]
+}

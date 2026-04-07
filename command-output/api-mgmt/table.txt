@@ -1,0 +1,40 @@
+                                                                       azurefox api-mgmt                                                                        
+┏━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ service      ┃ gateway                ┃ identity       ┃ inventory               ┃ exposure               ┃ posture                 ┃ why it matters         ┃
+┡━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ apim-edge-01 │ apim-edge-01.azure-ap… │ SystemAssigned │ apis=2;                 │ gateway=2;             │ Developer;              │ API Management service │
+│              │ api.contoso.com        │                │ sub-required=1/2;       │ management=1;          │ vnet=External;          │ 'apim-edge-01'         │
+│              │                        │                │ subs=3; active-subs=2;  │ portal=1;              │ gateway=yes;            │ publishes gateway      │
+│              │                        │                │ backends=1;             │ public=Enabled;        │ devportal=Enabled;      │ hostnames              │
+│              │                        │                │ backend-hosts=1;        │ public-ip=1            │ named-secrets=1;        │ apim-edge-01.azure-ap… │
+│              │                        │                │ named-values=2          │                        │ kv-backed=1             │ api.contoso.com;       │
+│              │                        │                │                         │                        │                         │ management hostnames   │
+│              │                        │                │                         │                        │                         │ apim-edge-01.manageme… │
+│              │                        │                │                         │                        │                         │ portal hostnames       │
+│              │                        │                │                         │                        │                         │ portal.apim-edge-01.c… │
+│              │                        │                │                         │                        │                         │ and uses managed       │
+│              │                        │                │                         │                        │                         │ identity               │
+│              │                        │                │                         │                        │                         │ (SystemAssigned).      │
+│              │                        │                │                         │                        │                         │ Visible inventory: 2   │
+│              │                        │                │                         │                        │                         │ APIs, 1 require        │
+│              │                        │                │                         │                        │                         │ subscriptions, 3       │
+│              │                        │                │                         │                        │                         │ subscriptions (2       │
+│              │                        │                │                         │                        │                         │ active), 1 backends, 2 │
+│              │                        │                │                         │                        │                         │ named values. Depth    │
+│              │                        │                │                         │                        │                         │ cues: 1 named values   │
+│              │                        │                │                         │                        │                         │ marked secret, 1 Key   │
+│              │                        │                │                         │                        │                         │ Vault-backed named     │
+│              │                        │                │                         │                        │                         │ values, backend hosts  │
+│              │                        │                │                         │                        │                         │ orders-internal.conto… │
+│              │                        │                │                         │                        │                         │ Visible posture:       │
+│              │                        │                │                         │                        │                         │ public network access  │
+│              │                        │                │                         │                        │                         │ Enabled, virtual       │
+│              │                        │                │                         │                        │                         │ network type External, │
+│              │                        │                │                         │                        │                         │ SKU Developer, gateway │
+│              │                        │                │                         │                        │                         │ enabled, developer     │
+│              │                        │                │                         │                        │                         │ portal Enabled.        │
+└──────────────┴────────────────────────┴────────────────┴─────────────────────────┴────────────────────────┴─────────────────────────┴────────────────────────┘
+
+Takeaway: 1 API Management services visible; 1 keep public network access enabled, 1 carry managed identity context, and 2 named values are visible, including 1
+marked secret.
+

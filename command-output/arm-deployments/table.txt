@@ -1,0 +1,32 @@
+                                                                    azurefox arm-deployments                                                                    
+┏━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ deployment     ┃ scope                                 ┃ state     ┃ outputs ┃ linked refs                           ┃ why it matters                        ┃
+┡━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ app-failed     │ rg:rg-app                             │ Failed    │ 0       │ -                                     │ resource group deployment             │
+│                │                                       │           │         │                                       │ 'app-failed' is Failed with no        │
+│                │                                       │           │         │                                       │ outputs recorded; 1 providers.        │
+│ sub-foundation │ sub:22222222-2222-2222-2222-22222222… │ Succeeded │ 2       │ template=example.blob.core.windows.n… │ subscription deployment               │
+│                │                                       │           │         │                                       │ 'sub-foundation' is Succeeded with 2  │
+│                │                                       │           │         │                                       │ outputs; 2 providers.                 │
+│ kv-secrets     │ rg:rg-secrets                         │ Succeeded │ 1       │ parameters=example.blob.core.windows… │ resource group deployment             │
+│                │                                       │           │         │                                       │ 'kv-secrets' is Succeeded with 1      │
+│                │                                       │           │         │                                       │ outputs; 1 providers.                 │
+└────────────────┴───────────────────────────────────────┴───────────┴─────────┴───────────────────────────────────────┴───────────────────────────────────────┘
+
+Findings:
+- MEDIUM: Deployment did not complete successfully
+  Deployment 'app-failed' ended in state 'Failed'. Review the deployment history for leaked config context, partial resource creation, or operator 
+troubleshooting artifacts.
+- MEDIUM: Deployment exposes output values
+  Deployment 'sub-foundation' includes 2 recorded output values. Validate whether any outputs reveal useful endpoints, identifiers, or sensitive configuration.
+- LOW: Deployment references linked template content
+  Deployment 'sub-foundation' uses linked template or parameter content. Review those linked artifacts for exposed configuration, trust assumptions, or reusable
+infrastructure patterns.
+- MEDIUM: Deployment exposes output values
+  Deployment 'kv-secrets' includes 1 recorded output values. Validate whether any outputs reveal useful endpoints, identifiers, or sensitive configuration.
+- LOW: Deployment references linked template content
+  Deployment 'kv-secrets' uses linked template or parameter content. Review those linked artifacts for exposed configuration, trust assumptions, or reusable 
+infrastructure patterns.
+
+Takeaway: 3 deployments visible; 1 at subscription scope and 5 findings.
+

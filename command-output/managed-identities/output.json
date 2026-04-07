@@ -1,0 +1,51 @@
+{
+  "findings": [
+    {
+      "description": "Identity 'ua-app' is assigned one or more high-impact roles (Owner).",
+      "id": "identity-privileged-/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-app",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-app",
+        "ra-1"
+      ],
+      "severity": "high",
+      "title": "Managed identity has elevated role assignment"
+    }
+  ],
+  "identities": [
+    {
+      "attached_to": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachines/vm-web-01"
+      ],
+      "client_id": "55555555-5555-5555-5555-555555555555",
+      "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-app",
+      "identity_type": "userAssigned",
+      "name": "ua-app",
+      "next_review": "Check permissions for direct control on this identity, then vms for the host context behind the workload pivot.",
+      "operator_signal": "Public VM workload pivot; direct control visible.",
+      "principal_id": "33333333-3333-3333-3333-333333333333",
+      "scope_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222"
+      ],
+      "summary": "VM 'vm-web-01' gives a public workload pivot into managed identity 'ua-app'. Current scope already shows direct control through high-impact roles (Owner). Check permissions for direct control on this identity, then vms for the host context behind the workload pivot."
+    }
+  ],
+  "issues": [],
+  "metadata": {
+    "command": "managed-identities",
+    "generated_at": "<generated_at>",
+    "schema_version": "1.2.0",
+    "subscription_id": "22222222-2222-2222-2222-222222222222",
+    "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "token_source": null
+  },
+  "role_assignments": [
+    {
+      "id": "ra-1",
+      "principal_id": "33333333-3333-3333-3333-333333333333",
+      "principal_type": "ServicePrincipal",
+      "role_definition_id": "rd-owner",
+      "role_name": "Owner",
+      "scope_id": "/subscriptions/22222222-2222-2222-2222-222222222222"
+    }
+  ]
+}

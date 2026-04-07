@@ -24,13 +24,20 @@ def test_role_trusts_table_mode_includes_narration_and_takeaway(tmp_path: Path) 
 
     assert result.exit_code == 0
     assert (
-        "Reviewing high-signal identity trust edges without implying delegated or admin consent."
+        "Reviewing high-signal identity trust edges and the clearest next review without implying"
         in result.stdout
     )
-    assert "why it matters" in result.stdout
+    assert "operator signal" in result.stdout
+    assert "next review" in result.stdout
+    assert "Trust expansion visible; privilege" in result.stdout
+    assert "confirmation next." in result.stdout
+    assert "Check permissions for Azure control" in result.stdout
+    assert "service principal 'build-sp'." in result.stdout
     assert "Takeaway: 4 trust edges surfaced in fast mode" in result.stdout
+    assert "privilege-confirmation follow-ons" in result.stdout
     assert "Delegated and admin" in result.stdout
-    assert "out of scope for this command." in result.stdout
+    assert "out of scope for this" in result.stdout
+    assert "command." in result.stdout
 
 
 def test_auth_policies_table_mode_surfaces_findings_and_issues(tmp_path: Path) -> None:

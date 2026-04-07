@@ -1,0 +1,23 @@
+                                                                       azurefox endpoints                                                                       
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ endpoint                         ┃ asset          ┃ kind       ┃ family               ┃ ingress                        ┃ why it matters                      ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ 52.160.10.20                     │ vm-web-01      │ VM         │ public-ip            │ direct-vm-ip                   │ VM 'vm-web-01' exposes public IP    │
+│                                  │                │            │                      │                                │ 52.160.10.20. Review direct ingress │
+│                                  │                │            │                      │                                │ path alongside NIC and NSG context. │
+│ app-empty-mi.azurewebsites.net   │ app-empty-mi   │ AppService │ managed-web-hostname │ azurewebsites-default-hostname │ AppService 'app-empty-mi' publishes │
+│                                  │                │            │                      │                                │ Azure-managed hostname              │
+│                                  │                │            │                      │                                │ 'app-empty-mi.azurewebsites.net'.   │
+│                                  │                │            │                      │                                │ Validate whether that ingress path  │
+│                                  │                │            │                      │                                │ is intended and how it is           │
+│                                  │                │            │                      │                                │ constrained.                        │
+│ app-public-api.azurewebsites.net │ app-public-api │ AppService │ managed-web-hostname │ azurewebsites-default-hostname │ AppService 'app-public-api'         │
+│                                  │                │            │                      │                                │ publishes Azure-managed hostname    │
+│                                  │                │            │                      │                                │ 'app-public-api.azurewebsites.net'. │
+│                                  │                │            │                      │                                │ Validate whether that ingress path  │
+│                                  │                │            │                      │                                │ is intended and how it is           │
+│                                  │                │            │                      │                                │ constrained.                        │
+└──────────────────────────────────┴────────────────┴────────────┴──────────────────────┴────────────────────────────────┴─────────────────────────────────────┘
+
+Takeaway: 3 reachable surfaces visible; 1 public-ip, 2 managed-web-hostname.
+

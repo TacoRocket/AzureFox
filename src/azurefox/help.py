@@ -701,7 +701,8 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "source_name",
             "target_name",
             "confidence",
-            "evidence_type",
+            "operator_signal",
+            "next_review",
         ),
         attack_leads=(
             AttackLead("Initial Access", "Trusted Relationship"),

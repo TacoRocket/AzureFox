@@ -1,0 +1,102 @@
+{
+  "auth_policies": [
+    {
+      "controls": [],
+      "name": "Security Defaults",
+      "policy_type": "security-defaults",
+      "related_ids": [
+        "00000000-0000-0000-0000-000000000005"
+      ],
+      "scope": "tenant",
+      "state": "disabled",
+      "summary": "Security defaults are disabled for the tenant."
+    },
+    {
+      "controls": [
+        "guest-invites:everyone",
+        "sspr:enabled",
+        "legacy-msol-powershell:blocked",
+        "users-can-register-apps",
+        "users-can-create-security-groups",
+        "user-consent:self-service"
+      ],
+      "name": "Authorization Policy",
+      "policy_type": "authorization-policy",
+      "related_ids": [
+        "authorizationPolicy"
+      ],
+      "scope": "tenant",
+      "state": "configured",
+      "summary": "guest invites: everyone; users can register apps; self-service permission grant policies assigned; legacy MSOL PowerShell blocked"
+    },
+    {
+      "controls": [
+        "block"
+      ],
+      "name": "CA002: Block legacy auth",
+      "policy_type": "conditional-access",
+      "related_ids": [
+        "ca-2"
+      ],
+      "scope": "users:all, apps:all",
+      "state": "disabled",
+      "summary": "state: disabled; grants: block; scope: users:all, apps:all"
+    }
+  ],
+  "findings": [
+    {
+      "description": "Tenant-wide security defaults are disabled. Review whether Conditional Access policies provide equivalent baseline MFA and legacy-auth controls.",
+      "id": "auth-policy-security-defaults-disabled",
+      "related_ids": [
+        "00000000-0000-0000-0000-000000000005"
+      ],
+      "severity": "medium",
+      "title": "Security defaults are disabled"
+    },
+    {
+      "description": "Default user permissions allow application registration. Review whether that app-creation surface is expected for this tenant.",
+      "id": "auth-policy-users-can-register-apps",
+      "related_ids": [
+        "authorizationPolicy"
+      ],
+      "severity": "medium",
+      "title": "Users can register applications"
+    },
+    {
+      "description": "The authorization policy allows guest invitations from everyone in the tenant. Validate whether that guest-invite surface is intentional.",
+      "id": "auth-policy-guest-invites-everyone",
+      "related_ids": [
+        "authorizationPolicy"
+      ],
+      "severity": "medium",
+      "title": "Guest invitations are broadly allowed"
+    },
+    {
+      "description": "Default user permissions include self-service permission-grant policy assignment. Review which delegated or application access paths that enables.",
+      "id": "auth-policy-user-consent-enabled",
+      "related_ids": [
+        "authorizationPolicy"
+      ],
+      "severity": "medium",
+      "title": "User consent is available to default users"
+    },
+    {
+      "description": "Security defaults are disabled and no enabled Conditional Access policies are visible from the current read path. Validate whether stronger auth controls exist outside the currently readable policy surface.",
+      "id": "auth-policy-no-active-enforcement-visible",
+      "related_ids": [
+        "00000000-0000-0000-0000-000000000005"
+      ],
+      "severity": "medium",
+      "title": "No active auth enforcement visible"
+    }
+  ],
+  "issues": [],
+  "metadata": {
+    "command": "auth-policies",
+    "generated_at": "<generated_at>",
+    "schema_version": "1.2.0",
+    "subscription_id": "22222222-2222-2222-2222-222222222222",
+    "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "token_source": null
+  }
+}
