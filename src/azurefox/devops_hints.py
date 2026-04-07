@@ -125,11 +125,23 @@ def _current_operator_prefix(
         surfaces = ", ".join(current_operator_injection_surface_types)
         return f"Current credentials can inject through {surfaces}."
     if primary_trusted_input_access_state == "read":
+        if primary_trusted_input_type == "pipeline-artifact":
+            return (
+                f"This path trusts {trusted_input}, and current credentials can inspect the "
+                "upstream producer path but Azure DevOps evidence here does not prove "
+                "producer-side control."
+            )
         return (
             f"This path trusts {trusted_input}, and current credentials can read it but not "
             "write it from Azure DevOps evidence here."
         )
     if primary_trusted_input_access_state == "exists-only":
+        missing_proof = _trusted_input_missing_proof(primary_trusted_input_type)
+        if missing_proof:
+            return (
+                f"This path trusts {trusted_input}, but current evidence only shows that it "
+                f"exists; AzureFox has not yet proven {missing_proof}."
+            )
         return f"This path trusts {trusted_input}, but current evidence only shows that it exists."
     if current_operator_can_queue:
         return (
@@ -158,6 +170,21 @@ def _source_visibility_prefix(
 
 def _join_hint_prefixes(*parts: str) -> str:
     return " ".join(part.strip() for part in parts if part.strip())
+
+
+def _trusted_input_missing_proof(input_type: str | None) -> str | None:
+    return {
+        "package-feed": "the current operator's Azure Artifacts feed role",
+        "pipeline-artifact": (
+            "control of the upstream producer definition, run path, or producer-side trusted "
+            "inputs"
+        ),
+        "template-repository": "read or contribute rights on the referenced template repo",
+        "repository": "read or contribute rights on the referenced repo",
+        "secure-file": (
+            "whether current credentials only see the file, can use it, or can administer it"
+        ),
+    }.get(str(input_type or ""))
 
 
 def describe_trusted_input(*, input_type: str | None, ref: str | None) -> str:

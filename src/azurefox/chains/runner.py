@@ -911,11 +911,19 @@ def _deployment_why_care(
 
     if source_command == "devops":
         trusted_input = _devops_primary_trusted_input(source)
-        sentence = (
-            f"This path trusts {_devops_trusted_input_text(trusted_input)}; poisoning it would "
-            f"execute under {_deployment_execution_context(source_command, source)} and could "
-            f"{consequence_phrase}."
-        )
+        if _source_current_operator_can_inject(source_command, source):
+            sentence = (
+                f"This path trusts {_devops_trusted_input_text(trusted_input)}; poisoning it "
+                f"would execute under {_deployment_execution_context(source_command, source)} "
+                f"and could {consequence_phrase}."
+            )
+        else:
+            sentence = (
+                f"This path trusts {_devops_trusted_input_text(trusted_input)}; if that trusted "
+                f"input becomes attacker-controlled, poisoning it would execute under "
+                f"{_deployment_execution_context(source_command, source)} and could "
+                f"{consequence_phrase}."
+            )
         current_operator_suffix = _deployment_current_operator_suffix(source_command, source)
         if current_operator_suffix:
             sentence = f"{sentence} {current_operator_suffix}"
@@ -1044,11 +1052,25 @@ def _deployment_current_operator_suffix(source_command: str, source: dict) -> st
             else None
         )
         if access_state == "read":
+            if primary_input and primary_input.get("input_type") == "pipeline-artifact":
+                return (
+                    "Current credentials can inspect the upstream producer path, but Azure DevOps "
+                    "evidence here does not prove producer-side control."
+                )
             return (
                 "Current credentials can read that trusted input, but Azure DevOps evidence here "
                 "does not prove a write path."
             )
         if access_state == "exists-only":
+            missing_proof = _devops_missing_trusted_input_proof(
+                str(primary_input.get("input_type") or "") if primary_input else None
+            )
+            if missing_proof:
+                return (
+                    "Current evidence only shows that the trusted input exists; "
+                    + missing_proof
+                    + " remains unproven."
+                )
             return "Current evidence only shows that the trusted input exists."
         if source.get("missing_injection_point"):
             return "AzureFox has not yet proven a poisonable trusted input for current credentials."
@@ -1109,6 +1131,16 @@ def _devops_trusted_input_text(trusted_input: dict | None) -> str:
         input_type=str(trusted_input.get("input_type") or "") or None,
         ref=str(trusted_input.get("ref") or "") or None,
     )
+
+
+def _devops_missing_trusted_input_proof(input_type: str | None) -> str | None:
+    return {
+        "package-feed": "the current operator's feed role",
+        "pipeline-artifact": "upstream producer control",
+        "template-repository": "referenced repo read/write proof",
+        "repository": "repo read/write proof",
+        "secure-file": "secure-file use or admin proof",
+    }.get(str(input_type or ""))
 
 
 def _deployment_likely_impact(
@@ -1262,9 +1294,16 @@ def _deployment_next_review(
     else:
         steps = ["Check permissions for the backing identity or service connection"]
     if source_command == "devops" and source.get("missing_injection_point"):
-        steps.append(
-            "confirm which trusted input can actually be poisoned from current credentials"
+        primary_input = _devops_primary_trusted_input(source)
+        missing_proof = _devops_missing_trusted_input_proof(
+            str(primary_input.get("input_type") or "") if primary_input else None
         )
+        if missing_proof:
+            steps.append(f"confirm {missing_proof}")
+        else:
+            steps.append(
+                "confirm which trusted input can actually be poisoned from current credentials"
+            )
     if source.get("azure_service_connection_client_ids") or source.get(
         "azure_service_connection_principal_ids"
     ):

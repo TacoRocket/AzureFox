@@ -40,6 +40,7 @@ _DNS_RESOURCE_API_VERSION = {
 }
 _DEVOPS_BUILD_NAMESPACE_ID = "33344d9c-fc72-4d6f-aba5-fa317101a7e9"
 _DEVOPS_GIT_NAMESPACE_ID = "2e9eb7ed-3c0a-47d4-87c1-0ffdd275fd87"
+_DEVOPS_SECURE_FILE_ROLE_SCOPE_ID = "distributedtask.securefile"
 
 
 class BaseProvider(ABC):
@@ -377,6 +378,10 @@ class AzureProvider(BaseProvider):
         self.graph = GraphClient(self.session.credential)
         self.subscription = self.clients.subscription
         self._devops_namespace_actions_cache: dict[str, dict[str, int]] = {}
+        self._devops_current_operator_cache: dict[str, dict[str, object]] = {}
+        self._devops_secure_files_cache: dict[str, dict[str, dict[str, object]]] = {}
+        self._devops_secure_file_roles_cache: dict[str, list[dict[str, object]]] = {}
+        self._devops_feed_permissions_cache: dict[str, list[dict[str, object]]] = {}
 
     def metadata_context(self) -> dict[str, str | None]:
         return {
@@ -691,6 +696,8 @@ class AzureProvider(BaseProvider):
             if not project_name:
                 continue
             project_path = quote(project_name, safe="")
+            project_pipelines: list[dict[str, object]] = []
+            definition_issues_by_key: dict[str, list[dict[str, object]]] = {}
 
             try:
                 service_endpoints = self._devops_list_values(
@@ -839,121 +846,82 @@ class AzureProvider(BaseProvider):
                         "current_operator_can_contribute_source"
                     ),
                 )
-                primary_trusted_input = _devops_primary_trusted_input(
-                    [
-                        dict(item)
-                        for item in (pipeline.get("trusted_inputs") or [])
-                        if isinstance(item, dict)
-                    ]
+                definition_key = str(pipeline.get("definition_id") or pipeline.get("name") or "")
+                definition_issues_by_key[definition_key] = definition_issues
+                project_pipelines.append(pipeline)
+
+            current_operator: dict[str, object] | None = None
+            try:
+                current_operator = self._devops_current_operator_identity(organization=organization)
+            except Exception as exc:
+                issues.append(
+                    _issue_from_exception(
+                        f"devops[{project_name}].current_operator",
+                        exc,
+                    )
                 )
-                pipeline["trusted_input_types"] = _dedupe_strings(
-                    item.get("input_type") for item in (pipeline.get("trusted_inputs") or [])
-                )
-                pipeline["trusted_input_refs"] = _dedupe_strings(
-                    item.get("ref") for item in (pipeline.get("trusted_inputs") or [])
-                )
-                pipeline["trusted_input_join_ids"] = _dedupe_strings(
-                    join_id
-                    for item in (pipeline.get("trusted_inputs") or [])
-                    if isinstance(item, dict)
-                    for join_id in (item.get("join_ids") or [])
-                )
-                pipeline["primary_injection_surface"] = (
-                    str((primary_trusted_input.get("surface_types") or [None])[0])
-                    if primary_trusted_input
-                    else None
-                )
-                pipeline["primary_trusted_input_ref"] = (
-                    str(primary_trusted_input.get("ref")) if primary_trusted_input else None
-                )
-                pipeline["current_operator_injection_surface_types"] = (
-                    _devops_current_operator_injection_surfaces(
+
+            for pipeline in project_pipelines:
+                try:
+                    pipeline["trusted_inputs"] = self._devops_enrich_non_artifact_trusted_inputs(
+                        organization=organization,
+                        project_name=project_name,
+                        project_id=str(pipeline.get("project_id") or ""),
                         trusted_inputs=[
                             dict(item)
                             for item in (pipeline.get("trusted_inputs") or [])
                             if isinstance(item, dict)
                         ],
-                        current_operator_can_edit=pipeline.get("current_operator_can_edit"),
+                        current_operator=current_operator,
                     )
-                )
-                pipeline["missing_execution_path"] = _devops_missing_execution_path(
-                    repository_name=_string_value(pipeline.get("repository_name")),
-                    execution_modes=[
-                        str(value) for value in (pipeline.get("execution_modes") or [])
-                    ],
-                    current_operator_can_queue=pipeline.get("current_operator_can_queue"),
-                    current_operator_can_edit=pipeline.get("current_operator_can_edit"),
-                )
-                pipeline["missing_injection_point"] = not bool(
-                    pipeline.get("current_operator_injection_surface_types")
-                )
-                pipeline["summary"] = _devops_operator_summary(
-                    definition_name=str(pipeline.get("name") or "unknown"),
-                    project_name=str(pipeline.get("project_name") or "unknown"),
-                    trusted_inputs=[
-                        dict(item)
-                        for item in (pipeline.get("trusted_inputs") or [])
-                        if isinstance(item, dict)
-                    ],
-                    primary_injection_surface=_string_value(
-                        pipeline.get("primary_injection_surface")
-                    ),
-                    primary_trusted_input_ref=_string_value(
-                        pipeline.get("primary_trusted_input_ref")
-                    ),
-                    trigger_types=[str(value) for value in (pipeline.get("trigger_types") or [])],
-                    execution_modes=[
-                        str(value) for value in (pipeline.get("execution_modes") or [])
-                    ],
-                    injection_surface_types=[
-                        str(value) for value in (pipeline.get("injection_surface_types") or [])
-                    ],
-                    azure_service_connection_names=[
-                        str(value)
-                        for value in (pipeline.get("azure_service_connection_names") or [])
-                    ],
-                    variable_group_names=[
-                        str(value) for value in (pipeline.get("variable_group_names") or [])
-                    ],
-                    secret_variable_count=int(pipeline.get("secret_variable_count") or 0),
-                    key_vault_group_names=[
-                        str(value) for value in (pipeline.get("key_vault_group_names") or [])
-                    ],
-                    key_vault_names=[
-                        str(value) for value in (pipeline.get("key_vault_names") or [])
-                    ],
-                    target_clues=[str(value) for value in (pipeline.get("target_clues") or [])],
-                    partial_read_reasons=[
-                        issue["message"].split(": ", 1)[1]
-                        for issue in definition_issues
-                        if issue.get("kind") == ErrorKind.PARTIAL_COLLECTION.value
-                        and isinstance(issue.get("message"), str)
-                        and issue["message"].startswith("devops.definition: ")
-                    ],
-                    current_operator_can_queue=pipeline.get("current_operator_can_queue"),
-                    current_operator_can_edit=pipeline.get("current_operator_can_edit"),
-                    current_operator_can_contribute_source=pipeline.get(
-                        "current_operator_can_contribute_source"
-                    ),
-                    current_operator_injection_surface_types=[
-                        str(value)
-                        for value in (
-                            pipeline.get("current_operator_injection_surface_types") or []
+                except Exception as exc:
+                    pipeline_key = (
+                        pipeline.get("definition_id") or pipeline.get("name") or "unknown"
+                    )
+                    issues.append(
+                        _issue_from_exception(
+                            f"devops[{project_name}].trusted_input_proof[{pipeline_key}]",
+                            exc,
                         )
-                    ],
-                    primary_trusted_input_type=(
-                        str(primary_trusted_input.get("input_type"))
-                        if primary_trusted_input
-                        else None
-                    ),
-                    primary_trusted_input_access_state=(
-                        str(primary_trusted_input.get("current_operator_access_state"))
-                        if primary_trusted_input
-                        and primary_trusted_input.get("current_operator_access_state")
-                        else None
-                    ),
+                    )
+
+            for pipeline in project_pipelines:
+                definition_key = str(pipeline.get("definition_id") or pipeline.get("name") or "")
+                _devops_refresh_pipeline_state(
+                    pipeline,
+                    definition_issues=definition_issues_by_key.get(definition_key, []),
                 )
 
+            project_pipeline_map = _devops_pipeline_lookup(project_pipelines)
+            for pipeline in project_pipelines:
+                try:
+                    pipeline["trusted_inputs"] = _devops_enrich_artifact_trusted_inputs(
+                        pipeline=pipeline,
+                        trusted_inputs=[
+                            dict(item)
+                            for item in (pipeline.get("trusted_inputs") or [])
+                            if isinstance(item, dict)
+                        ],
+                        pipelines_by_project_and_name=project_pipeline_map,
+                    )
+                except Exception as exc:
+                    pipeline_key = (
+                        pipeline.get("definition_id") or pipeline.get("name") or "unknown"
+                    )
+                    issues.append(
+                        _issue_from_exception(
+                            f"devops[{project_name}].artifact_proof[{pipeline_key}]",
+                            exc,
+                        )
+                    )
+
+            for pipeline in project_pipelines:
+                definition_key = str(pipeline.get("definition_id") or pipeline.get("name") or "")
+                definition_issues = definition_issues_by_key.get(definition_key, [])
+                _devops_refresh_pipeline_state(
+                    pipeline,
+                    definition_issues=definition_issues,
+                )
                 issues.extend(definition_issues)
                 if _devops_pipeline_is_interesting(pipeline):
                     pipelines.append(pipeline)
@@ -3061,6 +3029,226 @@ class AzureProvider(BaseProvider):
             }
         action_map = self._devops_namespace_actions_cache[cache_key]
         return {name: action_map.get(name) for name in action_names}
+
+    def _devops_current_operator_identity(
+        self,
+        *,
+        organization: str,
+    ) -> dict[str, object]:
+        cached = self._devops_current_operator_cache.get(organization)
+        if cached is not None:
+            return dict(cached)
+
+        profile, _headers = self._devops_get(
+            "https://app.vssps.visualstudio.com/_apis/profile/profiles/me?api-version=7.1"
+        )
+        profile_id = str(profile.get("id") or "") or None
+        descriptor = None
+        if profile_id:
+            descriptor_payload, _headers = self._devops_get(
+                "https://vssps.dev.azure.com/"
+                f"{organization}/_apis/graph/descriptors/{quote(profile_id, safe='')}"
+                "?api-version=7.1-preview.1"
+            )
+            descriptor = str(descriptor_payload.get("value") or "") or None
+
+        subject_descriptors: list[str] = []
+        if descriptor:
+            subject_descriptors.append(descriptor)
+            memberships, _headers = self._devops_get(
+                "https://vssps.dev.azure.com/"
+                f"{organization}/_apis/graph/Memberships/{quote(descriptor, safe='')}"
+                "?direction=up&depth=1&api-version=7.1-preview.1"
+            )
+            for membership in memberships.get("value", []) if isinstance(
+                memberships.get("value"), list
+            ) else []:
+                if not isinstance(membership, dict):
+                    continue
+                container_descriptor = str(membership.get("containerDescriptor") or "") or None
+                if container_descriptor:
+                    subject_descriptors.append(container_descriptor)
+
+        result = {
+            "profile_id": profile_id,
+            "descriptor": descriptor,
+            "subject_descriptors": _dedupe_strings(subject_descriptors),
+        }
+        self._devops_current_operator_cache[organization] = dict(result)
+        return result
+
+    def _devops_secure_files(
+        self,
+        *,
+        organization: str,
+        project_name: str,
+    ) -> dict[str, dict[str, object]]:
+        cache_key = f"{organization}:{project_name}"
+        cached = self._devops_secure_files_cache.get(cache_key)
+        if cached is not None:
+            return {key: dict(value) for key, value in cached.items()}
+
+        project_path = quote(project_name, safe="")
+        secure_files = self._devops_list_values(
+            "https://dev.azure.com/"
+            f"{organization}/{project_path}/_apis/distributedtask/securefiles?api-version=7.1"
+        )
+        mapped = {
+            str(item.get("name") or "").strip().lower(): item
+            for item in secure_files
+            if str(item.get("name") or "").strip()
+        }
+        self._devops_secure_files_cache[cache_key] = mapped
+        return {key: dict(value) for key, value in mapped.items()}
+
+    def _devops_secure_file_role_assignments(
+        self,
+        *,
+        organization: str,
+        project_id: str,
+        secure_file_id: str,
+    ) -> list[dict[str, object]]:
+        if not project_id or not secure_file_id:
+            return []
+
+        candidate_resource_ids = _dedupe_strings(
+            [
+                f"{project_id}${secure_file_id}",
+                f"{project_id}_{secure_file_id}",
+                f"{project_id}/{secure_file_id}",
+                secure_file_id,
+            ]
+        )
+        last_error: Exception | None = None
+        for resource_id in candidate_resource_ids:
+            cache_key = (
+                f"{organization}:{_DEVOPS_SECURE_FILE_ROLE_SCOPE_ID}:{resource_id}"
+            )
+            if cache_key in self._devops_secure_file_roles_cache:
+                return [
+                    dict(item) for item in self._devops_secure_file_roles_cache[cache_key]
+                ]
+
+            try:
+                payload, _headers = self._devops_get(
+                    "https://dev.azure.com/"
+                    f"{organization}/_apis/securityroles/scopes/"
+                    f"{quote(_DEVOPS_SECURE_FILE_ROLE_SCOPE_ID, safe='')}/roleassignments/"
+                    f"resources/{quote(resource_id, safe='')}"
+                    "?api-version=7.1-preview.1"
+                )
+            except AzureFoxError as exc:
+                last_error = exc
+                continue
+
+            assignments = [
+                item for item in payload.get("value", []) if isinstance(item, dict)
+            ] if isinstance(payload.get("value"), list) else (
+                [item for item in payload if isinstance(item, dict)]
+                if isinstance(payload, list)
+                else []
+            )
+            self._devops_secure_file_roles_cache[cache_key] = assignments
+            return [dict(item) for item in assignments]
+
+        if last_error is not None:
+            raise last_error
+        return []
+
+    def _devops_feed_permissions(
+        self,
+        *,
+        organization: str,
+        project_name: str,
+        feed_name: str,
+        identity_descriptor: str,
+    ) -> list[dict[str, object]]:
+        if not feed_name or not identity_descriptor:
+            return []
+
+        cache_key = f"{organization}:{project_name}:{feed_name}:{identity_descriptor}"
+        cached = self._devops_feed_permissions_cache.get(cache_key)
+        if cached is not None:
+            return [dict(item) for item in cached]
+
+        project_path = quote(project_name, safe="")
+        payload, _headers = self._devops_get(
+            "https://feeds.dev.azure.com/"
+            f"{organization}/{project_path}/_apis/packaging/Feeds/"
+            f"{quote(feed_name, safe='')}/permissions"
+            f"?includeIds=true&excludeInheritedPermissions=false&identityDescriptor="
+            f"{quote(identity_descriptor, safe='')}&api-version=7.1"
+        )
+        permissions = [
+            item for item in payload.get("value", []) if isinstance(item, dict)
+        ] if isinstance(payload.get("value"), list) else []
+        self._devops_feed_permissions_cache[cache_key] = permissions
+        return [dict(item) for item in permissions]
+
+    def _devops_enrich_non_artifact_trusted_inputs(
+        self,
+        *,
+        organization: str,
+        project_name: str,
+        project_id: str,
+        trusted_inputs: list[dict[str, object]],
+        current_operator: dict[str, object] | None,
+    ) -> list[dict[str, object]]:
+        enriched: list[dict[str, object]] = []
+        descriptor = (
+            str(current_operator.get("descriptor") or "")
+            if isinstance(current_operator, dict)
+            else ""
+        )
+        for trusted_input in trusted_inputs:
+            item = dict(trusted_input)
+            input_type = str(item.get("input_type") or "")
+            if input_type == "template-repository":
+                repo_project_id, repo_id = _devops_repo_project_and_id(item.get("join_ids") or [])
+                if repo_project_id and repo_id:
+                    permissions = self._devops_git_repository_permissions(
+                        organization=organization,
+                        project_id=repo_project_id,
+                        repository_id=repo_id,
+                    )
+                    item = _devops_apply_repository_permission_proof(
+                        item,
+                        can_view=permissions.get("current_operator_can_view_source"),
+                        can_contribute=permissions.get("current_operator_can_contribute_source"),
+                        permission_source="azure-devops-git-permissions",
+                    )
+            elif input_type == "package-feed" and descriptor:
+                feed_name = _devops_feed_name_from_trusted_input(item)
+                if feed_name:
+                    item = _devops_apply_feed_permission_proof(
+                        item,
+                        permissions=self._devops_feed_permissions(
+                            organization=organization,
+                            project_name=project_name,
+                            feed_name=feed_name,
+                            identity_descriptor=descriptor,
+                        ),
+                    )
+            elif input_type == "secure-file":
+                secure_file_name = _devops_secure_file_name_from_trusted_input(item)
+                secure_file = None
+                if secure_file_name:
+                    secure_file = self._devops_secure_files(
+                        organization=organization,
+                        project_name=project_name,
+                    ).get(secure_file_name.strip().lower())
+                if secure_file is not None:
+                    item = _devops_apply_secure_file_role_proof(
+                        item,
+                        role_assignments=self._devops_secure_file_role_assignments(
+                            organization=organization,
+                            project_id=project_id,
+                            secure_file_id=str(secure_file.get("id") or ""),
+                        ),
+                        current_operator=current_operator,
+                    )
+            enriched.append(item)
+        return _devops_merge_trusted_inputs(enriched)
 
     def _count_storage_children(
         self,
@@ -8163,6 +8351,111 @@ def _devops_pipeline_summary(
     return pipeline, issues
 
 
+def _devops_refresh_pipeline_state(
+    pipeline: dict[str, object],
+    *,
+    definition_issues: list[dict[str, object]],
+) -> None:
+    primary_trusted_input = _devops_primary_trusted_input(
+        [
+            dict(item)
+            for item in (pipeline.get("trusted_inputs") or [])
+            if isinstance(item, dict)
+        ]
+    )
+    pipeline["trusted_input_types"] = _dedupe_strings(
+        item.get("input_type") for item in (pipeline.get("trusted_inputs") or [])
+    )
+    pipeline["trusted_input_refs"] = _dedupe_strings(
+        item.get("ref") for item in (pipeline.get("trusted_inputs") or [])
+    )
+    pipeline["trusted_input_join_ids"] = _dedupe_strings(
+        join_id
+        for item in (pipeline.get("trusted_inputs") or [])
+        if isinstance(item, dict)
+        for join_id in (item.get("join_ids") or [])
+    )
+    pipeline["primary_injection_surface"] = (
+        str((primary_trusted_input.get("surface_types") or [None])[0])
+        if primary_trusted_input
+        else None
+    )
+    pipeline["primary_trusted_input_ref"] = (
+        str(primary_trusted_input.get("ref")) if primary_trusted_input else None
+    )
+    pipeline["current_operator_injection_surface_types"] = (
+        _devops_current_operator_injection_surfaces(
+            trusted_inputs=[
+                dict(item)
+                for item in (pipeline.get("trusted_inputs") or [])
+                if isinstance(item, dict)
+            ],
+            current_operator_can_edit=pipeline.get("current_operator_can_edit"),
+        )
+    )
+    pipeline["missing_execution_path"] = _devops_missing_execution_path(
+        repository_name=_string_value(pipeline.get("repository_name")),
+        execution_modes=[str(value) for value in (pipeline.get("execution_modes") or [])],
+        current_operator_can_queue=pipeline.get("current_operator_can_queue"),
+        current_operator_can_edit=pipeline.get("current_operator_can_edit"),
+    )
+    pipeline["missing_injection_point"] = not bool(
+        pipeline.get("current_operator_injection_surface_types")
+    )
+    partial_read_reasons = [
+        issue["message"].split(": ", 1)[1]
+        for issue in definition_issues
+        if issue.get("kind") == ErrorKind.PARTIAL_COLLECTION.value
+        and isinstance(issue.get("message"), str)
+        and issue["message"].startswith("devops.definition: ")
+    ]
+    pipeline["summary"] = _devops_operator_summary(
+        definition_name=str(pipeline.get("name") or "unknown"),
+        project_name=str(pipeline.get("project_name") or "unknown"),
+        trusted_inputs=[
+            dict(item)
+            for item in (pipeline.get("trusted_inputs") or [])
+            if isinstance(item, dict)
+        ],
+        primary_injection_surface=_string_value(pipeline.get("primary_injection_surface")),
+        primary_trusted_input_ref=_string_value(pipeline.get("primary_trusted_input_ref")),
+        trigger_types=[str(value) for value in (pipeline.get("trigger_types") or [])],
+        execution_modes=[str(value) for value in (pipeline.get("execution_modes") or [])],
+        injection_surface_types=[
+            str(value) for value in (pipeline.get("injection_surface_types") or [])
+        ],
+        azure_service_connection_names=[
+            str(value) for value in (pipeline.get("azure_service_connection_names") or [])
+        ],
+        variable_group_names=[
+            str(value) for value in (pipeline.get("variable_group_names") or [])
+        ],
+        secret_variable_count=int(pipeline.get("secret_variable_count") or 0),
+        key_vault_group_names=[
+            str(value) for value in (pipeline.get("key_vault_group_names") or [])
+        ],
+        key_vault_names=[str(value) for value in (pipeline.get("key_vault_names") or [])],
+        target_clues=[str(value) for value in (pipeline.get("target_clues") or [])],
+        partial_read_reasons=partial_read_reasons,
+        current_operator_can_queue=pipeline.get("current_operator_can_queue"),
+        current_operator_can_edit=pipeline.get("current_operator_can_edit"),
+        current_operator_can_contribute_source=pipeline.get(
+            "current_operator_can_contribute_source"
+        ),
+        current_operator_injection_surface_types=[
+            str(value) for value in (pipeline.get("current_operator_injection_surface_types") or [])
+        ],
+        primary_trusted_input_type=(
+            str(primary_trusted_input.get("input_type")) if primary_trusted_input else None
+        ),
+        primary_trusted_input_access_state=(
+            str(primary_trusted_input.get("current_operator_access_state"))
+            if primary_trusted_input and primary_trusted_input.get("current_operator_access_state")
+            else None
+        ),
+    )
+
+
 def _devops_secret_details(variables: object) -> tuple[int, list[str]]:
     if not isinstance(variables, dict):
         return 0, []
@@ -8971,6 +9264,369 @@ def _devops_package_feed_input(
     }
 
 
+def _devops_access_state_rank(value: object) -> int:
+    return {"write": 0, "read": 1, "exists-only": 2}.get(str(value or ""), 9)
+
+
+def _devops_apply_permission_proof(
+    trusted_input: dict[str, object],
+    *,
+    access_state: str | None,
+    can_poison: bool | None,
+    evidence_basis: str | None,
+    permission_source: str | None,
+    permission_detail: str | None,
+) -> dict[str, object]:
+    updated = dict(trusted_input)
+    updated["current_operator_access_state"] = access_state
+    updated["current_operator_can_poison"] = can_poison
+    updated["trusted_input_evidence_basis"] = evidence_basis
+    updated["trusted_input_permission_source"] = permission_source
+    updated["trusted_input_permission_detail"] = permission_detail
+    return updated
+
+
+def _devops_default_permission_proof(trusted_input: dict[str, object]) -> tuple[str, str, str]:
+    visibility_state = str(trusted_input.get("visibility_state") or "") or "visible"
+    detail_map = {
+        "visible": "visible reference only",
+        "inferred-only": "expression-backed reference only",
+        "external-reference": "external reference only",
+        "definition-reference": "definition reference only",
+    }
+    return (
+        "definition-reference",
+        "pipeline-definition",
+        detail_map.get(visibility_state, "reference only"),
+    )
+
+
+def _devops_apply_repository_permission_proof(
+    trusted_input: dict[str, object],
+    *,
+    can_view: object,
+    can_contribute: object,
+    permission_source: str,
+) -> dict[str, object]:
+    if can_contribute is True:
+        return _devops_apply_permission_proof(
+            trusted_input,
+            access_state="write",
+            can_poison=True,
+            evidence_basis="repository-permission",
+            permission_source=permission_source,
+            permission_detail="GenericContribute allowed",
+        )
+    if can_view is True:
+        return _devops_apply_permission_proof(
+            trusted_input,
+            access_state="read",
+            can_poison=False,
+            evidence_basis="repository-permission",
+            permission_source=permission_source,
+            permission_detail="GenericRead allowed",
+        )
+    return trusted_input
+
+
+def _devops_repo_project_and_id(join_ids: list[object]) -> tuple[str | None, str | None]:
+    for join_id in join_ids:
+        text = str(join_id or "")
+        if not text.startswith("devops-repo://"):
+            continue
+        parts = [part for part in text.split("://", 1)[1].split("/") if part]
+        if len(parts) >= 3:
+            return parts[1], parts[2]
+    return None, None
+
+
+def _devops_feed_name_from_trusted_input(trusted_input: dict[str, object]) -> str | None:
+    ref = str(trusted_input.get("ref") or "")
+    if ref.startswith("package-feed:"):
+        feed_ref = ref.split(":", 1)[1]
+        if "/" in feed_ref:
+            return feed_ref.rsplit("/", 1)[-1]
+        return feed_ref
+    return None
+
+
+def _devops_feed_permission_role(permission: dict[str, object]) -> str | None:
+    candidates = [
+        permission.get("role"),
+        permission.get("roleName"),
+        permission.get("displayName"),
+    ]
+    role = permission.get("role")
+    if isinstance(role, dict):
+        candidates.extend([role.get("name"), role.get("displayName")])
+    for candidate in candidates:
+        text = str(candidate or "").strip()
+        if text:
+            return text.lower()
+    return None
+
+
+def _devops_apply_feed_permission_proof(
+    trusted_input: dict[str, object],
+    *,
+    permissions: list[dict[str, object]],
+) -> dict[str, object]:
+    best_role: str | None = None
+    best_rank = 9
+    for permission in permissions:
+        role = _devops_feed_permission_role(permission)
+        rank = {
+            "administrator": 0,
+            "contributor": 1,
+            "collaborator": 2,
+            "reader": 3,
+        }.get(str(role or ""), 9)
+        if rank < best_rank:
+            best_role = role
+            best_rank = rank
+
+    if best_role in {"administrator", "contributor"}:
+        return _devops_apply_permission_proof(
+            trusted_input,
+            access_state="write",
+            can_poison=True,
+            evidence_basis="feed-role",
+            permission_source="azure-devops-artifacts-feed-permissions",
+            permission_detail=f"role={best_role}",
+        )
+    if best_role in {"collaborator", "reader"}:
+        return _devops_apply_permission_proof(
+            trusted_input,
+            access_state="read",
+            can_poison=False,
+            evidence_basis="feed-role",
+            permission_source="azure-devops-artifacts-feed-permissions",
+            permission_detail=f"role={best_role}",
+        )
+    return trusted_input
+
+
+def _devops_secure_file_name_from_trusted_input(trusted_input: dict[str, object]) -> str | None:
+    ref = str(trusted_input.get("ref") or "")
+    if ref.startswith("secure-file:"):
+        return ref.split(":", 1)[1]
+    return None
+
+
+def _devops_secure_file_role_name(role_assignment: dict[str, object]) -> str | None:
+    role_name = role_assignment.get("roleName")
+    if role_name:
+        return str(role_name).strip().lower()
+    role = role_assignment.get("role")
+    if isinstance(role, dict):
+        for key in ("name", "displayName"):
+            value = role.get(key)
+            if value:
+                return str(value).strip().lower()
+    for key in ("displayName", "name"):
+        value = role_assignment.get(key)
+        if value:
+            return str(value).strip().lower()
+    return None
+
+
+def _devops_secure_file_assignment_matches_current_operator(
+    role_assignment: dict[str, object],
+    current_operator: dict[str, object] | None,
+) -> bool:
+    if not isinstance(current_operator, dict):
+        return False
+
+    profile_id = str(current_operator.get("profile_id") or "").lower()
+    descriptors = {
+        str(value).lower()
+        for value in current_operator.get("subject_descriptors") or []
+        if str(value or "").strip()
+    }
+    descriptor = str(current_operator.get("descriptor") or "").lower()
+    if descriptor:
+        descriptors.add(descriptor)
+
+    candidates: list[str] = []
+    for key in ("userId", "identityId", "descriptor", "identityDescriptor"):
+        value = role_assignment.get(key)
+        if value:
+            candidates.append(str(value))
+    identity = role_assignment.get("identity")
+    if isinstance(identity, dict):
+        for key in ("id", "descriptor", "subjectDescriptor"):
+            value = identity.get(key)
+            if value:
+                candidates.append(str(value))
+
+    lowered = {candidate.lower() for candidate in candidates if candidate}
+    if profile_id and profile_id in lowered:
+        return True
+    return bool(descriptors & lowered)
+
+
+def _devops_apply_secure_file_role_proof(
+    trusted_input: dict[str, object],
+    *,
+    role_assignments: list[dict[str, object]],
+    current_operator: dict[str, object] | None,
+) -> dict[str, object]:
+    best_role: str | None = None
+    best_rank = 9
+    for role_assignment in role_assignments:
+        if not _devops_secure_file_assignment_matches_current_operator(
+            role_assignment,
+            current_operator,
+        ):
+            continue
+        role_name = _devops_secure_file_role_name(role_assignment)
+        rank = {
+            "administrator": 0,
+            "admin": 0,
+            "user": 1,
+            "creator": 2,
+            "reader": 3,
+        }.get(str(role_name or ""), 9)
+        if rank < best_rank:
+            best_role = role_name
+            best_rank = rank
+
+    if best_role in {"administrator", "admin"}:
+        return _devops_apply_permission_proof(
+            trusted_input,
+            access_state="write",
+            can_poison=True,
+            evidence_basis="secure-file-role",
+            permission_source="azure-devops-library-security-role",
+            permission_detail=f"role={best_role}",
+        )
+    if best_role == "user":
+        return _devops_apply_permission_proof(
+            trusted_input,
+            access_state="read",
+            can_poison=False,
+            evidence_basis="secure-file-role",
+            permission_source="azure-devops-library-security-role",
+            permission_detail="role=user",
+        )
+    if best_role in {"reader", "creator"}:
+        return _devops_apply_permission_proof(
+            trusted_input,
+            access_state="exists-only",
+            can_poison=False,
+            evidence_basis="secure-file-role",
+            permission_source="azure-devops-library-security-role",
+            permission_detail=f"role={best_role}",
+        )
+    return trusted_input
+
+
+def _devops_pipeline_lookup(
+    pipelines: list[dict[str, object]],
+) -> dict[tuple[str, str], dict[str, object]]:
+    result: dict[tuple[str, str], dict[str, object]] = {}
+    for pipeline in pipelines:
+        project_name = str(pipeline.get("project_name") or "").strip().lower()
+        pipeline_name = str(pipeline.get("name") or "").strip().lower()
+        if project_name and pipeline_name:
+            result[(project_name, pipeline_name)] = pipeline
+        definition_id = str(pipeline.get("definition_id") or "").strip().lower()
+        if project_name and definition_id:
+            result[(project_name, definition_id)] = pipeline
+    return result
+
+
+def _devops_pipeline_artifact_ref_parts(ref: str) -> tuple[str | None, str | None, str | None]:
+    if not ref.startswith("pipeline-artifact:"):
+        return None, None, None
+    path = ref.split(":", 1)[1]
+    project_and_pipeline, _, artifact_name = path.partition("#")
+    if "/" not in project_and_pipeline:
+        return None, project_and_pipeline or None, artifact_name or None
+    project_name, pipeline_name = project_and_pipeline.split("/", 1)
+    return project_name or None, pipeline_name or None, artifact_name or None
+
+
+def _devops_apply_artifact_producer_proof(
+    trusted_input: dict[str, object],
+    *,
+    producer_pipeline: dict[str, object],
+) -> dict[str, object]:
+    producer_surfaces = [
+        str(value)
+        for value in (producer_pipeline.get("current_operator_injection_surface_types") or [])
+        if value
+    ]
+    if (
+        producer_pipeline.get("current_operator_can_edit") is True
+        or "definition-edit" in producer_surfaces
+    ):
+        return _devops_apply_permission_proof(
+            trusted_input,
+            access_state="write",
+            can_poison=True,
+            evidence_basis="artifact-producer-definition-edit",
+            permission_source="azure-devops-build-permissions",
+            permission_detail="producer EditBuildDefinition allowed",
+        )
+    non_definition_surfaces = [
+        value for value in producer_surfaces if value != "definition-edit"
+    ]
+    if non_definition_surfaces:
+        return _devops_apply_permission_proof(
+            trusted_input,
+            access_state="write",
+            can_poison=True,
+            evidence_basis="artifact-producer-input-control",
+            permission_source="azure-devops-build-permissions",
+            permission_detail="producer poisonable via " + ",".join(non_definition_surfaces),
+        )
+    if producer_pipeline.get("current_operator_can_view_definition") is True:
+        return _devops_apply_permission_proof(
+            trusted_input,
+            access_state="read",
+            can_poison=False,
+            evidence_basis="artifact-producer-visible",
+            permission_source="azure-devops-build-permissions",
+            permission_detail="producer definition visible",
+        )
+    return trusted_input
+
+
+def _devops_enrich_artifact_trusted_inputs(
+    *,
+    pipeline: dict[str, object],
+    trusted_inputs: list[dict[str, object]],
+    pipelines_by_project_and_name: dict[tuple[str, str], dict[str, object]],
+) -> list[dict[str, object]]:
+    project_name = str(pipeline.get("project_name") or "")
+    enriched: list[dict[str, object]] = []
+    for trusted_input in trusted_inputs:
+        item = dict(trusted_input)
+        if str(item.get("input_type") or "") != "pipeline-artifact":
+            enriched.append(item)
+            continue
+        ref = str(item.get("ref") or "")
+        producer_project, producer_name, _artifact_name = _devops_pipeline_artifact_ref_parts(ref)
+        if producer_name == "current":
+            producer_pipeline = pipeline
+        else:
+            lookup_project = (producer_project or project_name).strip().lower()
+            lookup_name = (producer_name or "").strip().lower()
+            producer_pipeline = (
+                pipelines_by_project_and_name.get((lookup_project, lookup_name))
+                if lookup_project and lookup_name
+                else None
+            )
+        if producer_pipeline is not None:
+            item = _devops_apply_artifact_producer_proof(
+                item,
+                producer_pipeline=producer_pipeline,
+            )
+        enriched.append(item)
+    return _devops_merge_trusted_inputs(enriched)
+
+
 def _devops_merge_trusted_inputs(
     inputs: list[dict[str, object]],
 ) -> list[dict[str, object]]:
@@ -9008,6 +9664,13 @@ def _devops_merge_trusted_inputs(
                 existing["current_operator_can_poison"] = True
             elif existing.get("current_operator_can_poison") is None:
                 existing["current_operator_can_poison"] = item.get("current_operator_can_poison")
+        if _devops_should_replace_proof(existing, item):
+            for field_name in (
+                "trusted_input_evidence_basis",
+                "trusted_input_permission_source",
+                "trusted_input_permission_detail",
+            ):
+                existing[field_name] = item.get(field_name)
     return sorted(merged.values(), key=_trusted_input_sort_key)
 
 
@@ -9023,14 +9686,40 @@ def _preferred_visibility_state(left: object, right: object) -> str | None:
 
 
 def _preferred_access_state(left: object, right: object) -> str | None:
-    order = {"write": 0, "read": 1, "exists-only": 2}
     left_value = str(left) if left else None
     right_value = str(right) if right else None
     if left_value is None:
         return right_value
     if right_value is None:
         return left_value
-    return left_value if order.get(left_value, 9) <= order.get(right_value, 9) else right_value
+    return (
+        left_value
+        if _devops_access_state_rank(left_value) <= _devops_access_state_rank(right_value)
+        else right_value
+    )
+
+
+def _devops_should_replace_proof(existing: dict[str, object], item: dict[str, object]) -> bool:
+    existing_rank = _devops_access_state_rank(existing.get("current_operator_access_state"))
+    item_rank = _devops_access_state_rank(item.get("current_operator_access_state"))
+    if item_rank < existing_rank:
+        return True
+    if item_rank > existing_rank:
+        return False
+    existing_poison = existing.get("current_operator_can_poison") is True
+    item_poison = item.get("current_operator_can_poison") is True
+    if item_poison and not existing_poison:
+        return True
+    if existing_poison and not item_poison:
+        return False
+    return any(
+        item.get(field_name) and not existing.get(field_name)
+        for field_name in (
+            "trusted_input_evidence_basis",
+            "trusted_input_permission_source",
+            "trusted_input_permission_detail",
+        )
+    )
 
 
 def _trusted_input_sort_key(item: dict[str, object]) -> tuple[int, int, int, str]:
@@ -9075,15 +9764,26 @@ def _devops_finalize_trusted_inputs(
             if current_operator_can_contribute_source is True:
                 access_state = "write"
                 can_poison = True
+                trusted_input["trusted_input_evidence_basis"] = "repository-permission"
+                trusted_input["trusted_input_permission_source"] = "azure-devops-git-permissions"
+                trusted_input["trusted_input_permission_detail"] = "GenericContribute allowed"
             elif current_operator_can_view_source is True:
                 access_state = "read"
                 can_poison = False
+                trusted_input["trusted_input_evidence_basis"] = "repository-permission"
+                trusted_input["trusted_input_permission_source"] = "azure-devops-git-permissions"
+                trusted_input["trusted_input_permission_detail"] = "GenericRead allowed"
             elif trusted_input.get("visibility_state"):
                 access_state = "exists-only"
                 can_poison = False
         elif access_state is None and trusted_input.get("visibility_state"):
             access_state = "exists-only"
             can_poison = False
+        if access_state == "exists-only" and not trusted_input.get("trusted_input_evidence_basis"):
+            basis, source, detail = _devops_default_permission_proof(trusted_input)
+            trusted_input["trusted_input_evidence_basis"] = basis
+            trusted_input["trusted_input_permission_source"] = source
+            trusted_input["trusted_input_permission_detail"] = detail
         trusted_input["current_operator_access_state"] = access_state
         trusted_input["current_operator_can_poison"] = can_poison
         finalized.append(trusted_input)
@@ -9462,11 +10162,22 @@ def _devops_injection_clause(
             current_operator_injection_surface_types
         )
     if primary_trusted_input_access_state == "read":
+        if primary_trusted_input_type == "pipeline-artifact":
+            return (
+                f"current credentials can inspect the upstream producer behind {trusted_input}, "
+                "but Azure DevOps evidence here does not prove producer-side control"
+            )
         return (
             f"current credentials can read {trusted_input}, but not write it from Azure DevOps "
             "evidence here"
         )
     if primary_trusted_input_access_state == "exists-only":
+        missing_proof = _devops_missing_trusted_input_proof(primary_trusted_input_type)
+        if missing_proof:
+            return (
+                f"Azure DevOps evidence currently only proves that {trusted_input} is trusted "
+                f"here; {missing_proof} remains unproven"
+            )
         return f"Azure DevOps evidence currently only proves that {trusted_input} is trusted here"
     if current_operator_can_queue:
         return (
@@ -9481,6 +10192,16 @@ def _devops_injection_clause(
     if injection_surface_types:
         return "visible injection surfaces include " + ", ".join(injection_surface_types)
     return None
+
+
+def _devops_missing_trusted_input_proof(input_type: str | None) -> str | None:
+    return {
+        "package-feed": "the current operator's feed role",
+        "pipeline-artifact": "upstream producer control",
+        "template-repository": "referenced repo read/write proof",
+        "repository": "repo read/write proof",
+        "secure-file": "secure-file use or admin proof",
+    }.get(str(input_type or ""))
 
 
 def _devops_partial_read_reasons(

@@ -2579,6 +2579,10 @@ def _devops_repository_context(item: dict) -> str:
             parts.append(f"state={primary_input.get('visibility_state')}")
         if primary_input.get("current_operator_access_state"):
             parts.append(f"current={primary_input.get('current_operator_access_state')}")
+        if primary_input.get("trusted_input_permission_detail"):
+            parts.append(f"proof={primary_input.get('trusted_input_permission_detail')}")
+        elif primary_input.get("trusted_input_evidence_basis"):
+            parts.append(f"proof={primary_input.get('trusted_input_evidence_basis')}")
         if len(trusted_inputs) > 1:
             parts.append(f"extra={len(trusted_inputs) - 1}")
         return "; ".join(parts)

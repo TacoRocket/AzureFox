@@ -97,6 +97,43 @@ def test_deployment_path_named_devops_target_stays_below_high_without_poison_pro
     assert "trusted input is writable" in decision.next_review
 
 
+def test_deployment_path_artifact_visibility_stays_below_high_without_producer_control() -> None:
+    decision = evaluate_chain_semantics(
+        ChainSemanticContext(
+            family="deployment-path",
+            clue_type="controllable-change-path",
+            target_service="app-service",
+            target_resolution="named match",
+            target_count=1,
+            source_command="devops",
+            path_concept="controllable-change-path",
+            current_operator_can_drive=True,
+            current_operator_can_inject=False,
+        )
+    )
+
+    assert decision.priority == "medium"
+
+
+def test_deployment_path_artifact_producer_control_can_raise_devops_row() -> None:
+    decision = evaluate_chain_semantics(
+        ChainSemanticContext(
+            family="deployment-path",
+            clue_type="controllable-change-path",
+            target_service="app-service",
+            target_resolution="named match",
+            target_count=1,
+            source_command="devops",
+            path_concept="controllable-change-path",
+            current_operator_can_drive=True,
+            current_operator_can_inject=True,
+        )
+    )
+
+    assert decision.priority == "high"
+    assert "poison a trusted input" in decision.next_review
+
+
 def test_devops_edit_rights_count_as_definition_edit_injection() -> None:
     assert (
         _source_current_operator_can_inject(

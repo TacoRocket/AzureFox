@@ -46,7 +46,12 @@ from azurefox.collectors.provider import (
     _acr_registry_summary,
     _aks_cluster_summary,
     _database_server_summary,
+    _devops_apply_feed_permission_proof,
+    _devops_apply_repository_permission_proof,
+    _devops_apply_secure_file_role_proof,
     _devops_current_operator_injection_surfaces,
+    _devops_enrich_artifact_trusted_inputs,
+    _devops_finalize_trusted_inputs,
     _devops_missing_execution_path,
     _devops_pipeline_summary,
     _env_var_reference_target,
@@ -2102,6 +2107,192 @@ def test_devops_pipeline_summary_extracts_non_repo_trusted_inputs() -> None:
     }
     assert pipeline["primary_trusted_input_ref"]
     assert pipeline["trusted_input_refs"]
+
+
+def test_devops_finalize_trusted_inputs_adds_exists_only_proof_metadata() -> None:
+    trusted_inputs = _devops_finalize_trusted_inputs(
+        trusted_inputs=[
+            {
+                "input_type": "package-feed",
+                "ref": "package-feed:prod-platform/shared-feed",
+                "visibility_state": "visible",
+                "surface_types": ["feed-package"],
+                "join_ids": ["devops-feed://contoso/prod-platform/prod-platform%2Fshared-feed"],
+            }
+        ],
+        source_join_ids=[],
+        current_operator_can_view_source=None,
+        current_operator_can_contribute_source=None,
+    )
+
+    assert trusted_inputs[0]["current_operator_access_state"] == "exists-only"
+    assert trusted_inputs[0]["current_operator_can_poison"] is False
+    assert trusted_inputs[0]["trusted_input_evidence_basis"] == "definition-reference"
+    assert trusted_inputs[0]["trusted_input_permission_source"] == "pipeline-definition"
+    assert trusted_inputs[0]["trusted_input_permission_detail"] == "visible reference only"
+
+
+def test_devops_feed_permission_proof_maps_reader_and_contributor_roles() -> None:
+    reader = _devops_apply_feed_permission_proof(
+        {
+            "input_type": "package-feed",
+            "ref": "package-feed:prod-platform/shared-feed",
+            "visibility_state": "visible",
+        },
+        permissions=[{"role": "reader"}],
+    )
+    contributor = _devops_apply_feed_permission_proof(
+        {
+            "input_type": "package-feed",
+            "ref": "package-feed:prod-platform/shared-feed",
+            "visibility_state": "visible",
+        },
+        permissions=[{"role": "contributor"}],
+    )
+
+    assert reader["current_operator_access_state"] == "read"
+    assert reader["current_operator_can_poison"] is False
+    assert reader["trusted_input_permission_detail"] == "role=reader"
+    assert contributor["current_operator_access_state"] == "write"
+    assert contributor["current_operator_can_poison"] is True
+    assert contributor["trusted_input_permission_detail"] == "role=contributor"
+
+
+def test_devops_secure_file_role_proof_distinguishes_visible_use_and_manage() -> None:
+    current_operator = {
+        "profile_id": "user-1",
+        "descriptor": "vssgp.user-1",
+        "subject_descriptors": ["vssgp.user-1", "vssgp.group-1"],
+    }
+    visible_only = _devops_apply_secure_file_role_proof(
+        {
+            "input_type": "secure-file",
+            "ref": "secure-file:codesign-cert.pfx",
+            "visibility_state": "visible",
+        },
+        role_assignments=[
+            {"roleName": "Reader", "identityDescriptor": "vssgp.user-1"},
+        ],
+        current_operator=current_operator,
+    )
+    usable = _devops_apply_secure_file_role_proof(
+        {
+            "input_type": "secure-file",
+            "ref": "secure-file:codesign-cert.pfx",
+            "visibility_state": "visible",
+        },
+        role_assignments=[
+            {"roleName": "User", "identityDescriptor": "vssgp.group-1"},
+        ],
+        current_operator=current_operator,
+    )
+    manageable = _devops_apply_secure_file_role_proof(
+        {
+            "input_type": "secure-file",
+            "ref": "secure-file:codesign-cert.pfx",
+            "visibility_state": "visible",
+        },
+        role_assignments=[
+            {"roleName": "Administrator", "identityDescriptor": "vssgp.user-1"},
+        ],
+        current_operator=current_operator,
+    )
+
+    assert visible_only["current_operator_access_state"] == "exists-only"
+    assert visible_only["current_operator_can_poison"] is False
+    assert visible_only["trusted_input_permission_detail"] == "role=reader"
+    assert usable["current_operator_access_state"] == "read"
+    assert usable["current_operator_can_poison"] is False
+    assert usable["trusted_input_permission_detail"] == "role=user"
+    assert manageable["current_operator_access_state"] == "write"
+    assert manageable["current_operator_can_poison"] is True
+    assert manageable["trusted_input_permission_detail"] == "role=administrator"
+
+
+def test_devops_repository_permission_proof_maps_template_repo_read_and_write() -> None:
+    readable = _devops_apply_repository_permission_proof(
+        {
+            "input_type": "template-repository",
+            "ref": "template-repository:azure-repos:platform-templates@refs/heads/main",
+        },
+        can_view=True,
+        can_contribute=False,
+        permission_source="azure-devops-git-permissions",
+    )
+    writable = _devops_apply_repository_permission_proof(
+        {
+            "input_type": "template-repository",
+            "ref": "template-repository:azure-repos:platform-templates@refs/heads/main",
+        },
+        can_view=True,
+        can_contribute=True,
+        permission_source="azure-devops-git-permissions",
+    )
+
+    assert readable["current_operator_access_state"] == "read"
+    assert readable["current_operator_can_poison"] is False
+    assert writable["current_operator_access_state"] == "write"
+    assert writable["current_operator_can_poison"] is True
+
+
+def test_devops_artifact_producer_proof_requires_producer_control() -> None:
+    read_only = _devops_enrich_artifact_trusted_inputs(
+        pipeline={
+            "project_name": "prod-platform",
+            "name": "deploy-appservice-prod",
+        },
+        trusted_inputs=[
+            {
+                "input_type": "pipeline-artifact",
+                "ref": "pipeline-artifact:prod-platform/shared-build#signed-drop",
+                "visibility_state": "visible",
+                "current_operator_access_state": "exists-only",
+                "current_operator_can_poison": False,
+                "surface_types": ["pipeline-artifact"],
+            }
+        ],
+        pipelines_by_project_and_name={
+            ("prod-platform", "shared-build"): {
+                "project_name": "prod-platform",
+                "name": "shared-build",
+                "current_operator_can_view_definition": True,
+                "current_operator_can_edit": False,
+                "current_operator_injection_surface_types": [],
+            }
+        },
+    )
+    controllable = _devops_enrich_artifact_trusted_inputs(
+        pipeline={
+            "project_name": "prod-platform",
+            "name": "deploy-appservice-prod",
+        },
+        trusted_inputs=[
+            {
+                "input_type": "pipeline-artifact",
+                "ref": "pipeline-artifact:prod-platform/shared-build#signed-drop",
+                "visibility_state": "visible",
+                "current_operator_access_state": "exists-only",
+                "current_operator_can_poison": False,
+                "surface_types": ["pipeline-artifact"],
+            }
+        ],
+        pipelines_by_project_and_name={
+            ("prod-platform", "shared-build"): {
+                "project_name": "prod-platform",
+                "name": "shared-build",
+                "current_operator_can_view_definition": True,
+                "current_operator_can_edit": False,
+                "current_operator_injection_surface_types": ["feed-package"],
+            }
+        },
+    )
+
+    assert read_only[0]["current_operator_access_state"] == "read"
+    assert read_only[0]["current_operator_can_poison"] is False
+    assert read_only[0]["trusted_input_evidence_basis"] == "artifact-producer-visible"
+    assert controllable[0]["current_operator_access_state"] == "write"
+    assert controllable[0]["current_operator_can_poison"] is True
+    assert controllable[0]["trusted_input_evidence_basis"] == "artifact-producer-input-control"
 
 
 def test_devops_missing_execution_path_clears_for_queue_or_edit() -> None:
