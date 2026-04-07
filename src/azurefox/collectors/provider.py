@@ -691,13 +691,20 @@ class AzureProvider(BaseProvider):
             issues.append(_issue_from_exception("devops.projects", exc))
             return {"pipelines": [], "issues": issues}
 
+        current_operator: dict[str, object] | None = None
+        try:
+            current_operator = self._devops_current_operator_identity(organization=organization)
+        except Exception as exc:
+            issues.append(_issue_from_exception("devops.current_operator", exc))
+
+        project_contexts: list[dict[str, object]] = []
+        all_repositories: list[dict[str, object]] = []
+
         for project in projects:
             project_name = str(project.get("name") or "")
             if not project_name:
                 continue
             project_path = quote(project_name, safe="")
-            project_pipelines: list[dict[str, object]] = []
-            definition_issues_by_key: dict[str, list[dict[str, object]]] = {}
 
             try:
                 service_endpoints = self._devops_list_values(
@@ -759,13 +766,44 @@ class AzureProvider(BaseProvider):
                 )
                 definitions = []
 
-            service_endpoints_by_id, service_endpoints_by_name = _devops_service_endpoint_maps(
-                service_endpoints
+            project_contexts.append(
+                {
+                    "project": project,
+                    "service_endpoints": service_endpoints,
+                    "variable_groups": variable_groups,
+                    "repositories": repositories,
+                    "definitions": definitions,
+                }
             )
-            repositories_by_id, repositories_by_name = _devops_repository_maps(repositories)
-            variable_groups_by_id = _devops_variable_group_map(variable_groups)
+            all_repositories.extend(
+                [repository for repository in repositories if isinstance(repository, dict)]
+            )
 
-            for definition in definitions:
+        repositories_by_id, repositories_by_name = _devops_repository_maps(all_repositories)
+        pipeline_issues_by_key: dict[str, list[dict[str, object]]] = {}
+        collected_pipelines: list[dict[str, object]] = []
+
+        for context in project_contexts:
+            project = context["project"]
+            project_name = str(project.get("name") or "")
+            service_endpoints_by_id, service_endpoints_by_name = _devops_service_endpoint_maps(
+                [
+                    endpoint
+                    for endpoint in (context.get("service_endpoints") or [])
+                    if isinstance(endpoint, dict)
+                ]
+            )
+            variable_groups_by_id = _devops_variable_group_map(
+                [
+                    group
+                    for group in (context.get("variable_groups") or [])
+                    if isinstance(group, dict)
+                ]
+            )
+
+            for definition in context.get("definitions") or []:
+                if not isinstance(definition, dict):
+                    continue
                 try:
                     pipeline, definition_issues = _devops_pipeline_summary(
                         organization=organization,
@@ -846,22 +884,6 @@ class AzureProvider(BaseProvider):
                         "current_operator_can_contribute_source"
                     ),
                 )
-                definition_key = str(pipeline.get("definition_id") or pipeline.get("name") or "")
-                definition_issues_by_key[definition_key] = definition_issues
-                project_pipelines.append(pipeline)
-
-            current_operator: dict[str, object] | None = None
-            try:
-                current_operator = self._devops_current_operator_identity(organization=organization)
-            except Exception as exc:
-                issues.append(
-                    _issue_from_exception(
-                        f"devops[{project_name}].current_operator",
-                        exc,
-                    )
-                )
-
-            for pipeline in project_pipelines:
                 try:
                     pipeline["trusted_inputs"] = self._devops_enrich_non_artifact_trusted_inputs(
                         organization=organization,
@@ -878,53 +900,56 @@ class AzureProvider(BaseProvider):
                     pipeline_key = (
                         pipeline.get("definition_id") or pipeline.get("name") or "unknown"
                     )
-                    issues.append(
-                        _issue_from_exception(
-                            f"devops[{project_name}].trusted_input_proof[{pipeline_key}]",
-                            exc,
+                    definition_issues.append(
+                        _partial_collection_issue(
+                            "devops.trusted_input_proof",
+                            (
+                                "trusted-input proof lookup failed for "
+                                f"{pipeline_key}: {exc}"
+                            ),
+                            asset_id=str(pipeline.get("id") or "") or None,
+                            asset_name=str(pipeline.get("name") or "") or None,
                         )
                     )
-
-            for pipeline in project_pipelines:
-                definition_key = str(pipeline.get("definition_id") or pipeline.get("name") or "")
-                _devops_refresh_pipeline_state(
-                    pipeline,
-                    definition_issues=definition_issues_by_key.get(definition_key, []),
-                )
-
-            project_pipeline_map = _devops_pipeline_lookup(project_pipelines)
-            for pipeline in project_pipelines:
-                try:
-                    pipeline["trusted_inputs"] = _devops_enrich_artifact_trusted_inputs(
-                        pipeline=pipeline,
-                        trusted_inputs=[
-                            dict(item)
-                            for item in (pipeline.get("trusted_inputs") or [])
-                            if isinstance(item, dict)
-                        ],
-                        pipelines_by_project_and_name=project_pipeline_map,
-                    )
-                except Exception as exc:
-                    pipeline_key = (
-                        pipeline.get("definition_id") or pipeline.get("name") or "unknown"
-                    )
-                    issues.append(
-                        _issue_from_exception(
-                            f"devops[{project_name}].artifact_proof[{pipeline_key}]",
-                            exc,
-                        )
-                    )
-
-            for pipeline in project_pipelines:
-                definition_key = str(pipeline.get("definition_id") or pipeline.get("name") or "")
-                definition_issues = definition_issues_by_key.get(definition_key, [])
                 _devops_refresh_pipeline_state(
                     pipeline,
                     definition_issues=definition_issues,
                 )
-                issues.extend(definition_issues)
-                if _devops_pipeline_is_interesting(pipeline):
-                    pipelines.append(pipeline)
+                definition_key = _devops_pipeline_key(pipeline)
+                pipeline_issues_by_key[definition_key] = definition_issues
+                collected_pipelines.append(pipeline)
+
+        pipeline_lookup = _devops_pipeline_lookup(collected_pipelines)
+        for pipeline in collected_pipelines:
+            definition_issues = pipeline_issues_by_key.get(_devops_pipeline_key(pipeline), [])
+            project_name = str(pipeline.get("project_name") or "")
+            try:
+                pipeline["trusted_inputs"] = _devops_enrich_artifact_trusted_inputs(
+                    pipeline=pipeline,
+                    trusted_inputs=[
+                        dict(item)
+                        for item in (pipeline.get("trusted_inputs") or [])
+                        if isinstance(item, dict)
+                    ],
+                    pipelines_by_project_and_name=pipeline_lookup,
+                )
+            except Exception as exc:
+                pipeline_key = pipeline.get("definition_id") or pipeline.get("name") or "unknown"
+                definition_issues.append(
+                    _partial_collection_issue(
+                        "devops.artifact_proof",
+                        f"artifact producer proof lookup failed for {pipeline_key}: {exc}",
+                        asset_id=str(pipeline.get("id") or "") or None,
+                        asset_name=str(pipeline.get("name") or "") or None,
+                    )
+                )
+            _devops_refresh_pipeline_state(
+                pipeline,
+                definition_issues=definition_issues,
+            )
+            issues.extend(definition_issues)
+            if _devops_pipeline_is_interesting(pipeline):
+                pipelines.append(pipeline)
 
         return {"pipelines": pipelines, "issues": issues}
 
@@ -3159,22 +3184,23 @@ class AzureProvider(BaseProvider):
         self,
         *,
         organization: str,
-        project_name: str,
+        project_name: str | None,
         feed_name: str,
         identity_descriptor: str,
     ) -> list[dict[str, object]]:
         if not feed_name or not identity_descriptor:
             return []
 
-        cache_key = f"{organization}:{project_name}:{feed_name}:{identity_descriptor}"
+        project_cache_key = project_name or "_org"
+        cache_key = f"{organization}:{project_cache_key}:{feed_name}:{identity_descriptor}"
         cached = self._devops_feed_permissions_cache.get(cache_key)
         if cached is not None:
             return [dict(item) for item in cached]
 
-        project_path = quote(project_name, safe="")
+        project_path = f"{quote(project_name, safe='')}/" if project_name else ""
         payload, _headers = self._devops_get(
             "https://feeds.dev.azure.com/"
-            f"{organization}/{project_path}/_apis/packaging/Feeds/"
+            f"{organization}/{project_path}_apis/packaging/Feeds/"
             f"{quote(feed_name, safe='')}/permissions"
             f"?includeIds=true&excludeInheritedPermissions=false&identityDescriptor="
             f"{quote(identity_descriptor, safe='')}&api-version=7.1"
@@ -3218,13 +3244,13 @@ class AzureProvider(BaseProvider):
                         permission_source="azure-devops-git-permissions",
                     )
             elif input_type == "package-feed" and descriptor:
-                feed_name = _devops_feed_name_from_trusted_input(item)
+                feed_project_name, feed_name = _devops_feed_scope_from_trusted_input(item)
                 if feed_name:
                     item = _devops_apply_feed_permission_proof(
                         item,
                         permissions=self._devops_feed_permissions(
                             organization=organization,
-                            project_name=project_name,
+                            project_name=feed_project_name,
                             feed_name=feed_name,
                             identity_descriptor=descriptor,
                         ),
@@ -7946,6 +7972,76 @@ def _devops_service_endpoint_maps(
     return by_id, by_name
 
 
+def _devops_repository_project_name(repository: dict[str, object]) -> str | None:
+    project = repository.get("project")
+    if isinstance(project, dict):
+        project_name = str(project.get("name") or "").strip()
+        if project_name:
+            return project_name
+    project_name = str(repository.get("projectName") or "").strip()
+    return project_name or None
+
+
+def _devops_repository_project_id(repository: dict[str, object]) -> str | None:
+    project = repository.get("project")
+    if isinstance(project, dict):
+        project_id = str(project.get("id") or "").strip()
+        if project_id:
+            return project_id
+    project_id = str(repository.get("projectId") or "").strip()
+    return project_id or None
+
+
+def _devops_repository_scope(
+    *,
+    repository_name: str | None,
+    repository_project_name: str | None,
+) -> tuple[str | None, str | None]:
+    scoped_name = str(repository_name or "").strip()
+    scoped_project = str(repository_project_name or "").strip()
+    if scoped_name and "/" in scoped_name:
+        project_name, repo_name = scoped_name.split("/", 1)
+        return project_name.strip() or None, repo_name.strip() or None
+    return (scoped_project or None), (scoped_name or None)
+
+
+def _devops_repository_lookup_keys(
+    *,
+    repository_name: str | None,
+    repository_project_name: str | None,
+) -> list[str]:
+    project_name, resolved_name = _devops_repository_scope(
+        repository_name=repository_name,
+        repository_project_name=repository_project_name,
+    )
+    keys: list[str] = []
+    if project_name and resolved_name:
+        keys.append(f"{project_name.lower()}/{resolved_name.lower()}")
+    raw_name = str(repository_name or "").strip().lower()
+    if raw_name:
+        keys.append(raw_name)
+    if resolved_name:
+        keys.append(resolved_name.lower())
+    return _dedupe_strings(keys)
+
+
+def _devops_repository_display_name(
+    *,
+    repository_name: str | None,
+    repository_project_name: str | None,
+    current_project_name: str | None,
+) -> str | None:
+    project_name, resolved_name = _devops_repository_scope(
+        repository_name=repository_name,
+        repository_project_name=repository_project_name,
+    )
+    if not resolved_name:
+        return None
+    if project_name and project_name.lower() != str(current_project_name or "").strip().lower():
+        return f"{project_name}/{resolved_name}"
+    return resolved_name
+
+
 def _devops_repository_maps(
     repositories: list[dict[str, object]],
 ) -> tuple[dict[str, dict[str, object]], dict[str, dict[str, object]]]:
@@ -7954,10 +8050,13 @@ def _devops_repository_maps(
     for repository in repositories:
         repository_id = str(repository.get("id") or "").strip().lower()
         repository_name = str(repository.get("name") or "").strip().lower()
+        repository_project_name = str(_devops_repository_project_name(repository) or "").lower()
         if repository_id:
             by_id[repository_id] = repository
         if repository_name:
-            by_name[repository_name] = repository
+            by_name.setdefault(repository_name, repository)
+        if repository_project_name and repository_name:
+            by_name[f"{repository_project_name}/{repository_name}"] = repository
     return by_id, by_name
 
 
@@ -8025,12 +8124,18 @@ def _devops_pipeline_summary(
     catalog_repository = _devops_resolve_repository(
         repository_id=repository_id,
         repository_name=repository_name,
+        repository_project_name=project_name,
         repositories_by_id=repositories_by_id,
         repositories_by_name=repositories_by_name,
     )
+    repository_project_name = project_name
     if catalog_repository is not None:
         repository_id = str(catalog_repository.get("id") or repository_id or "") or None
         repository_name = str(catalog_repository.get("name") or repository_name or "") or None
+        repository_project_name = (
+            _devops_repository_project_name(catalog_repository) or repository_project_name
+        )
+        project_id = _devops_repository_project_id(catalog_repository) or project_id
         repository_url = (
             str(
                 catalog_repository.get("webUrl")
@@ -8185,8 +8290,10 @@ def _devops_pipeline_summary(
     source_join_ids = _devops_source_join_ids(
         organization=organization,
         project_id=project_id,
+        project_name=project_name,
         repository_id=repository_id,
         repository_name=repository_name,
+        repository_project_name=repository_project_name,
         repository_url=repository_url,
         repository_host_type=repository_host_type,
     )
@@ -8200,6 +8307,7 @@ def _devops_pipeline_summary(
             repository_name=repository_name,
             repository_url=repository_url,
             repository_host_type=repository_host_type,
+            repository_project_name=repository_project_name,
             source_visibility_state=source_visibility_state,
             default_branch=default_branch,
             execution_modes=execution_modes,
@@ -8407,8 +8515,13 @@ def _devops_refresh_pipeline_state(
         for issue in definition_issues
         if issue.get("kind") == ErrorKind.PARTIAL_COLLECTION.value
         and isinstance(issue.get("message"), str)
-        and issue["message"].startswith("devops.definition: ")
+        and ": " in issue["message"]
     ]
+    pipeline["partial_read"] = bool(partial_read_reasons)
+    risk_cues = [str(value) for value in (pipeline.get("risk_cues") or []) if value]
+    if partial_read_reasons:
+        risk_cues.append("partial-read")
+    pipeline["risk_cues"] = _dedupe_strings(risk_cues)
     pipeline["summary"] = _devops_operator_summary(
         definition_name=str(pipeline.get("name") or "unknown"),
         project_name=str(pipeline.get("project_name") or "unknown"),
@@ -8454,6 +8567,14 @@ def _devops_refresh_pipeline_state(
             else None
         ),
     )
+
+
+def _devops_pipeline_key(pipeline: dict[str, object]) -> str:
+    project_name = str(pipeline.get("project_name") or "").strip().lower()
+    definition_key = (
+        str(pipeline.get("definition_id") or pipeline.get("name") or "").strip().lower()
+    )
+    return f"{project_name}:{definition_key}"
 
 
 def _devops_secret_details(variables: object) -> tuple[int, list[str]]:
@@ -8687,6 +8808,7 @@ def _devops_resolve_repository(
     *,
     repository_id: str | None,
     repository_name: str | None,
+    repository_project_name: str | None,
     repositories_by_id: dict[str, dict[str, object]],
     repositories_by_name: dict[str, dict[str, object]],
 ) -> dict[str, object] | None:
@@ -8694,8 +8816,11 @@ def _devops_resolve_repository(
         match = repositories_by_id.get(repository_id.strip().lower())
         if match is not None:
             return match
-    if repository_name:
-        match = repositories_by_name.get(repository_name.strip().lower())
+    for key in _devops_repository_lookup_keys(
+        repository_name=repository_name,
+        repository_project_name=repository_project_name,
+    ):
+        match = repositories_by_name.get(key)
         if match is not None:
             return match
     return None
@@ -8793,8 +8918,10 @@ def _devops_source_join_ids(
     *,
     organization: str,
     project_id: str | None,
+    project_name: str | None,
     repository_id: str | None,
     repository_name: str | None,
+    repository_project_name: str | None,
     repository_url: str | None,
     repository_host_type: str | None,
 ) -> list[str]:
@@ -8808,8 +8935,13 @@ def _devops_source_join_ids(
     if repository_url:
         ids.append(f"repo-url://{quote(repository_url, safe=':/@')}")
     if repository_name and repository_host_type:
+        repo_ref_name = _devops_repository_display_name(
+            repository_name=repository_name,
+            repository_project_name=repository_project_name,
+            current_project_name=project_name,
+        ) or repository_name
         ids.append(
-            f"repo-ref://{quote(repository_host_type, safe='')}/{quote(repository_name, safe='')}"
+            f"repo-ref://{quote(repository_host_type, safe='')}/{quote(repo_ref_name, safe='')}"
         )
     return _dedupe_strings(ids)
 
@@ -8824,6 +8956,7 @@ def _devops_trusted_inputs(
     repository_name: str | None,
     repository_url: str | None,
     repository_host_type: str | None,
+    repository_project_name: str | None,
     source_visibility_state: str | None,
     default_branch: str | None,
     execution_modes: list[str],
@@ -8833,7 +8966,11 @@ def _devops_trusted_inputs(
     inputs: list[dict[str, object]] = []
     repo_ref = _devops_repo_ref(
         repository_host_type=repository_host_type,
-        repository_name=repository_name,
+        repository_name=_devops_repository_display_name(
+            repository_name=repository_name,
+            repository_project_name=repository_project_name,
+            current_project_name=project_name,
+        ),
         default_branch=default_branch,
         repository_url=repository_url,
     )
@@ -8849,8 +8986,10 @@ def _devops_trusted_inputs(
                 "join_ids": _devops_source_join_ids(
                     organization=organization,
                     project_id=project_id,
+                    project_name=project_name,
                     repository_id=repository_id,
                     repository_name=repository_name,
+                    repository_project_name=repository_project_name,
                     repository_url=repository_url,
                     repository_host_type=repository_host_type,
                 ),
@@ -8891,6 +9030,7 @@ def _devops_definition_trusted_inputs(
             repo_name = _string_value(node.get("name"))
             repo_url = _string_value(node.get("url"))
             repo_id = _string_value(node.get("id"))
+            repo_project_name = _string_value(node.get("project")) or project_name
             repo_type = (
                 _string_value(node.get("type"))
                 or _string_value(node.get("repositoryType"))
@@ -8900,12 +9040,24 @@ def _devops_definition_trusted_inputs(
             catalog_repository = _devops_resolve_repository(
                 repository_id=repo_id,
                 repository_name=repo_name or alias,
+                repository_project_name=repo_project_name,
                 repositories_by_id=repositories_by_id,
                 repositories_by_name=repositories_by_name,
             )
+            resolved_project_name = repo_project_name
+            resolved_project_id = project_id
             if catalog_repository is not None:
                 repo_id = str(catalog_repository.get("id") or repo_id or "") or None
                 repo_name = str(catalog_repository.get("name") or repo_name or "") or None
+                resolved_project_name = (
+                    _devops_repository_project_name(catalog_repository)
+                    or repo_project_name
+                    or project_name
+                )
+                resolved_project_id = (
+                    _devops_repository_project_id(catalog_repository)
+                    or resolved_project_id
+                )
                 repo_url = (
                     str(
                         catalog_repository.get("webUrl")
@@ -8932,7 +9084,11 @@ def _devops_definition_trusted_inputs(
                 )
             ref_value = _devops_repo_ref(
                 repository_host_type=host_type,
-                repository_name=repo_name or alias,
+                repository_name=_devops_repository_display_name(
+                    repository_name=repo_name or alias,
+                    repository_project_name=resolved_project_name,
+                    current_project_name=project_name,
+                ),
                 default_branch=_string_value(node.get("ref")),
                 repository_url=repo_url,
             )
@@ -8944,9 +9100,11 @@ def _devops_definition_trusted_inputs(
                     "surface_types": ["template-repo"],
                     "join_ids": _devops_source_join_ids(
                         organization=organization,
-                        project_id=project_id,
+                        project_id=resolved_project_id,
+                        project_name=project_name,
                         repository_id=repo_id,
                         repository_name=repo_name or alias,
+                        repository_project_name=resolved_project_name,
                         repository_url=repo_url,
                         repository_host_type=host_type,
                     ),
@@ -8958,6 +9116,7 @@ def _devops_definition_trusted_inputs(
         if "resources" in path_tokens and "pipelines" in path_tokens:
             alias = _string_value(node.get("pipeline")) or _string_value(node.get("alias"))
             source_name = _string_value(node.get("source"))
+            producer_project = _string_value(node.get("project")) or project_name
             artifact_name = _string_value(node.get("artifact")) or _string_value(
                 node.get("artifactName")
             )
@@ -8965,7 +9124,7 @@ def _devops_definition_trusted_inputs(
                 ref = "pipeline-artifact:" + "/".join(
                     part
                     for part in (
-                        _string_value(node.get("project")) or project_name,
+                        producer_project,
                         source_name or alias,
                     )
                     if part
@@ -8983,7 +9142,7 @@ def _devops_definition_trusted_inputs(
                         "join_ids": [
                             "devops-pipeline-artifact://"
                             f"{quote(organization, safe='')}/"
-                            f"{quote(project_name, safe='')}/"
+                            f"{quote(producer_project, safe='')}/"
                             f"{quote((source_name or alias or 'resource'), safe='')}"
                         ],
                     }
@@ -9011,9 +9170,21 @@ def _devops_definition_trusted_inputs(
                     ("source",),
                 ),
             )
+            artifact_project = _devops_first_value_for_tokens(
+                node,
+                (
+                    ("project",),
+                    ("project", "name"),
+                ),
+            )
             if artifact_name or artifact_source:
                 ref = "pipeline-artifact:" + "/".join(
-                    part for part in (project_name, artifact_source or "current") if part
+                    part
+                    for part in (
+                        artifact_project or project_name,
+                        artifact_source or "current",
+                    )
+                    if part
                 )
                 if artifact_name:
                     ref = f"{ref}#{artifact_name}"
@@ -9028,7 +9199,7 @@ def _devops_definition_trusted_inputs(
                         "join_ids": [
                             "devops-pipeline-artifact://"
                             f"{quote(organization, safe='')}/"
-                            f"{quote(project_name, safe='')}/"
+                            f"{quote((artifact_project or project_name), safe='')}/"
                             f"{quote((artifact_source or 'current'), safe='')}"
                         ],
                     }
@@ -9238,7 +9409,16 @@ def _devops_package_feed_input(
         parsed = urlparse(feed_value)
         lowered_path = parsed.path.lower()
         if "/_packaging/" in lowered_path:
-            ref_value = feed_value.split("/_packaging/", 1)[1].split("/", 1)[0]
+            feed_project_name, feed_name = _devops_feed_url_scope(
+                organization=organization,
+                feed_url=feed_value,
+            )
+            if feed_name:
+                ref_value = (
+                    f"{feed_project_name}/{feed_name}"
+                    if feed_project_name
+                    else feed_name
+                )
         join_ids.append(f"feed-url://{quote(feed_value, safe=':/@')}")
         if (
             parsed.netloc
@@ -9247,13 +9427,22 @@ def _devops_package_feed_input(
         ):
             visibility_state = "external-reference"
     else:
-        ref_value = feed_value if "/" in feed_value else f"{project_name}/{feed_value}"
-        join_ids.append(
-            "devops-feed://"
-            f"{quote(organization, safe='')}/"
-            f"{quote(project_name, safe='')}/"
-            f"{quote(ref_value, safe='')}"
+        feed_project_name, feed_name = _devops_feed_ref_parts(
+            feed_value,
+            default_project_name=project_name,
         )
+        ref_value = (
+            f"{feed_project_name}/{feed_name}"
+            if feed_project_name
+            else (feed_name or feed_value)
+        )
+        if feed_name:
+            join_ids.append(
+                "devops-feed://"
+                f"{quote(organization, safe='')}/"
+                f"{quote((feed_project_name or ''), safe='')}/"
+                f"{quote(feed_name, safe='')}"
+            )
 
     return {
         "input_type": "package-feed",
@@ -9341,13 +9530,57 @@ def _devops_repo_project_and_id(join_ids: list[object]) -> tuple[str | None, str
 
 
 def _devops_feed_name_from_trusted_input(trusted_input: dict[str, object]) -> str | None:
+    _project_name, feed_name = _devops_feed_scope_from_trusted_input(trusted_input)
+    return feed_name
+
+
+def _devops_feed_ref_parts(
+    feed_value: str,
+    *,
+    default_project_name: str | None = None,
+) -> tuple[str | None, str | None]:
+    value = str(feed_value or "").strip()
+    if not value:
+        return default_project_name, None
+    if "/" in value:
+        project_name, feed_name = value.rsplit("/", 1)
+        return project_name.strip() or None, feed_name.strip() or None
+    return default_project_name, value
+
+
+def _devops_feed_url_scope(
+    *,
+    organization: str,
+    feed_url: str,
+) -> tuple[str | None, str | None]:
+    parsed = urlparse(feed_url)
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if path_parts and path_parts[0].lower() == organization.lower():
+        path_parts = path_parts[1:]
+    if "_packaging" not in path_parts:
+        return None, None
+    index = path_parts.index("_packaging")
+    project_name = path_parts[index - 1] if index >= 1 else None
+    feed_name = path_parts[index + 1] if len(path_parts) > index + 1 else None
+    return project_name or None, feed_name or None
+
+
+def _devops_feed_scope_from_trusted_input(
+    trusted_input: dict[str, object],
+) -> tuple[str | None, str | None]:
     ref = str(trusted_input.get("ref") or "")
     if ref.startswith("package-feed:"):
-        feed_ref = ref.split(":", 1)[1]
-        if "/" in feed_ref:
-            return feed_ref.rsplit("/", 1)[-1]
-        return feed_ref
-    return None
+        return _devops_feed_ref_parts(ref.split(":", 1)[1])
+    for join_id in trusted_input.get("join_ids") or []:
+        text = str(join_id or "")
+        if not text.startswith("devops-feed://"):
+            continue
+        parts = text.split("://", 1)[1].split("/")
+        if len(parts) >= 3:
+            project_name = parts[1] or None
+            feed_name = parts[2] or None
+            return project_name, feed_name
+    return None, None
 
 
 def _devops_feed_permission_role(permission: dict[str, object]) -> str | None:
@@ -10166,6 +10399,11 @@ def _devops_injection_clause(
             return (
                 f"current credentials can inspect the upstream producer behind {trusted_input}, "
                 "but Azure DevOps evidence here does not prove producer-side control"
+            )
+        if primary_trusted_input_type == "secure-file":
+            return (
+                f"current credentials can use {trusted_input} in pipeline context, but Azure "
+                "DevOps evidence here does not prove secure-file administration"
             )
         return (
             f"current credentials can read {trusted_input}, but not write it from Azure DevOps "

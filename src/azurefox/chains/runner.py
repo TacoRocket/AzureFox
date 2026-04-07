@@ -1057,6 +1057,11 @@ def _deployment_current_operator_suffix(source_command: str, source: dict) -> st
                     "Current credentials can inspect the upstream producer path, but Azure DevOps "
                     "evidence here does not prove producer-side control."
                 )
+            if primary_input and primary_input.get("input_type") == "secure-file":
+                return (
+                    "Current credentials can use that secure file in pipeline context, but "
+                    "Azure DevOps evidence here does not prove secure-file administration."
+                )
             return (
                 "Current credentials can read that trusted input, but Azure DevOps evidence here "
                 "does not prove a write path."

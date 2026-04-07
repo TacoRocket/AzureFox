@@ -131,6 +131,12 @@ def _current_operator_prefix(
                 "upstream producer path but Azure DevOps evidence here does not prove "
                 "producer-side control."
             )
+        if primary_trusted_input_type == "secure-file":
+            return (
+                f"This path trusts {trusted_input}, and current credentials can use it in "
+                "pipeline context but Azure DevOps evidence here does not prove secure-file "
+                "administration."
+            )
         return (
             f"This path trusts {trusted_input}, and current credentials can read it but not "
             "write it from Azure DevOps evidence here."

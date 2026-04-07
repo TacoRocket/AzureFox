@@ -53,6 +53,8 @@ from azurefox.collectors.provider import (
     _devops_enrich_artifact_trusted_inputs,
     _devops_finalize_trusted_inputs,
     _devops_missing_execution_path,
+    _devops_operator_summary,
+    _devops_package_feed_input,
     _devops_pipeline_summary,
     _env_var_reference_target,
     _network_effective_row_from_endpoint,
@@ -2158,6 +2160,96 @@ def test_devops_feed_permission_proof_maps_reader_and_contributor_roles() -> Non
     assert contributor["trusted_input_permission_detail"] == "role=contributor"
 
 
+def test_devops_package_feed_input_keeps_project_scope_from_url() -> None:
+    trusted_input = _devops_package_feed_input(
+        "contoso",
+        "prod-platform",
+        "https://pkgs.dev.azure.com/contoso/shared-project/_packaging/shared-feed/nuget/v3/index.json",
+    )
+
+    assert trusted_input["ref"] == "package-feed:shared-project/shared-feed"
+
+
+def test_devops_package_feed_input_keeps_org_scoped_url_unprojected() -> None:
+    trusted_input = _devops_package_feed_input(
+        "contoso",
+        "prod-platform",
+        "https://pkgs.dev.azure.com/contoso/_packaging/shared-feed/nuget/v3/index.json",
+    )
+
+    assert trusted_input["ref"] == "package-feed:shared-feed"
+
+
+def test_devops_feed_permission_lookup_uses_referenced_feed_project() -> None:
+    provider = AzureProvider.__new__(AzureProvider)
+    provider._devops_namespace_actions_cache = {}
+    provider._devops_current_operator_cache = {}
+    provider._devops_secure_files_cache = {}
+    provider._devops_secure_file_roles_cache = {}
+    provider._devops_feed_permissions_cache = {}
+    seen: list[tuple[str | None, str]] = []
+
+    def feed_permissions(**kwargs):
+        seen.append((kwargs["project_name"], kwargs["feed_name"]))
+        return [{"role": "contributor"}]
+
+    provider._devops_feed_permissions = feed_permissions
+
+    enriched = provider._devops_enrich_non_artifact_trusted_inputs(
+        organization="contoso",
+        project_name="prod-platform",
+        project_id="project-1",
+        trusted_inputs=[
+            {
+                "input_type": "package-feed",
+                "ref": "package-feed:shared-project/shared-feed",
+                "visibility_state": "visible",
+                "surface_types": ["feed-package"],
+            }
+        ],
+        current_operator={"descriptor": "vssgp.user-1"},
+    )
+
+    assert seen == [("shared-project", "shared-feed")]
+    assert enriched[0]["current_operator_access_state"] == "write"
+    assert enriched[0]["current_operator_can_poison"] is True
+
+
+def test_devops_feed_permission_lookup_keeps_org_scoped_feed_project_empty() -> None:
+    provider = AzureProvider.__new__(AzureProvider)
+    provider._devops_namespace_actions_cache = {}
+    provider._devops_current_operator_cache = {}
+    provider._devops_secure_files_cache = {}
+    provider._devops_secure_file_roles_cache = {}
+    provider._devops_feed_permissions_cache = {}
+    seen: list[tuple[str | None, str]] = []
+
+    def feed_permissions(**kwargs):
+        seen.append((kwargs["project_name"], kwargs["feed_name"]))
+        return [{"role": "reader"}]
+
+    provider._devops_feed_permissions = feed_permissions
+
+    enriched = provider._devops_enrich_non_artifact_trusted_inputs(
+        organization="contoso",
+        project_name="prod-platform",
+        project_id="project-1",
+        trusted_inputs=[
+            {
+                "input_type": "package-feed",
+                "ref": "package-feed:shared-feed",
+                "visibility_state": "visible",
+                "surface_types": ["feed-package"],
+            }
+        ],
+        current_operator={"descriptor": "vssgp.user-1"},
+    )
+
+    assert seen == [(None, "shared-feed")]
+    assert enriched[0]["current_operator_access_state"] == "read"
+    assert enriched[0]["current_operator_can_poison"] is False
+
+
 def test_devops_secure_file_role_proof_distinguishes_visible_use_and_manage() -> None:
     current_operator = {
         "profile_id": "user-1",
@@ -2209,6 +2301,43 @@ def test_devops_secure_file_role_proof_distinguishes_visible_use_and_manage() ->
     assert manageable["trusted_input_permission_detail"] == "role=administrator"
 
 
+def test_devops_secure_file_use_proof_does_not_overstate_generic_reading() -> None:
+    summary = _devops_operator_summary(
+        definition_name="deploy-artifact-app-prod",
+        project_name="prod-platform",
+        trusted_inputs=[
+            {
+                "input_type": "secure-file",
+                "ref": "secure-file:codesign-cert.pfx",
+                "current_operator_access_state": "read",
+                "current_operator_can_poison": False,
+                "surface_types": ["secure-file"],
+            }
+        ],
+        primary_injection_surface="secure-file",
+        primary_trusted_input_ref="secure-file:codesign-cert.pfx",
+        trigger_types=[],
+        execution_modes=["manual-only"],
+        injection_surface_types=["secure-file"],
+        azure_service_connection_names=["prod-subscription"],
+        variable_group_names=[],
+        secret_variable_count=0,
+        key_vault_group_names=[],
+        key_vault_names=[],
+        target_clues=["App Service"],
+        partial_read_reasons=[],
+        current_operator_can_queue=False,
+        current_operator_can_edit=False,
+        current_operator_can_contribute_source=False,
+        current_operator_injection_surface_types=[],
+        primary_trusted_input_type="secure-file",
+        primary_trusted_input_access_state="read",
+    )
+
+    assert "can use secure file codesign-cert.pfx in pipeline context" in summary
+    assert "can read secure file codesign-cert.pfx" not in summary
+
+
 def test_devops_repository_permission_proof_maps_template_repo_read_and_write() -> None:
     readable = _devops_apply_repository_permission_proof(
         {
@@ -2233,6 +2362,61 @@ def test_devops_repository_permission_proof_maps_template_repo_read_and_write() 
     assert readable["current_operator_can_poison"] is False
     assert writable["current_operator_access_state"] == "write"
     assert writable["current_operator_can_poison"] is True
+
+
+def test_devops_pipeline_summary_tracks_cross_project_template_repo() -> None:
+    repositories_by_id, repositories_by_name = (
+        {},
+        {
+            "shared-project/platform-templates": {
+                "id": "repo-templates",
+                "name": "platform-templates",
+                "project": {"id": "project-templates", "name": "shared-project"},
+                "defaultBranch": "refs/heads/main",
+                "webUrl": "https://dev.azure.com/contoso/shared-project/_git/platform-templates",
+            }
+        },
+    )
+
+    pipeline, issues = _devops_pipeline_summary(
+        organization="contoso",
+        project={"name": "prod-platform", "id": "project-1"},
+        definition={
+            "id": 52,
+            "name": "deploy-template-prod",
+            "repository": {"name": "release-orchestrator", "type": "TfsGit"},
+            "resources": {
+                "repositories": [
+                    {
+                        "repository": "templates",
+                        "project": "shared-project",
+                        "type": "TfsGit",
+                        "name": "platform-templates",
+                        "ref": "refs/heads/main",
+                    }
+                ]
+            },
+            "process": {"phases": [{"steps": [{"inputs": {"template": "deploy.yml@templates"}}]}]},
+        },
+        service_endpoints_by_id={},
+        service_endpoints_by_name={},
+        variable_groups_by_id={},
+        repositories_by_id=repositories_by_id,
+        repositories_by_name=repositories_by_name,
+    )
+
+    assert issues == []
+    template_repo = next(
+        item for item in pipeline["trusted_inputs"] if item["input_type"] == "template-repository"
+    )
+    assert (
+        template_repo["ref"]
+        == "template-repository:azure-repos:shared-project/platform-templates@refs/heads/main"
+    )
+    assert any(
+        join_id.startswith("devops-repo://contoso/project-templates/repo-templates")
+        for join_id in template_repo["join_ids"]
+    )
 
 
 def test_devops_artifact_producer_proof_requires_producer_control() -> None:
@@ -2293,6 +2477,142 @@ def test_devops_artifact_producer_proof_requires_producer_control() -> None:
     assert controllable[0]["current_operator_access_state"] == "write"
     assert controllable[0]["current_operator_can_poison"] is True
     assert controllable[0]["trusted_input_evidence_basis"] == "artifact-producer-input-control"
+
+
+def test_devops_cross_project_artifact_producer_control_flows_into_deploy_pipeline() -> None:
+    provider = AzureProvider.__new__(AzureProvider)
+    provider.options = SimpleNamespace(devops_organization="contoso")
+    provider._devops_namespace_actions_cache = {}
+    provider._devops_current_operator_cache = {}
+    provider._devops_secure_files_cache = {}
+    provider._devops_secure_file_roles_cache = {}
+    provider._devops_feed_permissions_cache = {}
+    provider._devops_list_values = lambda url: (
+        [
+            {"name": "deploy-project", "id": "project-deploy"},
+            {"name": "build-project", "id": "project-build"},
+        ]
+        if "_apis/projects" in url
+        else (
+            [
+                {
+                    "id": "endpoint-1",
+                    "name": "prod-subscription",
+                    "type": "azurerm",
+                    "authorization": {"scheme": "WorkloadIdentityFederation"},
+                }
+            ]
+            if "deploy-project/_apis/serviceendpoint/endpoints" in url
+            else []
+        )
+        if "_apis/serviceendpoint/endpoints" in url
+        else []
+        if "_apis/distributedtask/variablegroups" in url
+        else (
+            [
+                {
+                    "id": "repo-deploy",
+                    "name": "release-orchestrator",
+                    "project": {"id": "project-deploy", "name": "deploy-project"},
+                    "webUrl": "https://dev.azure.com/contoso/deploy-project/_git/release-orchestrator",
+                    "defaultBranch": "refs/heads/main",
+                }
+            ]
+            if "deploy-project/_apis/git/repositories" in url
+            else [
+                {
+                    "id": "repo-build",
+                    "name": "shared-build-repo",
+                    "project": {"id": "project-build", "name": "build-project"},
+                    "webUrl": "https://dev.azure.com/contoso/build-project/_git/shared-build-repo",
+                    "defaultBranch": "refs/heads/main",
+                }
+            ]
+        )
+        if "_apis/git/repositories" in url
+        else (
+            [
+                {
+                    "id": 41,
+                    "name": "deploy-artifact-app-prod",
+                    "repository": {"name": "release-orchestrator", "type": "TfsGit"},
+                    "resources": {
+                        "pipelines": [
+                            {
+                                "project": "build-project",
+                                "pipeline": "shared-build",
+                                "source": "shared-build",
+                                "artifact": "signed-drop",
+                            }
+                        ]
+                    },
+                    "process": {
+                        "phases": [
+                            {
+                                "steps": [
+                                    {
+                                        "inputs": {
+                                            "connectedServiceNameARM": "prod-subscription",
+                                            "appType": "webApp",
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                }
+            ]
+            if "deploy-project/_apis/build/definitions" in url
+            else [
+                {
+                    "id": 88,
+                    "name": "shared-build",
+                    "repository": {"name": "shared-build-repo", "type": "TfsGit"},
+                    "process": {"phases": [{"steps": [{"inputs": {"scriptPath": "build.sh"}}]}]},
+                }
+            ]
+        )
+    )
+    provider._devops_current_operator_identity = lambda organization: {"descriptor": "vssgp.user-1"}
+    provider._devops_build_definition_permissions = lambda **kwargs: {
+        "current_operator_can_view_definition": True,
+        "current_operator_can_queue": False,
+        "current_operator_can_edit": False,
+    }
+    provider._devops_git_repository_permissions = lambda **kwargs: {
+        "current_operator_can_view_source": True,
+        "current_operator_can_contribute_source": False,
+    }
+
+    def enrich_non_artifact(*, project_name, trusted_inputs, **kwargs):
+        enriched = []
+        for item in trusted_inputs:
+            updated = dict(item)
+            if project_name == "build-project" and updated.get("input_type") == "repository":
+                updated["current_operator_access_state"] = "write"
+                updated["current_operator_can_poison"] = True
+                updated["trusted_input_evidence_basis"] = "repository-permission"
+                updated["trusted_input_permission_source"] = "azure-devops-git-permissions"
+                updated["trusted_input_permission_detail"] = "GenericContribute allowed"
+            enriched.append(updated)
+        return enriched
+
+    provider._devops_enrich_non_artifact_trusted_inputs = enrich_non_artifact
+
+    data = provider.devops()
+
+    assert data["issues"] == []
+    deploy_pipeline = next(
+        pipeline for pipeline in data["pipelines"] if pipeline["name"] == "deploy-artifact-app-prod"
+    )
+    artifact_input = next(
+        item
+        for item in deploy_pipeline["trusted_inputs"]
+        if item["input_type"] == "pipeline-artifact"
+    )
+    assert artifact_input["current_operator_access_state"] == "write"
+    assert artifact_input["current_operator_can_poison"] is True
+    assert artifact_input["trusted_input_evidence_basis"] == "artifact-producer-input-control"
 
 
 def test_devops_missing_execution_path_clears_for_queue_or_edit() -> None:

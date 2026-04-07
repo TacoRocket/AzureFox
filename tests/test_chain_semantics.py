@@ -113,6 +113,7 @@ def test_deployment_path_artifact_visibility_stays_below_high_without_producer_c
     )
 
     assert decision.priority == "medium"
+    assert "trusted input is writable" in decision.next_review
 
 
 def test_deployment_path_artifact_producer_control_can_raise_devops_row() -> None:
