@@ -723,7 +723,7 @@ def test_deployment_chains_table_mode_surfaces_source_oriented_columns(tmp_path:
 
     assert result.exit_code == 0
     normalized_output = " ".join(result.stdout.split())
-    assert "why care" in result.stdout
+    assert "likely azure impact" in result.stdout
     assert "deploy-aks-prod" in result.stdout
     assert "deploy-appservice-prod" in result.stdout
     assert "deploy-artifact-app-p" in result.stdout
@@ -735,6 +735,20 @@ def test_deployment_chains_table_mode_surfaces_source_oriented_columns(tmp_path:
     assert "trusted input" in normalized_output
     assert "execution hub" in normalized_output
     assert "secret-backed support" in normalized_output
+
+
+def test_deployment_chains_table_mode_renders_why_care_as_detail_rows(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "chains", "deployment-path"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert "┃ why care" in result.stdout
+    assert "Current credentials can already poison that trusted input" in result.stdout
+    assert "Current evidence only shows that the trusted input exists" in result.stdout
+    assert result.stdout.count("┃ why care") >= 3
 
 
 def test_auth_policies_partial_read_surfaces_collection_issue() -> None:

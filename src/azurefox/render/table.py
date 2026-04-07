@@ -18,6 +18,8 @@ def render_table(command: str, payload: dict) -> str:
 
     if command == "devops":
         _render_devops_table(console, payload)
+    elif command == "chains" and str(payload.get("family") or "") == "deployment-path":
+        _render_deployment_path_table(console, payload)
     else:
         columns, records = _table_spec(command, payload)
         table = Table(title=f"azurefox {command}")
@@ -85,6 +87,32 @@ def _render_devops_table(console: Console, payload: dict) -> None:
             detail = Table(expand=True)
             detail.add_column("why it matters")
             detail.add_row(_value_to_string(record.get("why_it_matters")))
+            console.print(detail)
+        if index != len(records) - 1:
+            console.print("")
+
+
+def _render_deployment_path_table(console: Console, payload: dict) -> None:
+    columns, records = _table_spec("chains", payload)
+    display_columns = [item for item in columns if item[0] != "why_care"]
+
+    if not records:
+        table = Table(title="azurefox chains")
+        table.add_column("info")
+        table.add_row("No records")
+        console.print(table)
+        return
+
+    for index, record in enumerate(records):
+        table = Table(title="azurefox chains" if index == 0 else None)
+        for _key, label in display_columns:
+            table.add_column(label)
+        table.add_row(*[_value_to_string(record.get(key)) for key, _ in display_columns])
+        console.print(table)
+        if record.get("why_care"):
+            detail = Table(expand=True)
+            detail.add_column("why care")
+            detail.add_row(_value_to_string(record.get("why_care")))
             console.print(detail)
         if index != len(records) - 1:
             console.print("")
