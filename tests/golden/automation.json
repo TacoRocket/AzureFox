@@ -1,71 +1,145 @@
 {
+  "metadata": {
+    "schema_version": "1.2.0",
+    "command": "automation",
+    "generated_at": "<generated_at>",
+    "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "subscription_id": "22222222-2222-2222-2222-222222222222",
+    "token_source": null
+  },
   "automation_accounts": [
     {
-      "certificate_count": 1,
-      "client_id": "34343434-3434-3434-3434-343434343434",
-      "connection_count": 2,
-      "credential_count": 2,
-      "encrypted_variable_count": 4,
-      "hybrid_worker_group_count": 1,
       "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-ops/providers/Microsoft.Automation/automationAccounts/aa-hybrid-prod",
+      "name": "aa-hybrid-prod",
+      "resource_group": "rg-ops",
+      "location": "eastus",
+      "state": "Ok",
+      "sku_name": "Basic",
+      "identity_type": "SystemAssigned",
+      "principal_id": "12121212-1212-1212-1212-121212121212",
+      "client_id": "34343434-3434-3434-3434-343434343434",
       "identity_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-ops/providers/Microsoft.Automation/automationAccounts/aa-hybrid-prod/identities/system"
       ],
-      "identity_type": "SystemAssigned",
-      "job_schedule_count": 5,
-      "location": "eastus",
-      "name": "aa-hybrid-prod",
-      "principal_id": "12121212-1212-1212-1212-121212121212",
+      "runbook_count": 7,
       "published_runbook_count": 6,
+      "schedule_count": 4,
+      "job_schedule_count": 5,
+      "webhook_count": 2,
+      "hybrid_worker_group_count": 1,
+      "credential_count": 2,
+      "certificate_count": 1,
+      "connection_count": 2,
+      "variable_count": 5,
+      "encrypted_variable_count": 4,
+      "start_modes": [
+        "schedule",
+        "job-schedule",
+        "webhook",
+        "hybrid-worker"
+      ],
+      "schedule_runbook_names": [
+        "Baseline-Config",
+        "Nightly-Reconcile"
+      ],
+      "webhook_runbook_names": [
+        "Redeploy-App",
+        "Reapply-Agent"
+      ],
+      "hybrid_worker_group_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-ops/providers/Microsoft.Automation/automationAccounts/aa-hybrid-prod/hybridRunbookWorkerGroups/prod-workers"
+      ],
+      "trigger_join_ids": [
+        "automation-job-schedule:baseline-nightly",
+        "automation-webhook:redeploy-api",
+        "automation-hybrid-worker:/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-ops/providers/Microsoft.Automation/automationAccounts/aa-hybrid-prod/hybridRunbookWorkerGroups/prod-workers"
+      ],
+      "identity_join_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-ops/providers/Microsoft.Automation/automationAccounts/aa-hybrid-prod/identities/system",
+        "12121212-1212-1212-1212-121212121212",
+        "34343434-3434-3434-3434-343434343434"
+      ],
+      "secret_support_types": [
+        "credentials",
+        "certificates",
+        "connections",
+        "encrypted-variables"
+      ],
+      "secret_dependency_ids": [
+        "automation-credential:prod-admin",
+        "automation-certificate:prod-signing-cert",
+        "automation-connection:prod-arm",
+        "automation-variable:prod-config-secret"
+      ],
+      "consequence_types": [
+        "run-recurring-execution",
+        "reintroduce-config",
+        "consume-secret-backed-deployment-material"
+      ],
+      "missing_execution_path": false,
+      "missing_target_mapping": true,
+      "summary": "Automation account 'aa-hybrid-prod' uses managed identity (SystemAssigned). Visible execution shape: 6/7 published runbook(s); 4 schedule(s), 5 job schedule(s), 2 webhook(s); 1 Hybrid Runbook Worker group(s). Secure asset posture: credentials 2, certificates 1, connections 2, variables 5 (4 encrypted).",
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-ops/providers/Microsoft.Automation/automationAccounts/aa-hybrid-prod",
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-ops/providers/Microsoft.Automation/automationAccounts/aa-hybrid-prod/identities/system"
-      ],
-      "resource_group": "rg-ops",
-      "runbook_count": 7,
-      "schedule_count": 4,
-      "sku_name": "Basic",
-      "state": "Ok",
-      "summary": "Automation account 'aa-hybrid-prod' uses managed identity (SystemAssigned). Visible execution shape: 6/7 published runbook(s); 4 schedule(s), 5 job schedule(s), 2 webhook(s); 1 Hybrid Runbook Worker group(s). Secure asset posture: credentials 2, certificates 1, connections 2, variables 5 (4 encrypted).",
-      "variable_count": 5,
-      "webhook_count": 2
+      ]
     },
     {
-      "certificate_count": 0,
-      "client_id": null,
-      "connection_count": 1,
-      "credential_count": 0,
-      "encrypted_variable_count": 1,
-      "hybrid_worker_group_count": 0,
       "id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-lab/providers/Microsoft.Automation/automationAccounts/aa-lab-quiet",
-      "identity_ids": [],
-      "identity_type": null,
-      "job_schedule_count": 1,
-      "location": "centralus",
       "name": "aa-lab-quiet",
+      "resource_group": "rg-lab",
+      "location": "centralus",
+      "state": "Ok",
+      "sku_name": "Basic",
+      "identity_type": null,
       "principal_id": null,
+      "client_id": null,
+      "identity_ids": [],
+      "runbook_count": 2,
       "published_runbook_count": 1,
+      "schedule_count": 1,
+      "job_schedule_count": 1,
+      "webhook_count": 0,
+      "hybrid_worker_group_count": 0,
+      "credential_count": 0,
+      "certificate_count": 0,
+      "connection_count": 1,
+      "variable_count": 2,
+      "encrypted_variable_count": 1,
+      "start_modes": [
+        "schedule",
+        "job-schedule"
+      ],
+      "schedule_runbook_names": [
+        "Lab-Maintenance"
+      ],
+      "webhook_runbook_names": [],
+      "hybrid_worker_group_ids": [],
+      "trigger_join_ids": [
+        "automation-job-schedule:lab-maintenance"
+      ],
+      "identity_join_ids": [],
+      "secret_support_types": [
+        "connections",
+        "encrypted-variables"
+      ],
+      "secret_dependency_ids": [
+        "automation-connection:lab-ops",
+        "automation-variable:lab-secret-ref"
+      ],
+      "consequence_types": [
+        "run-recurring-execution",
+        "reintroduce-config",
+        "consume-secret-backed-deployment-material"
+      ],
+      "missing_execution_path": false,
+      "missing_target_mapping": true,
+      "summary": "Automation account 'aa-lab-quiet' has no managed identity visible from the current read path. Visible execution shape: 1/2 published runbook(s); 1 schedule(s), 1 job schedule(s), 0 webhook(s); no Hybrid Runbook Worker groups visible. Secure asset posture: credentials 0, certificates 0, connections 1, variables 2 (1 encrypted).",
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-lab/providers/Microsoft.Automation/automationAccounts/aa-lab-quiet"
-      ],
-      "resource_group": "rg-lab",
-      "runbook_count": 2,
-      "schedule_count": 1,
-      "sku_name": "Basic",
-      "state": "Ok",
-      "summary": "Automation account 'aa-lab-quiet' has no managed identity visible from the current read path. Visible execution shape: 1/2 published runbook(s); 1 schedule(s), 1 job schedule(s), 0 webhook(s); no Hybrid Runbook Worker groups visible. Secure asset posture: credentials 0, certificates 0, connections 1, variables 2 (1 encrypted).",
-      "variable_count": 2,
-      "webhook_count": 0
+      ]
     }
   ],
   "findings": [],
-  "issues": [],
-  "metadata": {
-    "command": "automation",
-    "generated_at": "<generated_at>",
-    "schema_version": "1.2.0",
-    "subscription_id": "22222222-2222-2222-2222-222222222222",
-    "tenant_id": "11111111-1111-1111-1111-111111111111",
-    "token_source": null
-  }
+  "issues": []
 }

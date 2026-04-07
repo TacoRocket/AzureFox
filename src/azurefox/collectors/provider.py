@@ -22,7 +22,7 @@ from azurefox.clients.factory import build_clients
 from azurefox.clients.graph import GraphClient
 from azurefox.config import GlobalOptions
 from azurefox.correlation.findings import build_keyvault_findings, build_storage_findings
-from azurefox.devops_hints import devops_next_review_hint
+from azurefox.devops_hints import describe_trusted_input, devops_next_review_hint
 from azurefox.env_var_hints import env_var_next_review_hint
 from azurefox.errors import AzureFoxError, ErrorKind, classify_exception
 from azurefox.models.common import (
@@ -38,6 +38,8 @@ _DNS_RESOURCE_API_VERSION = {
     "microsoft.network/dnszones": "2018-05-01",
     "microsoft.network/privatednszones": "2020-06-01",
 }
+_DEVOPS_BUILD_NAMESPACE_ID = "33344d9c-fc72-4d6f-aba5-fa317101a7e9"
+_DEVOPS_GIT_NAMESPACE_ID = "2e9eb7ed-3c0a-47d4-87c1-0ffdd275fd87"
 
 
 class BaseProvider(ABC):
@@ -374,6 +376,7 @@ class AzureProvider(BaseProvider):
         self.clients = build_clients(self.session, options.subscription)
         self.graph = GraphClient(self.session.credential)
         self.subscription = self.clients.subscription
+        self._devops_namespace_actions_cache: dict[str, dict[str, int]] = {}
 
     def metadata_context(self) -> dict[str, str | None]:
         return {
@@ -720,6 +723,21 @@ class AzureProvider(BaseProvider):
                 variable_groups = []
 
             try:
+                repositories = self._devops_list_values(
+                    "https://dev.azure.com/"
+                    f"{organization}/{project_path}/_apis/git/repositories"
+                    "?includeAllUrls=true&api-version=7.1"
+                )
+            except Exception as exc:
+                issues.append(
+                    _issue_from_exception(
+                        f"devops[{project_name}].repositories",
+                        exc,
+                    )
+                )
+                repositories = []
+
+            try:
                 definitions = self._devops_list_values(
                     "https://dev.azure.com/"
                     f"{organization}/{project_path}/_apis/build/definitions"
@@ -737,6 +755,7 @@ class AzureProvider(BaseProvider):
             service_endpoints_by_id, service_endpoints_by_name = _devops_service_endpoint_maps(
                 service_endpoints
             )
+            repositories_by_id, repositories_by_name = _devops_repository_maps(repositories)
             variable_groups_by_id = _devops_variable_group_map(variable_groups)
 
             for definition in definitions:
@@ -747,12 +766,13 @@ class AzureProvider(BaseProvider):
                         definition=definition,
                         service_endpoints_by_id=service_endpoints_by_id,
                         service_endpoints_by_name=service_endpoints_by_name,
+                        repositories_by_id=repositories_by_id,
+                        repositories_by_name=repositories_by_name,
                         variable_groups_by_id=variable_groups_by_id,
                     )
                 except Exception as exc:
-                    definition_label = (
-                        str(definition.get("id") or "")
-                        or str(definition.get("name") or "unknown")
+                    definition_label = str(definition.get("id") or "") or str(
+                        definition.get("name") or "unknown"
                     )
                     issues.append(
                         _issue_from_exception(
@@ -761,6 +781,178 @@ class AzureProvider(BaseProvider):
                         )
                     )
                     continue
+
+                try:
+                    pipeline.update(
+                        self._devops_build_definition_permissions(
+                            organization=organization,
+                            project_id=str(pipeline.get("project_id") or ""),
+                            definition_id=str(pipeline.get("definition_id") or ""),
+                        )
+                    )
+                except Exception as exc:
+                    definition_key = (
+                        pipeline.get("definition_id") or pipeline.get("name") or "unknown"
+                    )
+                    issues.append(
+                        _issue_from_exception(
+                            f"devops[{project_name}].build_permissions[{definition_key}]",
+                            exc,
+                        )
+                    )
+
+                if pipeline.get("repository_host_type") == "azure-repos":
+                    try:
+                        pipeline.update(
+                            self._devops_git_repository_permissions(
+                                organization=organization,
+                                project_id=str(pipeline.get("project_id") or ""),
+                                repository_id=str(pipeline.get("repository_id") or ""),
+                            )
+                        )
+                    except Exception as exc:
+                        repo_key = (
+                            pipeline.get("repository_id")
+                            or pipeline.get("repository_name")
+                            or "unknown"
+                        )
+                        issues.append(
+                            _issue_from_exception(
+                                f"devops[{project_name}].repo_permissions[{repo_key}]",
+                                exc,
+                            )
+                        )
+
+                pipeline["trusted_inputs"] = _devops_finalize_trusted_inputs(
+                    trusted_inputs=[
+                        dict(item)
+                        for item in (pipeline.get("trusted_inputs") or [])
+                        if isinstance(item, dict)
+                    ],
+                    source_join_ids=[
+                        str(value) for value in (pipeline.get("source_join_ids") or [])
+                    ],
+                    current_operator_can_view_source=pipeline.get(
+                        "current_operator_can_view_source"
+                    ),
+                    current_operator_can_contribute_source=pipeline.get(
+                        "current_operator_can_contribute_source"
+                    ),
+                )
+                primary_trusted_input = _devops_primary_trusted_input(
+                    [
+                        dict(item)
+                        for item in (pipeline.get("trusted_inputs") or [])
+                        if isinstance(item, dict)
+                    ]
+                )
+                pipeline["trusted_input_types"] = _dedupe_strings(
+                    item.get("input_type") for item in (pipeline.get("trusted_inputs") or [])
+                )
+                pipeline["trusted_input_refs"] = _dedupe_strings(
+                    item.get("ref") for item in (pipeline.get("trusted_inputs") or [])
+                )
+                pipeline["trusted_input_join_ids"] = _dedupe_strings(
+                    join_id
+                    for item in (pipeline.get("trusted_inputs") or [])
+                    if isinstance(item, dict)
+                    for join_id in (item.get("join_ids") or [])
+                )
+                pipeline["primary_injection_surface"] = (
+                    str((primary_trusted_input.get("surface_types") or [None])[0])
+                    if primary_trusted_input
+                    else None
+                )
+                pipeline["primary_trusted_input_ref"] = (
+                    str(primary_trusted_input.get("ref")) if primary_trusted_input else None
+                )
+                pipeline["current_operator_injection_surface_types"] = (
+                    _devops_current_operator_injection_surfaces(
+                        trusted_inputs=[
+                            dict(item)
+                            for item in (pipeline.get("trusted_inputs") or [])
+                            if isinstance(item, dict)
+                        ],
+                        current_operator_can_edit=pipeline.get("current_operator_can_edit"),
+                    )
+                )
+                pipeline["missing_execution_path"] = _devops_missing_execution_path(
+                    repository_name=_string_value(pipeline.get("repository_name")),
+                    execution_modes=[
+                        str(value) for value in (pipeline.get("execution_modes") or [])
+                    ],
+                    current_operator_can_queue=pipeline.get("current_operator_can_queue"),
+                    current_operator_can_edit=pipeline.get("current_operator_can_edit"),
+                )
+                pipeline["missing_injection_point"] = not bool(
+                    pipeline.get("current_operator_injection_surface_types")
+                )
+                pipeline["summary"] = _devops_operator_summary(
+                    definition_name=str(pipeline.get("name") or "unknown"),
+                    project_name=str(pipeline.get("project_name") or "unknown"),
+                    trusted_inputs=[
+                        dict(item)
+                        for item in (pipeline.get("trusted_inputs") or [])
+                        if isinstance(item, dict)
+                    ],
+                    primary_injection_surface=_string_value(
+                        pipeline.get("primary_injection_surface")
+                    ),
+                    primary_trusted_input_ref=_string_value(
+                        pipeline.get("primary_trusted_input_ref")
+                    ),
+                    trigger_types=[str(value) for value in (pipeline.get("trigger_types") or [])],
+                    execution_modes=[
+                        str(value) for value in (pipeline.get("execution_modes") or [])
+                    ],
+                    injection_surface_types=[
+                        str(value) for value in (pipeline.get("injection_surface_types") or [])
+                    ],
+                    azure_service_connection_names=[
+                        str(value)
+                        for value in (pipeline.get("azure_service_connection_names") or [])
+                    ],
+                    variable_group_names=[
+                        str(value) for value in (pipeline.get("variable_group_names") or [])
+                    ],
+                    secret_variable_count=int(pipeline.get("secret_variable_count") or 0),
+                    key_vault_group_names=[
+                        str(value) for value in (pipeline.get("key_vault_group_names") or [])
+                    ],
+                    key_vault_names=[
+                        str(value) for value in (pipeline.get("key_vault_names") or [])
+                    ],
+                    target_clues=[str(value) for value in (pipeline.get("target_clues") or [])],
+                    partial_read_reasons=[
+                        issue["message"].split(": ", 1)[1]
+                        for issue in definition_issues
+                        if issue.get("kind") == ErrorKind.PARTIAL_COLLECTION.value
+                        and isinstance(issue.get("message"), str)
+                        and issue["message"].startswith("devops.definition: ")
+                    ],
+                    current_operator_can_queue=pipeline.get("current_operator_can_queue"),
+                    current_operator_can_edit=pipeline.get("current_operator_can_edit"),
+                    current_operator_can_contribute_source=pipeline.get(
+                        "current_operator_can_contribute_source"
+                    ),
+                    current_operator_injection_surface_types=[
+                        str(value)
+                        for value in (
+                            pipeline.get("current_operator_injection_surface_types") or []
+                        )
+                    ],
+                    primary_trusted_input_type=(
+                        str(primary_trusted_input.get("input_type"))
+                        if primary_trusted_input
+                        else None
+                    ),
+                    primary_trusted_input_access_state=(
+                        str(primary_trusted_input.get("current_operator_access_state"))
+                        if primary_trusted_input
+                        and primary_trusted_input.get("current_operator_access_state")
+                        else None
+                    ),
+                )
 
                 issues.extend(definition_issues)
                 if _devops_pipeline_is_interesting(pipeline):
@@ -1052,9 +1244,7 @@ class AzureProvider(BaseProvider):
                 record_set_count=zone.get("record_set_count"),
                 name_server_count=len(zone.get("name_servers", [])),
                 linked_virtual_network_count=zone.get("linked_virtual_network_count"),
-                registration_virtual_network_count=zone.get(
-                    "registration_virtual_network_count"
-                ),
+                registration_virtual_network_count=zone.get("registration_virtual_network_count"),
                 private_endpoint_reference_count=zone.get("private_endpoint_reference_count"),
             )
             zone["related_ids"] = _dedupe_strings(
@@ -1816,9 +2006,7 @@ class AzureProvider(BaseProvider):
                     else:
                         if resource.get("id"):
                             service_principal_by_id[resource["id"]] = resource
-                resource_name = (
-                    resource.get("displayName") or resource_id or "unknown"
-                )
+                resource_name = resource.get("displayName") or resource_id or "unknown"
                 assignment_related_ids = [
                     item for item in [assignment.get("id"), resource_id] if item
                 ]
@@ -2220,15 +2408,9 @@ class AzureProvider(BaseProvider):
                         "https_traffic_only_enabled": _bool_or_none(
                             getattr(account, "enable_https_traffic_only", None)
                         ),
-                        "is_hns_enabled": _bool_or_none(
-                            getattr(account, "is_hns_enabled", None)
-                        ),
-                        "is_sftp_enabled": _bool_or_none(
-                            getattr(account, "is_sftp_enabled", None)
-                        ),
-                        "nfs_v3_enabled": _bool_or_none(
-                            getattr(account, "enable_nfs_v3", None)
-                        ),
+                        "is_hns_enabled": _bool_or_none(getattr(account, "is_hns_enabled", None)),
+                        "is_sftp_enabled": _bool_or_none(getattr(account, "is_sftp_enabled", None)),
+                        "nfs_v3_enabled": _bool_or_none(getattr(account, "enable_nfs_v3", None)),
                         "dns_endpoint_type": _string_value(
                             getattr(account, "dns_endpoint_type", None)
                         ),
@@ -2663,8 +2845,8 @@ class AzureProvider(BaseProvider):
             if isinstance(values, list):
                 items.extend(item for item in values if isinstance(item, dict))
 
-            continuation_token = (
-                headers.get("x-ms-continuationtoken") or headers.get("continuationtoken")
+            continuation_token = headers.get("x-ms-continuationtoken") or headers.get(
+                "continuationtoken"
             )
             if not continuation_token:
                 break
@@ -2697,6 +2879,188 @@ class AzureProvider(BaseProvider):
                 classify_exception(exc),
                 f"Azure DevOps request failed for {url}: {exc.reason}",
             ) from exc
+
+    def _devops_post(
+        self,
+        url: str,
+        payload: dict[str, object],
+    ) -> tuple[dict[str, object], dict[str, str]]:
+        token = self.session.credential.get_token(DEVOPS_SCOPE).token
+        request = Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urlopen(request, context=_arm_ssl_context(), timeout=30) as response:
+                body = response.read()
+                parsed = json.loads(body.decode("utf-8")) if body else {}
+                headers = {key.lower(): value for key, value in response.headers.items()}
+                return parsed, headers
+        except HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="ignore")
+            raise AzureFoxError(
+                classify_exception(exc),
+                f"Azure DevOps request failed for {url}: {exc.code} {exc.reason}",
+                details={"body": body[:500]},
+            ) from exc
+        except URLError as exc:
+            raise AzureFoxError(
+                classify_exception(exc),
+                f"Azure DevOps request failed for {url}: {exc.reason}",
+            ) from exc
+
+    def _devops_build_definition_permissions(
+        self,
+        *,
+        organization: str,
+        project_id: str,
+        definition_id: str,
+    ) -> dict[str, bool | None]:
+        if not project_id or not definition_id:
+            return {
+                "current_operator_can_view_definition": None,
+                "current_operator_can_queue": None,
+                "current_operator_can_edit": None,
+            }
+
+        action_bits = self._devops_namespace_action_bits(
+            organization=organization,
+            namespace_id=_DEVOPS_BUILD_NAMESPACE_ID,
+            action_names=("ViewBuildDefinition", "QueueBuilds", "EditBuildDefinition"),
+        )
+        token = f"{project_id}/{definition_id}"
+        evaluations = [
+            {
+                "securityNamespaceId": _DEVOPS_BUILD_NAMESPACE_ID,
+                "token": token,
+                "permissions": bit,
+            }
+            for bit in action_bits.values()
+            if bit is not None
+        ]
+        if not evaluations:
+            return {
+                "current_operator_can_view_definition": None,
+                "current_operator_can_queue": None,
+                "current_operator_can_edit": None,
+            }
+
+        payload, _headers = self._devops_post(
+            f"https://dev.azure.com/{organization}/_apis/security/permissionevaluationbatch?api-version=7.1",
+            {
+                "alwaysAllowAdministrators": False,
+                "evaluations": evaluations,
+            },
+        )
+        results: dict[int, bool] = {}
+        for item in (
+            payload.get("evaluations", []) if isinstance(payload.get("evaluations"), list) else []
+        ):
+            if not isinstance(item, dict):
+                continue
+            permission_bit = item.get("permissions")
+            value = item.get("value")
+            if isinstance(permission_bit, int) and isinstance(value, bool):
+                results[permission_bit] = value
+
+        return {
+            "current_operator_can_view_definition": results.get(
+                action_bits.get("ViewBuildDefinition", -1)
+            ),
+            "current_operator_can_queue": results.get(action_bits.get("QueueBuilds", -1)),
+            "current_operator_can_edit": results.get(action_bits.get("EditBuildDefinition", -1)),
+        }
+
+    def _devops_git_repository_permissions(
+        self,
+        *,
+        organization: str,
+        project_id: str,
+        repository_id: str,
+    ) -> dict[str, bool | None]:
+        if not project_id or not repository_id:
+            return {
+                "current_operator_can_view_source": None,
+                "current_operator_can_contribute_source": None,
+            }
+
+        action_bits = self._devops_namespace_action_bits(
+            organization=organization,
+            namespace_id=_DEVOPS_GIT_NAMESPACE_ID,
+            action_names=("GenericRead", "GenericContribute"),
+        )
+        token = f"repoV2/{project_id}/{repository_id}"
+        evaluations = [
+            {
+                "securityNamespaceId": _DEVOPS_GIT_NAMESPACE_ID,
+                "token": token,
+                "permissions": bit,
+            }
+            for bit in action_bits.values()
+            if bit is not None
+        ]
+        if not evaluations:
+            return {
+                "current_operator_can_view_source": None,
+                "current_operator_can_contribute_source": None,
+            }
+
+        payload, _headers = self._devops_post(
+            f"https://dev.azure.com/{organization}/_apis/security/permissionevaluationbatch?api-version=7.1",
+            {
+                "alwaysAllowAdministrators": False,
+                "evaluations": evaluations,
+            },
+        )
+        results: dict[int, bool] = {}
+        for item in (
+            payload.get("evaluations", []) if isinstance(payload.get("evaluations"), list) else []
+        ):
+            if not isinstance(item, dict):
+                continue
+            permission_bit = item.get("permissions")
+            value = item.get("value")
+            if isinstance(permission_bit, int) and isinstance(value, bool):
+                results[permission_bit] = value
+
+        return {
+            "current_operator_can_view_source": results.get(action_bits.get("GenericRead", -1)),
+            "current_operator_can_contribute_source": results.get(
+                action_bits.get("GenericContribute", -1)
+            ),
+        }
+
+    def _devops_namespace_action_bits(
+        self,
+        *,
+        organization: str,
+        namespace_id: str,
+        action_names: tuple[str, ...],
+    ) -> dict[str, int | None]:
+        cache_key = f"{organization}:{namespace_id}"
+        if cache_key not in self._devops_namespace_actions_cache:
+            payload, _headers = self._devops_get(
+                f"https://dev.azure.com/{organization}/_apis/securitynamespaces/{namespace_id}?api-version=7.1"
+            )
+            description = payload
+            if isinstance(payload.get("value"), list) and payload["value"]:
+                first = payload["value"][0]
+                if isinstance(first, dict):
+                    description = first
+            actions = description.get("actions", []) if isinstance(description, dict) else []
+            self._devops_namespace_actions_cache[cache_key] = {
+                str(item.get("name")): int(item.get("bit"))
+                for item in actions
+                if isinstance(item, dict) and item.get("name") and isinstance(item.get("bit"), int)
+            }
+        action_map = self._devops_namespace_actions_cache[cache_key]
+        return {name: action_map.get(name) for name in action_names}
 
     def _count_storage_children(
         self,
@@ -2946,6 +3310,86 @@ def _automation_account_summary(
             for variable in variables
         )
 
+    start_modes = _automation_start_modes(
+        published_runbook_count=published_runbook_count,
+        schedule_count=_len_or_none(schedules),
+        job_schedule_count=_len_or_none(job_schedules),
+        webhook_count=_len_or_none(webhooks),
+        hybrid_worker_group_count=_len_or_none(hybrid_worker_groups),
+    )
+    schedule_runbook_names = _automation_schedule_runbook_names(job_schedules)
+    webhook_runbook_names = _automation_webhook_runbook_names(webhooks)
+    hybrid_worker_group_ids = _dedupe_strings(
+        _string_value(getattr(group, "id", None)) for group in (hybrid_worker_groups or [])
+    )
+    trigger_join_ids = _dedupe_strings(
+        [
+            *(
+                _automation_object_join_ids(job_schedules, prefix="automation-job-schedule")
+                if job_schedules is not None
+                else []
+            ),
+            *(
+                _automation_object_join_ids(webhooks, prefix="automation-webhook")
+                if webhooks is not None
+                else []
+            ),
+            *(
+                _automation_object_join_ids(hybrid_worker_groups, prefix="automation-hybrid-worker")
+                if hybrid_worker_groups is not None
+                else []
+            ),
+        ]
+    )
+    identity_join_ids = _dedupe_strings(
+        [
+            *identity_ids,
+            _string_value(getattr(identity, "principal_id", None)) or "",
+            _string_value(getattr(identity, "client_id", None)) or "",
+        ]
+    )
+    secret_support_types = _automation_secret_support_types(
+        credential_count=_len_or_none(credentials),
+        certificate_count=_len_or_none(certificates),
+        connection_count=_len_or_none(connections),
+        encrypted_variable_count=encrypted_variable_count,
+    )
+    secret_dependency_ids = _dedupe_strings(
+        [
+            *(
+                _automation_object_join_ids(credentials, prefix="automation-credential")
+                if credentials is not None
+                else []
+            ),
+            *(
+                _automation_object_join_ids(certificates, prefix="automation-certificate")
+                if certificates is not None
+                else []
+            ),
+            *(
+                _automation_object_join_ids(connections, prefix="automation-connection")
+                if connections is not None
+                else []
+            ),
+            *(
+                _automation_object_join_ids(variables, prefix="automation-variable")
+                if variables is not None
+                else []
+            ),
+        ]
+    )
+    consequence_types = _deployment_consequence_types(
+        target_clues=[],
+        execution_modes=start_modes,
+        secret_support_types=secret_support_types,
+        source_command="automation",
+    )
+    missing_execution_path = not bool(
+        [mode for mode in start_modes if mode != "manual-only"]
+        or schedule_runbook_names
+        or webhook_runbook_names
+    )
+
     return {
         "id": account_id,
         "name": getattr(account, "name", None),
@@ -2968,6 +3412,17 @@ def _automation_account_summary(
         "connection_count": _len_or_none(connections),
         "variable_count": _len_or_none(variables),
         "encrypted_variable_count": encrypted_variable_count,
+        "start_modes": start_modes,
+        "schedule_runbook_names": schedule_runbook_names,
+        "webhook_runbook_names": webhook_runbook_names,
+        "hybrid_worker_group_ids": hybrid_worker_group_ids,
+        "trigger_join_ids": trigger_join_ids,
+        "identity_join_ids": identity_join_ids,
+        "secret_support_types": secret_support_types,
+        "secret_dependency_ids": secret_dependency_ids,
+        "consequence_types": consequence_types,
+        "missing_execution_path": missing_execution_path,
+        "missing_target_mapping": True,
         "summary": _automation_account_operator_summary(
             account_name=getattr(account, "name", None) or "unknown",
             identity_type=getattr(identity, "type", None),
@@ -3087,6 +3542,88 @@ def _automation_asset_clause(
     else:
         parts.append(f"variables {variable_count} ({encrypted_variable_count} encrypted)")
     return ", ".join(parts)
+
+
+def _automation_start_modes(
+    *,
+    published_runbook_count: int | None,
+    schedule_count: int | None,
+    job_schedule_count: int | None,
+    webhook_count: int | None,
+    hybrid_worker_group_count: int | None,
+) -> list[str]:
+    modes: list[str] = []
+    if schedule_count and schedule_count > 0:
+        modes.append("schedule")
+    if job_schedule_count and job_schedule_count > 0:
+        modes.append("job-schedule")
+    if webhook_count and webhook_count > 0:
+        modes.append("webhook")
+    if hybrid_worker_group_count and hybrid_worker_group_count > 0:
+        modes.append("hybrid-worker")
+    if published_runbook_count and published_runbook_count > 0 and not modes:
+        modes.append("manual-only")
+    return _dedupe_strings(modes)
+
+
+def _automation_schedule_runbook_names(job_schedules: list[object] | None) -> list[str]:
+    if job_schedules is None:
+        return []
+    return _dedupe_strings(_automation_runbook_name(item) for item in job_schedules)
+
+
+def _automation_webhook_runbook_names(webhooks: list[object] | None) -> list[str]:
+    if webhooks is None:
+        return []
+    return _dedupe_strings(_automation_runbook_name(item) for item in webhooks)
+
+
+def _automation_runbook_name(item: object) -> str | None:
+    properties = getattr(item, "properties", None)
+    for candidate in (
+        getattr(item, "runbook_name", None),
+        getattr(properties, "runbook_name", None),
+        getattr(getattr(item, "runbook", None), "name", None),
+        getattr(getattr(properties, "runbook", None), "name", None),
+    ):
+        text = _string_value(candidate)
+        if text:
+            return text
+    return None
+
+
+def _automation_object_join_ids(items: list[object] | None, *, prefix: str) -> list[str]:
+    if items is None:
+        return []
+    ids: list[str] = []
+    for item in items:
+        raw_id = _string_value(getattr(item, "id", None))
+        if raw_id:
+            ids.append(raw_id)
+            continue
+        name = _string_value(getattr(item, "name", None))
+        if name:
+            ids.append(f"{prefix}:{name}")
+    return _dedupe_strings(ids)
+
+
+def _automation_secret_support_types(
+    *,
+    credential_count: int | None,
+    certificate_count: int | None,
+    connection_count: int | None,
+    encrypted_variable_count: int | None,
+) -> list[str]:
+    types: list[str] = []
+    if credential_count and credential_count > 0:
+        types.append("credentials")
+    if certificate_count and certificate_count > 0:
+        types.append("certificates")
+    if connection_count and connection_count > 0:
+        types.append("connections")
+    if encrypted_variable_count and encrypted_variable_count > 0:
+        types.append("encrypted-variables")
+    return types
 
 
 def _count_or_unreadable(label: str, count: int | None) -> str:
@@ -4167,9 +4704,7 @@ def _application_gateway_summary(
         "private_frontend_ips": private_frontend_ips,
         "subnet_ids": subnet_ids,
         "listener_count": len(getattr(gateway, "http_listeners", None) or []),
-        "request_routing_rule_count": len(
-            getattr(gateway, "request_routing_rules", None) or []
-        ),
+        "request_routing_rule_count": len(getattr(gateway, "request_routing_rules", None) or []),
         "backend_pool_count": len(backend_address_pools),
         "backend_target_count": _application_gateway_backend_target_count(backend_address_pools),
         "url_path_map_count": len(getattr(gateway, "url_path_maps", None) or []),
@@ -4188,9 +4723,7 @@ def _application_gateway_summary(
             listener_count=len(getattr(gateway, "http_listeners", None) or []),
             request_routing_rule_count=len(getattr(gateway, "request_routing_rules", None) or []),
             backend_pool_count=len(backend_address_pools),
-            backend_target_count=_application_gateway_backend_target_count(
-                backend_address_pools
-            ),
+            backend_target_count=_application_gateway_backend_target_count(backend_address_pools),
             waf_enabled=waf_enabled,
             waf_mode=waf_mode,
             firewall_policy_id=firewall_policy_id,
@@ -4345,11 +4878,7 @@ def _function_app_summary(
     azure_webjobs_storage_value_type = (
         "missing"
         if settings_readable and "AzureWebJobsStorage" not in settings
-        else (
-            _env_var_value_type(azure_webjobs_storage_value)
-            if settings_readable
-            else None
-        )
+        else (_env_var_value_type(azure_webjobs_storage_value) if settings_readable else None)
     )
     azure_webjobs_storage_reference_target = (
         _env_var_reference_target(azure_webjobs_storage_value)
@@ -4581,13 +5110,8 @@ def _application_gateway_operator_summary(
     firewall_policy_id: str | None,
 ) -> str:
     if public_frontend_count:
-        exposure_phrase = (
-            f"publishes {public_frontend_count} public frontend(s)"
-            + (
-                f" ({', '.join(public_ip_addresses)})"
-                if public_ip_addresses
-                else ""
-            )
+        exposure_phrase = f"publishes {public_frontend_count} public frontend(s)" + (
+            f" ({', '.join(public_ip_addresses)})" if public_ip_addresses else ""
         )
     elif private_frontend_count:
         exposure_phrase = (
@@ -4715,9 +5239,7 @@ def _acr_registry_summary(
     workload_principal_id = _string_value(getattr(identity, "principal_id", None))
     workload_client_id = _string_value(getattr(identity, "client_id", None))
     public_network_access = _string_value(getattr(registry, "public_network_access", None))
-    network_rule_default_action = _string_value(
-        getattr(network_rule_set, "default_action", None)
-    )
+    network_rule_default_action = _string_value(getattr(network_rule_set, "default_action", None))
     network_rule_bypass_options = _string_value(
         getattr(registry, "network_rule_bypass_options", None)
     )
@@ -4801,10 +5323,7 @@ def _acr_registry_summary(
                 registry_id,
                 workload_principal_id,
                 *workload_identity_ids,
-                *[
-                    _string_value(getattr(webhook, "id", None))
-                    for webhook in (webhooks or [])
-                ],
+                *[_string_value(getattr(webhook, "id", None)) for webhook in (webhooks or [])],
                 *[
                     _string_value(getattr(replication, "id", None))
                     for replication in (replications or [])
@@ -4943,8 +5462,7 @@ def _acr_enabled_webhook_count(webhooks: list[object] | None) -> int | None:
     if webhooks is None:
         return None
     return sum(
-        _normalized_arm_enum(getattr(webhook, "status", None)) == "enabled"
-        for webhook in webhooks
+        _normalized_arm_enum(getattr(webhook, "status", None)) == "enabled" for webhook in webhooks
     )
 
 
@@ -5211,9 +5729,7 @@ def _dns_zone_operator_summary(
     if linked_virtual_network_count is not None:
         link_parts.append(f"{linked_virtual_network_count} virtual network link(s)")
     if registration_virtual_network_count is not None:
-        link_parts.append(
-            f"{registration_virtual_network_count} registration-enabled link(s)"
-        )
+        link_parts.append(f"{registration_virtual_network_count} registration-enabled link(s)")
     if private_endpoint_reference_count is not None:
         link_parts.append(
             f"{private_endpoint_reference_count} visible private endpoint reference(s)"
@@ -5256,10 +5772,7 @@ def _dns_resource_needs_hydration(resource: object) -> bool:
                 "number_of_virtual_network_links_with_registration",
             )
         )
-        return (
-            linked_virtual_network_count is None
-            or registration_virtual_network_count is None
-        )
+        return linked_virtual_network_count is None or registration_virtual_network_count is None
 
     return False
 
@@ -5410,9 +5923,7 @@ def _aks_cluster_summary(cluster: object) -> dict:
             web_app_routing_enabled=web_app_routing_enabled,
             web_app_routing_dns_zone_count=web_app_routing_dns_zone_count,
         ),
-        "related_ids": _dedupe_strings(
-            [cluster_id, cluster_principal_id, *cluster_identity_ids]
-        ),
+        "related_ids": _dedupe_strings([cluster_id, cluster_principal_id, *cluster_identity_ids]),
     }
 
 
@@ -5608,9 +6119,7 @@ def _api_mgmt_operator_summary(
         if api_count is not None:
             inventory_parts.append(f"{api_subscription_required_count} require subscriptions")
         else:
-            inventory_parts.append(
-                f"{api_subscription_required_count} APIs require subscriptions"
-            )
+            inventory_parts.append(f"{api_subscription_required_count} APIs require subscriptions")
     if subscription_count is not None:
         if active_subscription_count is not None:
             inventory_parts.append(
@@ -6254,10 +6763,7 @@ def _network_effective_row_from_endpoint(*, endpoint: dict, network_ports: list[
     highest = "low"
     if network_ports:
         highest = min(
-            (
-                str(item.get("exposure_confidence") or "low").lower()
-                for item in network_ports
-            ),
+            (str(item.get("exposure_confidence") or "low").lower() for item in network_ports),
             key=lambda value: confidence_order.get(value, 9),
         )
 
@@ -6941,9 +7447,7 @@ def _vmss_summary(vmss: object) -> tuple[dict, list[dict]]:
             "orchestration_mode": orchestration_mode,
             "upgrade_mode": upgrade_mode,
             "overprovision": _bool_or_none(getattr(vmss, "overprovision", None)),
-            "single_placement_group": _bool_or_none(
-                getattr(vmss, "single_placement_group", None)
-            ),
+            "single_placement_group": _bool_or_none(getattr(vmss, "single_placement_group", None)),
             "zone_balance": _bool_or_none(getattr(vmss, "zone_balance", None)),
             "zones": zones,
             "identity_type": identity_type,
@@ -6953,9 +7457,7 @@ def _vmss_summary(vmss: object) -> tuple[dict, list[dict]]:
             "subnet_ids": network_cues["subnet_ids"],
             "nic_configuration_count": network_cues["nic_configuration_count"],
             "public_ip_configuration_count": network_cues["public_ip_configuration_count"],
-            "load_balancer_backend_pool_count": network_cues[
-                "load_balancer_backend_pool_count"
-            ],
+            "load_balancer_backend_pool_count": network_cues["load_balancer_backend_pool_count"],
             "application_gateway_backend_pool_count": network_cues[
                 "application_gateway_backend_pool_count"
             ],
@@ -7079,16 +7581,16 @@ def _vmss_network_cues(vmss: object, *, vmss_id: str, vmss_name: str) -> dict[st
                 "inbound_nat_pool_ids": [],
                 "network_detail_complete": False,
                 "issues": [
-                _partial_collection_issue(
-                    "vmss.ip_configurations",
-                    (
-                        "VM scale set IP configuration details were not returned by the "
-                        "current SDK list response; subnet and frontend counts may be "
-                        "incomplete."
-                    ),
-                    asset_id=vmss_id,
-                    asset_name=vmss_name,
-                )
+                    _partial_collection_issue(
+                        "vmss.ip_configurations",
+                        (
+                            "VM scale set IP configuration details were not returned by the "
+                            "current SDK list response; subnet and frontend counts may be "
+                            "incomplete."
+                        ),
+                        asset_id=vmss_id,
+                        asset_name=vmss_name,
+                    )
                 ],
             }
 
@@ -7104,9 +7606,7 @@ def _vmss_network_cues(vmss: object, *, vmss_id: str, vmss_name: str) -> dict[st
                 if pool_id:
                     load_balancer_backend_pool_ids.append(pool_id)
 
-            for pool in (
-                getattr(ip_config, "application_gateway_backend_address_pools", None) or []
-            ):
+            for pool in getattr(ip_config, "application_gateway_backend_address_pools", None) or []:
                 pool_id = _string_value(getattr(pool, "id", None))
                 if pool_id:
                     application_gateway_backend_pool_ids.append(pool_id)
@@ -7180,9 +7680,7 @@ def _vmss_operator_summary(
     if load_balancer_backend_pool_count:
         network_parts.append(f"{load_balancer_backend_pool_count} LB backend pool ref(s)")
     if application_gateway_backend_pool_count:
-        network_parts.append(
-            f"{application_gateway_backend_pool_count} App Gateway backend ref(s)"
-        )
+        network_parts.append(f"{application_gateway_backend_pool_count} App Gateway backend ref(s)")
     if nic_configuration_count:
         network_parts.append(f"{nic_configuration_count} NIC config(s)")
     if subnet_ids:
@@ -7203,9 +7701,7 @@ def _vmss_operator_summary(
     if upgrade_mode:
         posture_parts.append(f"upgrade {upgrade_mode}")
     if single_placement_group is not None:
-        posture_parts.append(
-            f"single-placement-group {'yes' if single_placement_group else 'no'}"
-        )
+        posture_parts.append(f"single-placement-group {'yes' if single_placement_group else 'no'}")
     if overprovision is not None:
         posture_parts.append(f"overprovision {'yes' if overprovision else 'no'}")
     if zone_balance is not None:
@@ -7213,9 +7709,7 @@ def _vmss_operator_summary(
     if zones:
         posture_parts.append(f"zones {','.join(zones)}")
 
-    posture_phrase = (
-        f" Visible posture: {', '.join(posture_parts)}." if posture_parts else ""
-    )
+    posture_phrase = f" Visible posture: {', '.join(posture_parts)}." if posture_parts else ""
 
     return (
         f"Virtual Machine Scale Sets (VMSS) asset '{vmss_name}' carries "
@@ -7264,6 +7758,21 @@ def _devops_service_endpoint_maps(
     return by_id, by_name
 
 
+def _devops_repository_maps(
+    repositories: list[dict[str, object]],
+) -> tuple[dict[str, dict[str, object]], dict[str, dict[str, object]]]:
+    by_id: dict[str, dict[str, object]] = {}
+    by_name: dict[str, dict[str, object]] = {}
+    for repository in repositories:
+        repository_id = str(repository.get("id") or "").strip().lower()
+        repository_name = str(repository.get("name") or "").strip().lower()
+        if repository_id:
+            by_id[repository_id] = repository
+        if repository_name:
+            by_name[repository_name] = repository
+    return by_id, by_name
+
+
 def _devops_variable_group_map(
     variable_groups: list[dict[str, object]],
 ) -> dict[int, dict[str, object]]:
@@ -7298,7 +7807,11 @@ def _devops_pipeline_summary(
     service_endpoints_by_id: dict[str, dict[str, object]],
     service_endpoints_by_name: dict[str, dict[str, object]],
     variable_groups_by_id: dict[int, dict[str, object]],
+    repositories_by_id: dict[str, dict[str, object]] | None = None,
+    repositories_by_name: dict[str, dict[str, object]] | None = None,
 ) -> tuple[dict[str, object], list[dict[str, object]]]:
+    repositories_by_id = repositories_by_id or {}
+    repositories_by_name = repositories_by_name or {}
     definition_project = definition.get("project")
     if not isinstance(definition_project, dict):
         definition_project = {}
@@ -7309,17 +7822,49 @@ def _devops_pipeline_summary(
     definition_name = str(definition.get("name") or f"definition-{definition_id or 'unknown'}")
     path = str(definition.get("path") or "") or None
     repository = definition.get("repository")
+    repository_id = None
     repository_name = None
     repository_type = None
+    repository_url = None
     default_branch = None
     if isinstance(repository, dict):
+        repository_id = str(repository.get("id") or "") or None
         repository_name = str(repository.get("name") or "") or None
         repository_type = str(repository.get("type") or "") or None
+        repository_url = str(repository.get("url") or "") or None
         default_branch = str(repository.get("defaultBranch") or "") or None
 
-    inline_secret_count, inline_secret_names = _devops_secret_details(
-        definition.get("variables")
+    catalog_repository = _devops_resolve_repository(
+        repository_id=repository_id,
+        repository_name=repository_name,
+        repositories_by_id=repositories_by_id,
+        repositories_by_name=repositories_by_name,
     )
+    if catalog_repository is not None:
+        repository_id = str(catalog_repository.get("id") or repository_id or "") or None
+        repository_name = str(catalog_repository.get("name") or repository_name or "") or None
+        repository_url = (
+            str(
+                catalog_repository.get("webUrl")
+                or catalog_repository.get("url")
+                or catalog_repository.get("remoteUrl")
+                or repository_url
+                or ""
+            )
+            or None
+        )
+        default_branch = (
+            str(catalog_repository.get("defaultBranch") or default_branch or "") or None
+        )
+
+    repository_host_type = _devops_repository_host_type(repository_type)
+    source_visibility_state = _devops_source_visibility_state(
+        repository_host_type=repository_host_type,
+        repository_name=repository_name,
+        catalog_repository=catalog_repository,
+    )
+
+    inline_secret_count, inline_secret_names = _devops_secret_details(definition.get("variables"))
 
     referenced_group_ids = _devops_definition_variable_group_ids(definition)
     referenced_groups: list[dict[str, object]] = []
@@ -7375,13 +7920,57 @@ def _devops_pipeline_summary(
     azure_service_connection_auth_schemes = _dedupe_strings(
         _devops_endpoint_auth_scheme(endpoint) for endpoint in azure_endpoints
     )
+    azure_service_connection_ids = _dedupe_strings(
+        endpoint.get("id") for endpoint in azure_endpoints
+    )
+    azure_service_connection_principal_ids = _dedupe_strings(
+        _devops_endpoint_principal_id(endpoint) for endpoint in azure_endpoints
+    )
+    azure_service_connection_client_ids = _dedupe_strings(
+        _devops_endpoint_client_id(endpoint) for endpoint in azure_endpoints
+    )
+    azure_service_connection_tenant_ids = _dedupe_strings(
+        _devops_endpoint_tenant_id(endpoint) for endpoint in azure_endpoints
+    )
+    azure_service_connection_subscription_ids = _dedupe_strings(
+        _devops_endpoint_subscription_id(endpoint) for endpoint in azure_endpoints
+    )
 
     trigger_types = _devops_trigger_types(definition)
+    execution_modes = _devops_execution_modes(trigger_types)
+    upstream_sources = _devops_upstream_sources(
+        organization=organization,
+        project_name=project_name,
+        repository_host_type=repository_host_type,
+        repository_id=repository_id,
+        repository_name=repository_name,
+        default_branch=default_branch,
+        repository_url=repository_url,
+        execution_modes=execution_modes,
+    )
     secret_variable_names = _dedupe_strings([*inline_secret_names, *group_secret_names])
     secret_variable_count = inline_secret_count + group_secret_count
     key_vault_group_names = _dedupe_strings(key_vault_group_names)
     key_vault_names = _dedupe_strings(key_vault_names)
+    secret_support_types = _devops_secret_support_types(
+        secret_variable_names=secret_variable_names,
+        key_vault_group_names=key_vault_group_names,
+        key_vault_names=key_vault_names,
+        variable_group_names=variable_group_names,
+    )
+    secret_dependency_ids = _dedupe_strings(
+        [
+            *[str(group.get("id") or "") for group in referenced_groups],
+            *[f"keyvault:{name}" for name in key_vault_names],
+        ]
+    )
     target_clues = _devops_target_clues(definition)
+    consequence_types = _deployment_consequence_types(
+        target_clues=target_clues,
+        execution_modes=execution_modes,
+        secret_support_types=secret_support_types,
+        source_command="devops",
+    )
     risk_cues = _devops_risk_cues(
         trigger_types=trigger_types,
         azure_service_connection_names=azure_service_connection_names,
@@ -7398,6 +7987,58 @@ def _devops_pipeline_summary(
         unresolved_provider_endpoint_ids=unresolved_provider_endpoint_ids,
     )
     partial_read = bool(partial_read_reasons)
+    trigger_join_ids = _devops_trigger_join_ids(
+        organization=organization,
+        project_name=project_name,
+        definition_id=definition_id or definition_name,
+        execution_modes=execution_modes,
+        upstream_sources=upstream_sources,
+    )
+    source_join_ids = _devops_source_join_ids(
+        organization=organization,
+        project_id=project_id,
+        repository_id=repository_id,
+        repository_name=repository_name,
+        repository_url=repository_url,
+        repository_host_type=repository_host_type,
+    )
+    trusted_inputs = _devops_finalize_trusted_inputs(
+        trusted_inputs=_devops_trusted_inputs(
+            organization=organization,
+            project_id=project_id,
+            project_name=project_name,
+            definition=definition,
+            repository_id=repository_id,
+            repository_name=repository_name,
+            repository_url=repository_url,
+            repository_host_type=repository_host_type,
+            source_visibility_state=source_visibility_state,
+            default_branch=default_branch,
+            execution_modes=execution_modes,
+            repositories_by_id=repositories_by_id,
+            repositories_by_name=repositories_by_name,
+        ),
+        source_join_ids=source_join_ids,
+        current_operator_can_view_source=None,
+        current_operator_can_contribute_source=None,
+    )
+    primary_trusted_input = _devops_primary_trusted_input(trusted_inputs)
+    identity_join_ids = _dedupe_strings(
+        [
+            *azure_service_connection_ids,
+            *azure_service_connection_principal_ids,
+            *azure_service_connection_client_ids,
+        ]
+    )
+    injection_surface_types = _devops_injection_surface_types(
+        trusted_inputs=trusted_inputs,
+    )
+    missing_execution_path = _devops_missing_execution_path(
+        repository_name=repository_name,
+        execution_modes=execution_modes,
+    )
+    missing_injection_point = True
+    missing_target_mapping = not bool(target_clues)
 
     related_ids = _dedupe_strings(
         [
@@ -7428,8 +8069,12 @@ def _devops_pipeline_summary(
         "project_id": project_id,
         "project_name": project_name,
         "path": path,
+        "repository_id": repository_id,
         "repository_name": repository_name,
         "repository_type": repository_type,
+        "repository_url": repository_url,
+        "repository_host_type": repository_host_type,
+        "source_visibility_state": source_visibility_state,
         "default_branch": default_branch,
         "trigger_types": trigger_types,
         "variable_group_names": variable_group_names,
@@ -7440,15 +8085,62 @@ def _devops_pipeline_summary(
         "azure_service_connection_names": azure_service_connection_names,
         "azure_service_connection_types": azure_service_connection_types,
         "azure_service_connection_auth_schemes": azure_service_connection_auth_schemes,
+        "azure_service_connection_ids": azure_service_connection_ids,
+        "azure_service_connection_principal_ids": azure_service_connection_principal_ids,
+        "azure_service_connection_client_ids": azure_service_connection_client_ids,
+        "azure_service_connection_tenant_ids": azure_service_connection_tenant_ids,
+        "azure_service_connection_subscription_ids": azure_service_connection_subscription_ids,
         "target_clues": target_clues,
         "risk_cues": risk_cues,
+        "execution_modes": execution_modes,
+        "upstream_sources": upstream_sources,
+        "trusted_inputs": trusted_inputs,
+        "trusted_input_types": _dedupe_strings(item.get("input_type") for item in trusted_inputs),
+        "trusted_input_refs": _dedupe_strings(item.get("ref") for item in trusted_inputs),
+        "trusted_input_join_ids": _dedupe_strings(
+            join_id for item in trusted_inputs for join_id in (item.get("join_ids") or [])
+        ),
+        "primary_injection_surface": (
+            str((primary_trusted_input.get("surface_types") or [None])[0])
+            if primary_trusted_input
+            else None
+        ),
+        "primary_trusted_input_ref": (
+            str(primary_trusted_input.get("ref")) if primary_trusted_input else None
+        ),
+        "source_join_ids": source_join_ids,
+        "trigger_join_ids": trigger_join_ids,
+        "identity_join_ids": identity_join_ids,
+        "secret_support_types": secret_support_types,
+        "secret_dependency_ids": secret_dependency_ids,
+        "injection_surface_types": injection_surface_types,
+        "current_operator_injection_surface_types": [],
+        "edit_path_state": "repo-backed" if repository_name else "definition-visible",
+        "queue_path_state": "unknown",
+        "rerun_path_state": "unknown",
+        "approval_path_state": "unknown",
+        "current_operator_can_view_source": None,
+        "current_operator_can_contribute_source": None,
+        "consequence_types": consequence_types,
+        "missing_execution_path": missing_execution_path,
+        "missing_injection_point": missing_injection_point,
+        "missing_target_mapping": missing_target_mapping,
         "partial_read": partial_read,
         "summary": _devops_operator_summary(
             definition_name=definition_name,
             project_name=project_name,
-            repository_name=repository_name,
-            default_branch=default_branch,
+            trusted_inputs=trusted_inputs,
+            primary_injection_surface=(
+                str((primary_trusted_input.get("surface_types") or [None])[0])
+                if primary_trusted_input
+                else None
+            ),
+            primary_trusted_input_ref=(
+                str(primary_trusted_input.get("ref")) if primary_trusted_input else None
+            ),
             trigger_types=trigger_types,
+            execution_modes=execution_modes,
+            injection_surface_types=injection_surface_types,
             azure_service_connection_names=azure_service_connection_names,
             variable_group_names=variable_group_names,
             secret_variable_count=secret_variable_count,
@@ -7616,6 +8308,55 @@ def _devops_endpoint_auth_scheme(endpoint: dict[str, object]) -> str | None:
     return str(scheme) if scheme else None
 
 
+def _devops_endpoint_principal_id(endpoint: dict[str, object]) -> str | None:
+    return _devops_endpoint_lookup(
+        endpoint,
+        "serviceprincipalobjectid",
+        "spnobjectid",
+        "aadspobjectid",
+        "principalobjectid",
+    )
+
+
+def _devops_endpoint_client_id(endpoint: dict[str, object]) -> str | None:
+    return _devops_endpoint_lookup(
+        endpoint,
+        "serviceprincipalid",
+        "clientid",
+        "appid",
+        "applicationid",
+    )
+
+
+def _devops_endpoint_tenant_id(endpoint: dict[str, object]) -> str | None:
+    return _devops_endpoint_lookup(endpoint, "tenantid", "tenant_id")
+
+
+def _devops_endpoint_subscription_id(endpoint: dict[str, object]) -> str | None:
+    return _devops_endpoint_lookup(endpoint, "subscriptionid", "subscription_id")
+
+
+def _devops_endpoint_lookup(endpoint: dict[str, object], *keys: str) -> str | None:
+    collections: list[dict[str, object]] = []
+    authorization = endpoint.get("authorization")
+    if isinstance(authorization, dict):
+        parameters = authorization.get("parameters")
+        if isinstance(parameters, dict):
+            collections.append(parameters)
+    data = endpoint.get("data")
+    if isinstance(data, dict):
+        collections.append(data)
+
+    lowered_keys = [key.lower() for key in keys]
+    for collection in collections:
+        lowered_collection = {str(key).lower(): value for key, value in collection.items()}
+        for key in lowered_keys:
+            value = lowered_collection.get(key)
+            if value:
+                return str(value)
+    return None
+
+
 def _devops_trigger_types(definition: dict[str, object]) -> list[str]:
     triggers = definition.get("triggers")
     if not isinstance(triggers, list):
@@ -7629,6 +8370,796 @@ def _devops_trigger_types(definition: dict[str, object]) -> list[str]:
         if trigger_type:
             values.append(str(trigger_type))
     return _dedupe_strings(values)
+
+
+def _devops_execution_modes(trigger_types: list[str]) -> list[str]:
+    lowered = {value.lower() for value in trigger_types}
+    modes: list[str] = []
+    if "continuousintegration" in lowered:
+        modes.append("auto-trigger")
+    if "pullrequest" in lowered:
+        modes.append("pr-trigger")
+    if "schedule" in lowered:
+        modes.append("schedule")
+    if any("artifact" in value or "buildcompletion" in value for value in lowered):
+        modes.append("artifact-trigger")
+    if any("webhook" in value for value in lowered):
+        modes.append("webhook-trigger")
+    if not modes:
+        modes.append("manual-only")
+    return modes
+
+
+def _devops_resolve_repository(
+    *,
+    repository_id: str | None,
+    repository_name: str | None,
+    repositories_by_id: dict[str, dict[str, object]],
+    repositories_by_name: dict[str, dict[str, object]],
+) -> dict[str, object] | None:
+    if repository_id:
+        match = repositories_by_id.get(repository_id.strip().lower())
+        if match is not None:
+            return match
+    if repository_name:
+        match = repositories_by_name.get(repository_name.strip().lower())
+        if match is not None:
+            return match
+    return None
+
+
+def _devops_repository_host_type(repository_type: str | None) -> str | None:
+    lowered = str(repository_type or "").strip().lower()
+    if not lowered:
+        return None
+    if lowered == "tfsgit":
+        return "azure-repos"
+    if lowered == "github":
+        return "github"
+    if lowered == "githubenterprise":
+        return "github-enterprise"
+    if "bitbucket" in lowered:
+        return "bitbucket"
+    if lowered in {"git", "externalgit"}:
+        return "external-git"
+    if lowered == "tfvc":
+        return "tfvc"
+    return lowered
+
+
+def _devops_source_visibility_state(
+    *,
+    repository_host_type: str | None,
+    repository_name: str | None,
+    catalog_repository: dict[str, object] | None,
+) -> str | None:
+    if not repository_name:
+        return None
+    if repository_host_type == "azure-repos":
+        return "visible" if catalog_repository is not None else "inferred-only"
+    if repository_host_type:
+        return "external-reference"
+    return "definition-reference"
+
+
+def _devops_repo_ref(
+    *,
+    repository_host_type: str | None,
+    repository_name: str | None,
+    default_branch: str | None,
+    repository_url: str | None,
+) -> str | None:
+    if repository_name:
+        repo_ref = repository_name
+        if default_branch:
+            repo_ref = f"{repo_ref}@{default_branch}"
+    elif repository_url:
+        repo_ref = repository_url
+    else:
+        return None
+
+    if repository_host_type:
+        return f"{repository_host_type}:{repo_ref}"
+    return repo_ref
+
+
+def _devops_upstream_sources(
+    *,
+    organization: str,
+    project_name: str,
+    repository_host_type: str | None,
+    repository_id: str | None,
+    repository_name: str | None,
+    default_branch: str | None,
+    repository_url: str | None,
+    execution_modes: list[str],
+) -> list[str]:
+    sources: list[str] = []
+    repo_ref = _devops_repo_ref(
+        repository_host_type=repository_host_type,
+        repository_name=repository_name,
+        default_branch=default_branch,
+        repository_url=repository_url,
+    )
+    if repo_ref:
+        sources.append(f"repo:{repo_ref}")
+        if "pr-trigger" in execution_modes:
+            sources.append(f"pull-request:{repo_ref}")
+    if "schedule" in execution_modes:
+        sources.append("schedule")
+    if "artifact-trigger" in execution_modes:
+        sources.append("artifact")
+    if "webhook-trigger" in execution_modes:
+        sources.append("webhook")
+    if "manual-only" in execution_modes:
+        sources.append("manual-run")
+    return _dedupe_strings(sources)
+
+
+def _devops_source_join_ids(
+    *,
+    organization: str,
+    project_id: str | None,
+    repository_id: str | None,
+    repository_name: str | None,
+    repository_url: str | None,
+    repository_host_type: str | None,
+) -> list[str]:
+    ids: list[str] = []
+    if repository_host_type == "azure-repos" and project_id and repository_id:
+        ids.append(
+            "devops-repo://"
+            f"{quote(organization, safe='')}/{quote(project_id, safe='')}/"
+            f"{quote(repository_id, safe='')}"
+        )
+    if repository_url:
+        ids.append(f"repo-url://{quote(repository_url, safe=':/@')}")
+    if repository_name and repository_host_type:
+        ids.append(
+            f"repo-ref://{quote(repository_host_type, safe='')}/{quote(repository_name, safe='')}"
+        )
+    return _dedupe_strings(ids)
+
+
+def _devops_trusted_inputs(
+    *,
+    organization: str,
+    project_id: str | None,
+    project_name: str,
+    definition: dict[str, object],
+    repository_id: str | None,
+    repository_name: str | None,
+    repository_url: str | None,
+    repository_host_type: str | None,
+    source_visibility_state: str | None,
+    default_branch: str | None,
+    execution_modes: list[str],
+    repositories_by_id: dict[str, dict[str, object]],
+    repositories_by_name: dict[str, dict[str, object]],
+) -> list[dict[str, object]]:
+    inputs: list[dict[str, object]] = []
+    repo_ref = _devops_repo_ref(
+        repository_host_type=repository_host_type,
+        repository_name=repository_name,
+        default_branch=default_branch,
+        repository_url=repository_url,
+    )
+    if repo_ref:
+        inputs.append(
+            {
+                "input_type": "repository",
+                "ref": f"repository:{repo_ref}",
+                "visibility_state": source_visibility_state,
+                "surface_types": _dedupe_strings(
+                    ["repo-content", "pull-request" if "pr-trigger" in execution_modes else None]
+                ),
+                "join_ids": _devops_source_join_ids(
+                    organization=organization,
+                    project_id=project_id,
+                    repository_id=repository_id,
+                    repository_name=repository_name,
+                    repository_url=repository_url,
+                    repository_host_type=repository_host_type,
+                ),
+            }
+        )
+
+    inputs.extend(
+        _devops_definition_trusted_inputs(
+            organization=organization,
+            project_id=project_id,
+            project_name=project_name,
+            definition=definition,
+            repositories_by_id=repositories_by_id,
+            repositories_by_name=repositories_by_name,
+        )
+    )
+    return _devops_merge_trusted_inputs(inputs)
+
+
+def _devops_definition_trusted_inputs(
+    *,
+    organization: str,
+    project_id: str | None,
+    project_name: str,
+    definition: dict[str, object],
+    repositories_by_id: dict[str, dict[str, object]],
+    repositories_by_name: dict[str, dict[str, object]],
+) -> list[dict[str, object]]:
+    inputs: list[dict[str, object]] = []
+    repository_aliases: dict[str, dict[str, object]] = {}
+
+    for path, node in _recursive_nodes(definition):
+        if not isinstance(node, dict):
+            continue
+        path_tokens = set(_devops_path_tokens(path))
+
+        if "resources" in path_tokens and "repositories" in path_tokens:
+            repo_name = _string_value(node.get("name"))
+            repo_url = _string_value(node.get("url"))
+            repo_id = _string_value(node.get("id"))
+            repo_type = (
+                _string_value(node.get("type"))
+                or _string_value(node.get("repositoryType"))
+                or _devops_repository_host_type_from_url(repo_url)
+            )
+            alias = _string_value(node.get("repository")) or _string_value(node.get("alias"))
+            catalog_repository = _devops_resolve_repository(
+                repository_id=repo_id,
+                repository_name=repo_name or alias,
+                repositories_by_id=repositories_by_id,
+                repositories_by_name=repositories_by_name,
+            )
+            if catalog_repository is not None:
+                repo_id = str(catalog_repository.get("id") or repo_id or "") or None
+                repo_name = str(catalog_repository.get("name") or repo_name or "") or None
+                repo_url = (
+                    str(
+                        catalog_repository.get("webUrl")
+                        or catalog_repository.get("url")
+                        or catalog_repository.get("remoteUrl")
+                        or repo_url
+                        or ""
+                    )
+                    or None
+                )
+
+            host_type = _devops_repository_host_type(
+                repo_type
+            ) or _devops_repository_host_type_from_url(repo_url)
+            visibility_state = _devops_visibility_state_for_value(
+                _string_value(node.get("name")) or repo_url or alias,
+                external_reference=host_type not in {None, "azure-repos"},
+            )
+            if host_type == "azure-repos":
+                visibility_state = _devops_source_visibility_state(
+                    repository_host_type=host_type,
+                    repository_name=repo_name or alias,
+                    catalog_repository=catalog_repository,
+                )
+            ref_value = _devops_repo_ref(
+                repository_host_type=host_type,
+                repository_name=repo_name or alias,
+                default_branch=_string_value(node.get("ref")),
+                repository_url=repo_url,
+            )
+            if ref_value:
+                trusted_input = {
+                    "input_type": "template-repository",
+                    "ref": f"template-repository:{ref_value}",
+                    "visibility_state": visibility_state,
+                    "surface_types": ["template-repo"],
+                    "join_ids": _devops_source_join_ids(
+                        organization=organization,
+                        project_id=project_id,
+                        repository_id=repo_id,
+                        repository_name=repo_name or alias,
+                        repository_url=repo_url,
+                        repository_host_type=host_type,
+                    ),
+                }
+                inputs.append(trusted_input)
+                if alias:
+                    repository_aliases[alias.lower()] = trusted_input
+
+        if "resources" in path_tokens and "pipelines" in path_tokens:
+            alias = _string_value(node.get("pipeline")) or _string_value(node.get("alias"))
+            source_name = _string_value(node.get("source"))
+            artifact_name = _string_value(node.get("artifact")) or _string_value(
+                node.get("artifactName")
+            )
+            if alias or source_name or artifact_name:
+                ref = "pipeline-artifact:" + "/".join(
+                    part
+                    for part in (
+                        _string_value(node.get("project")) or project_name,
+                        source_name or alias,
+                    )
+                    if part
+                )
+                if artifact_name:
+                    ref = f"{ref}#{artifact_name}"
+                inputs.append(
+                    {
+                        "input_type": "pipeline-artifact",
+                        "ref": ref,
+                        "visibility_state": _devops_visibility_state_for_value(
+                            source_name or alias or artifact_name
+                        ),
+                        "surface_types": ["pipeline-artifact"],
+                        "join_ids": [
+                            "devops-pipeline-artifact://"
+                            f"{quote(organization, safe='')}/"
+                            f"{quote(project_name, safe='')}/"
+                            f"{quote((source_name or alias or 'resource'), safe='')}"
+                        ],
+                    }
+                )
+
+    for path, node in _recursive_nodes(definition):
+        if not isinstance(node, dict):
+            continue
+        path_tokens = set(_devops_path_tokens(path))
+
+        if path_tokens & {"artifact", "download", "pipeline", "build"}:
+            artifact_name = _devops_first_value_for_tokens(
+                node,
+                (
+                    ("artifact", "name"),
+                    ("artifact",),
+                ),
+            )
+            artifact_source = _devops_first_value_for_tokens(
+                node,
+                (
+                    ("pipeline",),
+                    ("definition",),
+                    ("build",),
+                    ("source",),
+                ),
+            )
+            if artifact_name or artifact_source:
+                ref = "pipeline-artifact:" + "/".join(
+                    part for part in (project_name, artifact_source or "current") if part
+                )
+                if artifact_name:
+                    ref = f"{ref}#{artifact_name}"
+                inputs.append(
+                    {
+                        "input_type": "pipeline-artifact",
+                        "ref": ref,
+                        "visibility_state": _devops_visibility_state_for_value(
+                            artifact_name or artifact_source
+                        ),
+                        "surface_types": ["pipeline-artifact"],
+                        "join_ids": [
+                            "devops-pipeline-artifact://"
+                            f"{quote(organization, safe='')}/"
+                            f"{quote(project_name, safe='')}/"
+                            f"{quote((artifact_source or 'current'), safe='')}"
+                        ],
+                    }
+                )
+
+        secure_file = _devops_first_value_for_tokens(node, (("secure", "file"),))
+        if secure_file:
+            inputs.append(
+                {
+                    "input_type": "secure-file",
+                    "ref": f"secure-file:{secure_file}",
+                    "visibility_state": _devops_visibility_state_for_value(secure_file),
+                    "surface_types": ["secure-file"],
+                    "join_ids": [
+                        "devops-secure-file://"
+                        f"{quote(organization, safe='')}/"
+                        f"{quote(project_name, safe='')}/"
+                        f"{quote(secure_file, safe='')}"
+                    ],
+                }
+            )
+
+        feed_value = _devops_first_feed_value(node)
+        if feed_value:
+            inputs.append(_devops_package_feed_input(organization, project_name, feed_value))
+
+        template_value = _devops_first_value_for_tokens(node, (("template",),))
+        if template_value and "@" in template_value:
+            alias = template_value.rsplit("@", 1)[-1].strip().lower()
+            aliased_input = repository_aliases.get(alias)
+            if aliased_input is not None:
+                inputs.append(dict(aliased_input))
+            else:
+                inputs.append(
+                    {
+                        "input_type": "template-repository",
+                        "ref": f"template-repository:{alias}",
+                        "visibility_state": "inferred-only",
+                        "surface_types": ["template-repo"],
+                        "join_ids": [
+                            "devops-template-repo://"
+                            f"{quote(organization, safe='')}/"
+                            f"{quote(project_name, safe='')}/"
+                            f"{quote(alias, safe='')}"
+                        ],
+                    }
+                )
+
+        for key, value in node.items():
+            if not isinstance(value, str):
+                continue
+            key_tokens = set(_devops_identifier_tokens(key))
+            if _looks_like_http_url(value):
+                if "repository" in path_tokens and "resources" not in path_tokens:
+                    continue
+                if _looks_like_repo_url(value) and ({"template", "repository"} & key_tokens):
+                    host_type = _devops_repository_host_type_from_url(value)
+                    inputs.append(
+                        {
+                            "input_type": "template-repository",
+                            "ref": f"template-repository:{host_type}:{value}",
+                            "visibility_state": "external-reference",
+                            "surface_types": ["template-repo"],
+                            "join_ids": [f"repo-url://{quote(value, safe=':/@')}"],
+                        }
+                    )
+                elif {"url", "uri", "download", "script", "template"} & key_tokens:
+                    inputs.append(
+                        {
+                            "input_type": "external-url",
+                            "ref": f"external-url:{value}",
+                            "visibility_state": "external-reference",
+                            "surface_types": ["external-download"],
+                            "join_ids": [f"url://{quote(value, safe=':/@')}"],
+                        }
+                    )
+
+            if {"image", "container", "repository"} & key_tokens and _looks_like_image_ref(value):
+                inputs.append(
+                    {
+                        "input_type": "registry-image",
+                        "ref": f"registry-image:{value}",
+                        "visibility_state": _devops_visibility_state_for_value(
+                            value,
+                            external_reference=True,
+                        ),
+                        "surface_types": ["registry-image"],
+                        "join_ids": [f"image-ref://{quote(value, safe=':/@')}"],
+                    }
+                )
+
+    return _devops_merge_trusted_inputs(inputs)
+
+
+def _recursive_nodes(
+    node: object,
+    path: tuple[str, ...] = (),
+) -> list[tuple[tuple[str, ...], object]]:
+    values: list[tuple[tuple[str, ...], object]] = [(path, node)]
+    if isinstance(node, dict):
+        for key, value in node.items():
+            values.extend(_recursive_nodes(value, path + (str(key),)))
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            values.extend(_recursive_nodes(value, path + (f"[{index}]",)))
+    return values
+
+
+def _devops_identifier_tokens(value: object) -> list[str]:
+    text = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", str(value))
+    return [token for token in re.split(r"[^a-z0-9]+", text.lower()) if token]
+
+
+def _devops_path_tokens(path: tuple[str, ...]) -> list[str]:
+    return [token for part in path for token in _devops_identifier_tokens(part)]
+
+
+def _devops_visibility_state_for_value(
+    value: str | None,
+    *,
+    external_reference: bool = False,
+) -> str | None:
+    if not value:
+        return None
+    if _looks_like_expression(value):
+        return "inferred-only"
+    if external_reference:
+        return "external-reference"
+    return "visible"
+
+
+def _looks_like_expression(value: str) -> bool:
+    return "$(" in value or "${{" in value or "$[" in value
+
+
+def _devops_repository_host_type_from_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    host = urlparse(url).netloc.lower()
+    if "dev.azure.com" in host or "visualstudio.com" in host:
+        return "azure-repos"
+    if "github.com" in host:
+        return "github"
+    if "gitlab" in host:
+        return "gitlab"
+    if "bitbucket" in host:
+        return "bitbucket"
+    return "external-git" if host else None
+
+
+def _looks_like_http_url(value: str) -> bool:
+    parsed = urlparse(value)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def _looks_like_repo_url(value: str) -> bool:
+    lowered = value.lower()
+    return lowered.endswith(".git") or any(
+        marker in lowered for marker in ("github.com/", "gitlab", "/_git/", "bitbucket.org/")
+    )
+
+
+def _looks_like_image_ref(value: str) -> bool:
+    if value.startswith("refs/") or _looks_like_http_url(value):
+        return False
+    return bool(
+        re.match(
+            r"^(?:[a-z0-9.-]+(?::\d+)?/)?[a-z0-9]+(?:[._/-][a-z0-9]+)*(?::[A-Za-z0-9._-]+|@sha256:[a-f0-9]{64})$",
+            value.lower(),
+        )
+    )
+
+
+def _devops_first_value_for_tokens(
+    node: dict[str, object],
+    token_groups: tuple[tuple[str, ...], ...],
+) -> str | None:
+    for key, value in node.items():
+        if not isinstance(value, str):
+            continue
+        key_tokens = set(_devops_identifier_tokens(key))
+        for token_group in token_groups:
+            if set(token_group).issubset(key_tokens):
+                return value.strip()
+    return None
+
+
+def _devops_first_feed_value(node: dict[str, object]) -> str | None:
+    for key, value in node.items():
+        if not isinstance(value, str):
+            continue
+        key_tokens = set(_devops_identifier_tokens(key))
+        if "feed" in key_tokens or "/_packaging/" in value.lower():
+            return value.strip()
+    return None
+
+
+def _devops_package_feed_input(
+    organization: str,
+    project_name: str,
+    feed_value: str,
+) -> dict[str, object]:
+    visibility_state = _devops_visibility_state_for_value(feed_value)
+    ref_value = feed_value
+    join_ids: list[str] = []
+    if _looks_like_http_url(feed_value):
+        parsed = urlparse(feed_value)
+        lowered_path = parsed.path.lower()
+        if "/_packaging/" in lowered_path:
+            ref_value = feed_value.split("/_packaging/", 1)[1].split("/", 1)[0]
+        join_ids.append(f"feed-url://{quote(feed_value, safe=':/@')}")
+        if (
+            parsed.netloc
+            and "dev.azure.com" not in parsed.netloc
+            and "pkgs.dev.azure.com" not in parsed.netloc
+        ):
+            visibility_state = "external-reference"
+    else:
+        ref_value = feed_value if "/" in feed_value else f"{project_name}/{feed_value}"
+        join_ids.append(
+            "devops-feed://"
+            f"{quote(organization, safe='')}/"
+            f"{quote(project_name, safe='')}/"
+            f"{quote(ref_value, safe='')}"
+        )
+
+    return {
+        "input_type": "package-feed",
+        "ref": f"package-feed:{ref_value}",
+        "visibility_state": visibility_state,
+        "surface_types": ["feed-package"],
+        "join_ids": join_ids,
+    }
+
+
+def _devops_merge_trusted_inputs(
+    inputs: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    merged: dict[tuple[str, str], dict[str, object]] = {}
+    for item in inputs:
+        input_type = str(item.get("input_type") or "")
+        ref = str(item.get("ref") or "")
+        if not input_type or not ref:
+            continue
+        key = (input_type, ref)
+        existing = merged.get(key)
+        if existing is None:
+            merged[key] = {
+                **item,
+                "surface_types": [str(value) for value in item.get("surface_types") or [] if value],
+                "join_ids": [str(value) for value in item.get("join_ids") or [] if value],
+            }
+            continue
+        existing["surface_types"] = _dedupe_strings(
+            [*existing.get("surface_types", []), *(item.get("surface_types") or [])]
+        )
+        existing["join_ids"] = _dedupe_strings(
+            [*existing.get("join_ids", []), *(item.get("join_ids") or [])]
+        )
+        existing["visibility_state"] = _preferred_visibility_state(
+            existing.get("visibility_state"),
+            item.get("visibility_state"),
+        )
+        existing["current_operator_access_state"] = _preferred_access_state(
+            existing.get("current_operator_access_state"),
+            item.get("current_operator_access_state"),
+        )
+        if existing.get("current_operator_can_poison") is not True:
+            if item.get("current_operator_can_poison") is True:
+                existing["current_operator_can_poison"] = True
+            elif existing.get("current_operator_can_poison") is None:
+                existing["current_operator_can_poison"] = item.get("current_operator_can_poison")
+    return sorted(merged.values(), key=_trusted_input_sort_key)
+
+
+def _preferred_visibility_state(left: object, right: object) -> str | None:
+    order = {"visible": 0, "inferred-only": 1, "external-reference": 2}
+    left_value = str(left) if left else None
+    right_value = str(right) if right else None
+    if left_value is None:
+        return right_value
+    if right_value is None:
+        return left_value
+    return left_value if order.get(left_value, 9) <= order.get(right_value, 9) else right_value
+
+
+def _preferred_access_state(left: object, right: object) -> str | None:
+    order = {"write": 0, "read": 1, "exists-only": 2}
+    left_value = str(left) if left else None
+    right_value = str(right) if right else None
+    if left_value is None:
+        return right_value
+    if right_value is None:
+        return left_value
+    return left_value if order.get(left_value, 9) <= order.get(right_value, 9) else right_value
+
+
+def _trusted_input_sort_key(item: dict[str, object]) -> tuple[int, int, int, str]:
+    type_order = {
+        "template-repository": 0,
+        "package-feed": 1,
+        "pipeline-artifact": 2,
+        "secure-file": 3,
+        "registry-image": 4,
+        "external-url": 5,
+        "repository": 6,
+    }
+    visibility_order = {"visible": 0, "inferred-only": 1, "external-reference": 2}
+    poison = 0 if item.get("current_operator_can_poison") is True else 1
+    visibility = visibility_order.get(str(item.get("visibility_state") or ""), 9)
+    return (
+        poison,
+        type_order.get(str(item.get("input_type") or ""), 9),
+        visibility,
+        str(item.get("ref") or ""),
+    )
+
+
+def _devops_finalize_trusted_inputs(
+    *,
+    trusted_inputs: list[dict[str, object]],
+    source_join_ids: list[str],
+    current_operator_can_view_source: bool | None,
+    current_operator_can_contribute_source: bool | None,
+) -> list[dict[str, object]]:
+    source_join_id_set = {str(value) for value in source_join_ids if value}
+    finalized: list[dict[str, object]] = []
+    for item in trusted_inputs:
+        trusted_input = dict(item)
+        access_state = str(trusted_input.get("current_operator_access_state") or "") or None
+        can_poison = trusted_input.get("current_operator_can_poison")
+        join_id_set = {str(value) for value in trusted_input.get("join_ids") or [] if value}
+        if (
+            trusted_input.get("input_type") in {"repository", "template-repository"}
+            and join_id_set & source_join_id_set
+        ):
+            if current_operator_can_contribute_source is True:
+                access_state = "write"
+                can_poison = True
+            elif current_operator_can_view_source is True:
+                access_state = "read"
+                can_poison = False
+            elif trusted_input.get("visibility_state"):
+                access_state = "exists-only"
+                can_poison = False
+        elif access_state is None and trusted_input.get("visibility_state"):
+            access_state = "exists-only"
+            can_poison = False
+        trusted_input["current_operator_access_state"] = access_state
+        trusted_input["current_operator_can_poison"] = can_poison
+        finalized.append(trusted_input)
+    return _devops_merge_trusted_inputs(finalized)
+
+
+def _devops_injection_surface_types(
+    *,
+    trusted_inputs: list[dict[str, object]],
+) -> list[str]:
+    return _dedupe_strings(
+        [
+            str(surface)
+            for item in trusted_inputs
+            for surface in (item.get("surface_types") or [])
+            if surface
+        ]
+    )
+
+
+def _devops_current_operator_injection_surfaces(
+    *,
+    trusted_inputs: list[dict[str, object]],
+    current_operator_can_edit: object,
+) -> list[str]:
+    surfaces = [
+        str(surface)
+        for item in trusted_inputs
+        if item.get("current_operator_can_poison") is True
+        for surface in (item.get("surface_types") or [])
+        if surface
+    ]
+    if bool(current_operator_can_edit):
+        surfaces.append("definition-edit")
+    return _dedupe_strings(surfaces)
+
+
+def _devops_primary_trusted_input(
+    trusted_inputs: list[dict[str, object]],
+) -> dict[str, object] | None:
+    if not trusted_inputs:
+        return None
+    return _devops_merge_trusted_inputs(list(trusted_inputs))[0]
+
+
+def _devops_missing_execution_path(
+    *,
+    repository_name: str | None,
+    execution_modes: list[str],
+    current_operator_can_queue: bool | None = None,
+    current_operator_can_edit: bool | None = None,
+) -> bool:
+    has_non_manual_execution = bool([mode for mode in execution_modes if mode != "manual-only"])
+    return not bool(
+        repository_name
+        or has_non_manual_execution
+        or current_operator_can_queue
+        or current_operator_can_edit
+    )
+
+
+def _devops_trigger_join_ids(
+    *,
+    organization: str,
+    project_name: str,
+    definition_id: str,
+    execution_modes: list[str],
+    upstream_sources: list[str],
+) -> list[str]:
+    base = (
+        f"devops-trigger://{quote(organization, safe='')}/"
+        f"{quote(project_name, safe='')}/{quote(definition_id, safe='')}"
+    )
+    ids = [f"{base}/{quote(mode, safe='')}" for mode in execution_modes]
+    ids.extend(f"devops-source://{quote(source, safe='')}" for source in upstream_sources)
+    return _dedupe_strings(ids)
 
 
 def _devops_target_clues(definition: dict[str, object]) -> list[str]:
@@ -7649,6 +9180,66 @@ def _devops_target_clues(definition: dict[str, object]) -> list[str]:
         if any(keyword in text for keyword in keywords for text in strings):
             clues.append(clue)
     return clues
+
+
+def _devops_secret_support_types(
+    *,
+    secret_variable_names: list[str],
+    key_vault_group_names: list[str],
+    key_vault_names: list[str],
+    variable_group_names: list[str],
+) -> list[str]:
+    types: list[str] = []
+    if variable_group_names:
+        types.append("variable-groups")
+    if secret_variable_names:
+        types.append("secret-variables")
+
+    lowered_names = [value.lower() for value in secret_variable_names]
+    if any("publish" in value and "profile" in value for value in lowered_names):
+        types.append("publish-profiles")
+    if any(token in value for value in lowered_names for token in ("sign", "pfx", "cert")):
+        types.append("signing-keys")
+    if any(
+        token in value for value in lowered_names for token in ("acr", "registry", "docker", "helm")
+    ):
+        types.append("registry-creds")
+    if any(
+        token in value
+        for value in lowered_names
+        for token in ("deploy", "release", "slot", "swap", "webdeploy", "publish")
+    ):
+        types.append("deployment-creds")
+    if key_vault_group_names or key_vault_names:
+        types.append("keyvault-backed-inputs")
+    return _dedupe_strings(types)
+
+
+def _deployment_consequence_types(
+    *,
+    target_clues: list[str],
+    execution_modes: list[str],
+    secret_support_types: list[str],
+    source_command: str,
+) -> list[str]:
+    consequences: list[str] = []
+    clue_set = {value.lower() for value in target_clues}
+    if clue_set & {"aks/kubernetes", "app service", "functions", "acr/containers"}:
+        consequences.append("redeploy-workload")
+    if "arm/bicep/terraform" in clue_set:
+        consequences.append("modify-infra")
+    if any(
+        mode in execution_modes
+        for mode in ("auto-trigger", "pr-trigger", "schedule", "webhook-trigger")
+    ):
+        consequences.append("run-recurring-execution")
+    if any(mode in execution_modes for mode in ("auto-trigger", "pr-trigger", "schedule")):
+        consequences.append("reintroduce-config")
+    if secret_support_types:
+        consequences.append("consume-secret-backed-deployment-material")
+    if source_command == "automation" and not consequences:
+        consequences.append("run-recurring-execution")
+    return _dedupe_strings(consequences)
 
 
 def _devops_risk_cues(
@@ -7681,9 +9272,12 @@ def _devops_operator_summary(
     *,
     definition_name: str,
     project_name: str,
-    repository_name: str | None,
-    default_branch: str | None,
+    trusted_inputs: list[dict[str, object]],
+    primary_injection_surface: str | None,
+    primary_trusted_input_ref: str | None,
     trigger_types: list[str],
+    execution_modes: list[str],
+    injection_surface_types: list[str],
     azure_service_connection_names: list[str],
     variable_group_names: list[str],
     secret_variable_count: int,
@@ -7691,32 +9285,47 @@ def _devops_operator_summary(
     key_vault_names: list[str],
     target_clues: list[str],
     partial_read_reasons: list[str],
+    current_operator_can_queue: bool | None = None,
+    current_operator_can_edit: bool | None = None,
+    current_operator_can_contribute_source: bool | None = None,
+    current_operator_injection_surface_types: list[str] | None = None,
+    primary_trusted_input_type: str | None = None,
+    primary_trusted_input_access_state: str | None = None,
 ) -> str:
     parts = [
         f"Build definition '{definition_name}' in project '{project_name}' "
-        "looks like a named Azure change path"
+        "exposes an Azure change path"
     ]
 
-    if repository_name:
-        repo_phrase = repository_name
-        if default_branch:
-            repo_phrase = f"{repo_phrase}@{default_branch}"
-        parts.append(f"reads from repo {repo_phrase}")
+    source_clause = _devops_trusted_input_clause(trusted_inputs)
+    if source_clause:
+        parts.append(source_clause)
 
-    trigger_phrase = _devops_trigger_phrase(trigger_types)
+    trigger_phrase = _devops_trigger_phrase(trigger_types, execution_modes=execution_modes)
     if trigger_phrase:
         parts.append(trigger_phrase)
 
+    injection_clause = _devops_injection_clause(
+        injection_surface_types=injection_surface_types,
+        current_operator_injection_surface_types=current_operator_injection_surface_types or [],
+        current_operator_can_queue=current_operator_can_queue,
+        current_operator_can_edit=current_operator_can_edit,
+        current_operator_can_contribute_source=current_operator_can_contribute_source,
+        primary_trusted_input_type=primary_trusted_input_type,
+        primary_trusted_input_ref=primary_trusted_input_ref,
+        primary_injection_surface=primary_injection_surface,
+        primary_trusted_input_access_state=primary_trusted_input_access_state,
+    )
+    if injection_clause:
+        parts.append(injection_clause)
+
     if azure_service_connection_names:
         parts.append(
-            "uses Azure-facing service connection(s) "
-            + ", ".join(azure_service_connection_names)
+            "uses Azure-facing service connection(s) " + ", ".join(azure_service_connection_names)
         )
 
     if variable_group_names:
-        parts.append(
-            "references variable group(s) " + ", ".join(variable_group_names)
-        )
+        parts.append("references variable group(s) " + ", ".join(variable_group_names))
 
     if secret_variable_count > 0:
         parts.append(f"surfaces {secret_variable_count} secret-marked variable name(s)")
@@ -7726,7 +9335,7 @@ def _devops_operator_summary(
         parts.append(f"pulls from Key Vault-backed variable support ({kv_targets})")
 
     if target_clues:
-        parts.append("shows deployment cues for " + ", ".join(target_clues))
+        parts.append("source clues ground likely Azure impact in " + ", ".join(target_clues))
 
     if partial_read_reasons:
         parts.append(
@@ -7740,6 +9349,14 @@ def _devops_operator_summary(
                 key_vault_group_names=key_vault_group_names,
                 azure_service_connection_names=azure_service_connection_names,
                 partial_read=False,
+                current_operator_can_queue=current_operator_can_queue,
+                current_operator_can_edit=current_operator_can_edit,
+                current_operator_can_contribute_source=current_operator_can_contribute_source,
+                current_operator_injection_surface_types=current_operator_injection_surface_types,
+                primary_trusted_input_type=primary_trusted_input_type,
+                primary_trusted_input_ref=primary_trusted_input_ref,
+                primary_injection_surface=primary_injection_surface,
+                primary_trusted_input_access_state=primary_trusted_input_access_state,
             ).rstrip(".")
         )
 
@@ -7757,7 +9374,59 @@ def _devops_operator_summary(
     return ". ".join(parts) + "."
 
 
-def _devops_trigger_phrase(trigger_types: list[str]) -> str | None:
+def _devops_trusted_input_clause(trusted_inputs: list[dict[str, object]]) -> str | None:
+    if not trusted_inputs:
+        return None
+    displays = [
+        describe_trusted_input(
+            input_type=str(item.get("input_type") or "") or None,
+            ref=str(item.get("ref") or "") or None,
+        )
+        for item in trusted_inputs[:2]
+    ]
+    if len(trusted_inputs) > 2:
+        displays.append(f"{len(trusted_inputs) - 2} additional trusted input(s)")
+    return "trusted inputs include " + ", ".join(displays)
+
+
+def _devops_source_clause(
+    *,
+    repository_host_type: str | None,
+    source_visibility_state: str | None,
+    repository_name: str | None,
+    default_branch: str | None,
+    repository_url: str | None,
+) -> str | None:
+    repo_ref = repository_name
+    if repo_ref and default_branch:
+        repo_ref = f"{repo_ref}@{default_branch}"
+    if not repo_ref and repository_url:
+        repo_ref = repository_url
+    if not repo_ref:
+        return None
+
+    if repository_host_type == "azure-repos":
+        if source_visibility_state == "visible":
+            return f"source input points to visible Azure Repos repo {repo_ref}"
+        if source_visibility_state == "inferred-only":
+            return (
+                f"source input points to Azure Repos repo {repo_ref}, but current scope only "
+                "infers that source rather than reading it directly"
+            )
+    if repository_host_type:
+        return f"source input points to {repository_host_type} repo {repo_ref}"
+    return f"source input points to repo {repo_ref}"
+
+
+def _devops_trigger_phrase(
+    trigger_types: list[str],
+    *,
+    execution_modes: list[str],
+) -> str | None:
+    if execution_modes:
+        if execution_modes == ["manual-only"]:
+            return "execution currently looks manual-only"
+        return "execution can start through " + ", ".join(execution_modes)
     lowered = {value.lower() for value in trigger_types}
     if "continuousintegration" in lowered:
         return "auto-triggers on source changes"
@@ -7770,6 +9439,50 @@ def _devops_trigger_phrase(trigger_types: list[str]) -> str | None:
     return None
 
 
+def _devops_injection_clause(
+    *,
+    injection_surface_types: list[str],
+    current_operator_injection_surface_types: list[str],
+    current_operator_can_queue: bool | None,
+    current_operator_can_edit: bool | None,
+    current_operator_can_contribute_source: bool | None,
+    primary_trusted_input_type: str | None = None,
+    primary_trusted_input_ref: str | None = None,
+    primary_injection_surface: str | None = None,
+    primary_trusted_input_access_state: str | None = None,
+) -> str | None:
+    trusted_input = describe_trusted_input(
+        input_type=primary_trusted_input_type,
+        ref=primary_trusted_input_ref,
+    )
+    if primary_trusted_input_access_state == "write" and primary_injection_surface:
+        return f"current credentials can poison {primary_injection_surface} through {trusted_input}"
+    if current_operator_injection_surface_types:
+        return "current credentials can inject through " + ", ".join(
+            current_operator_injection_surface_types
+        )
+    if primary_trusted_input_access_state == "read":
+        return (
+            f"current credentials can read {trusted_input}, but not write it from Azure DevOps "
+            "evidence here"
+        )
+    if primary_trusted_input_access_state == "exists-only":
+        return f"Azure DevOps evidence currently only proves that {trusted_input} is trusted here"
+    if current_operator_can_queue:
+        return (
+            "current credentials can queue it, but AzureFox has not yet proven an attacker-"
+            "controlled injection point"
+        )
+    if current_operator_can_edit or current_operator_can_contribute_source:
+        return (
+            "current credentials can change part of the path, but AzureFox has not yet proven "
+            "which trusted input becomes attacker-controlled"
+        )
+    if injection_surface_types:
+        return "visible injection surfaces include " + ", ".join(injection_surface_types)
+    return None
+
+
 def _devops_partial_read_reasons(
     *,
     unresolved_group_ids: list[str],
@@ -7778,17 +9491,12 @@ def _devops_partial_read_reasons(
 ) -> list[str]:
     reasons: list[str] = []
     if unresolved_group_ids:
-        reasons.append(
-            "unresolved variable group refs: " + ", ".join(unresolved_group_ids)
-        )
+        reasons.append("unresolved variable group refs: " + ", ".join(unresolved_group_ids))
     if unresolved_endpoint_refs:
-        reasons.append(
-            "unresolved service connection refs: " + ", ".join(unresolved_endpoint_refs)
-        )
+        reasons.append("unresolved service connection refs: " + ", ".join(unresolved_endpoint_refs))
     if unresolved_provider_endpoint_ids:
         reasons.append(
-            "unresolved provider endpoint refs: "
-            + ", ".join(unresolved_provider_endpoint_ids)
+            "unresolved provider endpoint refs: " + ", ".join(unresolved_provider_endpoint_ids)
         )
     return reasons
 

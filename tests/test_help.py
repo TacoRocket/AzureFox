@@ -75,9 +75,18 @@ def test_help_command_devops_topic() -> None:
     assert result.exit_code == 0
     assert "AzureFox Help :: devops" in result.stdout
     assert "build definitions" in result.stdout
+    assert "repository_host_type" in result.stdout
+    assert "source_visibility_state" in result.stdout
+    assert "execution_modes" in result.stdout
+    assert "trusted_input_types" in result.stdout
+    assert "trusted_input_refs" in result.stdout
+    assert "primary_injection_surface" in result.stdout
+    assert "injection_surface_types" in result.stdout
+    assert "current_operator_injection_surface_types" in result.stdout
     assert "azure_service_connection_names" in result.stdout
-    assert "secret_variable_names" in result.stdout
-    assert "key_vault_group_names" in result.stdout
+    assert "current_operator_can_contribute_source" in result.stdout
+    assert "missing_injection_point" in result.stdout
+    assert "consequence_types" in result.stdout
     assert "--devops-organization" in result.stdout
 
 
@@ -303,8 +312,9 @@ def test_help_command_chains_topic_sets_planned_runtime_expectations() -> None:
     assert result.exit_code == 0
     assert "AzureFox Help :: chains" in result.stdout
     assert "implemented command" in result.stdout
-    assert "credential-path is exposed now" in result.stdout
-    assert "deployment-path and workload-identity-path remain planned" in result.stdout
+    assert "credential-path and deployment-path are exposed now" in result.stdout
+    assert "deployment-path are exposed now" in result.stdout
+    assert "workload-identity-path remains planned" in result.stdout
     assert "credential-path" in result.stdout
 
 

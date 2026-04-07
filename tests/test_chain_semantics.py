@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from azurefox.chains.runner import _build_candidate_record
+from azurefox.chains.runner import _build_candidate_record, _source_current_operator_can_inject
 from azurefox.chains.semantics import (
     ChainSemanticContext,
     evaluate_chain_semantics,
@@ -59,7 +59,73 @@ def test_chain_semantics_have_default_path_for_other_families() -> None:
     )
 
     assert decision.priority == "high"
-    assert "Validate the exact named target" in decision.next_review
+    assert "deployment evidence" in decision.next_review
+
+
+def test_deployment_path_semantics_promote_narrowed_devops_targets() -> None:
+    decision = evaluate_chain_semantics(
+        ChainSemanticContext(
+            family="deployment-path",
+            clue_type="azure-service-connection",
+            target_service="aks",
+            target_resolution="narrowed candidates",
+            target_count=2,
+            path_concept="controllable-change-path",
+        )
+    )
+
+    assert decision.priority == "medium"
+    assert "permissions or role-trusts" in decision.next_review
+
+
+def test_deployment_path_named_devops_target_stays_below_high_without_poison_proof() -> None:
+    decision = evaluate_chain_semantics(
+        ChainSemanticContext(
+            family="deployment-path",
+            clue_type="controllable-change-path",
+            target_service="app-service",
+            target_resolution="named match",
+            target_count=1,
+            source_command="devops",
+            path_concept="controllable-change-path",
+            current_operator_can_drive=True,
+            current_operator_can_inject=False,
+        )
+    )
+
+    assert decision.priority == "medium"
+    assert "trusted input is writable" in decision.next_review
+
+
+def test_devops_edit_rights_count_as_definition_edit_injection() -> None:
+    assert (
+        _source_current_operator_can_inject(
+            "devops",
+            {
+                "current_operator_can_queue": True,
+                "current_operator_can_edit": True,
+                "current_operator_can_contribute_source": False,
+                "current_operator_injection_surface_types": ["definition-edit"],
+            },
+        )
+        is True
+    )
+
+
+def test_secret_support_rows_stay_lower_priority() -> None:
+    decision = evaluate_chain_semantics(
+        ChainSemanticContext(
+            family="deployment-path",
+            clue_type="secret-escalation-support",
+            target_service="arm-deployment",
+            target_resolution="visibility blocked",
+            target_count=0,
+            path_concept="secret-escalation-support",
+        )
+    )
+
+    assert decision.priority == "low"
+    assert "secret-backed support boundary" in decision.next_review
 
 
 def test_semantic_priority_sort_value_orders_highest_first() -> None:
@@ -72,8 +138,7 @@ def test_blocked_candidate_record_does_not_leak_candidate_names_into_summary() -
         "credential-path",
         {
             "asset_id": (
-                "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Web/sites/"
-                "app-public-api"
+                "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Web/sites/app-public-api"
             ),
             "asset_name": "app-public-api",
             "asset_kind": "AppService",

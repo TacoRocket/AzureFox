@@ -22,12 +22,58 @@
       "credential_count": 2,
       "certificate_count": 1,
       "connection_count": 2,
+      "consequence_types": [
+        "run-recurring-execution",
+        "reintroduce-config",
+        "consume-secret-backed-deployment-material"
+      ],
       "variable_count": 5,
       "encrypted_variable_count": 4,
+      "hybrid_worker_group_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-ops/providers/Microsoft.Automation/automationAccounts/aa-hybrid-prod/hybridRunbookWorkerGroups/prod-workers"
+      ],
       "summary": "Automation account 'aa-hybrid-prod' uses managed identity (SystemAssigned). Visible execution shape: 6/7 published runbook(s); 4 schedule(s), 5 job schedule(s), 2 webhook(s); 1 Hybrid Runbook Worker group(s). Secure asset posture: credentials 2, certificates 1, connections 2, variables 5 (4 encrypted).",
+      "identity_join_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-ops/providers/Microsoft.Automation/automationAccounts/aa-hybrid-prod/identities/system",
+        "12121212-1212-1212-1212-121212121212",
+        "34343434-3434-3434-3434-343434343434"
+      ],
+      "missing_execution_path": false,
+      "missing_target_mapping": true,
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-ops/providers/Microsoft.Automation/automationAccounts/aa-hybrid-prod",
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-ops/providers/Microsoft.Automation/automationAccounts/aa-hybrid-prod/identities/system"
+      ],
+      "schedule_runbook_names": [
+        "Baseline-Config",
+        "Nightly-Reconcile"
+      ],
+      "secret_dependency_ids": [
+        "automation-credential:prod-admin",
+        "automation-certificate:prod-signing-cert",
+        "automation-connection:prod-arm",
+        "automation-variable:prod-config-secret"
+      ],
+      "secret_support_types": [
+        "credentials",
+        "certificates",
+        "connections",
+        "encrypted-variables"
+      ],
+      "start_modes": [
+        "schedule",
+        "job-schedule",
+        "webhook",
+        "hybrid-worker"
+      ],
+      "trigger_join_ids": [
+        "automation-job-schedule:baseline-nightly",
+        "automation-webhook:redeploy-api",
+        "automation-hybrid-worker:/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-ops/providers/Microsoft.Automation/automationAccounts/aa-hybrid-prod/hybridRunbookWorkerGroups/prod-workers"
+      ],
+      "webhook_runbook_names": [
+        "Redeploy-App",
+        "Reapply-Agent"
       ]
     },
     {
@@ -50,11 +96,40 @@
       "credential_count": 0,
       "certificate_count": 0,
       "connection_count": 1,
+      "consequence_types": [
+        "run-recurring-execution",
+        "reintroduce-config",
+        "consume-secret-backed-deployment-material"
+      ],
       "variable_count": 2,
       "encrypted_variable_count": 1,
+      "hybrid_worker_group_ids": [],
       "summary": "Automation account 'aa-lab-quiet' has no managed identity visible from the current read path. Visible execution shape: 1/2 published runbook(s); 1 schedule(s), 1 job schedule(s), 0 webhook(s); no Hybrid Runbook Worker groups visible. Secure asset posture: credentials 0, certificates 0, connections 1, variables 2 (1 encrypted).",
+      "identity_join_ids": [],
+      "missing_execution_path": false,
+      "missing_target_mapping": true,
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-lab/providers/Microsoft.Automation/automationAccounts/aa-lab-quiet"
+      ],
+      "schedule_runbook_names": [
+        "Lab-Maintenance"
+      ],
+      "secret_dependency_ids": [
+        "automation-connection:lab-ops",
+        "automation-variable:lab-secret-ref"
+      ],
+      "secret_support_types": [
+        "connections",
+        "encrypted-variables"
+      ],
+      "start_modes": [
+        "schedule",
+        "job-schedule"
+      ],
+      "trigger_join_ids": [
+        "automation-job-schedule:lab-maintenance"
+      ],
+      "webhook_runbook_names": [
       ]
     }
   ],

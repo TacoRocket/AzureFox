@@ -39,16 +39,25 @@ class ChainSourceArtifact(BaseModel):
     path: str
 
 
-class CredentialPathRecord(BaseModel):
+class ChainPathRecord(BaseModel):
     chain_id: str
     asset_id: str
     asset_name: str
     asset_kind: str
     location: str | None = None
-    setting_name: str
+    source_command: str | None = None
+    source_context: str | None = None
+    setting_name: str | None = None
     clue_type: str
+    confirmation_basis: str | None = None
     priority: str
     visible_path: str
+    path_concept: str | None = None
+    primary_injection_surface: str | None = None
+    primary_trusted_input_ref: str | None = None
+    why_care: str | None = None
+    likely_impact: str | None = None
+    confidence_boundary: str | None = None
     target_service: str
     target_resolution: str
     evidence_commands: list[str] = Field(default_factory=list)
@@ -63,6 +72,9 @@ class CredentialPathRecord(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+CredentialPathRecord = ChainPathRecord
+
+
 class ChainsOutput(BaseModel):
     metadata: CommandMetadata
     grouped_command_name: str
@@ -74,5 +86,5 @@ class ChainsOutput(BaseModel):
     artifact_preference_order: list[str] = Field(default_factory=list)
     backing_commands: list[str] = Field(default_factory=list)
     source_artifacts: list[ChainSourceArtifact] = Field(default_factory=list)
-    paths: list[CredentialPathRecord] = Field(default_factory=list)
+    paths: list[ChainPathRecord] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)

@@ -129,21 +129,22 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
     ChainFamilySpec(
         name="deployment-path",
         meaning=(
-            "A service can already change Azure state, redeploy workloads, or reintroduce access "
-            "through build and automation machinery."
+            "A supply-chain or automation source already looks capable of changing Azure state, "
+            "redeploying workloads, or reintroducing access."
         ),
         summary=(
-            "Follow deployment and automation clues toward the Azure resources that can be changed "
-            "or redeployed next."
+            "Follow controllable deployment and automation paths toward the Azure footprint they "
+            "are most likely to change next."
         ),
         allowed_claim=(
-            "Can claim that the visible evidence suggests a named Azure change path. Cannot claim "
-            "the path can be executed successfully or that the exact downstream resource can "
-            "already be changed without deeper source evidence."
+            "Can claim that the visible evidence suggests a controllable or nearly controllable "
+            "Azure change path and can name or narrow the likely downstream footprint when the "
+            "join is honest. Cannot claim successful execution or exact downstream change without "
+            "deeper source evidence."
         ),
         current_gap=(
-            "The grouped runner still needs stronger joins between pipelines or automation hubs "
-            "and the Azure resources they can influence."
+            "The grouped runner still needs stronger source-side actionability data and better "
+            "joins between pipelines or automation hubs and the Azure resources they can influence."
         ),
         best_current_examples=(
             "devops -> permissions -> arm-deployments",

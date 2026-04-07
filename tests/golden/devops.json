@@ -1,54 +1,33 @@
 {
-  "findings": [],
-  "issues": [],
   "metadata": {
-    "command": "devops",
-    "devops_organization": null,
-    "generated_at": "<generated_at>",
     "schema_version": "1.2.0",
-    "subscription_id": "22222222-2222-2222-2222-222222222222",
+    "command": "devops",
+    "generated_at": "<generated_at>",
     "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "subscription_id": "22222222-2222-2222-2222-222222222222",
     "token_source": null
   },
   "pipelines": [
     {
-      "azure_service_connection_auth_schemes": [
-        "ServicePrincipal"
-      ],
-      "azure_service_connection_names": [
-        "prod-subscription"
-      ],
-      "azure_service_connection_types": [
-        "azurerm"
-      ],
-      "default_branch": "refs/heads/main",
-      "definition_id": "17",
       "id": "https://dev.azure.com/contoso/prod-platform/_build?definitionId=17",
-      "key_vault_group_names": [
-        "prod-kv-release"
-      ],
-      "key_vault_names": [
-        "kv-prod-shared"
-      ],
+      "definition_id": "17",
       "name": "deploy-aks-prod",
-      "partial_read": false,
-      "path": "\\Production",
       "project_id": "4f90f8a6-1111-4444-8888-0a12b45c67de",
       "project_name": "prod-platform",
-      "related_ids": [
-        "https://dev.azure.com/contoso/prod-platform/_build?definitionId=17",
-        "08d28dfa-11d2-4c61-8d71-a9524cfdfdf0",
-        "91",
-        "92",
-        "kv-prod-shared"
-      ],
+      "path": "\\Production",
+      "repository_id": "9fd58d4d-1111-4444-9999-0df1c8d70117",
       "repository_name": "platform-api",
       "repository_type": "TfsGit",
-      "risk_cues": [
-        "auto-triggered",
-        "azure deployment connection",
-        "secret-bearing variables",
-        "key vault-backed variables"
+      "repository_url": "https://dev.azure.com/contoso/prod-platform/_git/platform-api",
+      "repository_host_type": "azure-repos",
+      "source_visibility_state": "visible",
+      "default_branch": "refs/heads/main",
+      "trigger_types": [
+        "continuousIntegration"
+      ],
+      "variable_group_names": [
+        "prod-release-secrets",
+        "prod-kv-release"
       ],
       "secret_variable_count": 8,
       "secret_variable_names": [
@@ -61,50 +40,160 @@
         "PROD_DB_PASSWORD",
         "PROD_SIGNING_KEY"
       ],
-      "summary": "Build definition 'deploy-aks-prod' in project 'prod-platform' looks like a named Azure change path. reads from repo platform-api@refs/heads/main. auto-triggers on source changes. uses Azure-facing service connection(s) prod-subscription. references variable group(s) prod-release-secrets, prod-kv-release. surfaces 8 secret-marked variable name(s). pulls from Key Vault-backed variable support (kv-prod-shared). shows deployment cues for AKS/Kubernetes, ACR/Containers. Check aks for the named deployment target; review permissions and role-trusts for Azure control; review keyvault for the vault-backed support.",
-      "target_clues": [
-        "AKS/Kubernetes",
-        "ACR/Containers"
-      ],
-      "trigger_types": [
-        "continuousIntegration"
-      ],
-      "variable_group_names": [
-        "prod-release-secrets",
+      "key_vault_group_names": [
         "prod-kv-release"
-      ]
-    },
-    {
-      "azure_service_connection_auth_schemes": [
-        "WorkloadIdentityFederation"
+      ],
+      "key_vault_names": [
+        "kv-prod-shared"
       ],
       "azure_service_connection_names": [
-        "prod-appsvc-wif"
+        "prod-subscription"
       ],
       "azure_service_connection_types": [
         "azurerm"
       ],
-      "default_branch": "refs/heads/main",
-      "definition_id": "23",
-      "id": "https://dev.azure.com/contoso/prod-platform/_build?definitionId=23",
-      "key_vault_group_names": [],
-      "key_vault_names": [],
-      "name": "deploy-appservice-prod",
-      "partial_read": false,
-      "path": "\\Production",
-      "project_id": "4f90f8a6-1111-4444-8888-0a12b45c67de",
-      "project_name": "prod-platform",
-      "related_ids": [
-        "https://dev.azure.com/contoso/prod-platform/_build?definitionId=23",
-        "42b8f88f-2bf0-4c2d-b9db-e4475f9b1176",
-        "87"
+      "azure_service_connection_auth_schemes": [
+        "ServicePrincipal"
       ],
-      "repository_name": "customer-portal",
-      "repository_type": "TfsGit",
+      "azure_service_connection_ids": [
+        "08d28dfa-11d2-4c61-8d71-a9524cfdfdf0"
+      ],
+      "azure_service_connection_principal_ids": [
+        "33333333-3333-3333-3333-333333333333"
+      ],
+      "azure_service_connection_client_ids": [
+        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+      ],
+      "azure_service_connection_tenant_ids": [
+        "11111111-1111-1111-1111-111111111111"
+      ],
+      "azure_service_connection_subscription_ids": [
+        "22222222-2222-2222-2222-222222222222"
+      ],
+      "target_clues": [
+        "AKS/Kubernetes",
+        "ACR/Containers"
+      ],
       "risk_cues": [
         "auto-triggered",
         "azure deployment connection",
-        "secret-bearing variables"
+        "secret-bearing variables",
+        "key vault-backed variables"
+      ],
+      "execution_modes": [
+        "auto-trigger"
+      ],
+      "upstream_sources": [
+        "repo:azure-repos:platform-api@refs/heads/main"
+      ],
+      "trusted_inputs": [
+        {
+          "input_type": "repository",
+          "ref": "repository:azure-repos:platform-api@refs/heads/main",
+          "visibility_state": "visible",
+          "current_operator_access_state": "read",
+          "current_operator_can_poison": false,
+          "surface_types": [
+            "repo-content"
+          ],
+          "join_ids": [
+            "devops-repo://contoso/4f90f8a6-1111-4444-8888-0a12b45c67de/9fd58d4d-1111-4444-9999-0df1c8d70117",
+            "repo-url://https://dev.azure.com/contoso/prod-platform/_git/platform-api",
+            "repo-ref://azure-repos/platform-api"
+          ]
+        }
+      ],
+      "trusted_input_types": [
+        "repository"
+      ],
+      "trusted_input_refs": [
+        "repository:azure-repos:platform-api@refs/heads/main"
+      ],
+      "trusted_input_join_ids": [
+        "devops-repo://contoso/4f90f8a6-1111-4444-8888-0a12b45c67de/9fd58d4d-1111-4444-9999-0df1c8d70117",
+        "repo-url://https://dev.azure.com/contoso/prod-platform/_git/platform-api",
+        "repo-ref://azure-repos/platform-api"
+      ],
+      "primary_injection_surface": "repo-content",
+      "primary_trusted_input_ref": "repository:azure-repos:platform-api@refs/heads/main",
+      "source_join_ids": [
+        "devops-repo://contoso/4f90f8a6-1111-4444-8888-0a12b45c67de/9fd58d4d-1111-4444-9999-0df1c8d70117",
+        "repo-url://https://dev.azure.com/contoso/prod-platform/_git/platform-api",
+        "repo-ref://azure-repos/platform-api"
+      ],
+      "trigger_join_ids": [
+        "devops-trigger://contoso/prod-platform/17/auto-trigger",
+        "devops-source://repo%3Aazure-repos%3Aplatform-api%40refs%2Fheads%2Fmain"
+      ],
+      "identity_join_ids": [
+        "08d28dfa-11d2-4c61-8d71-a9524cfdfdf0",
+        "33333333-3333-3333-3333-333333333333",
+        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+      ],
+      "secret_support_types": [
+        "variable-groups",
+        "secret-variables",
+        "signing-keys",
+        "registry-creds",
+        "deployment-creds",
+        "keyvault-backed-inputs"
+      ],
+      "secret_dependency_ids": [
+        "91",
+        "92",
+        "keyvault:kv-prod-shared"
+      ],
+      "injection_surface_types": [
+        "repo-content"
+      ],
+      "current_operator_injection_surface_types": [],
+      "edit_path_state": "repo-backed",
+      "queue_path_state": "unknown",
+      "rerun_path_state": "unknown",
+      "approval_path_state": "unknown",
+      "current_operator_can_view_definition": true,
+      "current_operator_can_queue": true,
+      "current_operator_can_edit": false,
+      "current_operator_can_view_source": true,
+      "current_operator_can_contribute_source": false,
+      "consequence_types": [
+        "redeploy-workload",
+        "run-recurring-execution",
+        "reintroduce-config",
+        "consume-secret-backed-deployment-material"
+      ],
+      "missing_execution_path": false,
+      "missing_injection_point": true,
+      "missing_target_mapping": false,
+      "partial_read": false,
+      "summary": "Build definition 'deploy-aks-prod' in project 'prod-platform' exposes an Azure change path. trusted inputs include repository azure-repos:platform-api@refs/heads/main. execution can start through auto-trigger. current credentials can read repository azure-repos:platform-api@refs/heads/main, but not write it from Azure DevOps evidence here. uses Azure-facing service connection(s) prod-subscription. references variable group(s) prod-release-secrets, prod-kv-release. surfaces 8 secret-marked variable name(s). pulls from Key Vault-backed variable support (kv-prod-shared). source clues ground likely Azure impact in AKS/Kubernetes, ACR/Containers. This path trusts repository azure-repos:platform-api@refs/heads/main, and current credentials can read it but not write it from Azure DevOps evidence here. Check aks for the named deployment target; review permissions and role-trusts for Azure control; review keyvault for the vault-backed support.",
+      "related_ids": [
+        "https://dev.azure.com/contoso/prod-platform/_build?definitionId=17",
+        "08d28dfa-11d2-4c61-8d71-a9524cfdfdf0",
+        "91",
+        "92",
+        "kv-prod-shared"
+      ]
+    },
+    {
+      "id": "https://dev.azure.com/contoso/prod-platform/_build?definitionId=23",
+      "definition_id": "23",
+      "name": "deploy-appservice-prod",
+      "project_id": "4f90f8a6-1111-4444-8888-0a12b45c67de",
+      "project_name": "prod-platform",
+      "path": "\\Production",
+      "repository_id": "c1a0ad4a-2222-4b22-9f91-01b2f34c8823",
+      "repository_name": "customer-portal",
+      "repository_type": "TfsGit",
+      "repository_url": "https://dev.azure.com/contoso/prod-platform/_git/customer-portal",
+      "repository_host_type": "azure-repos",
+      "source_visibility_state": "visible",
+      "default_branch": "refs/heads/main",
+      "trigger_types": [
+        "pullRequest"
+      ],
+      "variable_group_names": [
+        "prod-appsvc-release"
       ],
       "secret_variable_count": 3,
       "secret_variable_names": [
@@ -112,20 +201,416 @@
         "PROD_SLOT_PUBLISH_PROFILE",
         "WEBSITE_SWAP_AUTH"
       ],
-      "summary": "Build definition 'deploy-appservice-prod' in project 'prod-platform' looks like a named Azure change path. reads from repo customer-portal@refs/heads/main. includes pull-request trigger posture. uses Azure-facing service connection(s) prod-appsvc-wif. references variable group(s) prod-appsvc-release. surfaces 3 secret-marked variable name(s). shows deployment cues for App Service. Check app-services for the named deployment target; review permissions and role-trusts for Azure control.",
+      "key_vault_group_names": [],
+      "key_vault_names": [],
+      "azure_service_connection_names": [
+        "prod-appsvc-wif"
+      ],
+      "azure_service_connection_types": [
+        "azurerm"
+      ],
+      "azure_service_connection_auth_schemes": [
+        "WorkloadIdentityFederation"
+      ],
+      "azure_service_connection_ids": [
+        "42b8f88f-2bf0-4c2d-b9db-e4475f9b1176"
+      ],
+      "azure_service_connection_principal_ids": [
+        "66666666-6666-6666-6666-666666666666"
+      ],
+      "azure_service_connection_client_ids": [
+        "55555555-5555-5555-5555-555555555555"
+      ],
+      "azure_service_connection_tenant_ids": [
+        "11111111-1111-1111-1111-111111111111"
+      ],
+      "azure_service_connection_subscription_ids": [
+        "22222222-2222-2222-2222-222222222222"
+      ],
       "target_clues": [
         "App Service"
       ],
-      "trigger_types": [
-        "pullRequest"
+      "risk_cues": [
+        "auto-triggered",
+        "azure deployment connection",
+        "secret-bearing variables"
       ],
-      "variable_group_names": [
-        "prod-appsvc-release"
+      "execution_modes": [
+        "pr-trigger"
+      ],
+      "upstream_sources": [
+        "repo:azure-repos:customer-portal@refs/heads/main",
+        "pull-request:azure-repos:customer-portal@refs/heads/main"
+      ],
+      "trusted_inputs": [
+        {
+          "input_type": "repository",
+          "ref": "repository:azure-repos:customer-portal@refs/heads/main",
+          "visibility_state": "visible",
+          "current_operator_access_state": "write",
+          "current_operator_can_poison": true,
+          "surface_types": [
+            "repo-content",
+            "pull-request"
+          ],
+          "join_ids": [
+            "devops-repo://contoso/4f90f8a6-1111-4444-8888-0a12b45c67de/c1a0ad4a-2222-4b22-9f91-01b2f34c8823",
+            "repo-url://https://dev.azure.com/contoso/prod-platform/_git/customer-portal",
+            "repo-ref://azure-repos/customer-portal"
+          ]
+        }
+      ],
+      "trusted_input_types": [
+        "repository"
+      ],
+      "trusted_input_refs": [
+        "repository:azure-repos:customer-portal@refs/heads/main"
+      ],
+      "trusted_input_join_ids": [
+        "devops-repo://contoso/4f90f8a6-1111-4444-8888-0a12b45c67de/c1a0ad4a-2222-4b22-9f91-01b2f34c8823",
+        "repo-url://https://dev.azure.com/contoso/prod-platform/_git/customer-portal",
+        "repo-ref://azure-repos/customer-portal"
+      ],
+      "primary_injection_surface": "repo-content",
+      "primary_trusted_input_ref": "repository:azure-repos:customer-portal@refs/heads/main",
+      "source_join_ids": [
+        "devops-repo://contoso/4f90f8a6-1111-4444-8888-0a12b45c67de/c1a0ad4a-2222-4b22-9f91-01b2f34c8823",
+        "repo-url://https://dev.azure.com/contoso/prod-platform/_git/customer-portal",
+        "repo-ref://azure-repos/customer-portal"
+      ],
+      "trigger_join_ids": [
+        "devops-trigger://contoso/prod-platform/23/pr-trigger",
+        "devops-source://repo%3Aazure-repos%3Acustomer-portal%40refs%2Fheads%2Fmain",
+        "devops-source://pull-request%3Aazure-repos%3Acustomer-portal%40refs%2Fheads%2Fmain"
+      ],
+      "identity_join_ids": [
+        "42b8f88f-2bf0-4c2d-b9db-e4475f9b1176",
+        "66666666-6666-6666-6666-666666666666",
+        "55555555-5555-5555-5555-555555555555"
+      ],
+      "secret_support_types": [
+        "variable-groups",
+        "secret-variables",
+        "publish-profiles",
+        "deployment-creds"
+      ],
+      "secret_dependency_ids": [
+        "87"
+      ],
+      "injection_surface_types": [
+        "repo-content",
+        "pull-request"
+      ],
+      "current_operator_injection_surface_types": [
+        "repo-content",
+        "pull-request"
+      ],
+      "edit_path_state": "repo-backed",
+      "queue_path_state": "unknown",
+      "rerun_path_state": "unknown",
+      "approval_path_state": "unknown",
+      "current_operator_can_view_definition": true,
+      "current_operator_can_queue": false,
+      "current_operator_can_edit": false,
+      "current_operator_can_view_source": true,
+      "current_operator_can_contribute_source": true,
+      "consequence_types": [
+        "redeploy-workload",
+        "run-recurring-execution",
+        "reintroduce-config",
+        "consume-secret-backed-deployment-material"
+      ],
+      "missing_execution_path": false,
+      "missing_injection_point": false,
+      "missing_target_mapping": false,
+      "partial_read": false,
+      "summary": "Build definition 'deploy-appservice-prod' in project 'prod-platform' exposes an Azure change path. trusted inputs include repository azure-repos:customer-portal@refs/heads/main. execution can start through pr-trigger. current credentials can poison repo-content through repository azure-repos:customer-portal@refs/heads/main. uses Azure-facing service connection(s) prod-appsvc-wif. references variable group(s) prod-appsvc-release. surfaces 3 secret-marked variable name(s). source clues ground likely Azure impact in App Service. Current credentials can poison repo-content through repository azure-repos:customer-portal@refs/heads/main. Check app-services for the named deployment target; review permissions and role-trusts for Azure control.",
+      "related_ids": [
+        "https://dev.azure.com/contoso/prod-platform/_build?definitionId=23",
+        "42b8f88f-2bf0-4c2d-b9db-e4475f9b1176",
+        "87"
       ]
     },
     {
+      "id": "https://dev.azure.com/contoso/prod-platform/_build?definitionId=41",
+      "definition_id": "41",
+      "name": "deploy-artifact-app-prod",
+      "project_id": "4f90f8a6-1111-4444-8888-0a12b45c67de",
+      "project_name": "prod-platform",
+      "path": "\\Production",
+      "repository_id": "f9f4ad4a-3333-4b22-9f91-01b2f34c8834",
+      "repository_name": "release-orchestrator",
+      "repository_type": "TfsGit",
+      "repository_url": "https://dev.azure.com/contoso/prod-platform/_git/release-orchestrator",
+      "repository_host_type": "azure-repos",
+      "source_visibility_state": "visible",
+      "default_branch": "refs/heads/main",
+      "trigger_types": [
+        "buildCompletion"
+      ],
+      "variable_group_names": [
+        "prod-artifact-release"
+      ],
+      "secret_variable_count": 2,
+      "secret_variable_names": [
+        "ARTIFACT_PUBLISH_PROFILE",
+        "REGISTRY_PASSWORD"
+      ],
+      "key_vault_group_names": [],
+      "key_vault_names": [],
+      "azure_service_connection_names": [
+        "prod-artifacts-wif"
+      ],
+      "azure_service_connection_types": [
+        "azurerm"
+      ],
       "azure_service_connection_auth_schemes": [
-        "ManagedServiceIdentity"
+        "WorkloadIdentityFederation"
+      ],
+      "azure_service_connection_ids": [
+        "52b8f88f-2bf0-4c2d-b9db-e4475f9b1176"
+      ],
+      "azure_service_connection_principal_ids": [
+        "77777777-7777-7777-7777-777777777777"
+      ],
+      "azure_service_connection_client_ids": [
+        "88888888-8888-8888-8888-888888888888"
+      ],
+      "azure_service_connection_tenant_ids": [
+        "11111111-1111-1111-1111-111111111111"
+      ],
+      "azure_service_connection_subscription_ids": [
+        "22222222-2222-2222-2222-222222222222"
+      ],
+      "target_clues": [
+        "App Service",
+        "ACR/Containers"
+      ],
+      "risk_cues": [
+        "azure deployment connection",
+        "secret-bearing variables"
+      ],
+      "execution_modes": [
+        "artifact-trigger"
+      ],
+      "upstream_sources": [
+        "repo:azure-repos:release-orchestrator@refs/heads/main",
+        "artifact"
+      ],
+      "trusted_inputs": [
+        {
+          "input_type": "pipeline-artifact",
+          "ref": "pipeline-artifact:prod-platform/shared-build#signed-drop",
+          "visibility_state": "visible",
+          "current_operator_access_state": "exists-only",
+          "current_operator_can_poison": false,
+          "surface_types": [
+            "pipeline-artifact"
+          ],
+          "join_ids": [
+            "devops-pipeline-artifact://contoso/prod-platform/shared-build"
+          ]
+        },
+        {
+          "input_type": "template-repository",
+          "ref": "template-repository:azure-repos:platform-templates@refs/heads/main",
+          "visibility_state": "visible",
+          "current_operator_access_state": "exists-only",
+          "current_operator_can_poison": false,
+          "surface_types": [
+            "template-repo"
+          ],
+          "join_ids": [
+            "devops-repo://contoso/4f90f8a6-1111-4444-8888-0a12b45c67de/ab1ca44d-4444-4b22-9f91-01b2f34c8899",
+            "repo-ref://azure-repos/platform-templates"
+          ]
+        },
+        {
+          "input_type": "package-feed",
+          "ref": "package-feed:prod-platform/shared-feed",
+          "visibility_state": "visible",
+          "current_operator_access_state": "exists-only",
+          "current_operator_can_poison": false,
+          "surface_types": [
+            "feed-package"
+          ],
+          "join_ids": [
+            "devops-feed://contoso/prod-platform/prod-platform%2Fshared-feed"
+          ]
+        },
+        {
+          "input_type": "secure-file",
+          "ref": "secure-file:codesign-cert.pfx",
+          "visibility_state": "visible",
+          "current_operator_access_state": "exists-only",
+          "current_operator_can_poison": false,
+          "surface_types": [
+            "secure-file"
+          ],
+          "join_ids": [
+            "devops-secure-file://contoso/prod-platform/codesign-cert.pfx"
+          ]
+        },
+        {
+          "input_type": "registry-image",
+          "ref": "registry-image:contoso.azurecr.io/base/web:1.2.3",
+          "visibility_state": "external-reference",
+          "current_operator_access_state": "exists-only",
+          "current_operator_can_poison": false,
+          "surface_types": [
+            "registry-image"
+          ],
+          "join_ids": [
+            "image-ref://contoso.azurecr.io/base/web:1.2.3"
+          ]
+        },
+        {
+          "input_type": "external-url",
+          "ref": "external-url:https://example.invalid/bootstrap.ps1",
+          "visibility_state": "external-reference",
+          "current_operator_access_state": "exists-only",
+          "current_operator_can_poison": false,
+          "surface_types": [
+            "external-download"
+          ],
+          "join_ids": [
+            "url://https://example.invalid/bootstrap.ps1"
+          ]
+        },
+        {
+          "input_type": "repository",
+          "ref": "repository:azure-repos:release-orchestrator@refs/heads/main",
+          "visibility_state": "visible",
+          "current_operator_access_state": "read",
+          "current_operator_can_poison": false,
+          "surface_types": [
+            "repo-content"
+          ],
+          "join_ids": [
+            "devops-repo://contoso/4f90f8a6-1111-4444-8888-0a12b45c67de/f9f4ad4a-3333-4b22-9f91-01b2f34c8834",
+            "repo-url://https://dev.azure.com/contoso/prod-platform/_git/release-orchestrator",
+            "repo-ref://azure-repos/release-orchestrator"
+          ]
+        }
+      ],
+      "trusted_input_types": [
+        "pipeline-artifact",
+        "template-repository",
+        "package-feed",
+        "secure-file",
+        "registry-image",
+        "external-url",
+        "repository"
+      ],
+      "trusted_input_refs": [
+        "pipeline-artifact:prod-platform/shared-build#signed-drop",
+        "template-repository:azure-repos:platform-templates@refs/heads/main",
+        "package-feed:prod-platform/shared-feed",
+        "secure-file:codesign-cert.pfx",
+        "registry-image:contoso.azurecr.io/base/web:1.2.3",
+        "external-url:https://example.invalid/bootstrap.ps1",
+        "repository:azure-repos:release-orchestrator@refs/heads/main"
+      ],
+      "trusted_input_join_ids": [
+        "devops-pipeline-artifact://contoso/prod-platform/shared-build",
+        "devops-repo://contoso/4f90f8a6-1111-4444-8888-0a12b45c67de/ab1ca44d-4444-4b22-9f91-01b2f34c8899",
+        "repo-ref://azure-repos/platform-templates",
+        "devops-feed://contoso/prod-platform/prod-platform%2Fshared-feed",
+        "devops-secure-file://contoso/prod-platform/codesign-cert.pfx",
+        "image-ref://contoso.azurecr.io/base/web:1.2.3",
+        "url://https://example.invalid/bootstrap.ps1",
+        "devops-repo://contoso/4f90f8a6-1111-4444-8888-0a12b45c67de/f9f4ad4a-3333-4b22-9f91-01b2f34c8834",
+        "repo-url://https://dev.azure.com/contoso/prod-platform/_git/release-orchestrator",
+        "repo-ref://azure-repos/release-orchestrator"
+      ],
+      "primary_injection_surface": "pipeline-artifact",
+      "primary_trusted_input_ref": "pipeline-artifact:prod-platform/shared-build#signed-drop",
+      "source_join_ids": [
+        "devops-repo://contoso/4f90f8a6-1111-4444-8888-0a12b45c67de/f9f4ad4a-3333-4b22-9f91-01b2f34c8834",
+        "repo-url://https://dev.azure.com/contoso/prod-platform/_git/release-orchestrator",
+        "repo-ref://azure-repos/release-orchestrator"
+      ],
+      "trigger_join_ids": [
+        "devops-trigger://contoso/prod-platform/41/artifact-trigger",
+        "devops-source://repo%3Aazure-repos%3Arelease-orchestrator%40refs%2Fheads%2Fmain",
+        "devops-source://artifact"
+      ],
+      "identity_join_ids": [
+        "52b8f88f-2bf0-4c2d-b9db-e4475f9b1176",
+        "77777777-7777-7777-7777-777777777777",
+        "88888888-8888-8888-8888-888888888888"
+      ],
+      "secret_support_types": [
+        "variable-groups",
+        "secret-variables",
+        "publish-profiles",
+        "registry-creds",
+        "deployment-creds"
+      ],
+      "secret_dependency_ids": [
+        "93"
+      ],
+      "injection_surface_types": [
+        "pipeline-artifact",
+        "template-repo",
+        "feed-package",
+        "secure-file",
+        "registry-image",
+        "external-download",
+        "repo-content"
+      ],
+      "current_operator_injection_surface_types": [],
+      "edit_path_state": "repo-backed",
+      "queue_path_state": "unknown",
+      "rerun_path_state": "unknown",
+      "approval_path_state": "unknown",
+      "current_operator_can_view_definition": true,
+      "current_operator_can_queue": false,
+      "current_operator_can_edit": false,
+      "current_operator_can_view_source": true,
+      "current_operator_can_contribute_source": false,
+      "consequence_types": [
+        "redeploy-workload",
+        "consume-secret-backed-deployment-material"
+      ],
+      "missing_execution_path": false,
+      "missing_injection_point": true,
+      "missing_target_mapping": false,
+      "partial_read": false,
+      "summary": "Build definition 'deploy-artifact-app-prod' in project 'prod-platform' exposes an Azure change path. trusted inputs include pipeline artifact prod-platform/shared-build#signed-drop, template repository azure-repos:platform-templates@refs/heads/main, 5 additional trusted input(s). execution can start through artifact-trigger. Azure DevOps evidence currently only proves that pipeline artifact prod-platform/shared-build#signed-drop is trusted here. uses Azure-facing service connection(s) prod-artifacts-wif. references variable group(s) prod-artifact-release. surfaces 2 secret-marked variable name(s). source clues ground likely Azure impact in App Service, ACR/Containers. This path trusts pipeline artifact prod-platform/shared-build#signed-drop, but current evidence only shows that it exists. Check app-services for the named deployment target; review permissions and role-trusts for Azure control.",
+      "related_ids": [
+        "https://dev.azure.com/contoso/prod-platform/_build?definitionId=41",
+        "52b8f88f-2bf0-4c2d-b9db-e4475f9b1176",
+        "93"
+      ]
+    },
+    {
+      "id": "https://dev.azure.com/contoso/platform-infra/_build?definitionId=34",
+      "definition_id": "34",
+      "name": "plan-infra-prod",
+      "project_id": "145c7175-2222-4bc2-b4d1-f31f0a8f962a",
+      "project_name": "platform-infra",
+      "path": "\\Infra",
+      "repository_id": null,
+      "repository_name": "infra-live",
+      "repository_type": "GitHub",
+      "repository_url": "https://github.com/contoso/infra-live",
+      "repository_host_type": "github",
+      "source_visibility_state": "external-reference",
+      "default_branch": "refs/heads/main",
+      "trigger_types": [
+        "schedule"
+      ],
+      "variable_group_names": [
+        "platform-kv"
+      ],
+      "secret_variable_count": 0,
+      "secret_variable_names": [],
+      "key_vault_group_names": [
+        "platform-kv"
+      ],
+      "key_vault_names": [
+        "kv-platform-shared"
       ],
       "azure_service_connection_names": [
         "infra-subscription"
@@ -133,45 +618,115 @@
       "azure_service_connection_types": [
         "azurerm"
       ],
-      "default_branch": "refs/heads/main",
-      "definition_id": "34",
-      "id": "https://dev.azure.com/contoso/platform-infra/_build?definitionId=34",
-      "key_vault_group_names": [
-        "platform-kv"
+      "azure_service_connection_auth_schemes": [
+        "ManagedServiceIdentity"
       ],
-      "key_vault_names": [
-        "kv-platform-shared"
+      "azure_service_connection_ids": [
+        "7d9fe45d-9114-402c-a49d-f8ac1c1910ea"
       ],
-      "name": "plan-infra-prod",
-      "partial_read": false,
-      "path": "\\Infra",
-      "project_id": "145c7175-2222-4bc2-b4d1-f31f0a8f962a",
-      "project_name": "platform-infra",
-      "related_ids": [
-        "https://dev.azure.com/contoso/platform-infra/_build?definitionId=34",
-        "7d9fe45d-9114-402c-a49d-f8ac1c1910ea",
-        "12",
-        "kv-platform-shared"
+      "azure_service_connection_principal_ids": [],
+      "azure_service_connection_client_ids": [],
+      "azure_service_connection_tenant_ids": [
+        "11111111-1111-1111-1111-111111111111"
       ],
-      "repository_name": "infra-live",
-      "repository_type": "GitHub",
+      "azure_service_connection_subscription_ids": [
+        "22222222-2222-2222-2222-222222222222"
+      ],
+      "target_clues": [
+        "ARM/Bicep/Terraform"
+      ],
       "risk_cues": [
         "auto-triggered",
         "azure deployment connection",
         "key vault-backed variables"
       ],
-      "secret_variable_count": 0,
-      "secret_variable_names": [],
-      "summary": "Build definition 'plan-infra-prod' in project 'platform-infra' looks like a named Azure change path. reads from repo infra-live@refs/heads/main. runs on a schedule. uses Azure-facing service connection(s) infra-subscription. references variable group(s) platform-kv. pulls from Key Vault-backed variable support (kv-platform-shared). shows deployment cues for ARM/Bicep/Terraform. Check arm-deployments for the named deployment target; review permissions and role-trusts for Azure control; review keyvault for the vault-backed support.",
-      "target_clues": [
-        "ARM/Bicep/Terraform"
-      ],
-      "trigger_types": [
+      "execution_modes": [
         "schedule"
       ],
-      "variable_group_names": [
-        "platform-kv"
+      "upstream_sources": [
+        "repo:github:infra-live@refs/heads/main",
+        "schedule"
+      ],
+      "trusted_inputs": [
+        {
+          "input_type": "repository",
+          "ref": "repository:github:infra-live@refs/heads/main",
+          "visibility_state": "external-reference",
+          "current_operator_access_state": "exists-only",
+          "current_operator_can_poison": false,
+          "surface_types": [
+            "repo-content"
+          ],
+          "join_ids": [
+            "repo-url://https://github.com/contoso/infra-live",
+            "repo-ref://github/infra-live"
+          ]
+        }
+      ],
+      "trusted_input_types": [
+        "repository"
+      ],
+      "trusted_input_refs": [
+        "repository:github:infra-live@refs/heads/main"
+      ],
+      "trusted_input_join_ids": [
+        "repo-url://https://github.com/contoso/infra-live",
+        "repo-ref://github/infra-live"
+      ],
+      "primary_injection_surface": "repo-content",
+      "primary_trusted_input_ref": "repository:github:infra-live@refs/heads/main",
+      "source_join_ids": [
+        "repo-url://https://github.com/contoso/infra-live",
+        "repo-ref://github/infra-live"
+      ],
+      "trigger_join_ids": [
+        "devops-trigger://contoso/platform-infra/34/schedule",
+        "devops-source://repo%3Agithub%3Ainfra-live%40refs%2Fheads%2Fmain",
+        "devops-source://schedule"
+      ],
+      "identity_join_ids": [
+        "7d9fe45d-9114-402c-a49d-f8ac1c1910ea"
+      ],
+      "secret_support_types": [
+        "variable-groups",
+        "keyvault-backed-inputs"
+      ],
+      "secret_dependency_ids": [
+        "12",
+        "keyvault:kv-platform-shared"
+      ],
+      "injection_surface_types": [
+        "repo-content"
+      ],
+      "current_operator_injection_surface_types": [],
+      "edit_path_state": "repo-backed",
+      "queue_path_state": "unknown",
+      "rerun_path_state": "unknown",
+      "approval_path_state": "unknown",
+      "current_operator_can_view_definition": true,
+      "current_operator_can_queue": false,
+      "current_operator_can_edit": false,
+      "current_operator_can_view_source": null,
+      "current_operator_can_contribute_source": null,
+      "consequence_types": [
+        "modify-infra",
+        "run-recurring-execution",
+        "reintroduce-config",
+        "consume-secret-backed-deployment-material"
+      ],
+      "missing_execution_path": false,
+      "missing_injection_point": true,
+      "missing_target_mapping": false,
+      "partial_read": false,
+      "summary": "Build definition 'plan-infra-prod' in project 'platform-infra' exposes an Azure change path. trusted inputs include repository github:infra-live@refs/heads/main. execution can start through schedule. Azure DevOps evidence currently only proves that repository github:infra-live@refs/heads/main is trusted here. uses Azure-facing service connection(s) infra-subscription. references variable group(s) platform-kv. pulls from Key Vault-backed variable support (kv-platform-shared). source clues ground likely Azure impact in ARM/Bicep/Terraform. This path trusts repository github:infra-live@refs/heads/main, but current evidence only shows that it exists. Check arm-deployments for the named deployment target; review permissions and role-trusts for Azure control; review keyvault for the vault-backed support.",
+      "related_ids": [
+        "https://dev.azure.com/contoso/platform-infra/_build?definitionId=34",
+        "7d9fe45d-9114-402c-a49d-f8ac1c1910ea",
+        "12",
+        "kv-platform-shared"
       ]
     }
-  ]
+  ],
+  "findings": [],
+  "issues": []
 }

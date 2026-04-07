@@ -16,6 +16,10 @@ class ChainSemanticContext:
     target_service: str
     target_resolution: str
     target_count: int
+    source_command: str | None = None
+    path_concept: str | None = None
+    current_operator_can_drive: bool | None = None
+    current_operator_can_inject: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,8 +131,107 @@ def _default_chain_semantics(context: ChainSemanticContext) -> ChainSemanticDeci
     )
 
 
+def _deployment_path_semantics(context: ChainSemanticContext) -> ChainSemanticDecision:
+    if context.path_concept == "secret-escalation-support":
+        if context.target_resolution == "named match":
+            return ChainSemanticDecision(
+                priority="medium",
+                next_review=(
+                    "Review the exact target and confirm what separate foothold could reuse "
+                    "the secret-backed deployment support."
+                ),
+            )
+        if context.target_resolution == "visibility blocked":
+            return ChainSemanticDecision(
+                priority="low",
+                next_review=(
+                    "Review the secret-backed support boundary and restore consequence "
+                    "grounding before treating it as a fuller path."
+                ),
+            )
+        if context.target_resolution == "narrowed candidates":
+            return ChainSemanticDecision(
+                priority="low",
+                next_review=(
+                    "Review the secret-backed support and the narrowed consequence set, then "
+                    "confirm what separate foothold could drive execution."
+                ),
+            )
+
+    if context.target_resolution == "named match":
+        if context.source_command == "devops":
+            if context.current_operator_can_inject:
+                return ChainSemanticDecision(
+                    priority="high",
+                    next_review=(
+                        "Current credentials can poison a trusted input; review the exact named "
+                        "Azure target next."
+                    ),
+                )
+            return ChainSemanticDecision(
+                priority="medium",
+                next_review=(
+                    "Review the exact named target and the backing Azure service connection, "
+                    "but keep source poisoning marked unproven until a trusted input is writable."
+                ),
+            )
+        if context.source_command == "automation":
+            return ChainSemanticDecision(
+                priority="high",
+                next_review="Review the automation identity and the exact named Azure target path.",
+            )
+        return ChainSemanticDecision(
+            priority="high",
+            next_review="Validate the exact named target from deployment evidence.",
+        )
+
+    if context.target_resolution == "visibility blocked":
+        if context.path_concept == "execution-hub":
+            return ChainSemanticDecision(
+                priority="medium",
+                next_review=(
+                    f"Check permissions or role-trusts for the automation identity and restore "
+                    f"{context.target_service} visibility before naming downstream impact."
+                ),
+            )
+        return ChainSemanticDecision(
+            priority="medium",
+            next_review=(
+                f"Check permissions or role-trusts for the backing Azure path and restore "
+                f"{context.target_service} visibility before naming downstream impact."
+            ),
+        )
+
+    if context.target_resolution == "narrowed candidates":
+        if context.current_operator_can_inject:
+            return ChainSemanticDecision(
+                priority="high",
+                next_review=(
+                    "Current credentials can poison a trusted input; validate the narrowed Azure "
+                    "change candidates next."
+                ),
+            )
+        if (
+            context.path_concept == "controllable-change-path"
+            or context.clue_type == "azure-service-connection"
+        ):
+            return ChainSemanticDecision(
+                priority="medium",
+                next_review=(
+                    "Check permissions or role-trusts for the backing Azure path, then review "
+                    "the narrowed Azure change candidates."
+                ),
+            )
+        return ChainSemanticDecision(
+            priority="low",
+            next_review="Review the narrowed deployment targets before deeper follow-up.",
+        )
+
+    return _default_chain_semantics(context)
+
+
 _FAMILY_EVALUATORS = {
     "credential-path": _credential_path_semantics,
-    "deployment-path": _default_chain_semantics,
+    "deployment-path": _deployment_path_semantics,
     "workload-identity-path": _default_chain_semantics,
 }

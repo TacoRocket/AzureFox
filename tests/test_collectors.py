@@ -46,6 +46,8 @@ from azurefox.collectors.provider import (
     _acr_registry_summary,
     _aks_cluster_summary,
     _database_server_summary,
+    _devops_current_operator_injection_surfaces,
+    _devops_missing_execution_path,
     _devops_pipeline_summary,
     _env_var_reference_target,
     _network_effective_row_from_endpoint,
@@ -895,16 +897,12 @@ class PartialAcrDepthFixtureProvider(FixtureProvider):
                 {
                     "kind": "permission_denied",
                     "message": "acr[rg-containers/acr-public-legacy].webhooks: 403 Forbidden",
-                    "context": {
-                        "collector": "acr[rg-containers/acr-public-legacy].webhooks"
-                    },
+                    "context": {"collector": "acr[rg-containers/acr-public-legacy].webhooks"},
                 },
                 {
                     "kind": "permission_denied",
                     "message": "acr[rg-containers/acr-public-legacy].replications: 403 Forbidden",
-                    "context": {
-                        "collector": "acr[rg-containers/acr-public-legacy].replications"
-                    },
+                    "context": {"collector": "acr[rg-containers/acr-public-legacy].replications"},
                 },
             ],
         }
@@ -922,9 +920,7 @@ class PartialDatabasesFixtureProvider(FixtureProvider):
                 {
                     "kind": "permission_denied",
                     "message": "databases[rg-data/sql-public-legacy].databases: 403 Forbidden",
-                    "context": {
-                        "collector": "databases[rg-data/sql-public-legacy].databases"
-                    },
+                    "context": {"collector": "databases[rg-data/sql-public-legacy].databases"},
                 }
             ],
         }
@@ -1146,10 +1142,7 @@ def test_collect_databases_keeps_nested_inventory_issue_explicit(
     assert len(output.database_servers) == 1
     assert output.database_servers[0].database_count is None
     assert output.issues[0].kind == "permission_denied"
-    assert (
-        output.issues[0].context["collector"]
-        == "databases[rg-data/sql-public-legacy].databases"
-    )
+    assert output.issues[0].context["collector"] == "databases[rg-data/sql-public-legacy].databases"
 
 
 def test_azure_provider_databases_uses_postgresql_flexible_list_surface() -> None:
@@ -1207,9 +1200,7 @@ def test_collect_dns(fixture_provider, options) -> None:
     assert output.dns_zones[2].private_endpoint_reference_count == 2
 
 
-def test_collect_dns_keeps_command_level_issue_explicit(
-    fixture_dir: Path, options
-) -> None:
+def test_collect_dns_keeps_command_level_issue_explicit(fixture_dir: Path, options) -> None:
     provider = PartialDnsFixtureProvider(fixture_dir)
 
     output = collect_dns(provider, options)
@@ -1363,8 +1354,7 @@ def test_collect_network_effective_reuses_one_endpoint_snapshot_and_keeps_issues
 
 def test_network_effective_no_nsg_observation_stays_cautious() -> None:
     asset_id = (
-        "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/"
-        "virtualMachines/vm-01"
+        "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-01"
     )
     row = _network_effective_row_from_endpoint(
         endpoint={
@@ -1397,8 +1387,7 @@ def test_network_effective_no_nsg_observation_stays_cautious() -> None:
 
 def test_network_effective_treats_cidr_internet_sources_as_broad() -> None:
     asset_id = (
-        "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/"
-        "virtualMachines/vm-01"
+        "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-01"
     )
     row = _network_effective_row_from_endpoint(
         endpoint={
@@ -1429,9 +1418,7 @@ def test_network_effective_treats_cidr_internet_sources_as_broad() -> None:
     assert "internet-facing allow evidence on TCP/443" in row["summary"]
 
 
-def test_collect_acr_keeps_command_level_issue_explicit(
-    fixture_dir: Path, options
-) -> None:
+def test_collect_acr_keeps_command_level_issue_explicit(fixture_dir: Path, options) -> None:
     provider = PartialAcrFixtureProvider(fixture_dir)
 
     output = collect_acr(provider, options)
@@ -1441,9 +1428,7 @@ def test_collect_acr_keeps_command_level_issue_explicit(
     assert output.issues[0].context["collector"] == "acr.registries"
 
 
-def test_collect_acr_keeps_nested_depth_visibility_explicit(
-    fixture_dir: Path, options
-) -> None:
+def test_collect_acr_keeps_nested_depth_visibility_explicit(fixture_dir: Path, options) -> None:
     provider = PartialAcrDepthFixtureProvider(fixture_dir)
 
     output = collect_acr(provider, options)
@@ -1625,8 +1610,7 @@ def test_collect_aks(fixture_provider, options) -> None:
     assert output.aks_clusters[1].agent_pool_count == 2
     assert output.aks_clusters[1].oidc_issuer_enabled is True
     assert (
-        output.aks_clusters[1].oidc_issuer_url
-        == "https://oidc.prod-aks.azure.example/aks-ops-01"
+        output.aks_clusters[1].oidc_issuer_url == "https://oidc.prod-aks.azure.example/aks-ops-01"
     )
     assert output.aks_clusters[1].workload_identity_enabled is True
     assert output.aks_clusters[1].addon_names == ["azureKeyvaultSecretsProvider"]
@@ -1666,9 +1650,7 @@ def test_aks_cluster_summary_rolls_up_azure_native_depth_cues() -> None:
             enabled=True,
             issuer_url="https://issuer.example",
         ),
-        security_profile=SimpleNamespace(
-            workload_identity=SimpleNamespace(enabled=True)
-        ),
+        security_profile=SimpleNamespace(workload_identity=SimpleNamespace(enabled=True)),
         ingress_profile=SimpleNamespace(
             web_app_routing=SimpleNamespace(
                 enabled=True,
@@ -1693,9 +1675,7 @@ def test_aks_cluster_summary_rolls_up_azure_native_depth_cues() -> None:
     assert summary["web_app_routing_dns_zone_count"] == 1
 
 
-def test_collect_aks_keeps_command_level_issue_explicit(
-    fixture_dir: Path, options
-) -> None:
+def test_collect_aks_keeps_command_level_issue_explicit(fixture_dir: Path, options) -> None:
     provider = PartialAksFixtureProvider(fixture_dir)
 
     output = collect_aks(provider, options)
@@ -1753,9 +1733,7 @@ def test_azure_provider_aks_hydrates_cluster_when_list_surface_is_thin() -> None
                 enable_private_cluster=True,
                 enable_private_cluster_public_fqdn=False,
             ),
-            "security_profile": SimpleNamespace(
-                workload_identity=SimpleNamespace(enabled=True)
-            ),
+            "security_profile": SimpleNamespace(workload_identity=SimpleNamespace(enabled=True)),
             "ingress_profile": SimpleNamespace(
                 web_app_routing=SimpleNamespace(
                     enabled=True,
@@ -1794,25 +1772,18 @@ def test_collect_api_mgmt(fixture_provider, options) -> None:
     assert output.api_management_services[0].api_subscription_required_count == 1
     assert output.api_management_services[0].subscription_count == 3
     assert output.api_management_services[0].active_subscription_count == 2
-    assert output.api_management_services[0].backend_hostnames == [
-        "orders-internal.contoso.local"
-    ]
+    assert output.api_management_services[0].backend_hostnames == ["orders-internal.contoso.local"]
     assert output.api_management_services[0].named_value_count == 2
     assert output.api_management_services[0].named_value_secret_count == 1
     assert output.api_management_services[0].named_value_key_vault_count == 1
-    assert (
-        output.api_management_services[0].public_ip_address_id
-        == (
-            "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/"
-            "providers/Microsoft.Network/publicIPAddresses/pip-apim-edge-01"
-        )
+    assert output.api_management_services[0].public_ip_address_id == (
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps/"
+        "providers/Microsoft.Network/publicIPAddresses/pip-apim-edge-01"
     )
     assert output.api_management_services[0].public_ip_addresses == ["52.170.20.30"]
 
 
-def test_collect_api_mgmt_keeps_partial_visibility_explicit(
-    fixture_dir: Path, options
-) -> None:
+def test_collect_api_mgmt_keeps_partial_visibility_explicit(fixture_dir: Path, options) -> None:
     provider = PartialApiMgmtFixtureProvider(fixture_dir)
 
     output = collect_api_mgmt(provider, options)
@@ -1833,9 +1804,7 @@ def test_collect_api_mgmt_keeps_partial_visibility_explicit(
     ]
 
 
-def test_collect_app_services_keeps_partial_visibility_explicit(
-    fixture_dir: Path, options
-) -> None:
+def test_collect_app_services_keeps_partial_visibility_explicit(fixture_dir: Path, options) -> None:
     provider = PartialAppServicesFixtureProvider(fixture_dir)
 
     output = collect_app_services(provider, options)
@@ -1870,9 +1839,7 @@ def test_collect_functions_sorts_identity_plain_storage_and_signal_strength(opti
     ]
 
 
-def test_collect_functions_keeps_partial_visibility_explicit(
-    fixture_dir: Path, options
-) -> None:
+def test_collect_functions_keeps_partial_visibility_explicit(fixture_dir: Path, options) -> None:
     provider = PartialFunctionsFixtureProvider(fixture_dir)
 
     output = collect_functions(provider, options)
@@ -2003,8 +1970,7 @@ def test_devops_pipeline_summary_surfaces_partial_read_refs() -> None:
     assert "partial-read" in pipeline["risk_cues"]
     assert (
         "Restore service-connection or variable-group visibility before choosing the next Azure "
-        "follow-up."
-        in pipeline["summary"]
+        "follow-up." in pipeline["summary"]
     )
     assert len(issues) == 2
     assert issues[0]["kind"] == "partial_collection"
@@ -2023,6 +1989,144 @@ def test_devops_next_review_hint_prefers_target_then_keyvault() -> None:
     assert hint == (
         "Check aks for the named deployment target; review permissions and role-trusts for "
         "Azure control; review keyvault for the vault-backed support."
+    )
+
+
+def test_devops_edit_counts_as_definition_edit_injection_surface() -> None:
+    surfaces = _devops_current_operator_injection_surfaces(
+        trusted_inputs=[],
+        current_operator_can_edit=True,
+    )
+
+    assert surfaces == ["definition-edit"]
+
+
+def test_devops_pipeline_summary_extracts_non_repo_trusted_inputs() -> None:
+    pipeline, issues = _devops_pipeline_summary(
+        organization="contoso",
+        project={"name": "prod-platform", "id": "project-1"},
+        definition={
+            "id": 41,
+            "name": "deploy-artifact-app-prod",
+            "repository": {
+                "name": "release-orchestrator",
+                "type": "TfsGit",
+                "defaultBranch": "refs/heads/main",
+            },
+            "triggers": [{"triggerType": "buildCompletion"}],
+            "resources": {
+                "repositories": [
+                    {
+                        "repository": "templates",
+                        "type": "TfsGit",
+                        "name": "platform-templates",
+                        "ref": "refs/heads/main",
+                    }
+                ],
+                "pipelines": [
+                    {
+                        "pipeline": "shared-build",
+                        "source": "shared-build",
+                        "artifact": "signed-drop",
+                    }
+                ],
+            },
+            "process": {
+                "phases": [
+                    {
+                        "steps": [
+                            {
+                                "inputs": {
+                                    "vstsFeed": "shared-feed",
+                                    "secureFile": "codesign-cert.pfx",
+                                    "containerImage": "contoso.azurecr.io/base/web:1.2.3",
+                                    "downloadUrl": "https://example.invalid/bootstrap.ps1",
+                                    "template": "deploy.yml@templates",
+                                    "connectedServiceNameARM": "prod-artifacts-wif",
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            "variableGroups": [93],
+        },
+        service_endpoints_by_id={},
+        service_endpoints_by_name={
+            "prod-artifacts-wif": {
+                "id": "endpoint-1",
+                "name": "prod-artifacts-wif",
+                "type": "azurerm",
+                "authorization": {"scheme": "WorkloadIdentityFederation"},
+            }
+        },
+        repositories_by_id={},
+        repositories_by_name={
+            "platform-templates": {
+                "id": "repo-templates",
+                "name": "platform-templates",
+                "defaultBranch": "refs/heads/main",
+                "webUrl": "https://dev.azure.com/contoso/prod-platform/_git/platform-templates",
+            }
+        },
+        variable_groups_by_id={
+            93: {
+                "id": 93,
+                "name": "prod-artifact-release",
+                "variables": {
+                    "ARTIFACT_PUBLISH_PROFILE": {"isSecret": True},
+                    "REGISTRY_PASSWORD": {"isSecret": True},
+                },
+            }
+        },
+    )
+
+    assert issues == []
+    assert set(pipeline["trusted_input_types"]) >= {
+        "repository",
+        "template-repository",
+        "pipeline-artifact",
+        "package-feed",
+        "secure-file",
+        "registry-image",
+        "external-url",
+    }
+    assert set(pipeline["injection_surface_types"]) >= {
+        "repo-content",
+        "template-repo",
+        "pipeline-artifact",
+        "feed-package",
+        "secure-file",
+        "registry-image",
+        "external-download",
+    }
+    assert pipeline["primary_trusted_input_ref"]
+    assert pipeline["trusted_input_refs"]
+
+
+def test_devops_missing_execution_path_clears_for_queue_or_edit() -> None:
+    assert (
+        _devops_missing_execution_path(
+            repository_name=None,
+            execution_modes=["manual-only"],
+            current_operator_can_queue=True,
+        )
+        is False
+    )
+    assert (
+        _devops_missing_execution_path(
+            repository_name=None,
+            execution_modes=["manual-only"],
+            current_operator_can_edit=True,
+        )
+        is False
+    )
+    assert (
+        _devops_missing_execution_path(
+            repository_name=None,
+            execution_modes=["manual-only"],
+        )
+        is True
     )
 
 
@@ -2060,8 +2164,7 @@ def test_collect_managed_identities_surfaces_handoff_fields(fixture_provider, op
     output = collect_managed_identities(fixture_provider, options)
 
     assert (
-        output.identities[0].operator_signal
-        == "Public VM workload pivot; direct control visible."
+        output.identities[0].operator_signal == "Public VM workload pivot; direct control visible."
     )
     assert (
         output.identities[0].next_review
@@ -2146,8 +2249,7 @@ def test_collect_managed_identities_sorts_and_blocks_visibility() -> None:
 
     assert [item.name for item in output.identities] == ["ua-prod", "app-edge-system"]
     assert (
-        output.identities[0].operator_signal
-        == "Public VM workload pivot; direct control visible."
+        output.identities[0].operator_signal == "Public VM workload pivot; direct control visible."
     )
     assert output.identities[1].operator_signal == "Web workload pivot; visibility blocked."
     assert (
@@ -2177,9 +2279,7 @@ def test_collect_inventory_metadata_falls_back_to_provider_context(
     assert output.metadata.token_source == "azure_cli"
 
 
-def test_collect_devops_metadata_keeps_org_from_options(
-    fixture_dir: Path, tmp_path: Path
-) -> None:
+def test_collect_devops_metadata_keeps_org_from_options(fixture_dir: Path, tmp_path: Path) -> None:
     provider = MetadataFixtureProvider(fixture_dir)
     options = GlobalOptions(
         tenant=None,
@@ -2444,16 +2544,14 @@ def test_collect_permissions_prefers_workload_pivot_then_trust_expansion() -> No
         "trust-sp",
     ]
     assert (
-        output.permissions[1].operator_signal
-        == "Direct control visible; workload pivot visible."
+        output.permissions[1].operator_signal == "Direct control visible; workload pivot visible."
     )
     assert (
         output.permissions[1].next_review
         == "Check managed-identities for the workload pivot behind this direct control row."
     )
     assert (
-        output.permissions[2].operator_signal
-        == "Direct control visible; workload pivot visible."
+        output.permissions[2].operator_signal == "Direct control visible; workload pivot visible."
     )
     assert (
         output.permissions[2].next_review
@@ -2518,23 +2616,16 @@ def test_collect_role_trusts(fixture_provider, options) -> None:
     assert output.trusts[1].trust_type == "service-principal-owner"
     assert output.trusts[2].trust_type == "app-owner"
     assert (
-        output.trusts[0].operator_signal
-        == "Trust expansion visible; privilege confirmation next."
+        output.trusts[0].operator_signal == "Trust expansion visible; privilege confirmation next."
     )
     assert (
         output.trusts[0].next_review
         == "Check permissions for Azure control on service principal 'build-sp'."
     )
-    assert (
-        output.trusts[1].operator_signal
-        == "Indirect control visible; ownership review next."
-    )
-    assert (
-        output.trusts[1].next_review
-        == (
-            "Review ownership around service principal 'build-sp', then confirm "
-            "Azure control in permissions."
-        )
+    assert output.trusts[1].operator_signal == "Indirect control visible; ownership review next."
+    assert output.trusts[1].next_review == (
+        "Review ownership around service principal 'build-sp', then confirm "
+        "Azure control in permissions."
     )
 
 
@@ -2578,12 +2669,9 @@ def test_collect_role_trusts_outside_tenant_follow_on_prefers_cross_tenant(optio
     output = collect_role_trusts(StubProvider(), options)
 
     assert output.trusts[0].operator_signal == "Trust expansion visible; outside-tenant follow-on."
-    assert (
-        output.trusts[0].next_review
-        == (
-            "Check cross-tenant for related outside-tenant control or delegated-"
-            "management paths around service principal 'external-build-sp'."
-        )
+    assert output.trusts[0].next_review == (
+        "Check cross-tenant for related outside-tenant control or delegated-"
+        "management paths around service principal 'external-build-sp'."
     )
 
 

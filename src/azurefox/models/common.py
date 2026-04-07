@@ -637,15 +637,30 @@ class DatabaseServerAsset(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class DevopsTrustedInput(BaseModel):
+    input_type: str
+    ref: str
+    visibility_state: str | None = None
+    current_operator_access_state: str | None = None
+    current_operator_can_poison: bool | None = None
+    surface_types: list[str] = Field(default_factory=list)
+    join_ids: list[str] = Field(default_factory=list)
+
+
 class DevopsPipelineAsset(BaseModel):
+
     id: str
     definition_id: str
     name: str
     project_id: str | None = None
     project_name: str
     path: str | None = None
+    repository_id: str | None = None
     repository_name: str | None = None
     repository_type: str | None = None
+    repository_url: str | None = None
+    repository_host_type: str | None = None
+    source_visibility_state: str | None = None
     default_branch: str | None = None
     trigger_types: list[str] = Field(default_factory=list)
     variable_group_names: list[str] = Field(default_factory=list)
@@ -656,8 +671,41 @@ class DevopsPipelineAsset(BaseModel):
     azure_service_connection_names: list[str] = Field(default_factory=list)
     azure_service_connection_types: list[str] = Field(default_factory=list)
     azure_service_connection_auth_schemes: list[str] = Field(default_factory=list)
+    azure_service_connection_ids: list[str] = Field(default_factory=list)
+    azure_service_connection_principal_ids: list[str] = Field(default_factory=list)
+    azure_service_connection_client_ids: list[str] = Field(default_factory=list)
+    azure_service_connection_tenant_ids: list[str] = Field(default_factory=list)
+    azure_service_connection_subscription_ids: list[str] = Field(default_factory=list)
     target_clues: list[str] = Field(default_factory=list)
     risk_cues: list[str] = Field(default_factory=list)
+    execution_modes: list[str] = Field(default_factory=list)
+    upstream_sources: list[str] = Field(default_factory=list)
+    trusted_inputs: list[DevopsTrustedInput] = Field(default_factory=list)
+    trusted_input_types: list[str] = Field(default_factory=list)
+    trusted_input_refs: list[str] = Field(default_factory=list)
+    trusted_input_join_ids: list[str] = Field(default_factory=list)
+    primary_injection_surface: str | None = None
+    primary_trusted_input_ref: str | None = None
+    source_join_ids: list[str] = Field(default_factory=list)
+    trigger_join_ids: list[str] = Field(default_factory=list)
+    identity_join_ids: list[str] = Field(default_factory=list)
+    secret_support_types: list[str] = Field(default_factory=list)
+    secret_dependency_ids: list[str] = Field(default_factory=list)
+    injection_surface_types: list[str] = Field(default_factory=list)
+    current_operator_injection_surface_types: list[str] = Field(default_factory=list)
+    edit_path_state: str | None = None
+    queue_path_state: str | None = None
+    rerun_path_state: str | None = None
+    approval_path_state: str | None = None
+    current_operator_can_view_definition: bool | None = None
+    current_operator_can_queue: bool | None = None
+    current_operator_can_edit: bool | None = None
+    current_operator_can_view_source: bool | None = None
+    current_operator_can_contribute_source: bool | None = None
+    consequence_types: list[str] = Field(default_factory=list)
+    missing_execution_path: bool = False
+    missing_injection_point: bool = False
+    missing_target_mapping: bool = False
     partial_read: bool = False
     summary: str
     related_ids: list[str] = Field(default_factory=list)
@@ -701,6 +749,17 @@ class AutomationAccountAsset(BaseModel):
     connection_count: int | None = None
     variable_count: int | None = None
     encrypted_variable_count: int | None = None
+    start_modes: list[str] = Field(default_factory=list)
+    schedule_runbook_names: list[str] = Field(default_factory=list)
+    webhook_runbook_names: list[str] = Field(default_factory=list)
+    hybrid_worker_group_ids: list[str] = Field(default_factory=list)
+    trigger_join_ids: list[str] = Field(default_factory=list)
+    identity_join_ids: list[str] = Field(default_factory=list)
+    secret_support_types: list[str] = Field(default_factory=list)
+    secret_dependency_ids: list[str] = Field(default_factory=list)
+    consequence_types: list[str] = Field(default_factory=list)
+    missing_execution_path: bool = False
+    missing_target_mapping: bool = False
     summary: str
     related_ids: list[str] = Field(default_factory=list)
 
