@@ -2531,7 +2531,10 @@ def test_collect_role_trusts(fixture_provider, options) -> None:
     )
     assert (
         output.trusts[1].next_review
-        == "Review ownership around service principal 'build-sp', then confirm Azure control in permissions."
+        == (
+            "Review ownership around service principal 'build-sp', then confirm "
+            "Azure control in permissions."
+        )
     )
 
 
@@ -2577,7 +2580,10 @@ def test_collect_role_trusts_outside_tenant_follow_on_prefers_cross_tenant(optio
     assert output.trusts[0].operator_signal == "Trust expansion visible; outside-tenant follow-on."
     assert (
         output.trusts[0].next_review
-        == "Check cross-tenant for related outside-tenant control or delegated-management paths around service principal 'external-build-sp'."
+        == (
+            "Check cross-tenant for related outside-tenant control or delegated-"
+            "management paths around service principal 'external-build-sp'."
+        )
     )
 
 
