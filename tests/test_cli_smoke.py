@@ -324,23 +324,6 @@ def test_cli_smoke_loot_keeps_top_ranked_targets_for_tokens_credentials(tmp_path
     }
 
 
-def test_cli_smoke_all_checks_json_summary(tmp_path: Path) -> None:
-    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
-
-    result = runner.invoke(
-        app,
-        ["--outdir", str(tmp_path), "--output", "json", "all-checks"],
-        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
-    )
-
-    assert result.exit_code == 0
-    payload = json.loads(result.stdout)
-    assert payload["metadata"]["command"] == "all-checks"
-    assert len(payload["results"]) == 35
-    assert (tmp_path / "run-summary.json").exists()
-    assert "deprecated: broad grouped sweeps are being replaced by chains" in result.stderr
-
-
 def test_cli_smoke_devops_accepts_organization_after_command(tmp_path: Path) -> None:
     fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
 
@@ -371,6 +354,7 @@ def test_cli_smoke_csv_row_mapping_for_inventory_style_commands(tmp_path: Path) 
         "acr": (2, "acr-public-legacy"),
         "databases": (4, "sql-public-legacy"),
         "dns": (3, "corp.example.com"),
+        "network-effective": (1, "vm-web-01"),
     }
 
     for command, (expected_rows, expected_first_name) in expectations.items():
@@ -384,41 +368,7 @@ def test_cli_smoke_csv_row_mapping_for_inventory_style_commands(tmp_path: Path) 
         csv_path = tmp_path / "csv" / f"{command}.csv"
         rows = list(csv.DictReader(csv_path.read_text(encoding="utf-8").splitlines()))
         assert len(rows) == expected_rows
-        assert rows[0]["name"] == expected_first_name
-
-
-def test_cli_smoke_section_filter(tmp_path: Path) -> None:
-    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
-
-    result = runner.invoke(
-        app,
-        [
-            "--outdir",
-            str(tmp_path),
-            "--output",
-            "json",
-            "all-checks",
-            "--section",
-            "identity",
-        ],
-        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
-    )
-
-    assert result.exit_code == 0
-    payload = json.loads(result.stdout)
-    commands = {item["command"] for item in payload["results"]}
-    assert commands == {
-        "whoami",
-        "rbac",
-        "principals",
-        "permissions",
-        "privesc",
-        "role-trusts",
-        "cross-tenant",
-        "lighthouse",
-        "auth-policies",
-        "managed-identities",
-    }
+        assert rows[0].get("name") == expected_first_name or rows[0].get("asset_name") == expected_first_name
 
 
 def test_cli_smoke_role_trusts_full_mode(tmp_path: Path) -> None:
@@ -436,163 +386,14 @@ def test_cli_smoke_role_trusts_full_mode(tmp_path: Path) -> None:
     assert payload["mode"] == "full"
 
 
-def test_cli_smoke_all_checks_identity_full_role_trusts_mode(tmp_path: Path) -> None:
+def test_cli_smoke_rejects_removed_all_checks_command(tmp_path: Path) -> None:
     fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
 
     result = runner.invoke(
         app,
-        [
-            "--outdir",
-            str(tmp_path),
-            "--output",
-            "json",
-            "all-checks",
-            "--section",
-            "identity",
-            "--role-trusts-mode",
-            "full",
-        ],
+        ["--outdir", str(tmp_path), "--output", "json", "all-checks"],
         env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
     )
 
-    assert result.exit_code == 0
-    payload = json.loads(result.stdout)
-    commands = {item["command"] for item in payload["results"]}
-    assert "role-trusts" in commands
-
-
-def test_cli_smoke_section_filter_config(tmp_path: Path) -> None:
-    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
-
-    result = runner.invoke(
-        app,
-        [
-            "--outdir",
-            str(tmp_path),
-            "--output",
-            "json",
-            "all-checks",
-            "--section",
-            "config",
-        ],
-        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
-    )
-
-    assert result.exit_code == 0
-    payload = json.loads(result.stdout)
-    commands = {item["command"] for item in payload["results"]}
-    assert commands == {"arm-deployments", "env-vars"}
-
-
-def test_cli_smoke_section_filter_secrets(tmp_path: Path) -> None:
-    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
-
-    result = runner.invoke(
-        app,
-        [
-            "--outdir",
-            str(tmp_path),
-            "--output",
-            "json",
-            "all-checks",
-            "--section",
-            "secrets",
-        ],
-        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
-    )
-
-    assert result.exit_code == 0
-    payload = json.loads(result.stdout)
-    commands = {item["command"] for item in payload["results"]}
-    assert commands == {"keyvault", "tokens-credentials"}
-
-
-def test_cli_smoke_section_filter_resource(tmp_path: Path) -> None:
-    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
-
-    result = runner.invoke(
-        app,
-        [
-            "--outdir",
-            str(tmp_path),
-            "--output",
-            "json",
-            "all-checks",
-            "--section",
-            "resource",
-        ],
-        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
-    )
-
-    assert result.exit_code == 0
-    payload = json.loads(result.stdout)
-    commands = {item["command"] for item in payload["results"]}
-    assert commands == {
-        "automation",
-        "devops",
-        "acr",
-        "api-mgmt",
-        "databases",
-        "resource-trusts",
-    }
-
-
-def test_cli_smoke_section_filter_network(tmp_path: Path) -> None:
-    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
-
-    result = runner.invoke(
-        app,
-        [
-            "--outdir",
-            str(tmp_path),
-            "--output",
-            "json",
-            "all-checks",
-            "--section",
-            "network",
-        ],
-        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
-    )
-
-    assert result.exit_code == 0
-    payload = json.loads(result.stdout)
-    commands = {item["command"] for item in payload["results"]}
-    assert commands == {
-        "application-gateway",
-        "dns",
-        "endpoints",
-        "network-effective",
-        "network-ports",
-        "nics",
-    }
-
-
-def test_cli_smoke_section_filter_compute(tmp_path: Path) -> None:
-    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
-
-    result = runner.invoke(
-        app,
-        [
-            "--outdir",
-            str(tmp_path),
-            "--output",
-            "json",
-            "all-checks",
-            "--section",
-            "compute",
-        ],
-        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
-    )
-
-    assert result.exit_code == 0
-    payload = json.loads(result.stdout)
-    commands = [item["command"] for item in payload["results"]]
-    assert commands == [
-        "workloads",
-        "app-services",
-        "functions",
-        "aks",
-        "vms",
-        "vmss",
-        "snapshots-disks",
-    ]
+    assert result.exit_code == 2
+    assert "No such command 'all-checks'" in result.stderr

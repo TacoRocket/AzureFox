@@ -13,7 +13,6 @@ from azurefox.config import GlobalOptions
 from azurefox.errors import AzureFoxError
 from azurefox.help import help_topic_names, render_help
 from azurefox.models.common import OutputMode, RoleTrustsMode
-from azurefox.models.run import AllChecksSummary, RunCommandResult
 from azurefox.output.style import (
     emit_artifact_paths,
     emit_command_intro,
@@ -21,7 +20,7 @@ from azurefox.output.style import (
     emit_context_banner,
 )
 from azurefox.output.writer import emit_output
-from azurefox.registry import SECTION_NAMES, get_command_specs
+from azurefox.registry import get_command_specs
 
 app = typer.Typer(help="AzureFox CLI")
 TENANT_OPTION = typer.Option(None, "--tenant", help="Azure tenant ID")
@@ -43,15 +42,6 @@ ROLE_TRUSTS_MODE_OPTION = typer.Option(
         "application sweep with per-app owner and federated credential lookups"
     ),
 )
-ALL_CHECKS_ROLE_TRUSTS_MODE_OPTION = typer.Option(
-    RoleTrustsMode.FAST,
-    "--role-trusts-mode",
-    help=(
-        "role-trusts collection mode used inside all-checks: fast (default), or full for "
-        "a slower tenant-wide application sweep with per-app owner and federated credential "
-        "lookups"
-    ),
-)
 HELP_FLAGS = {"-h", "--help"}
 GLOBAL_OPTIONS_WITH_VALUES = {
     "--tenant",
@@ -61,11 +51,6 @@ GLOBAL_OPTIONS_WITH_VALUES = {
     "--outdir",
 }
 GLOBAL_FLAG_OPTIONS = {"--debug"}
-SECTION_OPTION = typer.Option(
-    None,
-    "--section",
-    help=f"Limit all-checks to a section: {', '.join(SECTION_NAMES)}",
-)
 
 
 @app.callback()
@@ -275,101 +260,6 @@ def vmss(ctx: typer.Context) -> None:
     _run_single(ctx, "vmss")
 
 
-@app.command("all-checks")
-def all_checks(
-    ctx: typer.Context,
-    section: str | None = SECTION_OPTION,
-    role_trusts_mode: RoleTrustsMode = ALL_CHECKS_ROLE_TRUSTS_MODE_OPTION,
-) -> None:
-    options: GlobalOptions = ctx.obj
-    if section is not None and section not in SECTION_NAMES:
-        typer.echo(
-            f"[all-checks] Unknown section '{section}'. Valid sections: {', '.join(SECTION_NAMES)}",
-            err=True,
-        )
-        raise typer.Exit(code=2)
-
-    provider = get_provider(options)
-    specs = get_command_specs(section)
-
-    if options.output != OutputMode.JSON:
-        emit_context_banner(options)
-        emit_command_status(
-            "all-checks",
-            "deprecated: broad grouped sweeps are being replaced by chains; use flat commands "
-            "directly for narrower runs.",
-        )
-    else:
-        emit_command_status(
-            "all-checks",
-            "deprecated: broad grouped sweeps are being replaced by chains; use flat commands "
-            "directly for narrower runs.",
-            err=True,
-        )
-
-    results: list[RunCommandResult] = []
-    for spec in specs:
-        emit_command_intro(spec.name, err=options.output == OutputMode.JSON)
-        command_options = options
-        if spec.name == "role-trusts":
-            command_options = replace(options, role_trusts_mode=role_trusts_mode)
-        try:
-            model = spec.collector(provider, command_options)
-            artifact_paths = emit_output(spec.name, model, options, emit_stdout=False)
-            emit_artifact_paths(spec.name, artifact_paths, options)
-            results.append(
-                RunCommandResult(
-                    command=spec.name,
-                    section=spec.section,
-                    status="ok",
-                    artifact_paths={key: str(value) for key, value in artifact_paths.items()},
-                )
-            )
-        except AzureFoxError as exc:
-            emit_command_status(spec.name, f"failed: {exc}", err=True)
-            results.append(
-                RunCommandResult(
-                    command=spec.name,
-                    section=spec.section,
-                    status="error",
-                    error=str(exc),
-                )
-            )
-        except Exception as exc:  # pragma: no cover - safety rail
-            emit_command_status(spec.name, f"failed: {exc}", err=True)
-            results.append(
-                RunCommandResult(
-                    command=spec.name,
-                    section=spec.section,
-                    status="error",
-                    error=str(exc),
-                )
-            )
-
-    summary = AllChecksSummary(
-        metadata=_build_metadata("all-checks", options),
-        section=section,
-        results=results,
-    )
-    summary_path = options.outdir / "run-summary.json"
-    summary_path.write_text(
-        summary.model_dump_json(indent=2),
-        encoding="utf-8",
-    )
-
-    if options.output == OutputMode.JSON:
-        typer.echo(summary.model_dump_json(indent=2))
-    else:
-        ok_count = sum(result.status == "ok" for result in results)
-        emit_command_status(
-            "all-checks",
-            f"completed {ok_count}/{len(results)} commands; summary written to {summary_path}",
-        )
-
-    if any(result.status != "ok" for result in results):
-        raise typer.Exit(code=1)
-
-
 @app.command("chains")
 def chains(
     ctx: typer.Context,
@@ -450,16 +340,6 @@ def main() -> None:
     app()
 
 
-def _build_metadata(command: str, options: GlobalOptions) -> dict[str, str | None]:
-    return {
-        "command": command,
-        "tenant_id": options.tenant,
-        "subscription_id": options.subscription,
-        "devops_organization": options.devops_organization,
-        "token_source": None,
-    }
-
-
 def _normalize_argv(argv: list[str]) -> list[str]:
     if len(argv) < 2:
         return argv
@@ -525,7 +405,7 @@ def _normalize_command_global_options(argv: list[str]) -> list[str]:
 
 
 def _command_names() -> set[str]:
-    return {spec.name for spec in get_command_specs()} | {"all-checks", "chains"}
+    return {spec.name for spec in get_command_specs()} | {"chains"}
 
 
 def _is_help_topic(token: str) -> bool:

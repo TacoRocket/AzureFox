@@ -25,6 +25,7 @@ PRIMARY_COLLECTION_KEYS = {
     "arm-deployments": "deployments",
     "endpoints": "endpoints",
     "env-vars": "env_vars",
+    "network-effective": "effective_exposures",
     "network-ports": "network_ports",
     "tokens-credentials": "surfaces",
     "rbac": "role_assignments",

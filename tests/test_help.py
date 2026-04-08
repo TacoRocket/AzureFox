@@ -17,10 +17,9 @@ def test_help_command_generic() -> None:
     assert (
         "permissions: Triage which visible principals hold high-impact RBAC roles."
     ) in result.stdout
-    assert "all-checks: Deprecated broad recon sweep." in result.stdout
     assert "chains: Grouped family runner for higher-value preset paths" in result.stdout
     assert "Planned grouped commands:" not in result.stdout
-    assert "all-checks is deprecated" in result.stdout
+    assert "all-checks" not in result.stdout
 
 
 def test_help_command_section() -> None:
@@ -34,7 +33,7 @@ def test_help_command_section() -> None:
     ) in result.stdout
     assert "ATT&CK cloud lenses:" in result.stdout
     assert (
-        "Deprecation: The broad `all-checks --section identity` sweep is deprecated"
+        "Guidance: Use the listed flat commands directly; grouped follow-up lives in chains"
         in result.stdout
     )
 
@@ -293,19 +292,6 @@ def test_help_command_vms_topic() -> None:
     assert "public_ips" in result.stdout
 
 
-def test_help_command_all_checks_topic_sets_runtime_expectations() -> None:
-    result = runner.invoke(app, ["help", "all-checks"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: all-checks" in result.stdout
-    assert "implemented command (deprecated)" in result.stdout
-    assert (
-        "Broad all-checks sweeps and section-filtered variants are being replaced by chains"
-        in result.stdout
-    )
-    assert "grouped results" in result.stdout
-
-
 def test_help_command_chains_topic_sets_planned_runtime_expectations() -> None:
     result = runner.invoke(app, ["help", "chains"])
 
@@ -458,11 +444,4 @@ def test_normalize_argv_command_level_global_options() -> None:
     ]
     assert _normalize_argv(
         ["azurefox", "all-checks", "--section", "identity", "--output", "json"]
-    ) == [
-        "azurefox",
-        "--output",
-        "json",
-        "all-checks",
-        "--section",
-        "identity",
-    ]
+    ) == ["azurefox", "all-checks", "--section", "identity", "--output", "json"]
