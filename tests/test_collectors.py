@@ -3562,6 +3562,53 @@ def test_collect_vms(fixture_provider, options) -> None:
     assert len(output.findings) == 1
 
 
+def test_collect_vms_keeps_public_ip_lookup_failures_explicit() -> None:
+    provider = object.__new__(AzureProvider)
+    provider.clients = SimpleNamespace(
+        compute=SimpleNamespace(
+            virtual_machines=SimpleNamespace(
+                list_all=lambda: [
+                    SimpleNamespace(
+                        id="/subscriptions/test/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm-web-01",
+                        name="vm-web-01",
+                        location="eastus",
+                        network_profile=SimpleNamespace(
+                            network_interfaces=[
+                                SimpleNamespace(
+                                    id="/subscriptions/test/resourceGroups/rg/providers/Microsoft.Network/networkInterfaces/nic-web-01"
+                                )
+                            ]
+                        ),
+                        identity=None,
+                    )
+                ]
+            )
+        ),
+        network=SimpleNamespace(
+            public_ip_addresses=SimpleNamespace(
+                get=lambda resource_group, name: (
+                    _ for _ in ()
+                ).throw(PermissionError("403 Forbidden"))
+            )
+        ),
+    )
+    provider._resolve_nic_detail = lambda nic_id, cache: (
+        {
+            "private_ips": ["10.0.0.4"],
+            "public_ip_ids": [
+                "/subscriptions/test/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/pip-web-01"
+            ],
+        },
+        [],
+    )
+
+    output = AzureProvider.vms(provider)
+
+    assert output["vm_assets"][0]["public_ips"] == []
+    assert output["issues"][0]["kind"] == "permission_denied"
+    assert output["issues"][0]["context"]["collector"].endswith("publicIPAddresses/pip-web-01]")
+
+
 def test_vm_asset_sort_key_prioritizes_public_and_identity_cues() -> None:
     vm_assets = [
         {
@@ -3610,6 +3657,29 @@ def test_collect_vmss(fixture_provider, options) -> None:
     assert output.vmss_assets[0].public_ip_configuration_count == 1
     assert output.vmss_assets[0].identity_type == "SystemAssigned"
     assert output.vmss_assets[1].name == "vmss-batch-01"
+
+
+def test_resolve_role_name_falls_back_to_high_impact_builtin_ids() -> None:
+    provider = object.__new__(AzureProvider)
+    provider.clients = SimpleNamespace(
+        authorization=SimpleNamespace(
+            role_definitions=SimpleNamespace(
+                get=lambda scope, role_key: (_ for _ in ()).throw(PermissionError("403 Forbidden"))
+            )
+        )
+    )
+
+    role_name = AzureProvider._resolve_role_name(
+        provider,
+        "/subscriptions/test",
+        (
+            "/subscriptions/test/providers/Microsoft.Authorization/roleDefinitions/"
+            "8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
+        ),
+        {},
+    )
+
+    assert role_name == "Owner"
 
 
 def test_collect_lighthouse(fixture_provider, options) -> None:

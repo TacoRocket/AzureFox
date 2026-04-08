@@ -1080,34 +1080,6 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox vms --output table",
     ),
-    "all-checks": CommandHelpTopic(
-        name="all-checks",
-        section="orchestration",
-        summary=(
-            "Deprecated broad recon sweep. Runs the implemented AzureFox commands in a stable "
-            "broad sequence while narrower chains are still being wired in."
-        ),
-        offensive_question=(
-            "What is the cleanest broad sweep I can run right now for this tenant or section "
-            "when I want grouped results and can wait on a longer pass?"
-        ),
-        cloudfox_frame=(
-            "Legacy AzureFox analogue to a CloudFox grouped recon pass. Planned chains are the "
-            "replacement direction for narrower, higher-value grouped execution."
-        ),
-        output_highlights=("results", "run-summary.json", "section filtering"),
-        attack_leads=(
-            AttackLead("Discovery", "Cloud Account"),
-            AttackLead("Discovery", "Cloud Infrastructure Discovery"),
-            AttackLead("Discovery", "Permission Groups Discovery: Cloud Groups"),
-        ),
-        example="azurefox all-checks --section identity",
-        deprecated=True,
-        deprecation_note=(
-            "Broad all-checks sweeps and section-filtered variants are being replaced by chains. "
-            "Prefer flat commands directly for narrower runs until grouped chain families land."
-        ),
-    ),
     "chains": CommandHelpTopic(
         name="chains",
         section="orchestration",
@@ -1120,9 +1092,8 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "family answer instead of every underlying command on its own?"
         ),
         cloudfox_frame=(
-            "AzureFox orchestration layer for targeted grouped runs that are meant to replace "
-            "broad all-checks section sweeps with narrower, operator-first presets. Current "
-            "state: credential-path, deployment-path, and escalation-path are exposed now with "
+            "AzureFox orchestration layer for targeted grouped runs. Current state: "
+            "credential-path, deployment-path, and escalation-path are exposed now with "
             "conservative extraction-first joins; escalation-path currently ships only rows "
             "where the transform from current foothold to stronger control is explicit. "
             "workload-identity-path remains planned as a source-story-first family for direct "
@@ -1165,8 +1136,8 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
             AttackLead("Privilege Escalation", "Account Manipulation: Additional Cloud Roles"),
         ),
         deprecation_note=(
-            "The broad `all-checks --section identity` sweep is deprecated and will be replaced by "
-            "chains plus flat commands. Use the listed commands directly for now."
+            "Use the listed flat commands directly; grouped follow-up lives in chains where "
+            "available."
         ),
     ),
     "core": SectionHelpTopic(
@@ -1178,8 +1149,8 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
             AttackLead("Discovery", "Cloud Service Discovery"),
         ),
         deprecation_note=(
-            "The broad `all-checks --section core` sweep is deprecated and will be replaced by "
-            "chains plus flat commands. Use the listed commands directly for now."
+            "Use the listed flat commands directly; grouped follow-up lives in chains where "
+            "available."
         ),
     ),
     "config": SectionHelpTopic(
@@ -1197,8 +1168,8 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
             AttackLead("Credential Access", "Unsecured Credentials"),
         ),
         deprecation_note=(
-            "The broad `all-checks --section config` sweep is deprecated and will be replaced by "
-            "chains plus flat commands. Use the listed commands directly for now."
+            "Use the listed flat commands directly; grouped follow-up lives in chains where "
+            "available."
         ),
     ),
     "storage": SectionHelpTopic(
@@ -1210,8 +1181,8 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
             AttackLead("Collection", "Data from Cloud Storage"),
         ),
         deprecation_note=(
-            "The broad `all-checks --section storage` sweep is deprecated and will be replaced by "
-            "chains plus flat commands. Use the listed commands directly for now."
+            "Use the listed flat commands directly; grouped follow-up lives in chains where "
+            "available."
         ),
     ),
     "secrets": SectionHelpTopic(
@@ -1233,8 +1204,8 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
             ),
         ),
         deprecation_note=(
-            "The broad `all-checks --section secrets` sweep is deprecated and will be replaced by "
-            "chains plus flat commands. Use the listed commands directly for now."
+            "Use the listed flat commands directly; grouped follow-up lives in chains where "
+            "available."
         ),
     ),
     "resource": SectionHelpTopic(
@@ -1253,8 +1224,8 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
             AttackLead("Collection", "Data from Cloud Storage"),
         ),
         deprecation_note=(
-            "The broad `all-checks --section resource` sweep is deprecated and will be replaced by "
-            "chains plus flat commands. Use the listed commands directly for now."
+            "Use the listed flat commands directly; grouped follow-up lives in chains where "
+            "available."
         ),
     ),
     "compute": SectionHelpTopic(
@@ -1268,8 +1239,8 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
             AttackLead("Lateral Movement", "Remote Services: Direct Cloud VM Connections"),
         ),
         deprecation_note=(
-            "The broad `all-checks --section compute` sweep is deprecated and will be replaced by "
-            "chains plus flat commands. Use the listed commands directly for now."
+            "Use the listed flat commands directly; grouped follow-up lives in chains where "
+            "available."
         ),
     ),
     "network": SectionHelpTopic(
@@ -1284,8 +1255,8 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
             AttackLead("Lateral Movement", "Remote Services: Direct Cloud VM Connections"),
         ),
         deprecation_note=(
-            "The broad `all-checks --section network` sweep is deprecated and will be replaced by "
-            "chains plus flat commands. Use the listed commands directly for now."
+            "Use the listed flat commands directly; grouped follow-up lives in chains where "
+            "available."
         ),
     ),
     "ai": SectionHelpTopic(
@@ -1303,8 +1274,8 @@ SECTION_HELP: dict[str, SectionHelpTopic] = {
             ),
         ),
         deprecation_note=(
-            "The broad `all-checks --section ai` sweep is deprecated and will be replaced by "
-            "chains plus flat commands if AI coverage lands later."
+            "Azure AI coverage is reserved for future command work; use flat commands and chains "
+            "for current grouped follow-up."
         ),
     ),
 }
@@ -1383,10 +1354,6 @@ def _render_root_help() -> str:
                 "  - Grouped command help stays visible even while additional chain families are "
                 "still landing."
             ),
-            (
-                "  - all-checks is deprecated and is being replaced by narrower chains "
-                "plus flat commands."
-            ),
             "  - ATT&CK references are investigative context, not proof that a technique occurred.",
         ]
     )
@@ -1404,7 +1371,7 @@ def _render_section_help(topic: SectionHelpTopic) -> str:
     ]
 
     if topic.deprecation_note:
-        lines.extend(["", f"Deprecation: {topic.deprecation_note}"])
+        lines.extend(["", f"Guidance: {topic.deprecation_note}"])
 
     lines.extend(["", "Implemented commands:"])
 
@@ -1421,8 +1388,6 @@ def _render_section_help(topic: SectionHelpTopic) -> str:
             *_render_attack_leads(topic.attack_lenses),
             "",
             "Examples:",
-            "  # deprecated broad sweep",
-            f"  azurefox all-checks --section {topic.name}",
             f"  azurefox help {topic.name}",
         ]
     )

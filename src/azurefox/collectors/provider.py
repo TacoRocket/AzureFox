@@ -2660,7 +2660,11 @@ class AzureProvider(BaseProvider):
                     if nic_detail is None:
                         continue
                     private_ips.extend(nic_detail.get("private_ips", []))
-                    public_ips.extend(self._resolve_public_ip_addresses(nic_detail))
+                    resolved_public_ips, public_ip_issues = self._resolve_public_ip_addresses(
+                        nic_detail
+                    )
+                    issues.extend(public_ip_issues)
+                    public_ips.extend(resolved_public_ips)
 
                 identity_ids = []
                 vm_identity = getattr(vm, "identity", None)
@@ -2833,12 +2837,12 @@ class AzureProvider(BaseProvider):
             return cache[role_definition_id]
 
         role_name = None
+        role_key = role_definition_id.rstrip("/").split("/")[-1].lower()
         try:
-            role_key = role_definition_id.rstrip("/").split("/")[-1]
             role = self.clients.authorization.role_definitions.get(scope, role_key)
             role_name = getattr(role, "role_name", None)
         except Exception:
-            role_name = None
+            role_name = _HIGH_IMPACT_ROLE_IDS.get(role_key)
 
         cache[role_definition_id] = role_name or "Unknown"
         return cache[role_definition_id]
@@ -3402,8 +3406,9 @@ class AzureProvider(BaseProvider):
         cache[nic_id] = detail
         return detail, []
 
-    def _resolve_public_ip_addresses(self, nic_detail: dict) -> list[str]:
+    def _resolve_public_ip_addresses(self, nic_detail: dict) -> tuple[list[str], list[dict]]:
         public_ips: list[str] = []
+        issues: list[dict] = []
 
         for public_ip_id in nic_detail.get("public_ip_ids", []):
             pub_rg, pub_name = _resource_group_and_name(public_ip_id)
@@ -3412,14 +3417,15 @@ class AzureProvider(BaseProvider):
 
             try:
                 pip = self.clients.network.public_ip_addresses.get(pub_rg, pub_name)
-            except Exception:
+            except Exception as exc:
+                issues.append(_issue_from_exception(f"public_ip_addresses[{public_ip_id}]", exc))
                 continue
 
             ip_addr = getattr(pip, "ip_address", None)
             if ip_addr:
                 public_ips.append(str(ip_addr))
 
-        return _dedupe_strings(public_ips)
+        return _dedupe_strings(public_ips), issues
 
     def _resolve_subnet_nsg_id(
         self,
@@ -4107,6 +4113,11 @@ _HIGH_IMPACT_ROLE_NAMES = {
     "owner",
     "contributor",
     "user access administrator",
+}
+_HIGH_IMPACT_ROLE_IDS = {
+    "8e3af657-a8ff-443c-a75c-2fe8c4bcb635": "Owner",
+    "b24988ac-6180-42a0-ab88-20f7382dd24c": "Contributor",
+    "18d7d88d-d35e-4fb5-a5c3-7773c20a72d9": "User Access Administrator",
 }
 
 

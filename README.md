@@ -61,7 +61,7 @@ they matter, and points to the next command to run.
 | `storage` | [`storage`](wiki/planning/api-mapping/storage.md) |
 | `network` | [`nics`](wiki/planning/api-mapping/nics.md), [`dns`](wiki/planning/api-mapping/dns.md), [`endpoints`](wiki/planning/api-mapping/endpoints.md), `network-effective`, [`network-ports`](wiki/planning/api-mapping/network-ports.md) |
 | `compute` | [`workloads`](wiki/planning/api-mapping/workloads.md), [`app-services`](wiki/planning/api-mapping/app-services.md), [`functions`](wiki/planning/api-mapping/functions.md), [`aks`](wiki/planning/api-mapping/aks.md), [`vms`](wiki/planning/api-mapping/vms.md), `vmss`, `snapshots-disks` |
-| orchestration | [`all-checks`](wiki/planning/api-mapping/all-checks.md) (deprecated) |
+| orchestration | `chains` |
 
 Commands without links do not have a dedicated wiki source page in the repo yet.
 
@@ -181,8 +181,6 @@ All commands write artifacts under `<outdir>/`:
 - `json/<command>.json`
 - `table/<command>.txt`
 - `csv/<command>.csv`
-- `run-summary.json` for `all-checks`
-
 Artifact intent:
 
 - `json/` is the full structured command record.
@@ -190,34 +188,14 @@ Artifact intent:
   follow-up and later chain-oriented workflows.
 - `table/` and `csv/` are convenience views rendered from the same underlying command result.
 
-## Sections And All-Checks
+## Sections And Chains
 
-AzureFox keeps flat standalone commands and also supports grouped execution:
-
-`all-checks` is deprecated.
-It remains available while grouped chain families are being implemented, but the long-term
-direction is narrower `chains` surfaces plus direct flat-command execution.
-
-```bash
-# deprecated broad sweep
-azurefox all-checks
-# deprecated section sweep
-azurefox all-checks --section identity
-azurefox all-checks --section config
-azurefox all-checks --section secrets
-azurefox all-checks --section resource
-azurefox all-checks --section network
-azurefox all-checks --section storage
-azurefox all-checks --section compute
-```
-
-Treat `all-checks` as a temporary broad recon pass, not a quick spot check. It can take much
-longer than a single command, especially when a full section is writing grouped artifacts.
+AzureFox keeps flat standalone commands and also supports grouped execution through `chains`.
 
 For narrower current work:
 
 - run the flat commands directly when you already know the lane you want
-- use `all-checks` only when you still want the deprecated broad grouped sweep
+- use `chains` when you want a higher-value grouped answer instead of every source command on its own
 
 Current section mappings:
 
@@ -246,7 +224,7 @@ azurefox -h permissions
 Command help includes ATT&CK cloud leads as investigation prompts, not proof that a technique
 occurred.
 
-Help also marks deprecated surfaces such as `all-checks` and broad section sweeps explicitly.
+Help also points grouped follow-up toward `chains` where those presets exist.
 
 For ad hoc demos or local testing, use a dedicated path like `--outdir ./azurefox-demo` so
 artifacts do not pile up in the repo root.

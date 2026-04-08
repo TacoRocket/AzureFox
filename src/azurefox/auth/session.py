@@ -21,7 +21,12 @@ class AuthSession:
 
 def build_auth_session(tenant_id: str | None) -> AuthSession:
     try:
-        from azure.identity import AzureCliCredential, EnvironmentCredential
+        from azure.core.exceptions import ClientAuthenticationError
+        from azure.identity import (
+            AzureCliCredential,
+            CredentialUnavailableError,
+            EnvironmentCredential,
+        )
     except ImportError as exc:  # pragma: no cover - dependency surface
         raise AzureFoxError(
             ErrorKind.DEPENDENCY_MISSING,
@@ -31,6 +36,7 @@ def build_auth_session(tenant_id: str | None) -> AuthSession:
             ),
         ) from exc
 
+    hint = "Run az login or set AZURE_TENANT_ID/AZURE_CLIENT_ID/AZURE_CLIENT_SECRET."
     cli_credential = AzureCliCredential(tenant_id=tenant_id)
     try:
         token = cli_credential.get_token(MANAGEMENT_SCOPE)
@@ -41,8 +47,20 @@ def build_auth_session(tenant_id: str | None) -> AuthSession:
             access_token=token.token,
             tenant_id=claims.get("tid", tenant_id),
         )
-    except Exception:
-        pass
+    except CredentialUnavailableError as exc:
+        cli_error = exc
+    except ClientAuthenticationError as exc:
+        raise AzureFoxError(
+            ErrorKind.AUTH_FAILURE,
+            "Azure CLI authentication failed.",
+            details={"hint": hint, "azure_cli_error": str(exc)},
+        ) from exc
+    except Exception as exc:
+        raise AzureFoxError(
+            ErrorKind.AUTH_FAILURE,
+            "Azure CLI authentication failed unexpectedly.",
+            details={"hint": hint, "azure_cli_error": str(exc)},
+        ) from exc
 
     env_credential = EnvironmentCredential()
     try:
@@ -55,15 +73,15 @@ def build_auth_session(tenant_id: str | None) -> AuthSession:
             tenant_id=claims.get("tid", tenant_id),
         )
     except Exception as exc:
+        details = {
+            "hint": hint,
+            "azure_cli_error": str(cli_error),
+            "environment_error": str(exc),
+        }
         raise AzureFoxError(
             ErrorKind.AUTH_FAILURE,
             "Unable to authenticate with Azure CLI or environment credential.",
-            details={
-                "hint": (
-                    "Run az login or set AZURE_TENANT_ID/"
-                    "AZURE_CLIENT_ID/AZURE_CLIENT_SECRET."
-                )
-            },
+            details=details,
         ) from exc
 
 

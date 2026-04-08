@@ -96,3 +96,38 @@ def test_write_artifacts_loot_keeps_nonempty_findings_and_issues(tmp_path: Path)
     }
     assert loot_payload["findings"] == payload["findings"]
     assert loot_payload["issues"] == payload["issues"]
+
+
+def test_write_artifacts_network_effective_uses_row_mapped_loot_and_csv(tmp_path: Path) -> None:
+    exposures = [
+        {
+            "asset_name": f"vm-web-{index:02d}",
+            "effective_exposure": "high" if index < 3 else "medium",
+            "endpoint": f"52.160.10.{index}",
+        }
+        for index in range(12)
+    ]
+    payload = {
+        "metadata": {
+            "schema_version": SCHEMA_VERSION,
+            "command": "network-effective",
+            "generated_at": "2026-04-06T12:00:00Z",
+        },
+        "effective_exposures": exposures,
+        "findings": [],
+        "issues": [],
+    }
+
+    artifact_paths = write_artifacts("network-effective", payload, _options(tmp_path))
+    loot_payload = json.loads(artifact_paths["loot"].read_text(encoding="utf-8"))
+    csv_lines = artifact_paths["csv"].read_text(encoding="utf-8").splitlines()
+
+    assert loot_payload["effective_exposures"] == exposures[:10]
+    assert loot_payload["loot_scope"] == {
+        "selection": "top-ranked-targets",
+        "source_count": 12,
+        "returned_count": 10,
+        "limit": 10,
+    }
+    assert csv_lines[0].startswith("asset_name,")
+    assert len(csv_lines) == 13
