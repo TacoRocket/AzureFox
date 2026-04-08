@@ -4,22 +4,50 @@
   <img src="docs/branding/azurefox-logo.png" alt="AzureFox logo" width="180" />
 </p>
 
-AzureFox is a Python CLI for offensive-focused Azure recon.
-It helps operators and testers map what Azure identity, network, secrets, and workload exposure
-they can actually see from management-plane read paths.
+Azure attack path reconnaissance for identifying privilege escalation paths, over-permissioned
+identities, and exploitable cloud misconfigurations.
 
-## Quickstart
+## Why Run AzureFox
+
+Most Azure tools focus on inventory, configuration review, or compliance reporting.
+
+AzureFox is built for offensive security and operator-first cloud triage:
+- What can this identity actually do?
+- Where can it pivot next?
+- Which Azure path matters first?
+
+## Install
 
 ```bash
-pip install azurefox
+pipx install azurefox
 ```
 
-By default, AzureFox writes artifacts into your current directory. If you want them somewhere
-else, pass `--outdir`:
+## Run It
+
+Start with the current Azure identity and the strongest visible control paths:
 
 ```bash
-azurefox --outdir ./azurefox-demo whoami --output table
+azurefox whoami
+azurefox permissions
 ```
+
+## Example Output
+
+`azurefox permissions`
+
+| principal | type | high-impact roles | scopes | operator signal | next review |
+| --- | --- | --- | --- | --- | --- |
+| `azurefox-lab-sp` | `ServicePrincipal` | `Owner` | `1` | Direct control visible; current foothold. | Check `privesc` for the direct abuse or escalation path. |
+| `operator@lab.local` | `User` |  | `1` | Direct control not confirmed. | Check `rbac` for the exact assignment evidence. |
+
+AzureFox is not just listing Azure objects. It ranks the identities that matter, explains why
+they matter, and points to the next command to run.
+
+## What Makes This Different
+
+- Identity-first, not just resource-first
+- Focused on attack paths, not raw Azure data
+- Output designed for operators who need to decide what matters next
 
 ## Currently Supported Azure Commands
 
