@@ -395,6 +395,7 @@ class AzureProvider(BaseProvider):
             "tenant_id": self.session.tenant_id,
             "subscription_id": self.clients.subscription_id,
             "token_source": self.session.token_source,
+            "auth_mode": self.session.auth_mode,
         }
 
     def whoami(self) -> dict:
@@ -414,6 +415,7 @@ class AzureProvider(BaseProvider):
                 ).model_dump()
             ],
             "token_source": self.session.token_source,
+            "auth_mode": self.session.auth_mode,
             "issues": [],
         }
 

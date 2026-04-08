@@ -28,6 +28,7 @@ class CommandMetadata(BaseModel):
     subscription_id: str | None = None
     devops_organization: str | None = None
     token_source: str | None = None
+    auth_mode: str | None = None
 
 
 class CollectionIssue(BaseModel):

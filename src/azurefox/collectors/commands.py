@@ -76,7 +76,13 @@ def collect_whoami(provider: BaseProvider, options: GlobalOptions) -> WhoAmIOutp
     data = provider.whoami()
     output = WhoAmIOutput.model_validate(
         {
-            "metadata": _metadata(provider, "whoami", options, data.get("token_source")),
+            "metadata": _metadata(
+                provider,
+                "whoami",
+                options,
+                data.get("token_source"),
+                data.get("auth_mode"),
+            ),
             **data,
         }
     )
@@ -659,6 +665,7 @@ def _metadata(
     command: str,
     options: GlobalOptions,
     token_source: str | None = None,
+    auth_mode: str | None = None,
 ) -> CommandMetadata:
     context = provider.metadata_context()
     return CommandMetadata(
@@ -667,6 +674,7 @@ def _metadata(
         subscription_id=options.subscription or context.get("subscription_id"),
         devops_organization=options.devops_organization,
         token_source=token_source or context.get("token_source"),
+        auth_mode=auth_mode or context.get("auth_mode"),
     )
 
 

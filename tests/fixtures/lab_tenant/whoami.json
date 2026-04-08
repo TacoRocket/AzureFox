@@ -19,5 +19,6 @@
     }
   ],
   "token_source": "fixture",
+  "auth_mode": "fixture",
   "issues": []
 }

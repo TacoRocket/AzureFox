@@ -8,6 +8,7 @@
   ],
   "issues": [],
   "metadata": {
+    "auth_mode": "fixture",
     "command": "whoami",
     "devops_organization": null,
     "generated_at": "<generated_at>",

@@ -40,6 +40,43 @@ def test_role_trusts_table_mode_includes_narration_and_takeaway(tmp_path: Path) 
     assert "command." in result.stdout
 
 
+def test_whoami_table_mode_surfaces_auth_mode() -> None:
+    rendered = render_table(
+        "whoami",
+        {
+            "metadata": {
+                "command": "whoami",
+                "token_source": "azure_cli",
+                "auth_mode": "azure_cli_managed_identity",
+            },
+            "principal": {
+                "id": "principal-id",
+                "display_name": "mi-runner",
+                "principal_type": "ServicePrincipal",
+            },
+            "subscription": {
+                "id": "sub-id",
+                "display_name": "prod-sub",
+            },
+            "effective_scopes": [
+                {
+                    "id": "/subscriptions/sub-id",
+                    "scope_type": "subscription",
+                    "display_name": "prod-sub",
+                }
+            ],
+            "issues": [],
+        },
+    )
+
+    assert "Azure CLI managed identity" in rendered
+    assert "azure_cli" in rendered
+    assert (
+        "Operating as mi-runner (ServicePrincipal) in prod-sub via Azure CLI managed identity."
+        in rendered
+    )
+
+
 def test_auth_policies_table_mode_surfaces_findings_and_issues(tmp_path: Path) -> None:
     result = runner.invoke(
         app,
