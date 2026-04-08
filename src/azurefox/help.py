@@ -44,7 +44,13 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "Who am I in this tenant and what subscription scope am I operating in right now?"
         ),
         cloudfox_frame="CloudFox-style caller-context check before deeper cloud enumeration.",
-        output_highlights=("principal", "subscription", "effective_scopes", "token_source"),
+        output_highlights=(
+            "principal",
+            "subscription",
+            "effective_scopes",
+            "token_source",
+            "auth_mode",
+        ),
         attack_leads=(
             AttackLead("Discovery", "Cloud Account"),
             AttackLead("Initial Access", "Valid Accounts: Cloud Accounts"),

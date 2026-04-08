@@ -78,6 +78,7 @@ class MetadataFixtureProvider(FixtureProvider):
             "tenant_id": "tenant-from-provider",
             "subscription_id": "subscription-from-provider",
             "token_source": "azure_cli",
+            "auth_mode": "azure_cli_user",
         }
 
 
@@ -2788,6 +2789,7 @@ def test_collect_inventory_metadata_falls_back_to_provider_context(
     assert output.metadata.tenant_id == "tenant-from-provider"
     assert output.metadata.subscription_id == "subscription-from-provider"
     assert output.metadata.token_source == "azure_cli"
+    assert output.metadata.auth_mode == "azure_cli_user"
 
 
 def test_collect_devops_metadata_keeps_org_from_options(fixture_dir: Path, tmp_path: Path) -> None:

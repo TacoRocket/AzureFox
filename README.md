@@ -125,9 +125,23 @@ Longer-form planning and wiki-source material lives under
 ## Auth Precedence
 
 1. Azure CLI credential
-2. Environment/service principal credential
+2. Environment credential
 
-### Web auth (browser-based) via Azure CLI
+### Supported auth matrix
+
+| Path | How it starts | Current support | Metadata `auth_mode` |
+| --- | --- | --- | --- |
+| Interactive user via Azure CLI | `az login` | supported | `azure_cli_user` |
+| Service principal via Azure CLI | `az login --service-principal ...` | supported through Azure CLI | `azure_cli_service_principal` |
+| Managed identity via Azure CLI | `az login --identity` | supported through Azure CLI | `azure_cli_managed_identity` |
+| Service principal via environment client secret | `AZURE_TENANT_ID` + `AZURE_CLIENT_ID` + `AZURE_CLIENT_SECRET` | supported | `environment_client_secret` |
+| Service principal via environment certificate | `AZURE_TENANT_ID` + `AZURE_CLIENT_ID` + `AZURE_CLIENT_CERTIFICATE_PATH` | supported | `environment_client_certificate` |
+
+AzureFox does not launch its own browser or managed-identity login flow. It relies on Azure Identity:
+- `AzureCliCredential` for the active Azure CLI sign-in state
+- `EnvironmentCredential` for service principal environment variables
+
+### Interactive user via Azure CLI
 
 If you want web-based authentication, run `az login` first (outside AzureFox), then run AzureFox.
 AzureFox does not currently launch its own browser auth flow.
@@ -140,12 +154,38 @@ az account set --subscription <subscription-id>
 azurefox inventory --subscription <subscription-id>
 ```
 
-### Non-web auth (no `az login` required)
+### Service principal via Azure CLI
 
-If you do not want to use web auth, set service principal environment variables and pass CLI flags
-for tenant/subscription targeting.
+This is useful for headless automation that still wants Azure CLI to hold the active login state.
 
-Environment credential + CLI options example:
+With a client secret:
+
+```bash
+az login --service-principal \
+  --username <client-id> \
+  --password <client-secret> \
+  --tenant <tenant-id>
+az account set --subscription <subscription-id>
+azurefox whoami --subscription <subscription-id>
+```
+
+With a certificate:
+
+```bash
+az login --service-principal \
+  --username <client-id> \
+  --certificate /path/to/certificate.pem \
+  --tenant <tenant-id>
+az account set --subscription <subscription-id>
+azurefox whoami --subscription <subscription-id>
+```
+
+### Service principal via environment client secret
+
+If you do not want to use Azure CLI login state, set service principal environment variables and
+pass CLI flags for tenant/subscription targeting.
+
+Environment client-secret example:
 
 ```bash
 # macOS/Linux
@@ -163,6 +203,44 @@ $env:AZURE_CLIENT_ID="<client-id>"
 $env:AZURE_CLIENT_SECRET="<client-secret>"
 $env:AZUREFOX_DEVOPS_ORG="<org-name>" # only needed for the devops command
 azurefox whoami --tenant <tenant-id> --subscription <subscription-id>
+```
+
+### Service principal via environment certificate
+
+```bash
+# macOS/Linux
+export AZURE_TENANT_ID=<tenant-id>
+export AZURE_CLIENT_ID=<client-id>
+export AZURE_CLIENT_CERTIFICATE_PATH=/path/to/certificate.pem
+export AZURE_CLIENT_CERTIFICATE_PASSWORD=<optional-password>
+azurefox whoami --tenant <tenant-id> --subscription <subscription-id>
+```
+
+```powershell
+# Windows PowerShell
+$env:AZURE_TENANT_ID="<tenant-id>"
+$env:AZURE_CLIENT_ID="<client-id>"
+$env:AZURE_CLIENT_CERTIFICATE_PATH="C:\\path\\to\\certificate.pem"
+$env:AZURE_CLIENT_CERTIFICATE_PASSWORD="<optional-password>"
+azurefox whoami --tenant <tenant-id> --subscription <subscription-id>
+```
+
+### Azure-hosted managed identity via Azure CLI
+
+This works when you are running on an Azure resource that already has a managed identity attached.
+
+```bash
+az login --identity
+az account set --subscription <subscription-id>
+azurefox whoami --subscription <subscription-id>
+```
+
+For a user-assigned managed identity:
+
+```bash
+az login --identity --client-id <user-assigned-managed-identity-client-id>
+az account set --subscription <subscription-id>
+azurefox whoami --subscription <subscription-id>
 ```
 
 `AZUREFOX_DEVOPS_ORG` is only needed when running the `devops` command. The identity used for

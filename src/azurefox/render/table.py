@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 from rich.console import Console
 from rich.table import Table
 
+from azurefox.auth.modes import auth_mode_label
 from azurefox.devops_hints import describe_trusted_input, devops_next_review_hint
 from azurefox.env_var_hints import env_var_next_review_hint
 from azurefox.tokens_credential_hints import tokens_credential_next_review_hint
@@ -148,27 +149,17 @@ def _render_escalation_path_table(console: Console, payload: dict) -> None:
 
 def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], list[dict]]:
     if command == "whoami":
-        principal = payload.get("principal") or {}
-        subscription = payload.get("subscription") or {}
-        scopes = payload.get("effective_scopes") or []
-        scope = scopes[0] if scopes else {}
+        context = _whoami_context(payload)
         return (
             [
                 ("subscription", "subscription"),
                 ("principal", "principal"),
                 ("type", "type"),
+                ("auth_mode", "auth"),
                 ("token_source", "token"),
                 ("scope", "scope"),
             ],
-            [
-                {
-                    "subscription": subscription.get("display_name") or subscription.get("id"),
-                    "principal": principal.get("display_name") or principal.get("id"),
-                    "type": principal.get("principal_type"),
-                    "token_source": payload.get("metadata", {}).get("token_source"),
-                    "scope": scope.get("display_name") or scope.get("id"),
-                }
-            ],
+            [context],
         )
 
     if command == "inventory":
@@ -1071,12 +1062,11 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
 
 def _takeaway_for_command(command: str, payload: dict) -> str:
     if command == "whoami":
-        principal = payload.get("principal") or {}
-        subscription = payload.get("subscription") or {}
+        context = _whoami_context(payload)
         return (
-            f"Operating as {principal.get('display_name') or principal.get('id')} "
-            f"({principal.get('principal_type')}) in "
-            f"{subscription.get('display_name') or subscription.get('id')}."
+            f"Operating as {context['principal']} "
+            f"({context['type']}) in "
+            f"{context['subscription']} via {context['auth_mode']}."
         )
 
     if command == "principals":
@@ -2889,6 +2879,22 @@ def _tri_state_text(value: bool | None) -> str:
     if value is None:
         return "unknown"
     return _bool_text(value)
+
+
+def _whoami_context(payload: dict) -> dict[str, str | None]:
+    principal = payload.get("principal") or {}
+    subscription = payload.get("subscription") or {}
+    scopes = payload.get("effective_scopes") or []
+    scope = scopes[0] if scopes else {}
+    metadata = payload.get("metadata", {})
+    return {
+        "subscription": subscription.get("display_name") or subscription.get("id"),
+        "principal": principal.get("display_name") or principal.get("id"),
+        "type": principal.get("principal_type"),
+        "auth_mode": auth_mode_label(metadata.get("auth_mode")),
+        "token_source": metadata.get("token_source"),
+        "scope": scope.get("display_name") or scope.get("id"),
+    }
 
 
 def _value_to_string(value: object) -> str:

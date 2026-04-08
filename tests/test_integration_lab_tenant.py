@@ -6,9 +6,18 @@ import os
 import pytest
 from typer.testing import CliRunner
 
+from azurefox.auth.modes import AZURE_CLI_AUTH_MODES, ENVIRONMENT_AUTH_MODES
 from azurefox.cli import app
 
 pytestmark = pytest.mark.integration
+
+
+def _assert_auth_metadata_shape(metadata: dict) -> None:
+    assert metadata["token_source"] in {"azure_cli", "environment"}
+    if metadata["token_source"] == "azure_cli":
+        assert metadata["auth_mode"] in AZURE_CLI_AUTH_MODES
+        return
+    assert metadata["auth_mode"] in ENVIRONMENT_AUTH_MODES
 
 
 @pytest.mark.skipif(
@@ -27,7 +36,7 @@ def test_whoami_integration_smoke() -> None:
     payload = json.loads(result.stdout)
     assert payload["metadata"]["command"] == "whoami"
     assert payload["metadata"]["subscription_id"] == subscription
-    assert payload["metadata"]["token_source"] in {"azure_cli", "environment"}
+    _assert_auth_metadata_shape(payload["metadata"])
     assert payload["metadata"]["tenant_id"]
     assert payload["subscription"]["id"]
 
@@ -51,7 +60,7 @@ def test_auth_policies_integration_smoke() -> None:
     payload = json.loads(result.stdout)
     assert payload["metadata"]["command"] == "auth-policies"
     assert payload["metadata"]["subscription_id"] == subscription
-    assert payload["metadata"]["token_source"] in {"azure_cli", "environment"}
+    _assert_auth_metadata_shape(payload["metadata"])
     assert payload["metadata"]["tenant_id"]
     assert "auth_policies" in payload
     assert "findings" in payload

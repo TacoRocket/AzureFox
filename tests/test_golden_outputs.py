@@ -44,9 +44,11 @@ from azurefox.collectors.commands import (
 
 def _normalize(payload: dict) -> dict:
     payload = json.loads(json.dumps(payload))
-    payload["metadata"]["generated_at"] = "<generated_at>"
-    if payload["metadata"].get("devops_organization") is None:
-        payload["metadata"].pop("devops_organization", None)
+    metadata = payload["metadata"]
+    metadata["generated_at"] = "<generated_at>"
+    metadata.setdefault("auth_mode", None)
+    if metadata.get("devops_organization") is None:
+        metadata.pop("devops_organization", None)
     return payload
 
 
@@ -94,5 +96,7 @@ def test_golden_outputs(fixture_provider, options) -> None:
 
     for command, collector in collectors.items():
         model = collector(fixture_provider, options)
+        actual = model.model_dump(mode="json")
+        assert "auth_mode" in actual["metadata"]
         expected = json.loads((golden_dir / f"{command}.json").read_text(encoding="utf-8"))
-        assert _normalize(model.model_dump(mode="json")) == _normalize(expected)
+        assert _normalize(actual) == _normalize(expected)
