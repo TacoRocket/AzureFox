@@ -7,7 +7,7 @@
 Azure attack path reconnaissance for identifying privilege escalation paths, over-permissioned
 identities, and exploitable cloud misconfigurations.
 
-## Why Run AzureFox
+## Why AzureFox
 
 Most Azure tools focus on inventory, configuration review, or compliance reporting.
 
