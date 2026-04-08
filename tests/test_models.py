@@ -228,8 +228,13 @@ def test_privesc_path_defaults() -> None:
         severity="high",
         summary="test",
     )
+    assert path.starting_foothold is None
     assert path.asset is None
     assert path.impact_roles == []
+    assert path.operator_signal is None
+    assert path.proven_path is None
+    assert path.missing_proof is None
+    assert path.next_review is None
     assert path.related_ids == []
 
 
@@ -245,6 +250,12 @@ def test_role_trust_summary_defaults() -> None:
         summary="test",
     )
     assert trust.source_name is None
+    assert trust.control_primitive is None
+    assert trust.controlled_object_type is None
+    assert trust.controlled_object_name is None
+    assert trust.escalation_mechanism is None
+    assert trust.usable_identity_result is None
+    assert trust.defender_cut_point is None
     assert trust.operator_signal is None
     assert trust.next_review is None
     assert trust.related_ids == []

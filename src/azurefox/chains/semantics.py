@@ -25,6 +25,7 @@ class ChainSemanticContext:
 @dataclass(frozen=True, slots=True)
 class ChainSemanticDecision:
     priority: str
+    urgency: str | None
     next_review: str
 
 
@@ -42,16 +43,19 @@ def _credential_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
         if context.target_service == "keyvault":
             return ChainSemanticDecision(
                 priority="high",
+                urgency="review-soon",
                 next_review="Check vault access path and referenced secret use.",
             )
         return ChainSemanticDecision(
             priority="high",
+            urgency="review-soon",
             next_review="Validate the exact named target from workload config.",
         )
 
     if context.target_resolution == "visibility blocked":
         return ChainSemanticDecision(
             priority="low",
+            urgency="bookmark",
             next_review=f"Restore {context.target_service} visibility before choosing a target.",
         )
 
@@ -63,15 +67,18 @@ def _credential_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
         if context.target_service == "database":
             return ChainSemanticDecision(
                 priority="medium",
+                urgency="review-soon",
                 next_review="Confirm the database target from app config or connection clues.",
             )
         if context.target_service == "storage":
             return ChainSemanticDecision(
                 priority="medium",
+                urgency="bookmark",
                 next_review="Confirm the storage target from binding or connection clues.",
             )
         return ChainSemanticDecision(
             priority="medium",
+            urgency="bookmark",
             next_review="Confirm the exact target before deeper follow-up.",
         )
 
@@ -79,33 +86,39 @@ def _credential_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
         if context.target_service == "database":
             return ChainSemanticDecision(
                 priority="low",
+                urgency="bookmark",
                 next_review="Confirm the database target from app config or connection clues.",
             )
         if context.target_service == "storage":
             return ChainSemanticDecision(
                 priority="low",
+                urgency="bookmark",
                 next_review="Confirm the storage target from binding or connection clues.",
             )
         return ChainSemanticDecision(
             priority="low",
+            urgency="bookmark",
             next_review="Confirm the exact target before deeper follow-up.",
         )
 
     if context.target_resolution == "tenant-wide candidates":
         return ChainSemanticDecision(
             priority="low",
+            urgency="bookmark",
             next_review="Narrow the target with stronger naming or deployment clues.",
         )
 
     if context.target_resolution == "service hint only":
         return ChainSemanticDecision(
             priority="low",
+            urgency="bookmark",
             next_review="Collect richer target-side inventory before follow-up.",
         )
 
     if context.target_resolution == "named target not visible":
         return ChainSemanticDecision(
             priority="low",
+            urgency="bookmark",
             next_review="Verify that the named target is visible in current inventory.",
         )
 
@@ -116,17 +129,20 @@ def _default_chain_semantics(context: ChainSemanticContext) -> ChainSemanticDeci
     if context.target_resolution == "named match":
         return ChainSemanticDecision(
             priority="high",
+            urgency="review-soon",
             next_review="Validate the exact named target from chain evidence.",
         )
 
     if context.target_resolution == "visibility blocked":
         return ChainSemanticDecision(
             priority="low",
+            urgency="bookmark",
             next_review=f"Restore {context.target_service} visibility before choosing a target.",
         )
 
     return ChainSemanticDecision(
         priority="low",
+        urgency="bookmark",
         next_review="Confirm the next target before deeper follow-up.",
     )
 
@@ -136,6 +152,7 @@ def _deployment_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
         if context.target_resolution == "named match":
             return ChainSemanticDecision(
                 priority="medium",
+                urgency="bookmark",
                 next_review=(
                     "Review the exact target and confirm what separate foothold could reuse "
                     "the secret-backed deployment support."
@@ -144,6 +161,7 @@ def _deployment_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
         if context.target_resolution == "visibility blocked":
             return ChainSemanticDecision(
                 priority="low",
+                urgency="bookmark",
                 next_review=(
                     "Review the secret-backed support boundary and restore consequence "
                     "grounding before treating it as a fuller path."
@@ -152,6 +170,7 @@ def _deployment_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
         if context.target_resolution == "narrowed candidates":
             return ChainSemanticDecision(
                 priority="low",
+                urgency="bookmark",
                 next_review=(
                     "Review the secret-backed support and the narrowed consequence set, then "
                     "confirm what separate foothold could drive execution."
@@ -163,6 +182,7 @@ def _deployment_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
             if context.current_operator_can_inject:
                 return ChainSemanticDecision(
                     priority="high",
+                    urgency="pivot-now",
                     next_review=(
                         "Current credentials can poison a trusted input; review the exact named "
                         "Azure target next."
@@ -170,6 +190,7 @@ def _deployment_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
                 )
             return ChainSemanticDecision(
                 priority="medium",
+                urgency="review-soon",
                 next_review=(
                     "Review the exact named target and the backing Azure service connection, "
                     "but keep source poisoning marked unproven until a trusted input is writable."
@@ -178,10 +199,12 @@ def _deployment_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
         if context.source_command == "automation":
             return ChainSemanticDecision(
                 priority="high",
+                urgency="review-soon",
                 next_review="Review the automation identity and the exact named Azure target path.",
             )
         return ChainSemanticDecision(
             priority="high",
+            urgency="review-soon",
             next_review="Validate the exact named target from deployment evidence.",
         )
 
@@ -189,6 +212,7 @@ def _deployment_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
         if context.path_concept == "execution-hub":
             return ChainSemanticDecision(
                 priority="medium",
+                urgency="review-soon",
                 next_review=(
                     f"Check permissions or role-trusts for the automation identity and restore "
                     f"{context.target_service} visibility before naming downstream impact."
@@ -196,6 +220,7 @@ def _deployment_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
             )
         return ChainSemanticDecision(
             priority="medium",
+            urgency="review-soon",
             next_review=(
                 f"Check permissions or role-trusts for the backing Azure path and restore "
                 f"{context.target_service} visibility before naming downstream impact."
@@ -206,6 +231,7 @@ def _deployment_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
         if context.current_operator_can_inject:
             return ChainSemanticDecision(
                 priority="high",
+                urgency="pivot-now",
                 next_review=(
                     "Current credentials can poison a trusted input; validate the narrowed Azure "
                     "change candidates next."
@@ -217,6 +243,7 @@ def _deployment_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
         ):
             return ChainSemanticDecision(
                 priority="medium",
+                urgency="review-soon",
                 next_review=(
                     "Check permissions or role-trusts for the backing Azure path, then review "
                     "the narrowed Azure change candidates."
@@ -224,7 +251,32 @@ def _deployment_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
             )
         return ChainSemanticDecision(
             priority="low",
+            urgency="bookmark",
             next_review="Review the narrowed deployment targets before deeper follow-up.",
+        )
+
+    return _default_chain_semantics(context)
+
+
+def _escalation_path_semantics(context: ChainSemanticContext) -> ChainSemanticDecision:
+    if context.path_concept == "current-foothold-direct-control":
+        return ChainSemanticDecision(
+            priority="high",
+            urgency="pivot-now",
+            next_review="Check rbac for the exact assignment evidence behind the current foothold.",
+        )
+
+    if context.path_concept == "trust-expansion":
+        if context.target_resolution == "path-confirmed":
+            return ChainSemanticDecision(
+                priority="medium",
+                urgency="review-soon",
+                next_review="Check permissions for the stronger target behind this trust edge.",
+            )
+        return ChainSemanticDecision(
+            priority="low",
+            urgency="bookmark",
+            next_review="Confirm whether the trust target also holds meaningful Azure control.",
         )
 
     return _default_chain_semantics(context)
@@ -233,5 +285,6 @@ def _deployment_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
 _FAMILY_EVALUATORS = {
     "credential-path": _credential_path_semantics,
     "deployment-path": _deployment_path_semantics,
+    "escalation-path": _escalation_path_semantics,
     "workload-identity-path": _default_chain_semantics,
 }

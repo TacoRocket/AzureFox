@@ -40,6 +40,9 @@ from azurefox.models.commands import (
     EnvVarsOutput,
     FunctionsOutput,
     KeyVaultOutput,
+    PermissionsOutput,
+    PrivescOutput,
+    RoleTrustsOutput,
     StorageOutput,
     TokensCredentialsOutput,
 )
@@ -47,7 +50,7 @@ from azurefox.models.common import ArmDeploymentSummary, CollectionIssue, Comman
 from azurefox.output.writer import emit_output
 from azurefox.registry import get_command_specs
 
-_SUPPORTED_IMPLEMENTED_FAMILIES = {"credential-path", "deployment-path"}
+_SUPPORTED_IMPLEMENTED_FAMILIES = {"credential-path", "deployment-path", "escalation-path"}
 _SOURCE_MODEL_MAP = {
     "aks": AksOutput,
     "app-services": AppServicesOutput,
@@ -60,9 +63,14 @@ _SOURCE_MODEL_MAP = {
     "databases": DatabasesOutput,
     "storage": StorageOutput,
     "keyvault": KeyVaultOutput,
+    "permissions": PermissionsOutput,
+    "privesc": PrivescOutput,
+    "role-trusts": RoleTrustsOutput,
 }
 _CANDIDATE_LIMIT = 3
 _JOIN_QUALITY_ORDER = {
+    "path-confirmed": 0,
+    "target-confirmed": 1,
     "named match": 0,
     "narrowed candidates": 1,
     "tenant-wide candidates": 2,
@@ -119,6 +127,8 @@ def run_chain_family(
         return _build_credential_path_output(options, family_name, source_artifacts)
     if family_name == "deployment-path":
         return _build_deployment_path_output(options, family_name, source_artifacts)
+    if family_name == "escalation-path":
+        return _build_escalation_path_output(options, family_name, source_artifacts)
 
     raise ValueError(f"Unsupported chain family '{family_name}'")
 
@@ -449,6 +459,84 @@ def _build_deployment_path_output(
     )
 
 
+def _build_escalation_path_output(
+    options: GlobalOptions,
+    family_name: str,
+    source_artifacts: list[ChainSourceArtifact],
+) -> ChainsCommandOutput:
+    family = get_chain_family_spec(family_name)
+    assert family is not None  # pragma: no cover - guarded above
+
+    loaded = {source.command: _load_source_output(source) for source in source_artifacts}
+    privesc_output = loaded["privesc"]
+    permissions_output = loaded["permissions"]
+    role_trusts_output = loaded["role-trusts"]
+
+    permissions_by_principal = {
+        item.principal_id: item.model_dump(mode="json")
+        for item in permissions_output.permissions
+        if item.principal_id
+    }
+    current_foothold_row = next(
+        (
+            item.model_dump(mode="json")
+            for item in privesc_output.paths
+            if item.current_identity and item.principal_id
+        ),
+        None,
+    )
+    current_foothold_id = str(current_foothold_row.get("principal_id")) if current_foothold_row else None
+
+    paths: list[ChainPathRecord] = []
+    if current_foothold_row:
+        permission = permissions_by_principal.get(current_foothold_id or "")
+        if current_foothold_row.get("path_type") == "direct-role-abuse" and permission:
+            paths.append(_build_escalation_direct_control_record(family_name, current_foothold_row, permission))
+        trust_row = _build_escalation_trust_record(
+            family_name,
+            current_foothold_row,
+            role_trusts_output.trusts,
+            permissions_by_principal,
+            current_foothold_id=current_foothold_id,
+        )
+        if trust_row is not None:
+            paths.append(trust_row)
+
+    paths.sort(
+        key=lambda item: (
+            semantic_priority_sort_value(item.priority),
+            _JOIN_QUALITY_ORDER.get(item.target_resolution, 9),
+            item.asset_name,
+            item.path_concept or "",
+        )
+    )
+
+    issues: list[CollectionIssue] = []
+    for source_name in ("privesc", "permissions", "role-trusts"):
+        issues.extend(getattr(loaded[source_name], "issues", []))
+
+    return ChainsCommandOutput(
+        metadata=CommandMetadata(
+            command=GROUPED_COMMAND_NAME,
+            tenant_id=options.tenant,
+            subscription_id=options.subscription,
+            devops_organization=options.devops_organization,
+            token_source=None,
+        ),
+        grouped_command_name=GROUPED_COMMAND_NAME,
+        family=family_name,
+        input_mode="live",
+        command_state="extraction-only",
+        summary=family.summary,
+        claim_boundary=family.allowed_claim,
+        artifact_preference_order=list(PREFERRED_ARTIFACT_ORDER),
+        backing_commands=[source.command for source in family.source_commands],
+        source_artifacts=source_artifacts,
+        paths=paths,
+        issues=issues,
+    )
+
+
 def _load_source_output(source: ChainSourceArtifact):
     model = _SOURCE_MODEL_MAP[source.command]
     payload = json.loads(Path(source.path).read_text(encoding="utf-8"))
@@ -517,6 +605,7 @@ def _build_keyvault_record(
         clue_type="keyvault-reference",
         confirmation_basis="normalized-uri-match" if matched_vaults else None,
         priority=semantic.priority,
+        urgency=semantic.urgency,
         visible_path=visible_path,
         target_service="keyvault",
         target_resolution=target_resolution,
@@ -584,6 +673,7 @@ def _build_candidate_record(
         clue_type="plain-text-secret",
         confirmation_basis="name-only-inference",
         priority=semantic.priority,
+        urgency=semantic.urgency,
         visible_path=visible_path,
         target_service=target_service,
         target_resolution=target_resolution,
@@ -761,6 +851,7 @@ def _build_deployment_source_record(
         clue_type=assessment.path_concept or source_command,
         confirmation_basis=record_confirmation_basis,
         priority=semantic.priority,
+        urgency=semantic.urgency,
         visible_path=_deployment_visible_path(
             source_command,
             assessment.path_concept,
@@ -1563,6 +1654,166 @@ def _parse_operator_signal(value: str | None) -> dict[str, str]:
     return signal
 
 
+def _build_escalation_direct_control_record(
+    family_name: str,
+    privesc_row: dict,
+    permission_row: dict,
+) -> ChainPathRecord:
+    scope_text = _permission_scope_text(permission_row)
+    stronger_outcome = _permission_control_summary(permission_row)
+    semantic = evaluate_chain_semantics(
+        ChainSemanticContext(
+            family=family_name,
+            clue_type=str(privesc_row.get("path_type") or "direct-role-abuse"),
+            target_service="azure-control",
+            target_resolution="path-confirmed",
+            target_count=max(1, len(permission_row.get("scope_ids") or [])),
+            source_command="privesc",
+            path_concept="current-foothold-direct-control",
+        )
+    )
+    confidence_boundary = " ".join(
+        part
+        for part in (
+            str(privesc_row.get("proven_path") or "").strip(),
+            str(privesc_row.get("missing_proof") or "").strip(),
+        )
+        if part
+    )
+    next_review = str(privesc_row.get("next_review") or semantic.next_review)
+
+    return ChainPathRecord(
+        chain_id=f"escalation-path::{privesc_row.get('principal_id')}::current-foothold-direct-control",
+        asset_id=str(privesc_row.get("principal_id") or "unknown"),
+        asset_name=str(
+            privesc_row.get("starting_foothold")
+            or privesc_row.get("principal")
+            or "unknown current foothold"
+        ),
+        asset_kind=str(privesc_row.get("principal_type") or "Principal"),
+        source_command="privesc",
+        source_context=str(privesc_row.get("principal") or ""),
+        clue_type=str(privesc_row.get("path_type") or "direct-role-abuse"),
+        confirmation_basis="current-identity-rooted",
+        priority=semantic.priority,
+        urgency=semantic.urgency,
+        visible_path="Current foothold -> high-impact RBAC already visible",
+        insertion_point="Current foothold already holds high-impact RBAC on visible scope.",
+        path_concept="current-foothold-direct-control",
+        stronger_outcome=stronger_outcome,
+        why_care=(
+            f"The current foothold already sits on {scope_text} high-impact Azure control, so this "
+            "is not a speculative lead or a separate pivot hunt. The next move is to confirm the "
+            "exact assignment boundary and pick the strongest direct abuse route from that control."
+        ),
+        likely_impact=stronger_outcome,
+        confidence_boundary=confidence_boundary,
+        target_service="azure-control",
+        target_resolution="path-confirmed",
+        evidence_commands=["privesc", "permissions"],
+        joined_surface_types=["current-foothold", "permission-summary"],
+        target_count=max(1, len(permission_row.get("scope_ids") or [])),
+        target_ids=[str(value) for value in permission_row.get("scope_ids") or [] if value],
+        target_names=[scope_text],
+        next_review=next_review,
+        summary=f"{confidence_boundary} {next_review}".strip(),
+        missing_confirmation=str(privesc_row.get("missing_proof") or ""),
+        related_ids=[str(value) for value in privesc_row.get("related_ids") or [] if value],
+    )
+
+
+def _build_escalation_trust_record(
+    family_name: str,
+    privesc_row: dict,
+    trusts: list,
+    permissions_by_principal: dict[str, dict],
+    *,
+    current_foothold_id: str | None,
+) -> ChainPathRecord | None:
+    if not current_foothold_id:
+        return None
+
+    for trust in trusts:
+        trust_row = trust.model_dump(mode="json")
+        if trust_row.get("source_object_id") != current_foothold_id:
+            continue
+
+        target_permission = permissions_by_principal.get(str(trust_row.get("target_object_id") or ""))
+        escalation_mechanism = str(trust_row.get("escalation_mechanism") or "").strip()
+        usable_identity_result = str(trust_row.get("usable_identity_result") or "").strip()
+        defender_cut_point = str(trust_row.get("defender_cut_point") or "").strip()
+
+        if not target_permission or not escalation_mechanism or not usable_identity_result:
+            continue
+
+        target_resolution = "path-confirmed"
+        stronger_outcome = _permission_control_summary(target_permission)
+        semantic = evaluate_chain_semantics(
+            ChainSemanticContext(
+                family=family_name,
+                clue_type=str(trust_row.get("trust_type") or "trust-expansion"),
+                target_service="identity-trust",
+                target_resolution=target_resolution,
+                target_count=1,
+                source_command="role-trusts",
+                path_concept="trust-expansion",
+            )
+        )
+        confidence_boundary = (
+            f"{escalation_mechanism} {usable_identity_result} "
+            "AzureFox can also confirm the stronger target's Azure control. "
+            "AzureFox does not prove successful conversion of that control path into usable "
+            "downstream identity access from this row alone."
+        ).strip()
+        next_review = str(trust_row.get("next_review") or semantic.next_review)
+        why_care = (
+            "This row names a real control transform from the current foothold into a stronger "
+            "identity path, not just a nearby trust relationship."
+        )
+        if defender_cut_point:
+            why_care = f"{why_care} {defender_cut_point}"
+
+        return ChainPathRecord(
+            chain_id=f"escalation-path::{current_foothold_id}::trust-expansion::{trust_row.get('target_object_id')}",
+            asset_id=str(current_foothold_id),
+            asset_name=str(
+                privesc_row.get("starting_foothold")
+                or privesc_row.get("principal")
+                or "unknown current foothold"
+            ),
+            asset_kind=str(privesc_row.get("principal_type") or "Principal"),
+            source_command="role-trusts",
+            source_context=str(trust_row.get("source_name") or trust_row.get("source_object_id") or ""),
+            clue_type=str(trust_row.get("trust_type") or "trust-expansion"),
+            confirmation_basis=str(trust_row.get("confidence") or "confirmed"),
+            priority=semantic.priority,
+            urgency=semantic.urgency,
+            visible_path="Current foothold -> trust edge -> higher-value identity",
+            insertion_point=escalation_mechanism,
+            path_concept="trust-expansion",
+            stronger_outcome=stronger_outcome,
+            why_care=why_care,
+            likely_impact=stronger_outcome,
+            confidence_boundary=confidence_boundary,
+            target_service="identity-trust",
+            target_resolution=target_resolution,
+            evidence_commands=["privesc", "role-trusts", "permissions"],
+            joined_surface_types=["current-foothold", "trust-edge"],
+            target_count=1,
+            target_ids=[str(trust_row.get("target_object_id") or "")],
+            target_names=[str(trust_row.get("target_name") or trust_row.get("target_object_id") or "")],
+            next_review=next_review,
+            summary=f"{confidence_boundary} {next_review}".strip(),
+            missing_confirmation=(
+                "AzureFox does not prove successful conversion of the visible trust-control path "
+                "into usable downstream identity access."
+            ),
+            related_ids=[str(value) for value in trust_row.get("related_ids") or [] if value],
+        )
+
+    return None
+
+
 def _normalize_reference_target(value: str) -> str:
     return str(value).strip().removeprefix("https://").strip("/").lower()
 
@@ -1583,6 +1834,24 @@ def _merge_related_ids(*groups: list[str]) -> list[str]:
                 seen.add(value)
                 merged.append(value)
     return merged
+
+
+def _permission_scope_text(permission_row: dict | None) -> str:
+    if not permission_row:
+        return "visible scope"
+    scope_count = int(permission_row.get("scope_count") or len(permission_row.get("scope_ids") or []) or 0)
+    if scope_count <= 1:
+        return "subscription-wide scope"
+    return f"{scope_count} visible scopes"
+
+
+def _permission_control_summary(permission_row: dict | None) -> str:
+    if not permission_row:
+        return "Potential stronger Azure control; exact privilege not yet confirmed"
+    roles = [str(role) for role in permission_row.get("high_impact_roles") or [] if role]
+    role_text = ", ".join(roles) or "high-impact roles"
+    scope_text = _permission_scope_text(permission_row)
+    return f"{role_text} across {scope_text}"
 
 
 def _chain_id(asset_id: str, setting_name: str, target_service: str) -> str:

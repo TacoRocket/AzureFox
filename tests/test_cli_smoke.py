@@ -131,7 +131,9 @@ def test_cli_smoke_chains_credential_path_table_output(tmp_path: Path) -> None:
     assert "high" in result.stdout
     assert "medium" in result.stdout
     assert "low" in result.stdout
-    assert "narrowed candidates" in result.stdout
+    normalized_output = " ".join(result.stdout.split())
+    assert "narrowed" in normalized_output
+    assert "candidates" in normalized_output
     assert "Takeaway: 3 visible credential paths" in result.stdout
 
 
@@ -227,6 +229,65 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
     aks_row = next(item for item in payload["paths"] if item["asset_name"] == "deploy-aks-prod")
     assert "permissions" in aks_row["evidence_commands"]
     assert "keyvault" in aks_row["evidence_commands"]
+
+
+def test_cli_smoke_chains_escalation_path_json(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "json", "chains", "escalation-path"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["metadata"]["command"] == "chains"
+    assert payload["family"] == "escalation-path"
+    assert payload["command_state"] == "extraction-only"
+    assert [item["command"] for item in payload["source_artifacts"]] == [
+        "privesc",
+        "permissions",
+        "role-trusts",
+    ]
+    assert len(payload["paths"]) == 1
+    row = payload["paths"][0]
+    assert row["asset_name"] == "azurefox-lab-sp (current foothold)"
+    assert row["path_concept"] == "current-foothold-direct-control"
+    assert row["priority"] == "high"
+    assert row["urgency"] == "pivot-now"
+    assert row["stronger_outcome"] == "Owner across subscription-wide scope"
+    assert row["target_resolution"] == "path-confirmed"
+    assert row["evidence_commands"] == ["privesc", "permissions"]
+    assert "not a speculative lead" in row["why_care"]
+    assert "already holds high-impact RBAC" in row["confidence_boundary"]
+
+
+def test_cli_smoke_chains_escalation_path_table_output(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "chains", "escalation-path"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    assert "azurefox chains" in result.stdout
+    assert "starting foothold" in result.stdout
+    assert "path type" in result.stdout
+    assert "stronger outcome" in result.stdout
+    assert "confidence boundary" in result.stdout
+    assert "why care" in result.stdout
+    normalized_output = " ".join(result.stdout.split())
+    assert "azurefox-lab-sp" in normalized_output
+    assert "(current" in normalized_output
+    assert "foothold)" in normalized_output
+    assert "current foothold direct control" in normalized_output
+    assert "Owner across" in normalized_output
+    assert "subscription-wide scope" in normalized_output
+    assert "pivot-now" in result.stdout
+    assert "Takeaway: 1 visible escalation paths" in result.stdout
 
 
 def test_cli_smoke_loot_keeps_top_ranked_targets_for_tokens_credentials(tmp_path: Path) -> None:

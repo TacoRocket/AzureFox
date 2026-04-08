@@ -12,7 +12,12 @@
   "trusts": [
     {
       "confidence": "confirmed",
+      "control_primitive": "existing-federated-credential",
+      "controlled_object_name": "build-app",
+      "controlled_object_type": "Application",
+      "defender_cut_point": "Remove or tighten the federated credential on application 'build-app'.",
       "evidence_type": "graph-federated-credential",
+      "escalation_mechanism": "Application 'build-app' already has federated trust that can yield service principal 'build-sp' access.",
       "next_review": "Check permissions for Azure control on service principal 'build-sp'.",
       "operator_signal": "Trust expansion visible; privilege confirmation next.",
       "related_ids": [
@@ -27,11 +32,17 @@
       "target_name": "build-sp",
       "target_object_id": "66666666-6666-6666-6666-666666666666",
       "target_type": "ServicePrincipal",
-      "trust_type": "federated-credential"
+      "trust_type": "federated-credential",
+      "usable_identity_result": "Federated sign-in can yield service principal 'build-sp' access."
     },
     {
       "confidence": "confirmed",
+      "control_primitive": "owner-control",
+      "controlled_object_name": "build-sp",
+      "controlled_object_type": "ServicePrincipal",
+      "defender_cut_point": "Remove the owner-level control path over service principal 'build-sp'.",
       "evidence_type": "graph-owner",
+      "escalation_mechanism": "Owner-level control over service principal 'build-sp' is visible, but the exact authentication-control transform is not yet explicit.",
       "next_review": "Review ownership around service principal 'build-sp', then confirm Azure control in permissions.",
       "operator_signal": "Indirect control visible; ownership review next.",
       "related_ids": [
@@ -45,11 +56,17 @@
       "target_name": "build-sp",
       "target_object_id": "66666666-6666-6666-6666-666666666666",
       "target_type": "ServicePrincipal",
-      "trust_type": "service-principal-owner"
+      "trust_type": "service-principal-owner",
+      "usable_identity_result": null
     },
     {
       "confidence": "confirmed",
+      "control_primitive": "change-auth-material",
+      "controlled_object_name": "build-app",
+      "controlled_object_type": "Application",
+      "defender_cut_point": "Remove the ownership path that lets the source control application 'build-app'.",
       "evidence_type": "graph-owner",
+      "escalation_mechanism": "Control of application 'build-app' could change authentication material that makes service principal 'build-sp' usable.",
       "next_review": "Review ownership around application 'build-app'; if it backs an Azure-facing identity, confirm that identity in permissions.",
       "operator_signal": "Indirect control visible; ownership review next.",
       "related_ids": [
@@ -63,11 +80,17 @@
       "target_name": "build-app",
       "target_object_id": "55555555-5555-5555-5555-555555555555",
       "target_type": "Application",
-      "trust_type": "app-owner"
+      "trust_type": "app-owner",
+      "usable_identity_result": "Control of application 'build-app' could make service principal 'build-sp' usable."
     },
     {
       "confidence": "confirmed",
+      "control_primitive": "existing-app-role-assignment",
+      "controlled_object_name": "Microsoft Graph",
+      "controlled_object_type": "ServicePrincipal",
+      "defender_cut_point": "Remove the app-role assignment path from service principal 'reporting-sp' to 'Microsoft Graph'.",
       "evidence_type": "graph-app-role-assignment",
+      "escalation_mechanism": "Service principal 'reporting-sp' already holds an application-permission path into service principal 'Microsoft Graph'.",
       "next_review": "Check permissions for Azure control on service principal 'reporting-sp'.",
       "operator_signal": "Indirect control visible; privilege confirmation next.",
       "related_ids": [
@@ -82,7 +105,8 @@
       "target_name": "Microsoft Graph",
       "target_object_id": "00000003-0000-0000-c000-000000000000",
       "target_type": "ServicePrincipal",
-      "trust_type": "app-to-service-principal"
+      "trust_type": "app-to-service-principal",
+      "usable_identity_result": "Service principal 'reporting-sp' already has application-permission reach to 'Microsoft Graph'."
     }
   ]
 }

@@ -245,6 +245,78 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
         ),
     ),
     ChainFamilySpec(
+        name="escalation-path",
+        meaning=(
+            "A current foothold, trust edge, or bounded support clue already suggests a stronger "
+            "identity or control path in Azure."
+        ),
+        summary=(
+            "Follow the strongest current-foothold escalation stories toward the next defended "
+            "identity or control step."
+        ),
+        allowed_claim=(
+            "Can claim that visible evidence suggests a current-foothold escalation story and can "
+            "name what stronger control or trust consequence is in view. Cannot claim exploit "
+            "success or multi-hop control without deeper evidence."
+        ),
+        current_gap=(
+            "The grouped runner still needs exact trust-to-control transformation data so "
+            "trust-backed rows can explain how the current foothold could actually become or "
+            "control the stronger identity instead of re-listing relationship-only leads."
+        ),
+        best_current_examples=(
+            "privesc -> permissions",
+            "privesc -> role-trusts -> permissions",
+        ),
+        source_commands=(
+            ChainSourceSpec(
+                command="privesc",
+                minimum_fields=(
+                    "starting_foothold",
+                    "principal_id",
+                    "path_type",
+                    "current_identity",
+                    "proven_path",
+                    "missing_proof",
+                    "next_review",
+                ),
+                rationale=(
+                    "Provides the current-foothold escalation triage rows that the chain family "
+                    "can harden into a defended path story."
+                ),
+            ),
+            ChainSourceSpec(
+                command="permissions",
+                minimum_fields=(
+                    "principal_id",
+                    "display_name",
+                    "high_impact_roles",
+                    "scope_count",
+                    "scope_ids",
+                    "privileged",
+                ),
+                rationale=(
+                    "Provides the visible Azure control power behind the current foothold or "
+                    "linked identity."
+                ),
+            ),
+            ChainSourceSpec(
+                command="role-trusts",
+                minimum_fields=(
+                    "trust_type",
+                    "source_object_id",
+                    "target_object_id",
+                    "confidence",
+                    "summary",
+                ),
+                rationale=(
+                    "Provides trust edges that can widen a current-foothold path into stronger "
+                    "identity control when that edge is actually connected."
+                ),
+            ),
+        ),
+    ),
+    ChainFamilySpec(
         name="workload-identity-path",
         meaning=(
             "A workload identity, managed identity, service principal, or trusted application "
