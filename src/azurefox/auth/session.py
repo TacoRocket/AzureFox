@@ -22,7 +22,11 @@ class AuthSession:
 def build_auth_session(tenant_id: str | None) -> AuthSession:
     try:
         from azure.core.exceptions import ClientAuthenticationError
-        from azure.identity import AzureCliCredential, CredentialUnavailableError, EnvironmentCredential
+        from azure.identity import (
+            AzureCliCredential,
+            CredentialUnavailableError,
+            EnvironmentCredential,
+        )
     except ImportError as exc:  # pragma: no cover - dependency surface
         raise AzureFoxError(
             ErrorKind.DEPENDENCY_MISSING,

@@ -16,7 +16,6 @@ from azurefox.models.common import OutputMode, RoleTrustsMode
 from azurefox.output.style import (
     emit_artifact_paths,
     emit_command_intro,
-    emit_command_status,
     emit_context_banner,
 )
 from azurefox.output.writer import emit_output

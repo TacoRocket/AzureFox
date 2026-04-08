@@ -368,7 +368,8 @@ def test_cli_smoke_csv_row_mapping_for_inventory_style_commands(tmp_path: Path) 
         csv_path = tmp_path / "csv" / f"{command}.csv"
         rows = list(csv.DictReader(csv_path.read_text(encoding="utf-8").splitlines()))
         assert len(rows) == expected_rows
-        assert rows[0].get("name") == expected_first_name or rows[0].get("asset_name") == expected_first_name
+        first_name = rows[0].get("name") or rows[0].get("asset_name")
+        assert first_name == expected_first_name
 
 
 def test_cli_smoke_role_trusts_full_mode(tmp_path: Path) -> None:
