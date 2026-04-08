@@ -61,9 +61,14 @@ from azurefox.permissions_hints import (
     permissions_summary,
 )
 from azurefox.role_trust_hints import (
+    role_trust_control_primitive,
+    role_trust_controlled_object,
+    role_trust_defender_cut_point,
+    role_trust_escalation_mechanism,
     role_trust_next_review_hint,
     role_trust_operator_signal,
     role_trust_summary,
+    role_trust_usable_identity_result,
 )
 
 
@@ -1253,6 +1258,19 @@ def _enrich_permission_rows(permissions: list[dict], principals: list[dict]) -> 
 
 def _enrich_role_trust_rows(trusts: list[dict]) -> list[dict]:
     enriched: list[dict] = []
+    backing_service_principal_by_application_id: dict[str, str] = {}
+
+    for trust in trusts:
+        if (
+            str(trust.get("trust_type") or "") == "federated-credential"
+            and str(trust.get("source_type") or "") == "Application"
+            and str(trust.get("target_type") or "") == "ServicePrincipal"
+            and trust.get("source_object_id")
+            and trust.get("target_name")
+        ):
+            backing_service_principal_by_application_id[str(trust["source_object_id"])] = str(
+                trust["target_name"]
+            )
 
     for trust in trusts:
         item = dict(trust)
@@ -1260,6 +1278,45 @@ def _enrich_role_trust_rows(trusts: list[dict]) -> list[dict]:
         source_name = item.get("source_name")
         target_name = item.get("target_name")
         summary = str(item.get("summary") or "")
+        target_type = str(item.get("target_type") or "identity")
+        source_type = str(item.get("source_type") or "identity")
+        backing_service_principal_name = backing_service_principal_by_application_id.get(
+            str(item.get("target_object_id") or "")
+        )
+
+        controlled_object_type, controlled_object_name = role_trust_controlled_object(
+            trust_type=trust_type,
+            source_name=source_name,
+            source_type=source_type,
+            target_name=target_name,
+            target_type=target_type,
+        )
+        item["control_primitive"] = role_trust_control_primitive(
+            trust_type=trust_type,
+            target_type=target_type,
+        )
+        item["controlled_object_type"] = controlled_object_type
+        item["controlled_object_name"] = controlled_object_name
+        item["escalation_mechanism"] = role_trust_escalation_mechanism(
+            trust_type=trust_type,
+            source_name=source_name,
+            target_name=target_name,
+            target_type=target_type,
+            backing_service_principal_name=backing_service_principal_name,
+        )
+        item["usable_identity_result"] = role_trust_usable_identity_result(
+            trust_type=trust_type,
+            source_name=source_name,
+            target_name=target_name,
+            target_type=target_type,
+            backing_service_principal_name=backing_service_principal_name,
+        )
+        item["defender_cut_point"] = role_trust_defender_cut_point(
+            trust_type=trust_type,
+            source_name=source_name,
+            target_name=target_name,
+            target_type=target_type,
+        )
 
         item["operator_signal"] = role_trust_operator_signal(
             trust_type=trust_type,

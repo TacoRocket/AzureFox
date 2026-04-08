@@ -20,6 +20,7 @@ from azurefox.models.common import (
     KeyVaultAsset,
     ManagedIdentity,
     PermissionSummary,
+    PrivescPathSummary,
     RoleTrustSummary,
     StorageAsset,
     TokenCredentialSurfaceSummary,
@@ -38,6 +39,7 @@ COMMAND_MODEL_FIELDS = {
     "keyvault": set(KeyVaultAsset.model_fields),
     "managed-identities": set(ManagedIdentity.model_fields),
     "permissions": set(PermissionSummary.model_fields),
+    "privesc": set(PrivescPathSummary.model_fields),
     "role-trusts": set(RoleTrustSummary.model_fields),
     "storage": set(StorageAsset.model_fields),
     "tokens-credentials": set(TokenCredentialSurfaceSummary.model_fields),
@@ -55,6 +57,7 @@ def test_chain_registry_keeps_first_family_order() -> None:
     assert chain_family_names() == (
         "credential-path",
         "deployment-path",
+        "escalation-path",
         "workload-identity-path",
     )
 

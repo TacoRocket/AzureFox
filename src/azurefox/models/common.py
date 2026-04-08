@@ -87,6 +87,7 @@ class PermissionSummary(BaseModel):
 
 
 class PrivescPathSummary(BaseModel):
+    starting_foothold: str | None = None
     principal: str
     principal_id: str
     principal_type: str
@@ -95,6 +96,10 @@ class PrivescPathSummary(BaseModel):
     impact_roles: list[str] = Field(default_factory=list)
     severity: str
     current_identity: bool = False
+    operator_signal: str | None = None
+    proven_path: str | None = None
+    missing_proof: str | None = None
+    next_review: str | None = None
     summary: str
     related_ids: list[str] = Field(default_factory=list)
 
@@ -109,6 +114,12 @@ class RoleTrustSummary(BaseModel):
     target_type: str
     evidence_type: str
     confidence: str
+    control_primitive: str | None = None
+    controlled_object_type: str | None = None
+    controlled_object_name: str | None = None
+    escalation_mechanism: str | None = None
+    usable_identity_result: str | None = None
+    defender_cut_point: str | None = None
     operator_signal: str | None = None
     next_review: str | None = None
     summary: str

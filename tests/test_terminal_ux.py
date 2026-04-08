@@ -526,8 +526,15 @@ def test_privesc_table_mode_surfaces_takeaway(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "Triage likely privilege-escalation and workload identity abuse paths." in result.stdout
-    assert "why it matters" in result.stdout
-    assert "Takeaway: 2 privilege-escalation paths surfaced" in result.stdout
+    assert "starting foothold" in result.stdout
+    assert "operator signal" in result.stdout
+    assert "proof boundary" in result.stdout
+    assert "next review" in result.stdout
+    assert "(current foothold)" in result.stdout
+    assert (
+        "Takeaway: 2 privilege-escalation paths surfaced; 1 current-identity-rooted"
+        in result.stdout
+    )
 
 
 def test_principals_table_mode_uses_curated_columns(tmp_path: Path) -> None:
@@ -701,17 +708,16 @@ def test_chains_table_mode_surfaces_priority_and_next_review(tmp_path: Path) -> 
     assert result.exit_code == 0
     normalized_output = " ".join(result.stdout.split())
     assert "priority" in result.stdout
+    assert "urgency" in result.stdout
     assert "next review" in result.stdout
     assert "note" in result.stdout
-    assert "Named target matched" in normalized_output
-    assert "visible inventory." in normalized_output
-    assert "Confirm the database" in normalized_output
-    assert "target from app config" in normalized_output
-    assert "or connection clues." in normalized_output
+    assert "review-soon" in normalized_output
+    assert "bookmark" in normalized_output
+    assert "func-orders" in result.stdout
+    assert "app-public-api" in result.stdout
+    assert "Check vault access" in normalized_output
+    assert "connection clues." in normalized_output
     assert "Secret-shaped clue" in normalized_output
-    assert "suggests a database" in normalized_output
-    assert "path; exact target" in normalized_output
-    assert "unconfirmed." in normalized_output
 
 
 def test_deployment_chains_table_mode_surfaces_source_oriented_columns(tmp_path: Path) -> None:
@@ -727,6 +733,7 @@ def test_deployment_chains_table_mode_surfaces_source_oriented_columns(tmp_path:
     assert "next review" in result.stdout
     assert "why care" in result.stdout
     assert "priority" in result.stdout
+    assert "urgency" in result.stdout
     assert "path type" in result.stdout
     assert "confidence boundary" in result.stdout
     assert "deploy-aks-prod" in result.stdout
@@ -735,6 +742,7 @@ def test_deployment_chains_table_mode_surfaces_source_oriented_columns(tmp_path:
     assert "plan-infra-prod" in result.stdout
     assert "aa-hybrid-prod" in result.stdout
     assert "aa-lab-quiet" in result.stdout
+    assert "pivot-now" in normalized_output
     assert "upstream producer control" in normalized_output
     assert "trusted input" in normalized_output
     assert "execution hub" in normalized_output
@@ -759,6 +767,35 @@ def test_deployment_chains_table_mode_renders_why_care_as_detail_rows(tmp_path: 
     assert "Current credentials can already poison that trusted input" in result.stdout
     assert "Current evidence only shows that the trusted input exists" in result.stdout
     assert len(detail_header_lines) == 6
+
+
+def test_escalation_chains_table_mode_renders_defended_current_foothold_story(
+    tmp_path: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "chains", "escalation-path"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    normalized_output = " ".join(result.stdout.split())
+    assert "azurefox chains" in result.stdout
+    assert "starting foothold" in result.stdout
+    assert "path type" in result.stdout
+    assert "stronger outcome" in result.stdout
+    assert "why care" in result.stdout
+    assert "azurefox-lab-sp" in normalized_output
+    assert "(current" in normalized_output
+    assert "foothold)" in normalized_output
+    assert "current foothold direct control" in normalized_output
+    assert "Owner across" in normalized_output
+    assert "subscription-wide scope" in normalized_output
+    assert (
+        "The current foothold already sits on subscription-wide scope high-impact Azure control"
+        in normalized_output
+    )
+    assert "Takeaway: 1 visible escalation paths; 1 high, 1 pivot-now" in result.stdout
 
 
 def test_auth_policies_partial_read_surfaces_collection_issue() -> None:

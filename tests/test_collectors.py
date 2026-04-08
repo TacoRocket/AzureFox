@@ -3082,7 +3082,25 @@ def test_collect_privesc(fixture_provider, options) -> None:
     output = collect_privesc(fixture_provider, options)
     assert len(output.paths) == 2
     assert output.paths[0].path_type == "direct-role-abuse"
+    assert output.paths[0].starting_foothold == "azurefox-lab-sp (current foothold)"
+    assert output.paths[0].operator_signal == "Current foothold already has direct control."
+    assert (
+        output.paths[0].next_review
+        == (
+            "Check rbac for the exact assignment evidence and scope behind this "
+            "current-identity escalation lead."
+        )
+    )
     assert output.paths[1].asset == "vm-web-01"
+    assert output.paths[1].starting_foothold == "azurefox-lab-sp (current foothold)"
+    assert (
+        output.paths[1].operator_signal
+        == "Visible ingress-backed lead; not yet rooted in current foothold."
+    )
+    assert (
+        output.paths[1].missing_proof
+        == "AzureFox does not prove control of the workload or successful token use from it."
+    )
 
 
 def test_privesc_sort_key_prioritizes_severity_then_current_identity_then_path_type() -> None:
@@ -3137,6 +3155,31 @@ def test_collect_role_trusts(fixture_provider, options) -> None:
     assert output.trusts[1].next_review == (
         "Review ownership around service principal 'build-sp', then confirm "
         "Azure control in permissions."
+    )
+    assert output.trusts[0].control_primitive == "existing-federated-credential"
+    assert output.trusts[0].controlled_object_type == "Application"
+    assert output.trusts[0].controlled_object_name == "build-app"
+    assert output.trusts[0].usable_identity_result == (
+        "Federated sign-in can yield service principal 'build-sp' access."
+    )
+    assert output.trusts[0].defender_cut_point == (
+        "Remove or tighten the federated credential on application 'build-app'."
+    )
+    assert output.trusts[1].control_primitive == "owner-control"
+    assert output.trusts[1].controlled_object_type == "ServicePrincipal"
+    assert output.trusts[1].controlled_object_name == "build-sp"
+    assert output.trusts[1].usable_identity_result is None
+    assert "authentication-control transform is not yet explicit" in (
+        output.trusts[1].escalation_mechanism or ""
+    )
+    assert output.trusts[2].control_primitive == "change-auth-material"
+    assert output.trusts[2].controlled_object_type == "Application"
+    assert output.trusts[2].controlled_object_name == "build-app"
+    assert output.trusts[2].usable_identity_result == (
+        "Control of application 'build-app' could make service principal 'build-sp' usable."
+    )
+    assert output.trusts[2].defender_cut_point == (
+        "Remove the ownership path that lets the source control application 'build-app'."
     )
 
 
@@ -3281,6 +3324,15 @@ def test_collect_role_trusts_full_mode_surfaces_extra_application_edges(options)
     assert len(full_output.trusts) == 6
     assert not any(item.target_name == "orphan-build-app" for item in fast_output.trusts)
     assert any(item.target_name == "orphan-build-app" for item in full_output.trusts)
+    orphan_owner = next(
+        item
+        for item in full_output.trusts
+        if item.target_name == "orphan-build-app" and item.trust_type == "app-owner"
+    )
+    assert orphan_owner.control_primitive == "change-auth-material"
+    assert orphan_owner.controlled_object_type == "Application"
+    assert orphan_owner.controlled_object_name == "orphan-build-app"
+    assert orphan_owner.usable_identity_result is None
 
 
 def test_collect_managed_identities(fixture_provider, options) -> None:

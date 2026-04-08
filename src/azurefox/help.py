@@ -665,21 +665,25 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
     "privesc": CommandHelpTopic(
         name="privesc",
         section="identity",
-        summary="Surface likely Azure privilege-escalation and role-abuse paths first.",
+        summary=(
+            "Triage current-identity escalation leads and visible control-expansion paths first."
+        ),
         offensive_question=(
-            "Which Azure identity paths look most likely to produce privileged "
-            "control if an operator or attacker can act on them?"
+            "Which escalation leads are rooted in my current identity, which are only visible "
+            "leads, and what validating command should I open next?"
         ),
         cloudfox_frame=(
             "Azure analogue to CloudFox privesc/cape triage, with emphasis on "
-            "RBAC abuse and workload identity pivots."
+            "RBAC abuse and workload identity pivots while separating current-identity-rooted "
+            "paths from visible-only leads."
         ),
         output_highlights=(
+            "starting_foothold",
             "path_type",
-            "asset",
-            "impact_roles",
-            "severity",
-            "current_identity",
+            "operator_signal",
+            "proven_path",
+            "missing_proof",
+            "next_review",
         ),
         attack_leads=(
             AttackLead("Privilege Escalation", "Account Manipulation: Additional Cloud Roles"),
@@ -698,17 +702,22 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
     "role-trusts": CommandHelpTopic(
         name="role-trusts",
         section="identity",
-        summary="Triage Azure app and service-principal trust edges worth abuse review.",
+        summary=(
+            "Triage Azure app and service-principal trust edges worth abuse review before exact "
+            "identity-control transforms are proven."
+        ),
         offensive_question=(
-            "Which Azure app, service-principal, ownership, and federated relationships create "
-            "trust paths I should review first?"
+            "Which Azure app, service-principal, ownership, and federated relationships deserve "
+            "review first, and which of them look closest to a real identity-control transform?"
         ),
         cloudfox_frame=(
             "Azure-native trust-edge triage across readable app registrations, service "
             "principals, federated credentials, ownership, and app-role assignments rather "
             "than delegated or admin consent grants. Fast mode is the default; full mode is "
             "the explicit slower tenant-wide application sweep that performs per-application "
-            "owner and federated credential lookups."
+            "owner and federated credential lookups. This command is still relationship-first "
+            "triage; chain families should only promote rows once the identity-control "
+            "mechanism is explicit."
         ),
         output_highlights=(
             "trust_type",
@@ -1104,7 +1113,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         section="orchestration",
         summary=(
             "Grouped family runner for higher-value preset paths, with credential-path "
-            "and deployment-path available now."
+            "deployment-path, and escalation-path available now."
         ),
         offensive_question=(
             "Which grouped Azure path should I run end to end when I want the value-added "
@@ -1113,8 +1122,12 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         cloudfox_frame=(
             "AzureFox orchestration layer for targeted grouped runs that are meant to replace "
             "broad all-checks section sweeps with narrower, operator-first presets. Current "
-            "state: credential-path and deployment-path are exposed now with conservative "
-            "extraction-first joins; workload-identity-path remains planned."
+            "state: credential-path, deployment-path, and escalation-path are exposed now with "
+            "conservative extraction-first joins; escalation-path currently ships only rows "
+            "where the transform from current foothold to stronger control is explicit. "
+            "workload-identity-path remains planned as a source-story-first family for direct "
+            "token opportunity, local identity leverage, trust expansion, and visibility-blocked "
+            "rows."
         ),
         output_highlights=(
             "family selectors",

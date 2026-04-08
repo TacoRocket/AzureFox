@@ -51,10 +51,13 @@ class ChainPathRecord(BaseModel):
     clue_type: str
     confirmation_basis: str | None = None
     priority: str
+    urgency: str | None = None
     visible_path: str
+    insertion_point: str | None = None
     path_concept: str | None = None
     primary_injection_surface: str | None = None
     primary_trusted_input_ref: str | None = None
+    stronger_outcome: str | None = None
     why_care: str | None = None
     likely_impact: str | None = None
     confidence_boundary: str | None = None

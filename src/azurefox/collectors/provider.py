@@ -32,6 +32,13 @@ from azurefox.models.common import (
     ScopeRef,
     is_private_network_prefix,
 )
+from azurefox.privesc_hints import (
+    privesc_missing_proof,
+    privesc_next_review_hint,
+    privesc_operator_signal,
+    privesc_proven_path,
+    privesc_summary,
+)
 from azurefox.tokens_credential_hints import tokens_credential_next_review_hint
 
 _DNS_RESOURCE_API_VERSION = {
@@ -1718,6 +1725,14 @@ class AzureProvider(BaseProvider):
             item.get("id"): item for item in vms_data.get("vm_assets", []) if item.get("id")
         }
         paths: list[dict] = []
+        current_foothold_label = next(
+            (
+                item.get("display_name") or item.get("id")
+                for item in principals_data.get("principals", [])
+                if item.get("is_current_identity")
+            ),
+            None,
+        )
 
         for permission in permissions_data.get("permissions", []):
             if not permission.get("privileged"):
@@ -1729,6 +1744,31 @@ class AzureProvider(BaseProvider):
             impact_roles = permission.get("high_impact_roles", [])
             principal_id = permission.get("principal_id", "unknown")
             related_ids = [principal_id, *permission.get("scope_ids", [])]
+            current_identity = permission.get("is_current_identity", False)
+            starting_foothold = _privesc_starting_foothold(
+                current_identity=current_identity,
+                principal_name=principal_name,
+                current_foothold_label=current_foothold_label,
+            )
+            operator_signal = privesc_operator_signal(
+                path_type="direct-role-abuse",
+                current_identity=current_identity,
+            )
+            proven_path = privesc_proven_path(
+                principal_name=principal_name,
+                path_type="direct-role-abuse",
+                asset_name=None,
+                impact_roles=impact_roles,
+                current_identity=current_identity,
+            )
+            missing_proof = privesc_missing_proof(
+                path_type="direct-role-abuse",
+                current_identity=current_identity,
+            )
+            next_review = privesc_next_review_hint(
+                path_type="direct-role-abuse",
+                current_identity=current_identity,
+            )
 
             paths.append(
                 {
@@ -1737,13 +1777,18 @@ class AzureProvider(BaseProvider):
                     "principal_type": permission.get("principal_type", "unknown"),
                     "path_type": "direct-role-abuse",
                     "asset": None,
+                    "starting_foothold": starting_foothold,
                     "impact_roles": impact_roles,
-                    "severity": "high" if permission.get("is_current_identity") else "medium",
-                    "current_identity": permission.get("is_current_identity", False),
-                    "summary": (
-                        f"Principal '{principal_name}' already holds high-impact role "
-                        f"assignments ({', '.join(impact_roles) or 'Unknown'}) in the "
-                        "current subscription scope."
+                    "severity": "high" if current_identity else "medium",
+                    "current_identity": current_identity,
+                    "operator_signal": operator_signal,
+                    "proven_path": proven_path,
+                    "missing_proof": missing_proof,
+                    "next_review": next_review,
+                    "summary": privesc_summary(
+                        proven_path=proven_path,
+                        missing_proof=missing_proof,
+                        next_review=next_review,
                     ),
                     "related_ids": related_ids,
                 }
@@ -1755,21 +1800,51 @@ class AzureProvider(BaseProvider):
                     if not vm_asset or not vm_asset.get("public_ips"):
                         continue
 
+                    identity_name = identity.get("name") or principal_name
+                    starting_foothold = _privesc_starting_foothold(
+                        current_identity=False,
+                        principal_name=identity_name,
+                        current_foothold_label=current_foothold_label,
+                    )
+                    operator_signal = privesc_operator_signal(
+                        path_type="public-identity-pivot",
+                        current_identity=False,
+                    )
+                    proven_path = privesc_proven_path(
+                        principal_name=identity_name,
+                        path_type="public-identity-pivot",
+                        asset_name=vm_asset.get("name") or attached_id,
+                        impact_roles=impact_roles,
+                        current_identity=False,
+                    )
+                    missing_proof = privesc_missing_proof(
+                        path_type="public-identity-pivot",
+                        current_identity=False,
+                    )
+                    next_review = privesc_next_review_hint(
+                        path_type="public-identity-pivot",
+                        current_identity=False,
+                    )
+
                     paths.append(
                         {
-                            "principal": identity.get("name") or principal_name,
+                            "principal": identity_name,
                             "principal_id": principal_id,
                             "principal_type": "ManagedIdentity",
                             "path_type": "public-identity-pivot",
                             "asset": vm_asset.get("name") or attached_id,
+                            "starting_foothold": starting_foothold,
                             "impact_roles": impact_roles,
                             "severity": "high",
                             "current_identity": False,
-                            "summary": (
-                                f"Public workload '{vm_asset.get('name') or attached_id}' carries "
-                                f"managed identity '{identity.get('name') or principal_name}' with "
-                                "high-impact role assignments "
-                                f"({', '.join(impact_roles) or 'Unknown'})."
+                            "operator_signal": operator_signal,
+                            "proven_path": proven_path,
+                            "missing_proof": missing_proof,
+                            "next_review": next_review,
+                            "summary": privesc_summary(
+                                proven_path=proven_path,
+                                missing_proof=missing_proof,
+                                next_review=next_review,
                             ),
                             "related_ids": [
                                 identity.get("id"),
@@ -4069,6 +4144,16 @@ def _privesc_sort_key(item: dict) -> tuple[int, bool, int, str, str]:
         str(item.get("principal") or ""),
         str(item.get("asset") or ""),
     )
+
+
+def _privesc_starting_foothold(
+    *, current_identity: bool, principal_name: str, current_foothold_label: str | None
+) -> str:
+    if current_identity:
+        return f"{principal_name} (current foothold)"
+    if current_foothold_label:
+        return f"{current_foothold_label} (current foothold)"
+    return "unknown current foothold"
 
 
 def _arm_id_join_key(resource_id: object | None) -> str | None:

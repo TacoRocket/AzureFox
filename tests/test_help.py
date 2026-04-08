@@ -312,8 +312,8 @@ def test_help_command_chains_topic_sets_planned_runtime_expectations() -> None:
     assert result.exit_code == 0
     assert "AzureFox Help :: chains" in result.stdout
     assert "implemented command" in result.stdout
-    assert "credential-path and deployment-path are exposed now" in result.stdout
-    assert "deployment-path are exposed now" in result.stdout
+    assert "credential-path, deployment-path, and escalation-path are exposed now" in result.stdout
+    assert "escalation-path" in result.stdout
     assert "workload-identity-path remains planned" in result.stdout
     assert "credential-path" in result.stdout
 
@@ -346,6 +346,10 @@ def test_help_command_privesc_topic() -> None:
     assert "AzureFox Help :: privesc" in result.stdout
     assert "Cloud Instance Metadata API" in result.stdout
     assert "workload identity pivots" in result.stdout
+    assert "starting_foothold" in result.stdout
+    assert "operator_signal" in result.stdout
+    assert "proven_path" in result.stdout
+    assert "next_review" in result.stdout
 
 
 def test_help_command_role_trusts_topic() -> None:
