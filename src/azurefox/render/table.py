@@ -616,7 +616,8 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                         "urgency": item.get("urgency") or "-",
                         "asset_name": item.get("asset_name"),
                         "path_concept": _escalation_path_type(item),
-                        "stronger_outcome": item.get("stronger_outcome") or item.get("likely_impact"),
+                        "stronger_outcome": item.get("stronger_outcome")
+                        or item.get("likely_impact"),
                         "confidence_boundary": item.get("confidence_boundary")
                         or _chains_note(item, family=family),
                         "next_review": item.get("next_review"),
@@ -715,7 +716,8 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             [
                 {
                     "severity": item.get("severity"),
-                    "starting_foothold": item.get("starting_foothold") or "unknown current foothold",
+                    "starting_foothold": item.get("starting_foothold")
+                    or "unknown current foothold",
                     "path_type": item.get("path_type"),
                     "target": _privesc_target(item),
                     "operator_signal": item.get("operator_signal"),

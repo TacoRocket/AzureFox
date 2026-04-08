@@ -36,7 +36,10 @@ def privesc_proven_path(
             f"({role_text}) on visible scope."
         )
 
-    return f"Principal '{principal_name}' already holds high-impact RBAC ({role_text}) on visible scope."
+    return (
+        f"Principal '{principal_name}' already holds high-impact RBAC "
+        f"({role_text}) on visible scope."
+    )
 
 
 def privesc_missing_proof(*, path_type: str, current_identity: bool) -> str:
@@ -44,19 +47,31 @@ def privesc_missing_proof(*, path_type: str, current_identity: bool) -> str:
         return "AzureFox does not prove control of the workload or successful token use from it."
 
     if current_identity:
-        return "AzureFox does not prove which exact abuse action is the best next step from this row alone."
+        return (
+            "AzureFox does not prove which exact abuse action is the best next step "
+            "from this row alone."
+        )
 
     return "AzureFox does not prove the current identity can act as or control this principal."
 
 
 def privesc_next_review_hint(*, path_type: str, current_identity: bool) -> str:
     if path_type == "public-identity-pivot":
-        return "Check managed-identities for the workload-to-identity anchor behind this ingress-backed lead."
+        return (
+            "Check managed-identities for the workload-to-identity anchor behind "
+            "this ingress-backed lead."
+        )
 
     if current_identity:
-        return "Check rbac for the exact assignment evidence and scope behind this current-identity escalation lead."
+        return (
+            "Check rbac for the exact assignment evidence and scope behind this "
+            "current-identity escalation lead."
+        )
 
-    return "Check role-trusts for paths that could let the current identity influence this privileged principal."
+    return (
+        "Check role-trusts for paths that could let the current identity influence "
+        "this privileged principal."
+    )
 
 
 def privesc_summary(*, proven_path: str, missing_proof: str, next_review: str) -> str:

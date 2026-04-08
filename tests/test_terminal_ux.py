@@ -531,7 +531,10 @@ def test_privesc_table_mode_surfaces_takeaway(tmp_path: Path) -> None:
     assert "proof boundary" in result.stdout
     assert "next review" in result.stdout
     assert "(current foothold)" in result.stdout
-    assert "Takeaway: 2 privilege-escalation paths surfaced; 1 current-identity-rooted" in result.stdout
+    assert (
+        "Takeaway: 2 privilege-escalation paths surfaced; 1 current-identity-rooted"
+        in result.stdout
+    )
 
 
 def test_principals_table_mode_uses_curated_columns(tmp_path: Path) -> None:

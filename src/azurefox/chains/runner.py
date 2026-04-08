@@ -485,13 +485,21 @@ def _build_escalation_path_output(
         ),
         None,
     )
-    current_foothold_id = str(current_foothold_row.get("principal_id")) if current_foothold_row else None
+    current_foothold_id = (
+        str(current_foothold_row.get("principal_id")) if current_foothold_row else None
+    )
 
     paths: list[ChainPathRecord] = []
     if current_foothold_row:
         permission = permissions_by_principal.get(current_foothold_id or "")
         if current_foothold_row.get("path_type") == "direct-role-abuse" and permission:
-            paths.append(_build_escalation_direct_control_record(family_name, current_foothold_row, permission))
+            paths.append(
+                _build_escalation_direct_control_record(
+                    family_name,
+                    current_foothold_row,
+                    permission,
+                )
+            )
         trust_row = _build_escalation_trust_record(
             family_name,
             current_foothold_row,
@@ -1738,7 +1746,9 @@ def _build_escalation_trust_record(
         if trust_row.get("source_object_id") != current_foothold_id:
             continue
 
-        target_permission = permissions_by_principal.get(str(trust_row.get("target_object_id") or ""))
+        target_permission = permissions_by_principal.get(
+            str(trust_row.get("target_object_id") or "")
+        )
         escalation_mechanism = str(trust_row.get("escalation_mechanism") or "").strip()
         usable_identity_result = str(trust_row.get("usable_identity_result") or "").strip()
         defender_cut_point = str(trust_row.get("defender_cut_point") or "").strip()
@@ -1783,7 +1793,9 @@ def _build_escalation_trust_record(
             ),
             asset_kind=str(privesc_row.get("principal_type") or "Principal"),
             source_command="role-trusts",
-            source_context=str(trust_row.get("source_name") or trust_row.get("source_object_id") or ""),
+            source_context=str(
+                trust_row.get("source_name") or trust_row.get("source_object_id") or ""
+            ),
             clue_type=str(trust_row.get("trust_type") or "trust-expansion"),
             confirmation_basis=str(trust_row.get("confidence") or "confirmed"),
             priority=semantic.priority,
@@ -1801,7 +1813,9 @@ def _build_escalation_trust_record(
             joined_surface_types=["current-foothold", "trust-edge"],
             target_count=1,
             target_ids=[str(trust_row.get("target_object_id") or "")],
-            target_names=[str(trust_row.get("target_name") or trust_row.get("target_object_id") or "")],
+            target_names=[
+                str(trust_row.get("target_name") or trust_row.get("target_object_id") or "")
+            ],
             next_review=next_review,
             summary=f"{confidence_boundary} {next_review}".strip(),
             missing_confirmation=(
@@ -1839,7 +1853,9 @@ def _merge_related_ids(*groups: list[str]) -> list[str]:
 def _permission_scope_text(permission_row: dict | None) -> str:
     if not permission_row:
         return "visible scope"
-    scope_count = int(permission_row.get("scope_count") or len(permission_row.get("scope_ids") or []) or 0)
+    scope_count = int(
+        permission_row.get("scope_count") or len(permission_row.get("scope_ids") or []) or 0
+    )
     if scope_count <= 1:
         return "subscription-wide scope"
     return f"{scope_count} visible scopes"

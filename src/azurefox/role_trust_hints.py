@@ -111,7 +111,10 @@ def role_trust_defender_cut_point(
     target_type: str,
 ) -> str | None:
     if trust_type == "app-owner" and target_name:
-        return f"Remove the ownership path that lets the source control application '{target_name}'."
+        return (
+            "Remove the ownership path that lets the source control application "
+            f"'{target_name}'."
+        )
 
     if trust_type == "service-principal-owner":
         return (

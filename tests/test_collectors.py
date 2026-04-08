@@ -3086,7 +3086,10 @@ def test_collect_privesc(fixture_provider, options) -> None:
     assert output.paths[0].operator_signal == "Current foothold already has direct control."
     assert (
         output.paths[0].next_review
-        == "Check rbac for the exact assignment evidence and scope behind this current-identity escalation lead."
+        == (
+            "Check rbac for the exact assignment evidence and scope behind this "
+            "current-identity escalation lead."
+        )
     )
     assert output.paths[1].asset == "vm-web-01"
     assert output.paths[1].starting_foothold == "azurefox-lab-sp (current foothold)"

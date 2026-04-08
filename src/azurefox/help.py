@@ -665,7 +665,9 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
     "privesc": CommandHelpTopic(
         name="privesc",
         section="identity",
-        summary="Triage current-identity escalation leads and visible control-expansion paths first.",
+        summary=(
+            "Triage current-identity escalation leads and visible control-expansion paths first."
+        ),
         offensive_question=(
             "Which escalation leads are rooted in my current identity, which are only visible "
             "leads, and what validating command should I open next?"
