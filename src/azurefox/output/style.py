@@ -98,8 +98,7 @@ COMMAND_NARRATION = {
         "frontend network cues."
     ),
     "chains": (
-        "Correlating the first grouped chain family from emitted command artifacts and "
-        "conservative cross-command joins."
+        "Correlating grouped chain evidence with conservative cross-command joins."
     ),
 }
 

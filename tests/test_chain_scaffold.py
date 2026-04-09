@@ -6,6 +6,8 @@ from azurefox.chains.registry import (
     PREFERRED_ARTIFACT_ORDER,
     chain_family_names,
     get_chain_family_spec,
+    implemented_chain_family_names,
+    is_implemented_chain_family,
 )
 from azurefox.chains.scaffold import build_chains_scaffold_output
 from azurefox.models.common import (
@@ -62,6 +64,16 @@ def test_chain_registry_keeps_first_family_order() -> None:
     )
 
 
+def test_chain_registry_implemented_state_drives_runnable_families() -> None:
+    assert implemented_chain_family_names() == (
+        "credential-path",
+        "deployment-path",
+        "escalation-path",
+    )
+    assert is_implemented_chain_family("credential-path") is True
+    assert is_implemented_chain_family("workload-identity-path") is False
+
+
 def test_chain_registry_scaffold_fields_exist_on_backing_models() -> None:
     for family_name in chain_family_names():
         family = get_chain_family_spec(family_name)
@@ -81,10 +93,19 @@ def test_build_chains_scaffold_output_returns_selected_family_only() -> None:
     assert output.selected_family == "credential-path"
     assert len(output.families) == 1
     assert output.families[0].family == "credential-path"
+    assert output.families[0].state == "implemented"
     assert output.families[0].best_current_examples == [
         "env-vars -> tokens-credentials -> databases",
         "env-vars -> tokens-credentials -> storage",
     ]
+
+
+def test_build_chains_scaffold_output_marks_planned_family_state() -> None:
+    output = build_chains_scaffold_output("workload-identity-path")
+
+    assert len(output.families) == 1
+    assert output.families[0].family == "workload-identity-path"
+    assert output.families[0].state == "planned"
 
 
 def test_build_chains_scaffold_output_raises_for_unknown_family() -> None:

@@ -110,7 +110,7 @@ def _write_loot(command: str, payload: dict, loot_dir: Path) -> None:
 
 def _build_loot_payload(command: str, payload: dict) -> dict:
     loot_payload: dict = {}
-    primary_key = PRIMARY_COLLECTION_KEYS.get(command)
+    primary_key = _primary_collection_key(command, payload)
     truncated_source_count: int | None = None
 
     for key, value in payload.items():
@@ -161,7 +161,7 @@ def _write_text(command: str, content: str, outdir: Path, *, suffix: str) -> Pat
 
 
 def _to_csv(command: str, payload: dict) -> str:
-    key = PRIMARY_COLLECTION_KEYS.get(command)
+    key = _primary_collection_key(command, payload)
     if key is None:
         rows = [_flatten_single(command, payload)]
     else:
@@ -177,6 +177,12 @@ def _to_csv(command: str, payload: dict) -> str:
     for row in rows:
         writer.writerow(row)
     return "".join(out)
+
+
+def _primary_collection_key(command: str, payload: dict) -> str | None:
+    if command == "chains" and isinstance(payload.get("families"), list):
+        return "families"
+    return PRIMARY_COLLECTION_KEYS.get(command)
 
 
 def _flatten_single(command: str, payload: dict) -> dict:

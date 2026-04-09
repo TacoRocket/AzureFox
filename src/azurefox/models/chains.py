@@ -13,6 +13,7 @@ class ChainSourceDescriptor(BaseModel):
 
 class ChainFamilyDescriptor(BaseModel):
     family: str
+    state: str
     meaning: str
     summary: str
     allowed_claim: str

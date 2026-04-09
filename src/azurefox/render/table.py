@@ -19,6 +19,8 @@ def render_table(command: str, payload: dict) -> str:
 
     if command == "devops":
         _render_devops_table(console, payload)
+    elif command == "chains" and payload.get("families"):
+        _render_chains_overview_table(console, payload)
     elif command == "chains" and str(payload.get("family") or "") == "deployment-path":
         _render_deployment_path_table(console, payload)
     elif command == "chains" and str(payload.get("family") or "") == "escalation-path":
@@ -96,34 +98,22 @@ def _render_devops_table(console: Console, payload: dict) -> None:
 
 
 def _render_deployment_path_table(console: Console, payload: dict) -> None:
-    columns, records = _table_spec("chains", payload)
-    display_columns = [item for item in columns if item[0] != "why_care"]
-
-    if not records:
-        table = Table(title="azurefox chains")
-        table.add_column("info")
-        table.add_row("No records")
-        console.print(table)
-        return
-
-    for index, record in enumerate(records):
-        table = Table(title="azurefox chains" if index == 0 else None)
-        for _key, label in display_columns:
-            table.add_column(label)
-        table.add_row(*[_value_to_string(record.get(key)) for key, _ in display_columns])
-        console.print(table)
-        if record.get("why_care"):
-            detail = Table(expand=True)
-            detail.add_column("why care")
-            detail.add_row(_value_to_string(record.get("why_care")))
-            console.print(detail)
-        if index != len(records) - 1:
-            console.print("")
+    _render_chains_path_table(console, payload)
 
 
 def _render_escalation_path_table(console: Console, payload: dict) -> None:
+    _render_chains_path_table(console, payload)
+
+
+def _render_chains_path_table(
+    console: Console,
+    payload: dict,
+    *,
+    detail_key: str = "why_care",
+    detail_label: str = "why care",
+) -> None:
     columns, records = _table_spec("chains", payload)
-    display_columns = [item for item in columns if item[0] != "why_care"]
+    display_columns = [item for item in columns if item[0] != detail_key]
 
     if not records:
         table = Table(title="azurefox chains")
@@ -138,13 +128,30 @@ def _render_escalation_path_table(console: Console, payload: dict) -> None:
             table.add_column(label)
         table.add_row(*[_value_to_string(record.get(key)) for key, _ in display_columns])
         console.print(table)
-        if record.get("why_care"):
+        if record.get(detail_key):
             detail = Table(expand=True)
-            detail.add_column("why care")
-            detail.add_row(_value_to_string(record.get("why_care")))
+            detail.add_column(detail_label)
+            detail.add_row(_value_to_string(record.get(detail_key)))
             console.print(detail)
         if index != len(records) - 1:
             console.print("")
+
+
+def _render_chains_overview_table(console: Console, payload: dict) -> None:
+    columns, records = _table_spec("chains", payload)
+    table = Table(title="azurefox chains")
+
+    if not records:
+        table.add_column("info")
+        table.add_row("No records")
+        console.print(table)
+        return
+
+    for _key, label in columns:
+        table.add_column(label)
+    for record in records:
+        table.add_row(*[_value_to_string(record.get(key)) for key, _ in columns])
+    console.print(table)
 
 
 def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], list[dict]]:
@@ -561,6 +568,30 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
         )
 
     if command == "chains":
+        if payload.get("families"):
+            return (
+                [
+                    ("family", "family"),
+                    ("state", "state"),
+                    ("summary", "summary"),
+                    ("examples", "best examples"),
+                    ("backing_commands", "backing commands"),
+                ],
+                [
+                    {
+                        "family": item.get("family"),
+                        "state": item.get("state"),
+                        "summary": item.get("summary"),
+                        "examples": ", ".join(item.get("best_current_examples") or []),
+                        "backing_commands": ", ".join(
+                            source.get("command")
+                            for source in item.get("source_commands", [])
+                            if source.get("command")
+                        ),
+                    }
+                    for item in payload.get("families", [])
+                ],
+            )
         family = str(payload.get("family") or "")
         if family == "deployment-path":
             return (
@@ -1641,6 +1672,17 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         )
 
     if command == "chains":
+        if payload.get("families"):
+            families = payload.get("families", [])
+            states = Counter(item.get("state") or "unknown" for item in families)
+            state_order = ("implemented", "planned", "unknown")
+            state_counts = ", ".join(
+                f"{states[name]} {name}" for name in state_order if states.get(name)
+            )
+            return (
+                f"{len(families)} chain families listed; "
+                f"{state_counts or 'no recorded family states'}."
+            )
         paths = payload.get("paths", [])
         priorities = Counter(item.get("priority") or "unknown" for item in paths)
         urgencies = Counter(item.get("urgency") or "unknown" for item in paths)

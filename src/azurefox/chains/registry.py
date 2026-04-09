@@ -17,6 +17,7 @@ class ChainSourceSpec:
 @dataclass(frozen=True, slots=True)
 class ChainFamilySpec:
     name: str
+    state: str
     meaning: str
     summary: str
     allowed_claim: str
@@ -28,6 +29,7 @@ class ChainFamilySpec:
 CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
     ChainFamilySpec(
         name="credential-path",
+        state="implemented",
         meaning=(
             "A workload, configuration surface, artifact, or nearby service exposes a usable or "
             "near-usable credential path toward a downstream target."
@@ -42,8 +44,8 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
             "is confirmed without deeper source evidence."
         ),
         current_gap=(
-            "Grouped extraction and cross-command joins still need to be wired so the user does "
-            "not have to stitch the path together manually."
+            "The live family now joins backing evidence in one run, but it still needs periodic "
+            "review so rows that only restate a source clue do not survive as fake grouped value."
         ),
         best_current_examples=(
             "env-vars -> tokens-credentials -> databases",
@@ -128,6 +130,7 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
     ),
     ChainFamilySpec(
         name="deployment-path",
+        state="implemented",
         meaning=(
             "A supply-chain or automation source already looks capable of changing Azure state, "
             "redeploying workloads, or reintroducing access."
@@ -143,8 +146,9 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
             "deeper source evidence."
         ),
         current_gap=(
-            "The grouped runner still needs stronger source-side actionability data and better "
-            "joins between pipelines or automation hubs and the Azure resources they can influence."
+            "The live family still needs stronger source-side actionability proof and tighter "
+            "downstream target joins before every row reads like a defended change path instead of "
+            "review-heavy deployment context."
         ),
         best_current_examples=(
             "devops -> permissions -> arm-deployments",
@@ -246,6 +250,7 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
     ),
     ChainFamilySpec(
         name="escalation-path",
+        state="implemented",
         meaning=(
             "A current foothold, trust edge, or bounded support clue already suggests a stronger "
             "identity or control path in Azure."
@@ -318,6 +323,7 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
     ),
     ChainFamilySpec(
         name="workload-identity-path",
+        state="planned",
         meaning=(
             "A workload identity, managed identity, service principal, or trusted application "
             "relationship can already act in Azure or obtain stronger access."
@@ -423,6 +429,15 @@ def get_chain_family_specs() -> tuple[ChainFamilySpec, ...]:
 
 def chain_family_names() -> tuple[str, ...]:
     return tuple(spec.name for spec in CHAIN_FAMILIES)
+
+
+def implemented_chain_family_names() -> tuple[str, ...]:
+    return tuple(spec.name for spec in CHAIN_FAMILIES if spec.state == "implemented")
+
+
+def is_implemented_chain_family(name: str) -> bool:
+    spec = get_chain_family_spec(name)
+    return spec is not None and spec.state == "implemented"
 
 
 def get_chain_family_spec(name: str) -> ChainFamilySpec | None:

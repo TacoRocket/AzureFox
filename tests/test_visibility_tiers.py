@@ -12,6 +12,7 @@ import pytest
 
 from azurefox.collectors.commands import (
     collect_devops,
+    collect_env_vars,
     collect_functions,
     collect_managed_identities,
     collect_permissions,
@@ -31,6 +32,7 @@ FUNCTION_APP_ID = (
 )
 PRINCIPAL_ID = "33333333-3333-3333-3333-333333333333"
 PIPELINE_ID = "https://dev.azure.com/contoso/app-platform/_build?definitionId=27"
+KEY_VAULT_TARGET = "kv-orders.vault.azure.net/secrets/payment-api-key"
 
 TIER_ALIASES = {
     "high": "admin-like visibility",
@@ -245,6 +247,86 @@ def _function_app(**overrides) -> dict:
     return row
 
 
+def _env_var_row(**overrides) -> dict:
+    row = {
+        "asset_id": FUNCTION_APP_ID,
+        "asset_name": "func-orders",
+        "asset_kind": "FunctionApp",
+        "resource_group": "rg-apps",
+        "location": "eastus",
+        "workload_identity_type": "SystemAssigned, UserAssigned",
+        "workload_principal_id": PRINCIPAL_ID,
+        "workload_client_id": "dddd2222-2222-2222-2222-222222222222",
+        "workload_identity_ids": [IDENTITY_ID],
+        "key_vault_reference_identity": "SystemAssigned",
+        "setting_name": "PAYMENT_API_KEY",
+        "value_type": "keyvault-ref",
+        "looks_sensitive": True,
+        "reference_target": KEY_VAULT_TARGET,
+        "summary": (
+            "FunctionApp 'func-orders' maps setting 'PAYMENT_API_KEY' to Key Vault-backed "
+            "configuration via SystemAssigned identity."
+        ),
+        "related_ids": [FUNCTION_APP_ID, IDENTITY_ID],
+    }
+    row.update(overrides)
+    return row
+
+
+def _chain_path_row(**overrides) -> dict:
+    row = {
+        "chain_id": "credential-path-func-orders-payment-api-key",
+        "asset_id": FUNCTION_APP_ID,
+        "asset_name": "func-orders",
+        "asset_kind": "FunctionApp",
+        "location": "eastus",
+        "source_command": "env-vars",
+        "source_context": "Function App app settings",
+        "setting_name": "PAYMENT_API_KEY",
+        "clue_type": "keyvault-ref",
+        "confirmation_basis": "setting reference",
+        "priority": "high",
+        "urgency": "review-soon",
+        "visible_path": "Key Vault-backed setting -> secret path",
+        "target_service": "keyvault",
+        "target_resolution": "named match",
+        "evidence_commands": ["env-vars", "keyvault"],
+        "joined_surface_types": ["app-settings", "vault-reference"],
+        "target_count": 1,
+        "target_ids": [
+            "/subscriptions/test/resourceGroups/rg-secrets/providers/Microsoft.KeyVault/vaults/kv-orders"
+        ],
+        "target_names": ["kv-orders"],
+        "target_visibility_issue": None,
+        "next_review": "Check vault access path and referenced secret use.",
+        "summary": (
+            "FunctionApp 'func-orders' exposes a Key Vault-backed setting and the visible naming "
+            "matches a vault already visible in inventory."
+        ),
+        "missing_confirmation": "",
+        "related_ids": [FUNCTION_APP_ID],
+    }
+    row.update(overrides)
+    return row
+
+
+def _chains_payload(*, path: dict, issues: list[dict] | None = None) -> dict:
+    return {
+        "metadata": {"command": "chains"},
+        "grouped_command_name": "chains",
+        "family": "credential-path",
+        "input_mode": "live",
+        "command_state": "extraction-only",
+        "summary": "Visibility-tier test payload.",
+        "claim_boundary": "Only visible edges are shown.",
+        "artifact_preference_order": [],
+        "backing_commands": ["env-vars", "keyvault"],
+        "source_artifacts": [],
+        "paths": [path],
+        "issues": issues or [],
+    }
+
+
 class HighVisibilityProvider(_VisibilityTierProvider):
     def permissions(self) -> dict:
         return {"permissions": [_permission_row()], "issues": []}
@@ -267,6 +349,9 @@ class HighVisibilityProvider(_VisibilityTierProvider):
 
     def functions(self) -> dict:
         return {"function_apps": [_function_app()], "issues": []}
+
+    def env_vars(self) -> dict:
+        return {"env_vars": [_env_var_row()], "issues": []}
 
 
 class MediumVisibilityProvider(HighVisibilityProvider):
@@ -316,6 +401,27 @@ class MediumVisibilityProvider(HighVisibilityProvider):
                     "kind": "permission_denied",
                     "message": "functions[rg-apps/func-orders].app_settings: 403 Forbidden",
                     "context": {"collector": "functions[rg-apps/func-orders].app_settings"},
+                }
+            ],
+        }
+
+    def env_vars(self) -> dict:
+        return {
+            "env_vars": [
+                _env_var_row(
+                    reference_target=None,
+                    key_vault_reference_identity=None,
+                    summary=(
+                        "FunctionApp 'func-orders' still shows a Key Vault-backed setting path, "
+                        "but current credentials do not show the exact referenced secret."
+                    ),
+                )
+            ],
+            "issues": [
+                {
+                    "kind": "permission_denied",
+                    "message": "env_vars[rg-apps/func-orders].key_vault_reference: 403 Forbidden",
+                    "context": {"collector": "env_vars[rg-apps/func-orders].key_vault_reference"},
                 }
             ],
         }
@@ -417,6 +523,33 @@ class LowVisibilityProvider(MediumVisibilityProvider):
                     "message": "functions[rg-apps/func-orders].app_settings: 403 Forbidden",
                     "context": {"collector": "functions[rg-apps/func-orders].app_settings"},
                 },
+            ],
+        }
+
+    def env_vars(self) -> dict:
+        return {
+            "env_vars": [
+                _env_var_row(
+                    workload_identity_type=None,
+                    workload_principal_id=None,
+                    workload_client_id=None,
+                    workload_identity_ids=[],
+                    key_vault_reference_identity=None,
+                    value_type="unknown",
+                    reference_target=None,
+                    summary=(
+                        "FunctionApp 'func-orders' still exposes a sensitive setting name, but "
+                        "current credentials do not show whether the backing value is plain-text "
+                        "or Key Vault-backed."
+                    ),
+                )
+            ],
+            "issues": [
+                {
+                    "kind": "permission_denied",
+                    "message": "env_vars[rg-apps/func-orders].app_settings: 403 Forbidden",
+                    "context": {"collector": "env_vars[rg-apps/func-orders].app_settings"},
+                }
             ],
         }
 
@@ -592,3 +725,144 @@ def test_functions_visibility_tiers_keep_service_shell_visible(options) -> None:
     assert "func-orders" in low_rendered
     assert "Credential-scope issues:" in low_rendered
     assert "functions[rg-apps/func-orders].configuration" in low_rendered
+
+
+def test_env_vars_visibility_tiers_keep_next_review_honest(options) -> None:
+    high = collect_env_vars(HighVisibilityProvider(), options)
+    medium = collect_env_vars(MediumVisibilityProvider(), options)
+    low = collect_env_vars(LowVisibilityProvider(), options)
+
+    high_row = high.env_vars[0]
+    medium_row = medium.env_vars[0]
+    low_row = low.env_vars[0]
+
+    assert high_row.setting_name == medium_row.setting_name == low_row.setting_name == (
+        "PAYMENT_API_KEY"
+    )
+    assert high_row.asset_name == medium_row.asset_name == low_row.asset_name == "func-orders"
+    assert high_row.reference_target == KEY_VAULT_TARGET
+    assert medium_row.reference_target is None
+    assert low_row.reference_target is None
+    assert high_row.value_type == "keyvault-ref"
+    assert medium_row.value_type == "keyvault-ref"
+    assert low_row.value_type == "unknown"
+    assert high.issues == []
+    assert medium.issues[0].kind == "permission_denied"
+    assert low.issues[0].kind == "permission_denied"
+
+    high_rendered = " ".join(render_table("env-vars", high.model_dump(mode="json")).split())
+    medium_rendered = " ".join(render_table("env-vars", medium.model_dump(mode="json")).split())
+    low_rendered = " ".join(render_table("env-vars", low.model_dump(mode="json")).split())
+
+    assert KEY_VAULT_TARGET in high_rendered
+    assert "Check keyvault for the" in high_rendered
+    assert "referenced secret" in high_rendered
+    assert "managed-identities" in high_rendered
+
+    assert KEY_VAULT_TARGET not in medium_rendered
+    assert "keyvault-ref" in medium_rendered
+    assert "Check keyvault for the" in medium_rendered
+    assert "referenced secret" in medium_rendered
+    assert "managed-identities" in medium_rendered
+    assert "Credential-scope issues:" in medium_rendered
+    assert "env_vars[rg-apps/func-orders].key_vault_reference" in medium_rendered
+
+    assert "unknown" in low_rendered
+    assert "Review the workload config" in low_rendered
+    assert "deeper follow-up." in low_rendered
+    assert "Credential-scope issues:" in low_rendered
+    assert "env_vars[rg-apps/func-orders].app_settings" in low_rendered
+    assert "keyvault-ref" not in low_rendered
+
+
+def test_chains_visibility_tiers_avoid_fake_target_certainty() -> None:
+    high_rendered = " ".join(
+        render_table(
+            "chains",
+            _chains_payload(
+                path=_chain_path_row(),
+            ),
+        ).split()
+    )
+    medium_rendered = " ".join(
+        render_table(
+            "chains",
+            _chains_payload(
+                path=_chain_path_row(
+                    target_resolution="narrowed candidates",
+                    target_count=2,
+                    target_names=["kv-orders", "kv-shared"],
+                    next_review="Confirm the exact target before deeper follow-up.",
+                    summary=(
+                        "FunctionApp 'func-orders' still exposes a vault-backed setting, but the "
+                        "current view only narrows the likely vault set."
+                    ),
+                ),
+            ),
+        ).split()
+    )
+    low_rendered = " ".join(
+        render_table(
+            "chains",
+            _chains_payload(
+                path=_chain_path_row(
+                    target_resolution="visibility blocked",
+                    target_count=0,
+                    target_names=[],
+                    target_visibility_issue=(
+                        "permission_denied: keyvault.vaults: current credentials do not show "
+                        "enough vault visibility to choose a target"
+                    ),
+                    next_review="Restore keyvault visibility before choosing a target.",
+                    summary=(
+                        "FunctionApp 'func-orders' still exposes a vault-backed setting, but "
+                        "current credentials do not show enough target-side visibility to name "
+                        "the vault confidently."
+                    ),
+                ),
+                issues=[
+                    {
+                        "kind": "permission_denied",
+                        "message": (
+                            "keyvault.vaults: current credentials do not show enough vault "
+                            "visibility to choose a target"
+                        ),
+                        "context": {"collector": "keyvault.vaults"},
+                    }
+                ],
+            ),
+        ).split()
+    )
+
+    assert "func-orders" in high_rendered
+    assert "PAYMENT_API_KEY" in high_rendered
+    assert "named match" in high_rendered
+    assert "kv-orders" in high_rendered
+    assert "Named target matched" in high_rendered
+    assert "visible inventory." in high_rendered
+    assert "Check vault access path" in high_rendered
+    assert "referenced secret" in high_rendered
+    assert "use." in high_rendered
+
+    assert "func-orders" in medium_rendered
+    assert "PAYMENT_API_KEY" in medium_rendered
+    assert "narrowed candidates" in medium_rendered
+    assert "kv-orders,kv-shared" in medium_rendered
+    assert "Secret-shaped clue" in medium_rendered
+    assert "exact target" in medium_rendered
+    assert "unconfirmed." in medium_rendered
+    assert "Confirm the exact" in medium_rendered
+    assert "deeper" in medium_rendered
+    assert "follow-up." in medium_rendered
+
+    assert "func-orders" in low_rendered
+    assert "PAYMENT_API_KEY" in low_rendered
+    assert "visibility blocked" in low_rendered
+    assert "permission_denied: keyvault.vaults" in low_rendered
+    assert "blocked;" in low_rendered
+    assert "infer" in low_rendered
+    assert "target." in low_rendered
+    assert "Restore keyvault" in low_rendered
+    assert "choosing a target." in low_rendered
+    assert "Credential-scope issues:" in low_rendered
+    assert "kv-orders,kv-shared" not in low_rendered

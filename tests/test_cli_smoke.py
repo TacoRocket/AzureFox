@@ -11,6 +11,12 @@ from azurefox.cli import app
 runner = CliRunner()
 
 
+def _strip_artifact_lines(output: str) -> str:
+    return "\n".join(
+        line for line in output.splitlines() if not line.startswith("[chains] ")
+    ).strip()
+
+
 def test_cli_smoke_all_commands(tmp_path: Path) -> None:
     fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
 
@@ -84,7 +90,9 @@ def test_cli_smoke_chains_credential_path_json(tmp_path: Path) -> None:
     assert payload["metadata"]["command"] == "chains"
     assert payload["family"] == "credential-path"
     assert payload["command_state"] == "extraction-only"
-    assert [item["command"] for item in payload["source_artifacts"]] == [
+    assert payload["artifact_preference_order"] == []
+    assert payload["source_artifacts"] == []
+    assert payload["backing_commands"] == [
         "env-vars",
         "tokens-credentials",
         "databases",
@@ -181,7 +189,9 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
     assert payload["metadata"]["command"] == "chains"
     assert payload["family"] == "deployment-path"
     assert payload["command_state"] == "extraction-only"
-    assert [item["command"] for item in payload["source_artifacts"]] == [
+    assert payload["artifact_preference_order"] == []
+    assert payload["source_artifacts"] == []
+    assert payload["backing_commands"] == [
         "devops",
         "automation",
         "arm-deployments",
@@ -222,10 +232,6 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
     )
     assert automation_row["target_resolution"] == "visibility blocked"
     assert "run recurring Azure-facing execution" in automation_row["why_care"]
-    support_row = next(item for item in payload["paths"] if item["asset_name"] == "aa-lab-quiet")
-    assert support_row["priority"] == "low"
-    assert "Another foothold" in support_row["why_care"]
-    assert "target mapping is still missing" in support_row["next_review"]
     aks_row = next(item for item in payload["paths"] if item["asset_name"] == "deploy-aks-prod")
     assert "permissions" in aks_row["evidence_commands"]
     assert "keyvault" in aks_row["evidence_commands"]
@@ -245,7 +251,9 @@ def test_cli_smoke_chains_escalation_path_json(tmp_path: Path) -> None:
     assert payload["metadata"]["command"] == "chains"
     assert payload["family"] == "escalation-path"
     assert payload["command_state"] == "extraction-only"
-    assert [item["command"] for item in payload["source_artifacts"]] == [
+    assert payload["artifact_preference_order"] == []
+    assert payload["source_artifacts"] == []
+    assert payload["backing_commands"] == [
         "privesc",
         "permissions",
         "role-trusts",
@@ -288,6 +296,96 @@ def test_cli_smoke_chains_escalation_path_table_output(tmp_path: Path) -> None:
     assert "subscription-wide scope" in normalized_output
     assert "pivot-now" in result.stdout
     assert "Takeaway: 1 visible escalation paths" in result.stdout
+
+
+def test_cli_smoke_chains_overview_table_output(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "chains"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    assert "azurefox chains" in result.stdout
+    assert "credential-path" in result.stdout
+    assert "deployment-path" in result.stdout
+    assert "escalation-path" in result.stdout
+    assert "workload-identity-path" in result.stdout
+    assert "implemented" in result.stdout
+    assert "planned" in result.stdout
+    assert "backing commands" in result.stdout
+    assert "Takeaway: 4 chain families listed; 3 implemented, 1 planned." in result.stdout
+
+
+def test_cli_smoke_chains_help_matches_overview_json(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    overview = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "json", "chains"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+    help_view = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "json", "chains", "help"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert overview.exit_code == 0
+    assert help_view.exit_code == 0
+    overview_payload = json.loads(overview.stdout)
+    help_payload = json.loads(help_view.stdout)
+    overview_payload["metadata"]["generated_at"] = "<generated_at>"
+    help_payload["metadata"]["generated_at"] = "<generated_at>"
+    assert overview_payload == help_payload
+
+
+def test_cli_smoke_chains_overview_csv_output(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "csv", "chains"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    csv_path = tmp_path / "csv" / "chains.csv"
+    rows = list(csv.DictReader(csv_path.read_text(encoding="utf-8").splitlines()))
+    assert len(rows) == 4
+    assert {row["family"] for row in rows} == {
+        "credential-path",
+        "deployment-path",
+        "escalation-path",
+        "workload-identity-path",
+    }
+    assert {row["state"] for row in rows} == {"implemented", "planned"}
+
+
+def test_cli_smoke_chains_help_csv_matches_overview(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+    overview_dir = tmp_path / "overview"
+    help_dir = tmp_path / "help"
+
+    overview = runner.invoke(
+        app,
+        ["--outdir", str(overview_dir), "--output", "csv", "chains"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+    help_view = runner.invoke(
+        app,
+        ["--outdir", str(help_dir), "--output", "csv", "chains", "help"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert overview.exit_code == 0
+    overview_csv = (overview_dir / "csv" / "chains.csv").read_text(encoding="utf-8")
+    assert help_view.exit_code == 0
+    help_csv = (help_dir / "csv" / "chains.csv").read_text(encoding="utf-8")
+    assert _strip_artifact_lines(overview.stdout) == _strip_artifact_lines(help_view.stdout)
+    assert overview_csv == help_csv
 
 
 def test_cli_smoke_loot_keeps_top_ranked_targets_for_tokens_credentials(tmp_path: Path) -> None:
