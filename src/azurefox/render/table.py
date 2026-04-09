@@ -1957,6 +1957,10 @@ def _escalation_path_type(item: dict) -> str:
 def _chains_note(item: dict, *, family: str = "") -> str:
     resolution = str(item.get("target_resolution") or "")
     target_service = str(item.get("target_service") or "target")
+    confidence_boundary = str(item.get("confidence_boundary") or "").strip()
+
+    if family == "credential-path" and target_service == "keyvault" and confidence_boundary:
+        return confidence_boundary
 
     if resolution == "named match":
         return "Named target matched visible inventory."
@@ -1965,12 +1969,23 @@ def _chains_note(item: dict, *, family: str = "") -> str:
     if resolution == "narrowed candidates":
         if family == "deployment-path":
             return "Change-capable source narrows the next review set; exact target unconfirmed."
+        if family == "credential-path":
+            return (
+                f"This app exposes a secret-shaped setting that may reach {target_service}; "
+                "exact target still unconfirmed."
+            )
         return f"Secret-shaped clue suggests a {target_service} path; exact target unconfirmed."
     if resolution == "tenant-wide candidates":
+        if family == "credential-path":
+            return f"This app likely reaches {target_service}, but the target set is still broad."
         return f"{target_service} family is visible, but narrowing is still broad."
     if resolution == "service hint only":
+        if family == "credential-path":
+            return f"AzureFox sees a likely {target_service} path, but no target inventory yet."
         return f"{target_service} path is suggested, but no target inventory is visible."
     if resolution == "named target not visible":
+        if family == "credential-path":
+            return "This app names a Key Vault AzureFox cannot see in current inventory."
         return "The named target is not visible in current inventory."
     return item.get("summary") or "-"
 

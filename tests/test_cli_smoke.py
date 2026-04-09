@@ -105,6 +105,9 @@ def test_cli_smoke_chains_credential_path_json(tmp_path: Path) -> None:
     assert payload["paths"][0]["priority"] == "high"
     assert payload["paths"][0]["target_names"] == ["kvlabopen01"]
     assert "Check vault access path" in payload["paths"][0]["next_review"]
+    assert payload["paths"][0]["confidence_boundary"] == "Your current identity can read this secret."
+    assert "Your current identity can read that secret." in payload["paths"][0]["summary"]
+    assert payload["paths"][0]["missing_confirmation"] == ""
     assert payload["paths"][1]["target_service"] == "database"
     assert payload["paths"][1]["priority"] == "medium"
     assert payload["paths"][2]["target_service"] == "storage"
