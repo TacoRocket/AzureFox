@@ -7,7 +7,7 @@ full JSON contract.
 
 ## Schema Version
 
-- Current: `1.2.0`
+- Current: `1.3.0`
 
 ## Contract Rules
 
