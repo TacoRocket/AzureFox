@@ -549,6 +549,20 @@ class AzureProvider(BaseProvider):
     def automation(self) -> dict:
         issues: list[dict] = []
         automation_accounts: list[dict] = []
+        automation_subcollections = (
+            ("runbooks", ("runbook", "runbooks")),
+            ("schedules", ("schedule", "schedules")),
+            ("job_schedules", ("job_schedule", "job_schedules")),
+            ("webhooks", ("webhook", "webhooks")),
+            ("credentials", ("credential", "credentials")),
+            ("certificates", ("certificate", "certificates")),
+            ("connections", ("connection", "connections")),
+            ("variables", ("variable", "variables")),
+            (
+                "hybrid_worker_groups",
+                ("hybrid_runbook_worker_group", "hybrid_runbook_worker_groups"),
+            ),
+        )
 
         try:
             iterator = _call_automation_operation(
@@ -560,111 +574,44 @@ class AzureProvider(BaseProvider):
                 account_id = getattr(account, "id", "") or ""
                 resource_group = _resource_group_from_id(account_id)
                 account_name = getattr(account, "name", None)
-
-                runbooks = None
-                schedules = None
-                job_schedules = None
-                webhooks = None
-                credentials = None
-                certificates = None
-                connections = None
-                variables = None
-                hybrid_worker_groups = None
+                hydrated_account = account
+                subcollections: dict[str, list[object] | None] = {
+                    name: None for name, _attrs in automation_subcollections
+                }
 
                 if resource_group and account_name:
-                    runbooks, issue = _automation_list_by_account(
+                    hydrated_account, issue = _automation_get_account(
                         self.clients.automation,
-                        ("runbook", "runbooks"),
                         resource_group,
                         account_name,
+                        fallback=account,
                     )
                     if issue:
                         issues.append(issue)
 
-                    schedules, issue = _automation_list_by_account(
-                        self.clients.automation,
-                        ("schedule", "schedules"),
-                        resource_group,
-                        account_name,
-                    )
-                    if issue:
-                        issues.append(issue)
-
-                    job_schedules, issue = _automation_list_by_account(
-                        self.clients.automation,
-                        ("job_schedule", "job_schedules"),
-                        resource_group,
-                        account_name,
-                    )
-                    if issue:
-                        issues.append(issue)
-
-                    webhooks, issue = _automation_list_by_account(
-                        self.clients.automation,
-                        ("webhook", "webhooks"),
-                        resource_group,
-                        account_name,
-                    )
-                    if issue:
-                        issues.append(issue)
-
-                    credentials, issue = _automation_list_by_account(
-                        self.clients.automation,
-                        ("credential", "credentials"),
-                        resource_group,
-                        account_name,
-                    )
-                    if issue:
-                        issues.append(issue)
-
-                    certificates, issue = _automation_list_by_account(
-                        self.clients.automation,
-                        ("certificate", "certificates"),
-                        resource_group,
-                        account_name,
-                    )
-                    if issue:
-                        issues.append(issue)
-
-                    connections, issue = _automation_list_by_account(
-                        self.clients.automation,
-                        ("connection", "connections"),
-                        resource_group,
-                        account_name,
-                    )
-                    if issue:
-                        issues.append(issue)
-
-                    variables, issue = _automation_list_by_account(
-                        self.clients.automation,
-                        ("variable", "variables"),
-                        resource_group,
-                        account_name,
-                    )
-                    if issue:
-                        issues.append(issue)
-
-                    hybrid_worker_groups, issue = _automation_list_by_account(
-                        self.clients.automation,
-                        ("hybrid_runbook_worker_group", "hybrid_runbook_worker_groups"),
-                        resource_group,
-                        account_name,
-                    )
-                    if issue:
-                        issues.append(issue)
+                    for collection_name, attrs in automation_subcollections:
+                        values, issue = _automation_list_by_account(
+                            self.clients.automation,
+                            attrs,
+                            resource_group,
+                            account_name,
+                        )
+                        subcollections[collection_name] = values
+                        if issue:
+                            issues.append(issue)
 
                 automation_accounts.append(
                     _automation_account_summary(
-                        account,
-                        runbooks=runbooks,
-                        schedules=schedules,
-                        job_schedules=job_schedules,
-                        webhooks=webhooks,
-                        credentials=credentials,
-                        certificates=certificates,
-                        connections=connections,
-                        variables=variables,
-                        hybrid_worker_groups=hybrid_worker_groups,
+                        hydrated_account,
+                        runbooks=subcollections["runbooks"],
+                        schedules=subcollections["schedules"],
+                        job_schedules=subcollections["job_schedules"],
+                        webhooks=subcollections["webhooks"],
+                        credentials=subcollections["credentials"],
+                        certificates=subcollections["certificates"],
+                        connections=subcollections["connections"],
+                        variables=subcollections["variables"],
+                        hybrid_worker_groups=subcollections["hybrid_worker_groups"],
                     )
                 )
         except Exception as exc:
@@ -3535,6 +3482,27 @@ def _automation_list_by_account(
         return list(result), None
     except Exception as exc:
         return None, _issue_from_exception(collector_name, exc)
+
+
+def _automation_get_account(
+    client: object,
+    resource_group: str,
+    account_name: str,
+    *,
+    fallback: object,
+) -> tuple[object, dict | None]:
+    collector_name = f"automation[{resource_group}/{account_name}].account"
+    try:
+        account = _call_automation_operation(
+            client,
+            ("automation_account", "automation_accounts"),
+            "get",
+            resource_group,
+            account_name,
+        )
+        return account, None
+    except Exception as exc:
+        return fallback, _issue_from_exception(collector_name, exc)
 
 
 def _principal_from_claims(claims: dict[str, str], tenant_id: str | None) -> Principal:

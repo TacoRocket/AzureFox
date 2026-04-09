@@ -23,16 +23,20 @@ def test_role_trusts_table_mode_includes_narration_and_takeaway(tmp_path: Path) 
     )
 
     assert result.exit_code == 0
+    normalized_output = " ".join(result.stdout.split())
     assert (
         "Reviewing high-signal identity trust edges and the clearest next review without implying"
         in result.stdout
     )
     assert "operator signal" in result.stdout
     assert "next review" in result.stdout
+    assert "how control could widen" in result.stdout
     assert "Trust expansion visible; privilege" in result.stdout
     assert "confirmation next." in result.stdout
+    assert "Federated sign-in can yield" in normalized_output
+    assert "service principal 'build-sp' access." in normalized_output
+    assert "authentication-control transform is not yet explicit." in normalized_output
     assert "Check permissions for Azure control" in result.stdout
-    assert "service principal 'build-sp'." in result.stdout
     assert "Takeaway: 4 trust edges surfaced in fast mode" in result.stdout
     assert "privilege-confirmation follow-ons" in result.stdout
     assert "Delegated and admin" in result.stdout
