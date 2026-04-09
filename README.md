@@ -43,6 +43,12 @@ AzureFox is built for that workflow.
 - Highlight pivot paths through workloads, managed identities, deployment systems, and secret-bearing configuration
 - Expose escalation opportunities and likely next steps instead of leaving you to sort raw Azure data
 
+## Install
+
+```bash
+pipx install azurefox
+```
+
 ## Operator Workflow
 
 Start with the identity you have, then work outward toward movement and consequence:
@@ -79,12 +85,6 @@ AzureFox reduces noise by ranking consequence, not just returning Azure objects.
 - Triage a compromised user, service principal, or managed identity and determine what Azure control it enables
 - Assess whether a service principal or application relationship creates a pivot or escalation path
 - Work outward from subscription or tenant visibility to identify cross-resource and cross-tenant movement
-
-## Install
-
-```bash
-pipx install azurefox
-```
 
 ## Run It
 
