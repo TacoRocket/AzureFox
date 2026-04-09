@@ -348,6 +348,8 @@ def test_help_command_role_trusts_topic() -> None:
     assert "delegated or admin consent grants" in result.stdout
     assert "Fast mode is the default" in result.stdout
     assert "per-application owner and federated credential lookups" in result.stdout
+    assert "usable_identity_result" in result.stdout
+    assert "escalation_mechanism" in result.stdout
     assert "operator_signal" in result.stdout
     assert "next_review" in result.stdout
 

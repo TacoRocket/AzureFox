@@ -988,6 +988,115 @@ def test_collect_automation(fixture_provider, options) -> None:
     assert output.metadata.command == "automation"
 
 
+def test_automation_hydrates_identity_from_account_get() -> None:
+    provider = AzureProvider.__new__(AzureProvider)
+    get_calls: list[tuple[str, str]] = []
+
+    def empty_list(resource_group: str, account_name: str) -> list[object]:
+        assert resource_group == "rg-ops"
+        assert account_name == "aa-ops-6402b6"
+        return []
+
+    thin_account = SimpleNamespace(
+        id=(
+            "/subscriptions/test/resourceGroups/rg-ops/providers/Microsoft.Automation/"
+            "automationAccounts/aa-ops-6402b6"
+        ),
+        name="aa-ops-6402b6",
+        location="eastus",
+        state="Ok",
+        sku=SimpleNamespace(name="Basic"),
+        identity=None,
+    )
+    hydrated_account = SimpleNamespace(
+        **{
+            **thin_account.__dict__,
+            "identity": SimpleNamespace(
+                type="SystemAssigned",
+                principal_id="principal-1",
+                client_id="client-1",
+                user_assigned_identities={},
+            ),
+        }
+    )
+    provider.clients = SimpleNamespace(
+        automation=SimpleNamespace(
+            automation_account=SimpleNamespace(
+                list=lambda: [thin_account],
+                get=lambda resource_group, account_name: (
+                    get_calls.append((resource_group, account_name)) or hydrated_account
+                ),
+            ),
+            runbook=SimpleNamespace(list_by_automation_account=empty_list),
+            schedule=SimpleNamespace(list_by_automation_account=empty_list),
+            job_schedule=SimpleNamespace(list_by_automation_account=empty_list),
+            webhook=SimpleNamespace(list_by_automation_account=empty_list),
+            credential=SimpleNamespace(list_by_automation_account=empty_list),
+            certificate=SimpleNamespace(list_by_automation_account=empty_list),
+            connection=SimpleNamespace(list_by_automation_account=empty_list),
+            variable=SimpleNamespace(list_by_automation_account=empty_list),
+            hybrid_runbook_worker_group=SimpleNamespace(list_by_automation_account=empty_list),
+        )
+    )
+
+    data = provider.automation()
+
+    assert data["issues"] == []
+    assert get_calls == [("rg-ops", "aa-ops-6402b6")]
+    assert data["automation_accounts"][0]["identity_type"] == "SystemAssigned"
+    assert data["automation_accounts"][0]["principal_id"] == "principal-1"
+    assert data["automation_accounts"][0]["client_id"] == "client-1"
+
+
+def test_automation_falls_back_when_account_get_fails() -> None:
+    provider = AzureProvider.__new__(AzureProvider)
+
+    def empty_list(resource_group: str, account_name: str) -> list[object]:
+        assert resource_group == "rg-ops"
+        assert account_name == "aa-ops-6402b6"
+        return []
+
+    thin_account = SimpleNamespace(
+        id=(
+            "/subscriptions/test/resourceGroups/rg-ops/providers/Microsoft.Automation/"
+            "automationAccounts/aa-ops-6402b6"
+        ),
+        name="aa-ops-6402b6",
+        location="eastus",
+        state="Ok",
+        sku=SimpleNamespace(name="Basic"),
+        identity=None,
+    )
+    provider.clients = SimpleNamespace(
+        automation=SimpleNamespace(
+            automation_account=SimpleNamespace(
+                list=lambda: [thin_account],
+                get=lambda _resource_group, _account_name: (_ for _ in ()).throw(
+                    RuntimeError("account get denied")
+                ),
+            ),
+            runbook=SimpleNamespace(list_by_automation_account=empty_list),
+            schedule=SimpleNamespace(list_by_automation_account=empty_list),
+            job_schedule=SimpleNamespace(list_by_automation_account=empty_list),
+            webhook=SimpleNamespace(list_by_automation_account=empty_list),
+            credential=SimpleNamespace(list_by_automation_account=empty_list),
+            certificate=SimpleNamespace(list_by_automation_account=empty_list),
+            connection=SimpleNamespace(list_by_automation_account=empty_list),
+            variable=SimpleNamespace(list_by_automation_account=empty_list),
+            hybrid_runbook_worker_group=SimpleNamespace(list_by_automation_account=empty_list),
+        )
+    )
+
+    data = provider.automation()
+
+    assert len(data["issues"]) == 1
+    assert data["issues"][0]["context"]["collector"] == "automation[rg-ops/aa-ops-6402b6].account"
+    assert "account get denied" in data["issues"][0]["message"]
+    assert data["automation_accounts"][0]["identity_type"] is None
+    assert data["automation_accounts"][0]["principal_id"] is None
+    assert data["automation_accounts"][0]["client_id"] is None
+
+
 def test_principal_from_claims_prefers_user_for_delegated_tokens() -> None:
     principal = _principal_from_claims(
         {

@@ -19,6 +19,8 @@ def render_table(command: str, payload: dict) -> str:
 
     if command == "devops":
         _render_devops_table(console, payload)
+    elif command == "role-trusts":
+        _render_role_trusts_table(console, payload)
     elif command == "chains" and payload.get("families"):
         _render_chains_overview_table(console, payload)
     elif command == "chains" and str(payload.get("family") or "") == "deployment-path":
@@ -93,6 +95,35 @@ def _render_devops_table(console: Console, payload: dict) -> None:
             detail.add_column("why it matters")
             detail.add_row(_value_to_string(record.get("why_it_matters")))
             console.print(detail)
+        if index != len(records) - 1:
+            console.print("")
+
+
+def _render_role_trusts_table(console: Console, payload: dict) -> None:
+    columns, records = _table_spec("role-trusts", payload)
+
+    if not records:
+        table = Table(title="azurefox role-trusts")
+        table.add_column("info")
+        table.add_row("No records")
+        console.print(table)
+        return
+
+    trusts = payload.get("trusts", [])
+    for index, (record, trust) in enumerate(zip(records, trusts, strict=False)):
+        table = Table(title="azurefox role-trusts" if index == 0 else None)
+        for _key, label in columns:
+            table.add_column(label)
+        table.add_row(*[_value_to_string(record.get(key)) for key, _ in columns])
+        console.print(table)
+
+        visible_transform = _role_trust_visible_transform(trust)
+        if visible_transform:
+            detail = Table(expand=True)
+            detail.add_column("how control could widen")
+            detail.add_row(_value_to_string(visible_transform))
+            console.print(detail)
+
         if index != len(records) - 1:
             console.print("")
 
@@ -2947,3 +2978,15 @@ def _value_to_string(value: object) -> str:
     if isinstance(value, dict):
         return ", ".join(f"{k}: {v}" for k, v in value.items())
     return str(value)
+
+
+def _role_trust_visible_transform(item: dict) -> str | None:
+    usable_identity_result = str(item.get("usable_identity_result") or "").strip()
+    if usable_identity_result:
+        return usable_identity_result
+
+    escalation_mechanism = str(item.get("escalation_mechanism") or "").strip()
+    if escalation_mechanism:
+        return escalation_mechanism
+
+    return None

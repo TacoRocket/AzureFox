@@ -730,6 +730,8 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "source_name",
             "target_name",
             "confidence",
+            "usable_identity_result",
+            "escalation_mechanism",
             "operator_signal",
             "next_review",
         ),
