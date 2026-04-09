@@ -1,13 +1,9 @@
 # Wiki Source
 
-This tree holds AzureFox material that is better suited for the GitHub wiki or for longer-form
-planning/reference than for the live repo `docs/` folder.
+This tree is reserved for future GitHub wiki source material that should not live in the main
+repo `docs/` folder.
 
-Current layout:
-
-- `seed/`
-  reviewable source pages for the GitHub wiki bootstrap
-- `planning/api-mapping/`
-  deeper command-boundary and API-shaping notes that are useful for design and wiki/reference work
+- Do not use this tree as a long-term home for internal command-planning scratch notes.
+- If content here is worth keeping, it should have a clear published wiki destination and active ownership.
 
 Live operator guidance should stay in `azurefox help` and `azurefox help <command>`.

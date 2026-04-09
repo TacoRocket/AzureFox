@@ -38,6 +38,14 @@ pytest -m integration
 - Keep JSON output deterministic and schema-compatible.
 - Update schemas with `python scripts/generate_schemas.py`.
 
+## Documentation Boundaries
+
+- Keep live operator guidance in `azurefox help`, `azurefox help <command>`, `README.md`, and curated `docs/` content.
+- Treat `wiki/` as source material for intentional long-form wiki pages, not as a catch-all for internal planning notes.
+- Do not add new command-by-command planning trees under `wiki/` unless they are actively maintained and have a clear published destination.
+- If a note is temporary design scratch work, keep it out of the main repo or remove it once the implementation lands.
+- If planning material becomes durable user-facing documentation, promote it into a maintained docs/wiki page instead of leaving README links pointed at planning notes.
+
 ## Lightweight Guardrails (Solo)
 
 - Create a short-lived branch per change (`feat/...`, `fix/...`, `docs/...`).
