@@ -33,6 +33,7 @@ from azurefox.collectors.commands import (
     collect_rbac,
     collect_resource_trusts,
     collect_role_trusts,
+    collect_snapshots_disks,
     collect_storage,
     collect_tokens_credentials,
     collect_vms,
@@ -3671,6 +3672,19 @@ def test_collect_vms(fixture_provider, options) -> None:
     assert len(output.vm_assets) == 1
     assert output.vm_assets[0].name == "vm-web-01"
     assert len(output.findings) == 1
+
+
+def test_collect_snapshots_disks(fixture_provider, options) -> None:
+    output = collect_snapshots_disks(fixture_provider, options)
+    assert len(output.snapshot_disk_assets) == 4
+    assert output.issues == []
+    assert output.snapshot_disk_assets[0].name == "data-detached-legacy"
+    assert output.snapshot_disk_assets[0].attachment_state == "detached"
+    assert output.snapshot_disk_assets[0].public_network_access == "Enabled"
+    assert output.snapshot_disk_assets[1].asset_kind == "snapshot"
+    assert output.snapshot_disk_assets[1].source_resource_name == "data-detached-legacy"
+    assert output.snapshot_disk_assets[2].name == "vm-web-01-os-snap"
+    assert output.snapshot_disk_assets[3].name == "vm-web-01-os"
 
 
 def test_collect_vms_keeps_public_ip_lookup_failures_explicit() -> None:

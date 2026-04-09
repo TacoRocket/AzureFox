@@ -358,6 +358,27 @@ def test_snapshots_disks_takeaway_counts_disk_access_as_broad_export_signal() ->
     assert "1 show broader sharing or export posture" in " ".join(rendered.split())
 
 
+def test_vms_table_mode_surfaces_public_ip_and_identity_cues(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "vms"],
+        env=_fixture_env(),
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Summarizing reachable compute assets and identity-bearing workloads." in result.stdout
+    )
+    assert "vm-web-01" in result.stdout
+    assert "52.160.10.20" in result.stdout
+    assert "10.0.1.4" in result.stdout
+    assert "Public workload with attached identity" in result.stdout
+    normalized_output = " ".join(result.stdout.split())
+    assert (
+        "Takeaway: 1 compute assets visible; 1 have public IP exposure."
+    ) in normalized_output
+
+
 def test_storage_takeaway_keeps_partial_read_posture_explicit() -> None:
     payload = {
         "metadata": {"command": "storage"},
