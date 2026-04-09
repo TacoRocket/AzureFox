@@ -4,17 +4,81 @@
   <img src="docs/branding/azurefox-logo.png" alt="AzureFox logo" width="180" />
 </p>
 
-Azure attack path reconnaissance for identifying privilege escalation paths, over-permissioned
-identities, and exploitable cloud misconfigurations.
+Find attack paths, pivot opportunities, and movement across Azure before you drown in inventory.
 
-## Why AzureFox
+Most Azure tools tell you what exists.
+AzureFox tells you how an identity can move between those resources.
+Most Azure tools dump permissions.
+AzureFox highlights which relationships, pivots, and escalation paths matter first.
 
-Most Azure tools focus on inventory, configuration review, or compliance reporting.
+## Why This Matters
 
-AzureFox is built for offensive security and operator-first cloud triage:
-- What can this identity actually do?
+You have:
+- a compromised user
+- service principal access
+- a managed identity foothold
+- partial subscription visibility
+
+You need to answer quickly:
+- What identity am I actually holding?
+- What can it control right now?
 - Where can it pivot next?
-- Which Azure path matters first?
+- Which path is most likely to become privilege escalation or broader Azure control?
+
+AzureFox is built for that workflow.
+
+## Why This Is Different
+
+- Attack-path thinking, not inventory-first reporting
+- Pivot-first workflow, not isolated command output
+- Identity and permission relationships, not just raw role listings
+- Operator guidance that points to the next path worth investigating
+- Broader than a foothold check: useful for movement, consequence, and follow-on access across Azure
+
+## Core Capabilities
+
+- Show the active Azure identity, token context, and scope you are operating from
+- Surface high-impact RBAC and permission relationships that change what the current identity can do
+- Map identity trust, service principal ownership, federated credentials, and cross-tenant edges
+- Highlight pivot paths through workloads, managed identities, deployment systems, and secret-bearing configuration
+- Expose escalation opportunities and likely next steps instead of leaving you to sort raw Azure data
+
+## Operator Workflow
+
+Start with the identity you have, then work outward toward movement and consequence:
+
+```bash
+azurefox whoami
+azurefox permissions
+azurefox privesc
+azurefox role-trusts
+azurefox cross-tenant
+azurefox tokens-credentials
+azurefox chains
+```
+
+Typical flow:
+- `whoami`: confirm the current foothold, token context, and subscription scope
+- `permissions`: identify where that identity already has meaningful control
+- `privesc`: surface direct abuse or escalation paths rooted in the current access
+- `role-trusts` and `cross-tenant`: find identity-control transforms and tenant boundary pivots
+- `tokens-credentials` and `chains`: follow token, secret, and deployment clues toward the next usable path
+
+## Operator Outcome
+
+After one pass, you should know:
+- which identity matters
+- what access is real versus merely visible
+- where the best pivot opportunities are
+- which attack path deserves follow-up first
+
+AzureFox reduces noise by ranking consequence, not just returning Azure objects.
+
+## Use Cases
+
+- Triage a compromised user, service principal, or managed identity and determine what Azure control it enables
+- Assess whether a service principal or application relationship creates a pivot or escalation path
+- Work outward from subscription or tenant visibility to identify cross-resource and cross-tenant movement
 
 ## Install
 
@@ -31,39 +95,19 @@ azurefox whoami
 azurefox permissions
 ```
 
-## Example Output
-
-`azurefox permissions`
-
-| principal | type | high-impact roles | scopes | operator signal | next review |
-| --- | --- | --- | --- | --- | --- |
-| `azurefox-lab-sp` | `ServicePrincipal` | `Owner` | `1` | Direct control visible; current foothold. | Check `privesc` for the direct abuse or escalation path. |
-| `operator@lab.local` | `User` |  | `1` | Direct control not confirmed. | Check `rbac` for the exact assignment evidence. |
-
-AzureFox is not just listing Azure objects. It ranks the identities that matter, explains why
-they matter, and points to the next command to run.
-
-## What Makes This Different
-
-- Identity-first, not just resource-first
-- Focused on attack paths, not raw Azure data
-- Output designed for operators who need to decide what matters next
-
 ## Currently Supported Azure Commands
 
 | Section | Commands |
 | --- | --- |
-| `core` | [`inventory`](wiki/planning/api-mapping/inventory.md) |
-| `identity` | [`whoami`](wiki/planning/api-mapping/whoami.md), [`rbac`](wiki/planning/api-mapping/rbac.md), [`principals`](wiki/planning/api-mapping/principals.md), [`permissions`](wiki/planning/api-mapping/permissions.md), [`privesc`](wiki/planning/api-mapping/privesc.md), [`role-trusts`](wiki/planning/api-mapping/role-trusts.md), `lighthouse`, [`auth-policies`](wiki/planning/api-mapping/auth-policies.md), [`managed-identities`](wiki/planning/api-mapping/managed-identities.md) |
-| `config` | [`arm-deployments`](wiki/planning/api-mapping/arm-deployments.md), [`env-vars`](wiki/planning/api-mapping/env-vars.md) |
-| `secrets` | [`keyvault`](wiki/planning/api-mapping/keyvault.md), [`tokens-credentials`](wiki/planning/api-mapping/tokens-credentials.md) |
-| `resource` | `automation`, `devops`, [`acr`](wiki/planning/api-mapping/acr.md), [`api-mgmt`](wiki/planning/api-mapping/api-mgmt.md), [`databases`](wiki/planning/api-mapping/databases.md), [`resource-trusts`](wiki/planning/api-mapping/resource-trusts.md) |
-| `storage` | [`storage`](wiki/planning/api-mapping/storage.md) |
-| `network` | [`nics`](wiki/planning/api-mapping/nics.md), [`dns`](wiki/planning/api-mapping/dns.md), [`endpoints`](wiki/planning/api-mapping/endpoints.md), `network-effective`, [`network-ports`](wiki/planning/api-mapping/network-ports.md) |
-| `compute` | [`workloads`](wiki/planning/api-mapping/workloads.md), [`app-services`](wiki/planning/api-mapping/app-services.md), [`functions`](wiki/planning/api-mapping/functions.md), [`aks`](wiki/planning/api-mapping/aks.md), [`vms`](wiki/planning/api-mapping/vms.md), `vmss`, `snapshots-disks` |
+| `core` | `inventory` |
+| `identity` | `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `lighthouse`, `auth-policies`, `managed-identities` |
+| `config` | `arm-deployments`, `env-vars` |
+| `secrets` | `keyvault`, `tokens-credentials` |
+| `resource` | `automation`, `devops`, `acr`, `api-mgmt`, `databases`, `resource-trusts` |
+| `storage` | `storage` |
+| `network` | `nics`, `dns`, `endpoints`, `network-effective`, `network-ports` |
+| `compute` | `workloads`, `app-services`, `functions`, `aks`, `vms`, `vmss`, `snapshots-disks` |
 | orchestration | `chains` |
-
-Commands without links do not have a dedicated wiki source page in the repo yet.
 
 ## Need A Test Lab?
 
@@ -110,8 +154,6 @@ portable relative paths like `./azurefox-demo`; shell syntax mainly differs for 
 activation and environment-variable export.
 
 Live operator guidance is built into `azurefox help` and `azurefox help <command>`.
-Longer-form planning and wiki-source material lives under
-[`wiki/`](https://github.com/TacoRocket/AzureFox/tree/main/wiki).
 
 - `pip install azurefox`
   installs the normal operator profile from PyPI, including the Azure SDK dependencies used by the
@@ -335,13 +377,7 @@ CI runs lint plus unit, contract, and smoke tests. Integration tests are opt-in.
 ## Attribution
 
 AzureFox is inspired by [CloudFox](https://github.com/BishopFox/cloudfox), created by Bishop Fox.
-The command model and operator workflow goals in this project are heavily shaped by CloudFox's
-approach to cloud situational awareness and attack-path-focused enumeration.
-
-This project is an independent implementation and is not affiliated with or endorsed by Bishop
-Fox.
 
 ## License
 
-AzureFox is licensed under the MIT License to match CloudFox's licensing model.
-See [LICENSE](LICENSE).
+AzureFox is licensed under the MIT License. See [LICENSE](LICENSE).
