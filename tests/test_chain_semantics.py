@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from azurefox.chains.credential_path import _build_candidate_record
 from azurefox.chains.runner import (
-    _build_candidate_record,
     _build_escalation_trust_record,
     _source_current_operator_can_inject,
 )
@@ -378,4 +378,4 @@ def test_blocked_candidate_record_does_not_leak_candidate_names_into_summary() -
     assert record.target_names == []
     assert record.target_ids == []
     assert "sql-public-legacy" not in record.summary
-    assert "cannot name candidate database targets" in record.summary
+    assert "cannot tell which database it reaches" in record.summary

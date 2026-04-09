@@ -48,6 +48,11 @@ _DNS_RESOURCE_API_VERSION = {
 _DEVOPS_BUILD_NAMESPACE_ID = "33344d9c-fc72-4d6f-aba5-fa317101a7e9"
 _DEVOPS_GIT_NAMESPACE_ID = "2e9eb7ed-3c0a-47d4-87c1-0ffdd275fd87"
 _DEVOPS_SECURE_FILE_ROLE_SCOPE_ID = "distributedtask.securefile"
+_KEYVAULT_SECRET_READ_ROLE_NAMES = {
+    "key vault administrator",
+    "key vault secrets officer",
+    "key vault secrets user",
+}
 
 
 class BaseProvider(ABC):
@@ -229,6 +234,16 @@ class BaseProvider(ABC):
     def keyvault(self) -> dict:
         raise NotImplementedError
 
+    def keyvault_secret_access(
+        self,
+        *,
+        vault_name: str,
+        vault_resource_id: str | None,
+        secret_name: str,
+        secret_version: str | None = None,
+    ) -> dict:
+        return {"state": "unknown", "basis": None, "issues": []}
+
     @abstractmethod
     def storage(self) -> dict:
         raise NotImplementedError
@@ -346,6 +361,37 @@ class FixtureProvider(BaseProvider):
     def keyvault(self) -> dict:
         return self._read("keyvault")
 
+    def keyvault_secret_access(
+        self,
+        *,
+        vault_name: str,
+        vault_resource_id: str | None,
+        secret_name: str,
+        secret_version: str | None = None,
+    ) -> dict:
+        path = self.fixture_dir / "keyvault_secret_access.json"
+        if not path.exists():
+            return {"state": "unknown", "basis": None, "issues": []}
+
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        for check in payload.get("checks", []):
+            if (
+                check.get("vault_name") == vault_name
+                and check.get("secret_name") == secret_name
+                and (check.get("secret_version") or None) == secret_version
+            ):
+                return {
+                    "state": str(check.get("state") or "unknown"),
+                    "basis": check.get("basis"),
+                    "issues": payload.get("issues", []),
+                }
+
+        return {
+            "state": "unknown",
+            "basis": None,
+            "issues": payload.get("issues", []),
+        }
+
     def env_vars(self) -> dict:
         return self._read("env_vars")
 
@@ -389,6 +435,7 @@ class AzureProvider(BaseProvider):
         self._devops_secure_files_cache: dict[str, dict[str, dict[str, object]]] = {}
         self._devops_secure_file_roles_cache: dict[str, list[dict[str, object]]] = {}
         self._devops_feed_permissions_cache: dict[str, list[dict[str, object]]] = {}
+        self._rbac_cache: dict | None = None
 
     def metadata_context(self) -> dict[str, str | None]:
         return {
@@ -418,6 +465,195 @@ class AzureProvider(BaseProvider):
             "auth_mode": self.session.auth_mode,
             "issues": [],
         }
+
+    def keyvault_secret_access(
+        self,
+        *,
+        vault_name: str,
+        vault_resource_id: str | None,
+        secret_name: str,
+        secret_version: str | None = None,
+    ) -> dict:
+        issues: list[dict] = []
+        if not vault_name or not secret_name:
+            return {"state": "unknown", "basis": None, "issues": issues}
+
+        live_result = self._keyvault_live_secret_access(
+            vault_name=vault_name,
+            secret_name=secret_name,
+            secret_version=secret_version,
+        )
+        if live_result["state"] != "unknown":
+            return live_result
+        issues.extend(live_result.get("issues", []))
+
+        current_principal_id = str(
+            ((self.whoami().get("principal") or {}).get("id")) or "unknown"
+        )
+        if current_principal_id == "unknown":
+            return {"state": "unknown", "basis": None, "issues": issues}
+
+        policy_result = self._keyvault_policy_secret_access(
+            current_principal_id=current_principal_id,
+            vault_name=vault_name,
+            vault_resource_id=vault_resource_id,
+        )
+        if policy_result["state"] != "unknown":
+            return {
+                "state": policy_result["state"],
+                "basis": policy_result.get("basis"),
+                "issues": [*issues, *policy_result.get("issues", [])],
+            }
+
+        return {
+            "state": "unknown",
+            "basis": None,
+            "issues": [*issues, *policy_result.get("issues", [])],
+        }
+
+    def _keyvault_live_secret_access(
+        self,
+        *,
+        vault_name: str,
+        secret_name: str,
+        secret_version: str | None,
+    ) -> dict:
+        try:
+            from azure.core.exceptions import ClientAuthenticationError, HttpResponseError
+            from azure.keyvault.secrets import SecretClient
+        except ImportError:
+            return {"state": "unknown", "basis": None, "issues": []}
+
+        try:
+            client = SecretClient(
+                vault_url=f"https://{vault_name}.vault.azure.net/",
+                credential=self.session.credential,
+            )
+            if secret_version:
+                client.get_secret(secret_name, secret_version)
+            else:
+                client.get_secret(secret_name)
+            return {"state": "can-read", "basis": "live-read", "issues": []}
+        except HttpResponseError as exc:
+            status = getattr(exc, "status_code", None)
+            if status in {401, 403}:
+                return {"state": "cannot-read", "basis": "live-read-denied", "issues": []}
+            if status == 404:
+                return {
+                    "state": "appears-able",
+                    "basis": "live-read-secret-missing",
+                    "issues": [],
+                }
+            return {
+                "state": "unknown",
+                "basis": None,
+                "issues": [
+                    _issue_from_exception(
+                        f"keyvault.secret_access[{vault_name}/{secret_name}]",
+                        exc,
+                    )
+                ],
+            }
+        except ClientAuthenticationError as exc:
+            return {
+                "state": "unknown",
+                "basis": None,
+                "issues": [
+                    _issue_from_exception(
+                        f"keyvault.secret_access[{vault_name}/{secret_name}]",
+                        exc,
+                    )
+                ],
+            }
+        except Exception as exc:
+            return {
+                "state": "unknown",
+                "basis": None,
+                "issues": [
+                    _issue_from_exception(
+                        f"keyvault.secret_access[{vault_name}/{secret_name}]",
+                        exc,
+                    )
+                ],
+            }
+
+    def _keyvault_policy_secret_access(
+        self,
+        *,
+        current_principal_id: str,
+        vault_name: str,
+        vault_resource_id: str | None,
+    ) -> dict:
+        issues: list[dict] = []
+
+        if vault_resource_id:
+            resource_group, resource_name = _resource_group_and_name(vault_resource_id)
+            if resource_group and resource_name:
+                try:
+                    vault = self.clients.keyvault.vaults.get(resource_group, resource_name)
+                    properties = getattr(vault, "properties", None)
+                    if bool(getattr(properties, "enable_rbac_authorization", False)):
+                        role_names = self._current_identity_keyvault_role_names(vault_resource_id)
+                        if any(
+                            role_name.lower() in _KEYVAULT_SECRET_READ_ROLE_NAMES
+                            for role_name in role_names
+                        ):
+                            return {"state": "appears-able", "basis": "keyvault-rbac", "issues": []}
+                    else:
+                        for policy in getattr(properties, "access_policies", None) or []:
+                            object_id = str(getattr(policy, "object_id", None) or "")
+                            application_id = str(getattr(policy, "application_id", None) or "")
+                            if current_principal_id not in {object_id, application_id}:
+                                continue
+                            permissions = getattr(policy, "permissions", None)
+                            secret_permissions = {
+                                str(value).lower()
+                                for value in getattr(permissions, "secrets", None) or []
+                                if value
+                            }
+                            if "get" in secret_permissions:
+                                return {
+                                    "state": "appears-able",
+                                    "basis": "keyvault-access-policy",
+                                    "issues": [],
+                                }
+                except Exception as exc:
+                    issues.append(
+                        _issue_from_exception(
+                            f"keyvault.access_model[{vault_name}]",
+                            exc,
+                        )
+                    )
+
+        role_names = self._current_identity_keyvault_role_names(vault_resource_id)
+        if any(role_name.lower() in _KEYVAULT_SECRET_READ_ROLE_NAMES for role_name in role_names):
+            return {"state": "appears-able", "basis": "keyvault-rbac", "issues": issues}
+
+        return {"state": "unknown", "basis": None, "issues": issues}
+
+    def _current_identity_keyvault_role_names(self, vault_resource_id: str | None) -> set[str]:
+        if not vault_resource_id:
+            return set()
+
+        rbac_data = self._rbac_cache
+        if rbac_data is None:
+            rbac_data = self.rbac()
+            self._rbac_cache = rbac_data
+
+        current_principal_id = str(
+            ((self.whoami().get("principal") or {}).get("id")) or "unknown"
+        )
+        role_names: set[str] = set()
+        for assignment in rbac_data.get("role_assignments", []):
+            if assignment.get("principal_id") != current_principal_id:
+                continue
+            scope_id = str(assignment.get("scope_id") or "")
+            if not _scope_applies_to_resource(scope_id, vault_resource_id):
+                continue
+            role_name = str(assignment.get("role_name") or "").strip()
+            if role_name:
+                role_names.add(role_name)
+        return role_names
 
     def inventory(self) -> dict:
         rg_count = 0
@@ -4172,6 +4408,16 @@ def _resource_name_from_id(resource_id: str | None) -> str | None:
     if not parts:
         return None
     return parts[-1]
+
+
+def _scope_applies_to_resource(scope_id: str | None, resource_id: str | None) -> bool:
+    if not scope_id or not resource_id:
+        return False
+    normalized_scope = str(scope_id).rstrip("/").lower()
+    normalized_resource = str(resource_id).rstrip("/").lower()
+    return normalized_resource == normalized_scope or normalized_resource.startswith(
+        normalized_scope + "/"
+    )
 
 
 def _lighthouse_delegation_summary(

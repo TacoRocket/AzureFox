@@ -52,15 +52,21 @@ def env_var_next_review_hint(
 
 
 def env_var_target_service(setting_name: str) -> str | None:
+    services = env_var_target_services(setting_name)
+    return services[0] if services else None
+
+
+def env_var_target_services(setting_name: str) -> tuple[str, ...]:
     lowered = setting_name.lower()
+    matches: list[str] = []
 
     if lowered == "azurewebjobsstorage":
-        return "storage"
+        matches.append("storage")
     if any(
         token in lowered
         for token in ("storage", "blob", "queue", "table", "share", "file", "container")
     ):
-        return "storage"
+        matches.append("storage")
     if any(token in lowered for token in ("db", "database", "sql", "mysql", "postgres")):
-        return "database"
-    return None
+        matches.append("database")
+    return tuple(dict.fromkeys(matches))

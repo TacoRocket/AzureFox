@@ -16,6 +16,7 @@ dependencies = [
   "typer>=0.12,<1",
   "rich>=13.7,<15",
   "azure-identity>=1.17,<2",
+  "azure-keyvault-secrets>=4.9,<5",
   "azure-mgmt-resource>=23.1,<24",
   "azure-mgmt-authorization>=4.0,<5",
   "azure-mgmt-keyvault>=10.3,<11",

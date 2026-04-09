@@ -848,7 +848,8 @@ def test_chains_visibility_tiers_avoid_fake_target_certainty() -> None:
     assert "PAYMENT_API_KEY" in medium_rendered
     assert "narrowed candidates" in medium_rendered
     assert "kv-orders,kv-shared" in medium_rendered
-    assert "Secret-shaped clue" in medium_rendered
+    assert "This app exposes a" in medium_rendered
+    assert "secret-shaped" in medium_rendered
     assert "exact target" in medium_rendered
     assert "unconfirmed." in medium_rendered
     assert "Confirm the exact" in medium_rendered

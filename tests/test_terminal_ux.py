@@ -756,9 +756,12 @@ def test_chains_table_mode_surfaces_priority_and_next_review(tmp_path: Path) -> 
     assert "bookmark" in normalized_output
     assert "func-orders" in result.stdout
     assert "app-public-api" in result.stdout
+    assert "Your current" in result.stdout
+    assert "this secret." in result.stdout
     assert "Check vault access" in normalized_output
     assert "connection clues." in normalized_output
-    assert "Secret-shaped clue" in normalized_output
+    assert "This app exposes a" in normalized_output
+    assert "secret-shaped" in normalized_output
 
 
 def test_deployment_chains_table_mode_surfaces_source_oriented_columns(tmp_path: Path) -> None:
@@ -901,6 +904,39 @@ def test_chains_partial_target_visibility_prefers_issue_over_candidate_list() ->
     assert "permission_denied: databases.servers" in rendered
     assert "sql-public-legacy" not in rendered
     assert "Credential-scope issues:" in rendered
+
+
+def test_chains_keyvault_note_prefers_current_identity_access_sentence() -> None:
+    payload = {
+        "metadata": {"command": "chains"},
+        "family": "credential-path",
+        "paths": [
+            {
+                "priority": "high",
+                "urgency": "review-soon",
+                "asset_name": "func-orders",
+                "setting_name": "PAYMENT_API_KEY",
+                "target_service": "keyvault",
+                "target_resolution": "named match",
+                "target_names": ["kvlabopen01"],
+                "next_review": "Check vault access path and referenced secret use.",
+                "confidence_boundary": "Your current identity can read this secret.",
+                "summary": (
+                    "FunctionApp 'func-orders' pulls 'PAYMENT_API_KEY' from Key Vault "
+                    "'kvlabopen01'. Your current identity can read that secret."
+                ),
+            }
+        ],
+        "issues": [],
+    }
+
+    rendered = render_table("chains", payload)
+
+    normalized = " ".join(rendered.split())
+
+    assert "Your current identity" in normalized
+    assert "can read this secret." in normalized
+    assert "Named target matched visible inventory." not in rendered
 
 
 def test_app_services_partial_read_surfaces_collection_issue() -> None:

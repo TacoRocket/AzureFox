@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from azurefox.chains.credential_path import collect_credential_path_records
 from azurefox.chains.deployment_path import (
     DeploymentSourceAssessment,
     admit_deployment_path_row,
@@ -22,7 +23,6 @@ from azurefox.chains.semantics import (
 from azurefox.collectors.provider import BaseProvider
 from azurefox.config import GlobalOptions
 from azurefox.devops_hints import describe_trusted_input
-from azurefox.env_var_hints import env_var_target_service
 from azurefox.models.chains import (
     ChainPathRecord,
     ChainsOutput,
@@ -87,7 +87,7 @@ def run_chain_family(
 
     loaded = _collect_family_outputs(provider, options, family_name)
     if family_name == "credential-path":
-        return _build_credential_path_output(options, family_name, loaded)
+        return _build_credential_path_output(provider, options, family_name, loaded)
     if family_name == "deployment-path":
         return _build_deployment_path_output(options, family_name, loaded)
     if family_name == "escalation-path":
@@ -116,6 +116,7 @@ def _collect_family_outputs(
 
 
 def _build_credential_path_output(
+    provider: BaseProvider,
     options: GlobalOptions,
     family_name: str,
     loaded: dict[str, object],
@@ -123,98 +124,7 @@ def _build_credential_path_output(
     family = get_chain_family_spec(family_name)
     assert family is not None  # pragma: no cover - guarded above
 
-    env_output = loaded["env-vars"]
-    token_output = loaded["tokens-credentials"]
-    database_output = loaded["databases"]
-    storage_output = loaded["storage"]
-    keyvault_output = loaded["keyvault"]
-    target_visibility_notes = {
-        "database": _target_visibility_note("database", getattr(database_output, "issues", [])),
-        "storage": _target_visibility_note("storage", getattr(storage_output, "issues", [])),
-        "keyvault": _target_visibility_note("Key Vault", getattr(keyvault_output, "issues", [])),
-    }
-    target_visibility_issues = {
-        "database": _target_visibility_issue(getattr(database_output, "issues", [])),
-        "storage": _target_visibility_issue(getattr(storage_output, "issues", [])),
-        "keyvault": _target_visibility_issue(getattr(keyvault_output, "issues", [])),
-    }
-
-    token_setting_index: dict[tuple[str, str], list[dict]] = defaultdict(list)
-    keyvault_surface_index: dict[tuple[str, str], list[dict]] = defaultdict(list)
-    for surface in token_output.surfaces:
-        signal = _parse_operator_signal(surface.operator_signal)
-        setting_name = signal.get("setting")
-        if setting_name:
-            token_setting_index[(surface.asset_id, setting_name.lower())].append(
-                surface.model_dump(mode="json")
-            )
-        target = signal.get("target")
-        if target:
-            keyvault_surface_index[(surface.asset_id, _normalize_reference_target(target))].append(
-                surface.model_dump(mode="json")
-            )
-
-    database_candidates = [
-        item.model_dump(mode="json") for item in database_output.database_servers
-    ]
-    storage_candidates = [item.model_dump(mode="json") for item in storage_output.storage_assets]
-    keyvaults = [item.model_dump(mode="json") for item in keyvault_output.key_vaults]
-
-    paths: list[ChainPathRecord] = []
-    issues: list[CollectionIssue] = []
-
-    for env_var in env_output.env_vars:
-        env = env_var.model_dump(mode="json")
-        setting_key = (env["asset_id"], env["setting_name"].lower())
-        joined_surfaces = list(token_setting_index.get(setting_key, []))
-
-        if env.get("value_type") == "keyvault-ref":
-            if env.get("reference_target"):
-                joined_surfaces.extend(
-                    keyvault_surface_index.get(
-                        (env["asset_id"], _normalize_reference_target(env["reference_target"])),
-                        [],
-                    )
-                )
-            record = _build_keyvault_record(
-                family_name,
-                env,
-                joined_surfaces,
-                keyvaults,
-                visibility_note=target_visibility_notes["keyvault"],
-            )
-            if record is not None:
-                paths.append(record)
-            continue
-
-        if not _is_credential_like_env_var(env, joined_surfaces):
-            continue
-
-        target_service = _target_service_for_env_var(env)
-        if target_service == "database":
-            paths.append(
-                _build_candidate_record(
-                    family_name,
-                    env,
-                    joined_surfaces,
-                    target_service,
-                    database_candidates,
-                    visibility_note=target_visibility_notes["database"],
-                    visibility_issue=target_visibility_issues["database"],
-                )
-            )
-        elif target_service == "storage":
-            paths.append(
-                _build_candidate_record(
-                    family_name,
-                    env,
-                    joined_surfaces,
-                    target_service,
-                    storage_candidates,
-                    visibility_note=target_visibility_notes["storage"],
-                    visibility_issue=target_visibility_issues["storage"],
-                )
-            )
+    paths, issues = collect_credential_path_records(provider, family_name, loaded)
 
     paths.sort(
         key=lambda item: (
@@ -225,9 +135,6 @@ def _build_credential_path_output(
             item.target_service,
         )
     )
-
-    for source_name in ("env-vars", "tokens-credentials", "databases", "storage", "keyvault"):
-        issues.extend(getattr(loaded[source_name], "issues", []))
 
     return ChainsCommandOutput(
         metadata=CommandMetadata(
@@ -483,238 +390,6 @@ def _build_escalation_path_output(
         paths=paths,
         issues=issues,
     )
-
-
-def _build_keyvault_record(
-    family_name: str,
-    env: dict,
-    joined_surfaces: list[dict],
-    keyvaults: list[dict],
-    *,
-    visibility_note: str | None = None,
-) -> ChainPathRecord | None:
-    reference_target = env.get("reference_target")
-    if not reference_target:
-        return None
-
-    reference_host = _reference_host(reference_target)
-    matched_vaults = [
-        vault for vault in keyvaults if _reference_host(vault.get("vault_uri")) == reference_host
-    ]
-    target_names = [vault.get("name") for vault in matched_vaults if vault.get("name")]
-    target_ids = [vault.get("id") for vault in matched_vaults if vault.get("id")]
-    target_resolution = "named match" if matched_vaults else "named target not visible"
-    visible_path = "Key Vault-backed setting -> named vault"
-    summary = (
-        f"{env['asset_kind']} '{env['asset_name']}' maps setting '{env['setting_name']}' to the "
-        f"named Key Vault reference '{reference_host}'."
-    )
-    if matched_vaults:
-        summary = (
-            f"{summary} AzureFox can join that reference to visible Key Vault inventory: "
-            f"{', '.join(target_names[:_CANDIDATE_LIMIT])}."
-        )
-    else:
-        summary = (
-            f"{summary} The current Key Vault inventory does not name a matching vault in the "
-            "current run."
-        )
-    if visibility_note:
-        summary = f"{summary} {visibility_note}"
-
-    related_ids = _merge_related_ids(
-        env.get("related_ids", []),
-        *[surface.get("related_ids", []) for surface in joined_surfaces],
-        target_ids,
-    )
-    semantic = evaluate_chain_semantics(
-        ChainSemanticContext(
-            family=family_name,
-            clue_type="keyvault-reference",
-            target_service="keyvault",
-            target_resolution=target_resolution,
-            target_count=len(target_ids),
-        )
-    )
-
-    return ChainPathRecord(
-        chain_id=_chain_id(env["asset_id"], env["setting_name"], "keyvault"),
-        asset_id=env["asset_id"],
-        asset_name=env["asset_name"],
-        asset_kind=env["asset_kind"],
-        location=env.get("location"),
-        setting_name=env["setting_name"],
-        clue_type="keyvault-reference",
-        confirmation_basis="normalized-uri-match" if matched_vaults else None,
-        priority=semantic.priority,
-        urgency=semantic.urgency,
-        visible_path=visible_path,
-        target_service="keyvault",
-        target_resolution=target_resolution,
-        evidence_commands=["env-vars", "tokens-credentials", "keyvault"],
-        joined_surface_types=_joined_surface_types(joined_surfaces, fallback="keyvault-reference"),
-        target_count=len(target_ids),
-        target_ids=target_ids,
-        target_names=target_names,
-        target_visibility_issue=None,
-        next_review=semantic.next_review,
-        summary=summary,
-        missing_confirmation=(
-            "The named Key Vault dependency is visible, but current evidence does not confirm "
-            "secret read access, secret values, or successful downstream use."
-        ),
-        related_ids=related_ids,
-    )
-
-
-def _build_candidate_record(
-    family_name: str,
-    env: dict,
-    joined_surfaces: list[dict],
-    target_service: str,
-    candidates: list[dict],
-    *,
-    visibility_note: str | None = None,
-    visibility_issue: str | None = None,
-) -> ChainPathRecord:
-    scoped_candidates, target_resolution = _select_candidates_for_location(
-        candidates,
-        env.get("location"),
-    )
-    target_names = [item.get("name") for item in scoped_candidates if item.get("name")]
-    target_ids = [item.get("id") for item in scoped_candidates if item.get("id")]
-    if visibility_issue:
-        target_names = []
-        target_ids = []
-        target_resolution = "visibility blocked"
-    visible_path = f"Credential-like setting -> likely {target_service} path"
-    summary = _candidate_summary(
-        env=env,
-        target_service=target_service,
-        target_names=target_names,
-        target_resolution=target_resolution,
-        visibility_note=visibility_note,
-    )
-    semantic = evaluate_chain_semantics(
-        ChainSemanticContext(
-            family=family_name,
-            clue_type="plain-text-secret",
-            target_service=target_service,
-            target_resolution=target_resolution,
-            target_count=len(target_ids),
-        )
-    )
-
-    return ChainPathRecord(
-        chain_id=_chain_id(env["asset_id"], env["setting_name"], target_service),
-        asset_id=env["asset_id"],
-        asset_name=env["asset_name"],
-        asset_kind=env["asset_kind"],
-        location=env.get("location"),
-        setting_name=env["setting_name"],
-        clue_type="plain-text-secret",
-        confirmation_basis="name-only-inference",
-        priority=semantic.priority,
-        urgency=semantic.urgency,
-        visible_path=visible_path,
-        target_service=target_service,
-        target_resolution=target_resolution,
-        evidence_commands=[
-            "env-vars",
-            "tokens-credentials",
-            target_service + "s" if target_service == "database" else target_service,
-        ],
-        joined_surface_types=_joined_surface_types(joined_surfaces, fallback="plain-text-secret"),
-        target_count=len(target_ids),
-        target_ids=target_ids,
-        target_names=target_names,
-        target_visibility_issue=visibility_issue,
-        next_review=semantic.next_review,
-        summary=summary,
-        missing_confirmation=(
-            f"The current evidence does not show a direct {target_service} hostname, connection "
-            "string value, or confirmed successful credential use from this workload."
-        ),
-        related_ids=_merge_related_ids(
-            env.get("related_ids", []),
-            *[surface.get("related_ids", []) for surface in joined_surfaces],
-            target_ids,
-        ),
-    )
-
-
-def _select_candidates_for_location(
-    candidates: list[dict],
-    location: str | None,
-) -> tuple[list[dict], str]:
-    if location:
-        location_matches = [item for item in candidates if item.get("location") == location]
-        if location_matches:
-            return location_matches, "narrowed candidates"
-    if candidates:
-        return candidates, "tenant-wide candidates"
-    return [], "service hint only"
-
-
-def _is_credential_like_env_var(env: dict, joined_surfaces: list[dict]) -> bool:
-    if env.get("looks_sensitive") and env.get("value_type") == "plain-text":
-        return True
-    return any(surface.get("surface_type") == "plain-text-secret" for surface in joined_surfaces)
-
-
-def _target_service_for_env_var(env: dict) -> str | None:
-    return env_var_target_service(str(env.get("setting_name") or ""))
-
-
-def _candidate_summary(
-    *,
-    env: dict,
-    target_service: str,
-    target_names: list[str],
-    target_resolution: str,
-    visibility_note: str | None = None,
-) -> str:
-    prefix = (
-        f"{env['asset_kind']} '{env['asset_name']}' exposes credential-like setting "
-        f"'{env['setting_name']}', and the visible naming suggests a {target_service} path. "
-    )
-
-    if target_resolution == "visibility blocked":
-        summary = (
-            f"{prefix}AzureFox cannot name candidate {target_service} targets because current "
-            "credentials do not show enough target-side visibility."
-        )
-        if visibility_note:
-            summary = f"{summary} {visibility_note}"
-        return summary
-
-    if target_resolution == "narrowed candidates":
-        summary = (
-            f"{prefix}AzureFox cannot name the exact {target_service} from the setting alone, "
-            f"but it can narrow the next review set to {len(target_names)} visible "
-            f"{target_service} candidate(s) in the same Azure location: "
-            f"{', '.join(target_names[:_CANDIDATE_LIMIT])}."
-        )
-        if visibility_note:
-            summary = f"{summary} {visibility_note}"
-        return summary
-
-    if target_resolution == "tenant-wide candidates":
-        summary = (
-            f"{prefix}AzureFox cannot narrow that beyond tenant-visible {target_service} "
-            f"candidate(s) yet: {', '.join(target_names[:_CANDIDATE_LIMIT])}."
-        )
-        if visibility_note:
-            summary = f"{summary} {visibility_note}"
-        return summary
-
-    summary = (
-        f"{prefix}The current evidence does not narrow that to a specific {target_service} "
-        "asset yet."
-    )
-    if visibility_note:
-        summary = f"{summary} {visibility_note}"
-    return summary
 
 
 def _build_deployment_source_record(
@@ -1575,27 +1250,6 @@ def _target_visibility_issue(issues: list[CollectionIssue]) -> str | None:
     return None
 
 
-def _joined_surface_types(joined_surfaces: list[dict], *, fallback: str) -> list[str]:
-    surface_types = sorted(
-        {
-            str(surface.get("surface_type"))
-            for surface in joined_surfaces
-            if surface.get("surface_type")
-        }
-    )
-    return surface_types or [fallback]
-
-
-def _parse_operator_signal(value: str | None) -> dict[str, str]:
-    signal: dict[str, str] = {}
-    for part in str(value or "").split(";"):
-        key, sep, raw = part.strip().partition("=")
-        if not sep:
-            continue
-        signal[key.strip().lower()] = raw.strip()
-    return signal
-
-
 def _build_escalation_direct_control_record(
     family_name: str,
     privesc_row: dict,
@@ -1762,17 +1416,6 @@ def _build_escalation_trust_record(
     return None
 
 
-def _normalize_reference_target(value: str) -> str:
-    return str(value).strip().removeprefix("https://").strip("/").lower()
-
-
-def _reference_host(value: str | None) -> str:
-    normalized = _normalize_reference_target(value or "")
-    if "/" in normalized:
-        return normalized.split("/", 1)[0]
-    return normalized
-
-
 def _merge_related_ids(*groups: list[str]) -> list[str]:
     seen: set[str] = set()
     merged: list[str] = []
@@ -1802,12 +1445,5 @@ def _permission_control_summary(permission_row: dict | None) -> str:
     role_text = ", ".join(roles) or "high-impact roles"
     scope_text = _permission_scope_text(permission_row)
     return f"{role_text} across {scope_text}"
-
-
-def _chain_id(asset_id: str, setting_name: str, target_service: str) -> str:
-    normalized_setting = setting_name.lower().replace("_", "-")
-    return f"credential-path::{asset_id}::{normalized_setting}::{target_service}"
-
-
 def _source_chain_id(family_name: str, asset_id: str, target_service: str) -> str:
     return f"{family_name}::{asset_id}::{target_service}"
