@@ -6,7 +6,11 @@ from pathlib import Path
 
 import typer
 
-from azurefox.chains import implemented_chain_families, run_chain_family
+from azurefox.chains import (
+    build_chains_scaffold_output,
+    implemented_chain_families,
+    run_chain_family,
+)
 from azurefox.chains.registry import chain_family_names, get_chain_family_spec
 from azurefox.collectors.provider import get_provider
 from azurefox.config import GlobalOptions
@@ -16,6 +20,7 @@ from azurefox.models.common import OutputMode, RoleTrustsMode
 from azurefox.output.style import (
     emit_artifact_paths,
     emit_command_intro,
+    emit_command_status,
     emit_context_banner,
 )
 from azurefox.output.writer import emit_output
@@ -262,9 +267,27 @@ def vmss(ctx: typer.Context) -> None:
 @app.command("chains")
 def chains(
     ctx: typer.Context,
-    family: str = typer.Argument(..., help="Chain family name, for example credential-path"),
+    family: str | None = typer.Argument(
+        None, help="Chain family name, or 'help' to list the available chain families."
+    ),
 ) -> None:
     options: GlobalOptions = ctx.obj
+    if family in {None, "help"}:
+        try:
+            if options.output != OutputMode.JSON:
+                emit_context_banner(options)
+                emit_command_status(
+                    "chains",
+                    "Listing grouped chain families and current execution state.",
+                )
+            model = build_chains_scaffold_output()
+            artifact_paths = emit_output("chains", model, options)
+            emit_artifact_paths("chains", artifact_paths, options)
+        except Exception as exc:  # pragma: no cover - safety rail
+            typer.echo(f"[unknown] {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        return
+
     family_spec = get_chain_family_spec(family)
     if family_spec is None:
         typer.echo(

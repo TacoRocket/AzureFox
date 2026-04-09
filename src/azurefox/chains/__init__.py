@@ -4,6 +4,8 @@ from azurefox.chains.registry import (
     chain_family_names,
     get_chain_family_spec,
     get_chain_family_specs,
+    implemented_chain_family_names,
+    is_implemented_chain_family,
 )
 from azurefox.chains.runner import implemented_chain_families, run_chain_family
 from azurefox.chains.scaffold import build_chains_scaffold_output
@@ -17,7 +19,9 @@ __all__ = [
     "evaluate_chain_semantics",
     "get_chain_family_spec",
     "get_chain_family_specs",
+    "implemented_chain_family_names",
     "implemented_chain_families",
+    "is_implemented_chain_family",
     "run_chain_family",
     "semantic_priority_sort_value",
 ]

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 from collections import defaultdict
-from pathlib import Path
 
 from azurefox.chains.deployment_path import (
     DeploymentSourceAssessment,
@@ -12,8 +10,9 @@ from azurefox.chains.deployment_path import (
 )
 from azurefox.chains.registry import (
     GROUPED_COMMAND_NAME,
-    PREFERRED_ARTIFACT_ORDER,
     get_chain_family_spec,
+    implemented_chain_family_names,
+    is_implemented_chain_family,
 )
 from azurefox.chains.semantics import (
     ChainSemanticContext,
@@ -26,47 +25,12 @@ from azurefox.devops_hints import describe_trusted_input
 from azurefox.env_var_hints import env_var_target_service
 from azurefox.models.chains import (
     ChainPathRecord,
-    ChainSourceArtifact,
     ChainsOutput,
 )
-from azurefox.models.commands import (
-    AksOutput,
-    AppServicesOutput,
-    ArmDeploymentsOutput,
-    AutomationOutput,
-    ChainsCommandOutput,
-    DatabasesOutput,
-    DevopsOutput,
-    EnvVarsOutput,
-    FunctionsOutput,
-    KeyVaultOutput,
-    PermissionsOutput,
-    PrivescOutput,
-    RoleTrustsOutput,
-    StorageOutput,
-    TokensCredentialsOutput,
-)
+from azurefox.models.commands import ChainsCommandOutput
 from azurefox.models.common import ArmDeploymentSummary, CollectionIssue, CommandMetadata
-from azurefox.output.writer import emit_output
 from azurefox.registry import get_command_specs
 
-_SUPPORTED_IMPLEMENTED_FAMILIES = {"credential-path", "deployment-path", "escalation-path"}
-_SOURCE_MODEL_MAP = {
-    "aks": AksOutput,
-    "app-services": AppServicesOutput,
-    "arm-deployments": ArmDeploymentsOutput,
-    "automation": AutomationOutput,
-    "devops": DevopsOutput,
-    "env-vars": EnvVarsOutput,
-    "functions": FunctionsOutput,
-    "tokens-credentials": TokensCredentialsOutput,
-    "databases": DatabasesOutput,
-    "storage": StorageOutput,
-    "keyvault": KeyVaultOutput,
-    "permissions": PermissionsOutput,
-    "privesc": PrivescOutput,
-    "role-trusts": RoleTrustsOutput,
-}
 _CANDIDATE_LIMIT = 3
 _JOIN_QUALITY_ORDER = {
     "path-confirmed": 0,
@@ -107,7 +71,7 @@ _DEPLOYMENT_TARGET_SPECS = {
 
 
 def implemented_chain_families() -> tuple[str, ...]:
-    return tuple(sorted(_SUPPORTED_IMPLEMENTED_FAMILIES))
+    return implemented_chain_family_names()
 
 
 def run_chain_family(
@@ -115,72 +79,50 @@ def run_chain_family(
     options: GlobalOptions,
     family_name: str,
 ) -> ChainsOutput:
-    if family_name not in _SUPPORTED_IMPLEMENTED_FAMILIES:
-        raise ValueError(f"Chain family '{family_name}' is not implemented yet")
-
     family = get_chain_family_spec(family_name)
     if family is None:
         raise ValueError(f"Unknown chain family '{family_name}'")
+    if not is_implemented_chain_family(family_name):
+        raise ValueError(f"Chain family '{family_name}' is not implemented yet")
 
-    source_artifacts = _collect_family_artifacts(provider, options, family_name)
+    loaded = _collect_family_outputs(provider, options, family_name)
     if family_name == "credential-path":
-        return _build_credential_path_output(options, family_name, source_artifacts)
+        return _build_credential_path_output(options, family_name, loaded)
     if family_name == "deployment-path":
-        return _build_deployment_path_output(options, family_name, source_artifacts)
+        return _build_deployment_path_output(options, family_name, loaded)
     if family_name == "escalation-path":
-        return _build_escalation_path_output(options, family_name, source_artifacts)
+        return _build_escalation_path_output(options, family_name, loaded)
 
     raise ValueError(f"Unsupported chain family '{family_name}'")
 
 
-def _collect_family_artifacts(
+def _collect_family_outputs(
     provider: BaseProvider,
     options: GlobalOptions,
     family_name: str,
-) -> list[ChainSourceArtifact]:
+) -> dict[str, object]:
     family = get_chain_family_spec(family_name)
     if family is None:
         raise ValueError(f"Unknown chain family '{family_name}'")
 
     collector_by_name = {spec.name: spec.collector for spec in get_command_specs()}
-    source_artifacts: list[ChainSourceArtifact] = []
+    loaded: dict[str, object] = {}
 
     for source in family.source_commands:
         collector = collector_by_name[source.command]
-        model = collector(provider, options)
-        artifact_paths = emit_output(source.command, model, options, emit_stdout=False)
-        artifact_type, artifact_path = _preferred_artifact_for_command(artifact_paths)
-        source_artifacts.append(
-            ChainSourceArtifact(
-                command=source.command,
-                artifact_type=artifact_type,
-                path=str(artifact_path),
-            )
-        )
+        loaded[source.command] = collector(provider, options)
 
-    return source_artifacts
-
-
-def _preferred_artifact_for_command(artifact_paths: dict[str, Path]) -> tuple[str, Path]:
-    for artifact_type in PREFERRED_ARTIFACT_ORDER:
-        path = artifact_paths.get(artifact_type)
-        if path is not None:
-            return artifact_type, path
-    if artifact_paths:
-        artifact_type, path = next(iter(artifact_paths.items()))
-        return artifact_type, path
-    raise ValueError("No artifacts were emitted for chain source command")
+    return loaded
 
 
 def _build_credential_path_output(
     options: GlobalOptions,
     family_name: str,
-    source_artifacts: list[ChainSourceArtifact],
+    loaded: dict[str, object],
 ) -> ChainsCommandOutput:
     family = get_chain_family_spec(family_name)
     assert family is not None  # pragma: no cover - guarded above
 
-    loaded = {source.command: _load_source_output(source) for source in source_artifacts}
     env_output = loaded["env-vars"]
     token_output = loaded["tokens-credentials"]
     database_output = loaded["databases"]
@@ -301,9 +243,9 @@ def _build_credential_path_output(
         command_state="extraction-only",
         summary=family.summary,
         claim_boundary=family.allowed_claim,
-        artifact_preference_order=list(PREFERRED_ARTIFACT_ORDER),
+        artifact_preference_order=[],
         backing_commands=[source.command for source in family.source_commands],
-        source_artifacts=source_artifacts,
+        source_artifacts=[],
         paths=paths,
         issues=issues,
     )
@@ -312,12 +254,11 @@ def _build_credential_path_output(
 def _build_deployment_path_output(
     options: GlobalOptions,
     family_name: str,
-    source_artifacts: list[ChainSourceArtifact],
+    loaded: dict[str, object],
 ) -> ChainsCommandOutput:
     family = get_chain_family_spec(family_name)
     assert family is not None  # pragma: no cover - guarded above
 
-    loaded = {source.command: _load_source_output(source) for source in source_artifacts}
     devops_output = loaded["devops"]
     automation_output = loaded["automation"]
     arm_output = loaded["arm-deployments"]
@@ -451,9 +392,9 @@ def _build_deployment_path_output(
         command_state="extraction-only",
         summary=family.summary,
         claim_boundary=family.allowed_claim,
-        artifact_preference_order=list(PREFERRED_ARTIFACT_ORDER),
+        artifact_preference_order=[],
         backing_commands=[source.command for source in family.source_commands],
-        source_artifacts=source_artifacts,
+        source_artifacts=[],
         paths=paths,
         issues=issues,
     )
@@ -462,12 +403,11 @@ def _build_deployment_path_output(
 def _build_escalation_path_output(
     options: GlobalOptions,
     family_name: str,
-    source_artifacts: list[ChainSourceArtifact],
+    loaded: dict[str, object],
 ) -> ChainsCommandOutput:
     family = get_chain_family_spec(family_name)
     assert family is not None  # pragma: no cover - guarded above
 
-    loaded = {source.command: _load_source_output(source) for source in source_artifacts}
     privesc_output = loaded["privesc"]
     permissions_output = loaded["permissions"]
     role_trusts_output = loaded["role-trusts"]
@@ -537,18 +477,12 @@ def _build_escalation_path_output(
         command_state="extraction-only",
         summary=family.summary,
         claim_boundary=family.allowed_claim,
-        artifact_preference_order=list(PREFERRED_ARTIFACT_ORDER),
+        artifact_preference_order=[],
         backing_commands=[source.command for source in family.source_commands],
-        source_artifacts=source_artifacts,
+        source_artifacts=[],
         paths=paths,
         issues=issues,
     )
-
-
-def _load_source_output(source: ChainSourceArtifact):
-    model = _SOURCE_MODEL_MAP[source.command]
-    payload = json.loads(Path(source.path).read_text(encoding="utf-8"))
-    return model.model_validate(payload)
 
 
 def _build_keyvault_record(
@@ -583,7 +517,7 @@ def _build_keyvault_record(
     else:
         summary = (
             f"{summary} The current Key Vault inventory does not name a matching vault in the "
-            "current artifacts."
+            "current run."
         )
     if visibility_note:
         summary = f"{summary} {visibility_note}"
@@ -626,7 +560,7 @@ def _build_keyvault_record(
         next_review=semantic.next_review,
         summary=summary,
         missing_confirmation=(
-            "The named Key Vault dependency is visible, but current artifacts do not confirm "
+            "The named Key Vault dependency is visible, but current evidence does not confirm "
             "secret read access, secret values, or successful downstream use."
         ),
         related_ids=related_ids,
@@ -698,7 +632,7 @@ def _build_candidate_record(
         next_review=semantic.next_review,
         summary=summary,
         missing_confirmation=(
-            f"The current artifacts do not show a direct {target_service} hostname, connection "
+            f"The current evidence does not show a direct {target_service} hostname, connection "
             "string value, or confirmed successful credential use from this workload."
         ),
         related_ids=_merge_related_ids(
@@ -775,7 +709,7 @@ def _candidate_summary(
         return summary
 
     summary = (
-        f"{prefix}The current artifacts do not narrow that to a specific {target_service} "
+        f"{prefix}The current evidence does not narrow that to a specific {target_service} "
         "asset yet."
     )
     if visibility_note:
@@ -1289,7 +1223,7 @@ def _deployment_confidence_boundary(
                 "grounding."
             )
         return (
-            "Current artifacts show meaningful deployment support, but AzureFox has not yet "
+            "Current evidence shows meaningful deployment support, but AzureFox has not yet "
             f"mapped the downstream Azure footprint beyond {target_label} consequence grounding."
         )
 
@@ -1565,16 +1499,16 @@ def _deployment_missing_confirmation(
         if missing_target_mapping:
             return (
                 "Missing exact target mapping and a separate execution foothold; current "
-                "artifacts only show secret-backed support around a live Azure change path."
+                "evidence only shows secret-backed support around a live Azure change path."
             )
         if target_resolution == "visibility blocked":
             return (
                 f"Missing target-side visibility for the downstream {target_label} footprint, "
-                "and current artifacts only show secret-backed support rather than a directly "
+                "and current evidence only shows secret-backed support rather than a directly "
                 "attacker-usable execution path."
             )
         return (
-            f"Current artifacts narrow the likely {target_label} footprint, but another foothold "
+            f"Current evidence narrows the likely {target_label} footprint, but another foothold "
             "is still needed before the secret-backed support becomes attacker-usable."
         )
 
@@ -1582,34 +1516,34 @@ def _deployment_missing_confirmation(
         if source_command == "devops":
             return (
                 f"Missing target-side visibility for the downstream {target_label} footprint, "
-                "and current artifacts still do not prove a poisonable trusted input or a "
+                "and current evidence still does not prove a poisonable trusted input or a "
                 "definition-edit path for current credentials."
             )
         return (
             f"Missing target-side visibility for the downstream {target_label} footprint, and "
-            "current artifacts do not show that the current credentials can start the runbook "
+            "current evidence does not show that the current credentials can start the runbook "
             "path that performs the Azure change."
         )
     if target_resolution == "named match":
         if source_command == "devops":
             return (
-                f"Current artifacts name the likely {target_label} target, but do not confirm a "
+                f"Current evidence names the likely {target_label} target, but does not confirm a "
                 "poisonable trusted input or a current-credential definition-edit path on the "
                 "source side."
             )
         return (
-            f"Current artifacts name the likely {target_label} target, but do not confirm which "
+            f"Current evidence names the likely {target_label} target, but does not confirm which "
             "specific runbook or current-credential start path performs that Azure change."
         )
     if source_command == "devops":
         return (
             f"Missing exact {target_label} mapping and source-side poisoning proof; current "
-            "artifacts do not confirm a poisonable trusted input or a current-credential "
+            "evidence does not confirm a poisonable trusted input or a current-credential "
             "definition-edit path."
         )
     return (
         f"Missing exact {target_label} mapping and runbook-level execution proof; current "
-        "artifacts do not show that the current credentials can start the published runbook path "
+        "evidence does not show that the current credentials can start the published runbook path "
         "that performs the Azure change."
     )
 

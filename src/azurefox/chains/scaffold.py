@@ -15,8 +15,8 @@ from azurefox.models.chains import (
 from azurefox.models.common import CommandMetadata
 
 CURRENT_BEHAVIOR = (
-    "Internal scaffold only. The grouped runner shape, family registry, and minimum extraction "
-    "points are recorded here, but full-family execution and joins are not implemented yet."
+    "Family overview and grouped runner. Use `azurefox chains` or `azurefox chains help` to list "
+    "families, then `azurefox chains <family>` to run an implemented family."
 )
 
 
@@ -44,6 +44,7 @@ def build_chains_scaffold_output(selected_family: str | None = None) -> ChainsSc
 def _descriptor_from_spec(spec) -> ChainFamilyDescriptor:
     return ChainFamilyDescriptor(
         family=spec.name,
+        state=spec.state,
         meaning=spec.meaning,
         summary=spec.summary,
         allowed_claim=spec.allowed_claim,
