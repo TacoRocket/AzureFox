@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.0] - 2026-04-08
+
+### Added
+- Added live-proof-aware `credential-path` handling for Key Vault-backed app settings so the
+  grouped chain output can distinguish named vault dependency, policy-suggested access, successful
+  secret read, and denied secret read without printing secret material.
+
+### Changed
+- Refactored `credential-path` onto a reusable handler registry so target-family-specific chain
+  logic can expand beyond hardcoded runner branches and be reused by future chain families.
+- Tightened operator-facing credential-path wording so rows separate target resolution from proof
+  of current-identity access more clearly.
+- Bumped the published package and output schema version to `1.3.0` for the next minor release.
+
 ## [1.2.0] - 2026-04-05
 
 ### Added
