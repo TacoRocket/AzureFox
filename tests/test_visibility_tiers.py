@@ -1,8 +1,22 @@
+"""Visibility-tier tests.
+
+Internal shorthand:
+- high: admin-like visibility
+- medium: operator/dev-like visibility
+- low: user-like visibility
+"""
+
 from __future__ import annotations
 
 import pytest
 
-from azurefox.collectors.commands import collect_managed_identities, collect_permissions
+from azurefox.collectors.commands import (
+    collect_devops,
+    collect_functions,
+    collect_managed_identities,
+    collect_permissions,
+)
+from azurefox.render.table import render_table
 
 VM_ID = (
     "/subscriptions/test/resourceGroups/rg-workload/providers/"
@@ -12,7 +26,17 @@ IDENTITY_ID = (
     "/subscriptions/test/resourceGroups/rg-workload/providers/"
     "Microsoft.ManagedIdentity/userAssignedIdentities/ua-orders"
 )
+FUNCTION_APP_ID = (
+    "/subscriptions/test/resourceGroups/rg-apps/providers/Microsoft.Web/sites/func-orders"
+)
 PRINCIPAL_ID = "33333333-3333-3333-3333-333333333333"
+PIPELINE_ID = "https://dev.azure.com/contoso/app-platform/_build?definitionId=27"
+
+TIER_ALIASES = {
+    "high": "admin-like visibility",
+    "medium": "operator/dev-like visibility",
+    "low": "user-like visibility",
+}
 
 
 class _VisibilityTierProvider:
@@ -95,6 +119,132 @@ def _vm_asset(**overrides) -> dict:
     return row
 
 
+def _trusted_input(**overrides) -> dict:
+    row = {
+        "input_type": "repository",
+        "ref": "repository:azure-repos:func-orders@refs/heads/main",
+        "visibility_state": "visible",
+        "current_operator_access_state": "read",
+        "current_operator_can_poison": False,
+        "surface_types": ["repo-content"],
+        "join_ids": [],
+    }
+    row.update(overrides)
+    return row
+
+
+def _devops_pipeline(**overrides) -> dict:
+    row = {
+        "id": PIPELINE_ID,
+        "definition_id": "27",
+        "name": "deploy-func-orders",
+        "project_id": "proj-app-platform",
+        "project_name": "app-platform",
+        "path": "\\Production",
+        "repository_id": "repo-func-orders",
+        "repository_name": "func-orders",
+        "repository_type": "TfsGit",
+        "repository_url": "https://dev.azure.com/contoso/app-platform/_git/func-orders",
+        "repository_host_type": "azure-repos",
+        "source_visibility_state": "visible",
+        "default_branch": "refs/heads/main",
+        "trigger_types": ["continuousIntegration"],
+        "variable_group_names": ["func-orders-release"],
+        "secret_variable_count": 2,
+        "secret_variable_names": ["FUNCTIONS_API_KEY", "STORAGE_CONN"],
+        "key_vault_group_names": ["func-orders-kv"],
+        "key_vault_names": ["kv-orders"],
+        "azure_service_connection_names": ["prod-subscription"],
+        "azure_service_connection_types": ["azurerm"],
+        "azure_service_connection_auth_schemes": ["ServicePrincipal"],
+        "azure_service_connection_ids": ["service-conn-1"],
+        "azure_service_connection_principal_ids": [PRINCIPAL_ID],
+        "azure_service_connection_client_ids": ["sp-client-id"],
+        "azure_service_connection_tenant_ids": ["tenant-test"],
+        "azure_service_connection_subscription_ids": ["subscription-test"],
+        "target_clues": ["Functions"],
+        "risk_cues": [
+            "auto-triggered",
+            "azure deployment connection",
+            "key vault-backed variables",
+        ],
+        "execution_modes": ["auto-trigger"],
+        "upstream_sources": ["repo:azure-repos:func-orders@refs/heads/main"],
+        "trusted_inputs": [_trusted_input()],
+        "trusted_input_types": ["repository"],
+        "trusted_input_refs": ["repository:azure-repos:func-orders@refs/heads/main"],
+        "trusted_input_join_ids": [],
+        "primary_injection_surface": "repo-content",
+        "primary_trusted_input_ref": "repository:azure-repos:func-orders@refs/heads/main",
+        "source_join_ids": [],
+        "trigger_join_ids": [],
+        "identity_join_ids": [],
+        "secret_support_types": ["variable-groups", "keyvault-backed-inputs"],
+        "secret_dependency_ids": ["func-orders-release", "keyvault:kv-orders"],
+        "injection_surface_types": ["repo-content"],
+        "current_operator_injection_surface_types": [],
+        "edit_path_state": "repo-backed",
+        "queue_path_state": "visible",
+        "rerun_path_state": "visible",
+        "approval_path_state": "unknown",
+        "current_operator_can_view_definition": True,
+        "current_operator_can_queue": True,
+        "current_operator_can_edit": False,
+        "current_operator_can_view_source": True,
+        "current_operator_can_contribute_source": False,
+        "consequence_types": ["redeploy-workload"],
+        "missing_execution_path": False,
+        "missing_injection_point": False,
+        "missing_target_mapping": False,
+        "partial_read": False,
+        "summary": (
+            "Pipeline 'deploy-func-orders' points at a named Function App deployment path with "
+            "Azure control and vault-backed support."
+        ),
+        "related_ids": [PIPELINE_ID, FUNCTION_APP_ID],
+    }
+    row.update(overrides)
+    return row
+
+
+def _function_app(**overrides) -> dict:
+    row = {
+        "id": FUNCTION_APP_ID,
+        "name": "func-orders",
+        "resource_group": "rg-apps",
+        "location": "eastus",
+        "state": "Running",
+        "default_hostname": "func-orders.azurewebsites.net",
+        "app_service_plan_id": (
+            "/subscriptions/test/resourceGroups/rg-apps/providers/"
+            "Microsoft.Web/serverfarms/asp-functions"
+        ),
+        "public_network_access": "Enabled",
+        "https_only": True,
+        "client_cert_enabled": False,
+        "min_tls_version": "1.2",
+        "ftps_state": "Disabled",
+        "runtime_stack": "PYTHON|3.11",
+        "functions_extension_version": "~4",
+        "always_on": True,
+        "workload_identity_type": "SystemAssigned, UserAssigned",
+        "workload_principal_id": PRINCIPAL_ID,
+        "workload_client_id": "dddd2222-2222-2222-2222-222222222222",
+        "workload_identity_ids": [IDENTITY_ID],
+        "azure_webjobs_storage_value_type": "plain-text",
+        "azure_webjobs_storage_reference_target": None,
+        "run_from_package": True,
+        "key_vault_reference_count": 1,
+        "summary": (
+            "Function App 'func-orders' exposes a public hostname, uses managed identity, and "
+            "shows deployment-setting clues worth follow-up."
+        ),
+        "related_ids": [FUNCTION_APP_ID, IDENTITY_ID],
+    }
+    row.update(overrides)
+    return row
+
+
 class HighVisibilityProvider(_VisibilityTierProvider):
     def permissions(self) -> dict:
         return {"permissions": [_permission_row()], "issues": []}
@@ -112,6 +262,12 @@ class HighVisibilityProvider(_VisibilityTierProvider):
     def vms(self) -> dict:
         return {"vm_assets": [_vm_asset()], "issues": []}
 
+    def devops(self) -> dict:
+        return {"pipelines": [_devops_pipeline()], "issues": []}
+
+    def functions(self) -> dict:
+        return {"function_apps": [_function_app()], "issues": []}
+
 
 class MediumVisibilityProvider(HighVisibilityProvider):
     def principals(self) -> dict:
@@ -122,6 +278,46 @@ class MediumVisibilityProvider(HighVisibilityProvider):
             "identities": [_identity_row(principal_id=None)],
             "role_assignments": [],
             "issues": [],
+        }
+
+    def devops(self) -> dict:
+        return {
+            "pipelines": [
+                _devops_pipeline(
+                    source_visibility_state="inferred-only",
+                    trusted_inputs=[
+                        _trusted_input(
+                            visibility_state="exists-only",
+                            current_operator_access_state="exists-only",
+                        )
+                    ],
+                    current_operator_can_view_source=False,
+                    summary=(
+                        "Pipeline 'deploy-func-orders' still points at a Function App deployment "
+                        "path, but current source-side proof is weaker."
+                    ),
+                )
+            ],
+            "issues": [],
+        }
+
+    def functions(self) -> dict:
+        return {
+            "function_apps": [
+                _function_app(
+                    azure_webjobs_storage_value_type=None,
+                    azure_webjobs_storage_reference_target=None,
+                    run_from_package=None,
+                    key_vault_reference_count=None,
+                )
+            ],
+            "issues": [
+                {
+                    "kind": "permission_denied",
+                    "message": "functions[rg-apps/func-orders].app_settings: 403 Forbidden",
+                    "context": {"collector": "functions[rg-apps/func-orders].app_settings"},
+                }
+            ],
         }
 
 
@@ -150,28 +346,105 @@ class LowVisibilityProvider(MediumVisibilityProvider):
             ],
         }
 
+    def devops(self) -> dict:
+        return {
+            "pipelines": [
+                _devops_pipeline(
+                    source_visibility_state="inferred-only",
+                    target_clues=[],
+                    key_vault_group_names=[],
+                    key_vault_names=[],
+                    azure_service_connection_names=[],
+                    azure_service_connection_types=[],
+                    azure_service_connection_auth_schemes=[],
+                    azure_service_connection_ids=[],
+                    azure_service_connection_principal_ids=[],
+                    azure_service_connection_client_ids=[],
+                    azure_service_connection_tenant_ids=[],
+                    azure_service_connection_subscription_ids=[],
+                    trusted_inputs=[
+                        _trusted_input(
+                            visibility_state="exists-only",
+                            current_operator_access_state="exists-only",
+                        )
+                    ],
+                    partial_read=True,
+                    summary=(
+                        "Pipeline 'deploy-func-orders' is visible, but current credentials do not "
+                        "show enough Azure DevOps backing detail to pick the next Azure target "
+                        "confidently."
+                    ),
+                )
+            ],
+            "issues": [
+                {
+                    "kind": "partial_collection",
+                    "message": (
+                        "devops[app-platform/deploy-func-orders]: unresolved variable group refs"
+                    ),
+                    "context": {"collector": "devops[app-platform/deploy-func-orders]"},
+                }
+            ],
+        }
+
+    def functions(self) -> dict:
+        return {
+            "function_apps": [
+                _function_app(
+                    workload_identity_type=None,
+                    workload_principal_id=None,
+                    workload_client_id=None,
+                    workload_identity_ids=[],
+                    azure_webjobs_storage_value_type=None,
+                    azure_webjobs_storage_reference_target=None,
+                    run_from_package=None,
+                    key_vault_reference_count=None,
+                    summary=(
+                        "Function App 'func-orders' is still visible at the service shell level, "
+                        "but current credentials do not show identity or deployment-setting detail "
+                        "cleanly."
+                    ),
+                )
+            ],
+            "issues": [
+                {
+                    "kind": "permission_denied",
+                    "message": "functions[rg-apps/func-orders].configuration: 403 Forbidden",
+                    "context": {"collector": "functions[rg-apps/func-orders].configuration"},
+                },
+                {
+                    "kind": "permission_denied",
+                    "message": "functions[rg-apps/func-orders].app_settings: 403 Forbidden",
+                    "context": {"collector": "functions[rg-apps/func-orders].app_settings"},
+                },
+            ],
+        }
+
 
 @pytest.mark.parametrize(
     ("provider_cls", "expected_signal", "summary_fragment", "expected_next_review"),
     [
-        (
+        pytest.param(
             HighVisibilityProvider,
             "Direct control visible; workload pivot visible.",
             "already has direct control visible",
             "Check managed-identities for the workload pivot behind this direct control row.",
+            id=f"high-{TIER_ALIASES['high']}",
         ),
-        (
+        pytest.param(
             MediumVisibilityProvider,
             "Direct control visible; visibility blocked.",
             "backing workload pivot stays visibility blocked",
             "Check managed-identities; current scope does not yet show the workload pivot behind "
             "this direct-control row.",
+            id=f"medium-{TIER_ALIASES['medium']}",
         ),
-        (
+        pytest.param(
             LowVisibilityProvider,
             "Direct control not confirmed.",
             "does not yet show direct control from visible RBAC",
             "Check rbac for the exact assignment evidence behind this lower-signal row.",
+            id=f"low-{TIER_ALIASES['low']}",
         ),
     ],
 )
@@ -194,29 +467,32 @@ def test_permissions_visibility_tiers_degrade_honestly(
 @pytest.mark.parametrize(
     ("provider_cls", "expected_signal", "summary_fragment", "expected_next_review", "issue_kind"),
     [
-        (
+        pytest.param(
             HighVisibilityProvider,
             "Public VM workload pivot; direct control visible.",
             "direct control through high-impact roles",
             "Check permissions for direct control on this identity, then vms for the host context "
             "behind the workload pivot.",
             None,
+            id=f"high-{TIER_ALIASES['high']}",
         ),
-        (
+        pytest.param(
             MediumVisibilityProvider,
             "Public VM workload pivot; visibility blocked.",
             "current scope does not show the backing principal cleanly",
             "Check vms for the host context behind this workload pivot; current scope does not yet "
             "show direct control on this identity.",
             None,
+            id=f"medium-{TIER_ALIASES['medium']}",
         ),
-        (
+        pytest.param(
             LowVisibilityProvider,
             "VM workload pivot; visibility blocked.",
             "current scope does not show the backing principal cleanly",
             "Check vms for the host context behind this workload pivot; current scope does not yet "
             "show direct control on this identity.",
             "permission_denied",
+            id=f"low-{TIER_ALIASES['low']}",
         ),
     ],
 )
@@ -240,3 +516,79 @@ def test_managed_identities_visibility_tiers_degrade_honestly(
         assert output.issues == []
     else:
         assert output.issues[0].kind == issue_kind
+
+
+def test_devops_visibility_tiers_keep_routing_honest(options) -> None:
+    high = collect_devops(HighVisibilityProvider(), options)
+    medium = collect_devops(MediumVisibilityProvider(), options)
+    low = collect_devops(LowVisibilityProvider(), options)
+
+    assert high.pipelines[0].name == medium.pipelines[0].name == low.pipelines[0].name == (
+        "deploy-func-orders"
+    )
+
+    high_rendered = " ".join(render_table("devops", high.model_dump(mode="json")).split())
+    medium_rendered = " ".join(render_table("devops", medium.model_dump(mode="json")).split())
+    low_rendered = " ".join(render_table("devops", low.model_dump(mode="json")).split())
+
+    assert "Check functions" in high_rendered
+    assert "deployment" in high_rendered
+    assert "target;" in high_rendered
+    assert "role-trusts" in high_rendered
+    assert "Azure control;" in high_rendered
+    assert "review keyvault" in high_rendered
+    assert "vault-backed" in high_rendered
+
+    assert "shows that it" in medium_rendered
+    assert "exists;" in medium_rendered
+    assert "Azure Repos" in medium_rendered
+    assert "only inferred" in medium_rendered
+    assert "Check functions" in medium_rendered
+    assert "deployment" in medium_rendered
+    assert "target;" in medium_rendered
+    assert "role-trusts" in medium_rendered
+
+    assert "Restore" in low_rendered
+    assert "variable-group" in low_rendered
+    assert "visibility" in low_rendered
+    assert "next Azure" in low_rendered
+    assert "follow-up." in low_rendered
+    assert "Credential-scope issues:" in low_rendered
+    assert "partial_collection" in low_rendered
+    assert low.issues[0].kind == "partial_collection"
+
+
+def test_functions_visibility_tiers_keep_service_shell_visible(options) -> None:
+    high = collect_functions(HighVisibilityProvider(), options)
+    medium = collect_functions(MediumVisibilityProvider(), options)
+    low = collect_functions(LowVisibilityProvider(), options)
+
+    high_row = high.function_apps[0]
+    medium_row = medium.function_apps[0]
+    low_row = low.function_apps[0]
+
+    assert high_row.name == medium_row.name == low_row.name == "func-orders"
+    assert high_row.azure_webjobs_storage_value_type == "plain-text"
+    assert medium_row.azure_webjobs_storage_value_type is None
+    assert low_row.azure_webjobs_storage_value_type is None
+    assert high_row.key_vault_reference_count == 1
+    assert medium_row.key_vault_reference_count is None
+    assert low_row.key_vault_reference_count is None
+    assert high_row.workload_identity_type == "SystemAssigned, UserAssigned"
+    assert medium_row.workload_identity_type == "SystemAssigned, UserAssigned"
+    assert low_row.workload_identity_type is None
+
+    assert high.issues == []
+    assert medium.issues[0].kind == "permission_denied"
+    assert low.issues[0].kind == "permission_denied"
+
+    medium_rendered = render_table("functions", medium.model_dump(mode="json"))
+    low_rendered = render_table("functions", low.model_dump(mode="json"))
+
+    assert "func-orders" in medium_rendered
+    assert "Credential-scope issues:" in medium_rendered
+    assert "functions[rg-apps/func-orders].app_settings" in medium_rendered
+
+    assert "func-orders" in low_rendered
+    assert "Credential-scope issues:" in low_rendered
+    assert "functions[rg-apps/func-orders].configuration" in low_rendered
