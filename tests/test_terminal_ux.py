@@ -37,7 +37,7 @@ def test_role_trusts_table_mode_includes_narration_and_takeaway(tmp_path: Path) 
     assert "service principal 'build-sp' access." in normalized_output
     assert "authentication-control transform is not yet explicit." in normalized_output
     assert "Check permissions for Azure control" in result.stdout
-    assert "Takeaway: 4 trust edges surfaced in fast mode" in result.stdout
+    assert "Takeaway: 5 trust edges surfaced in fast mode" in result.stdout
     assert "privilege-confirmation follow-ons" in result.stdout
     assert "Delegated and admin" in result.stdout
     assert "out of scope for this" in result.stdout
@@ -757,7 +757,8 @@ def test_permissions_table_mode_surfaces_next_review(tmp_path: Path) -> None:
     assert "next review" in result.stdout
     assert "Direct control visible; current foothold." in result.stdout
     assert "Check privesc" in result.stdout
-    assert "Takeaway: 1 of 2 principals hold high-impact RBAC roles;" in result.stdout
+    assert "aa-hybrid-prod-mi" in result.stdout
+    assert "Takeaway: 2 of 3 principals hold high-impact RBAC roles;" in result.stdout
 
 
 def test_chains_table_mode_surfaces_priority_and_next_review(tmp_path: Path) -> None:
@@ -799,19 +800,21 @@ def test_deployment_chains_table_mode_surfaces_source_oriented_columns(tmp_path:
     assert "why care" in result.stdout
     assert "priority" in result.stdout
     assert "urgency" in result.stdout
-    assert "path type" in result.stdout
-    assert "confidence boundary" in result.stdout
+    assert "actionability" in result.stdout
+    assert "insertion point" in result.stdout
+    assert "what's missing" in result.stdout
     assert "deploy-aks-prod" in result.stdout
-    assert "deploy-appservice-prod" in result.stdout
-    assert "deploy-artifact-app-p" in result.stdout
     assert "plan-infra-prod" in result.stdout
     assert "aa-hybrid-prod" in result.stdout
     assert "aa-lab-quiet" in result.stdout
     assert "pivot-now" in normalized_output
     assert "upstream producer control" in normalized_output
-    assert "trusted input" in normalized_output
-    assert "execution hub" in normalized_output
-    assert "secret-backed support" in normalized_output
+    assert "currently actionable" in normalized_output
+    assert "conditionally" in normalized_output
+    assert "grounded, insertion" in normalized_output
+    assert "support-only" in normalized_output
+    assert "Redeploy-App" in normalized_output
+    assert "Lab-Maintenance" in normalized_output
 
 
 def test_deployment_chains_table_mode_renders_why_care_as_detail_rows(tmp_path: Path) -> None:

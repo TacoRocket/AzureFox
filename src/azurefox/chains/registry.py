@@ -187,6 +187,46 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
                 ),
             ),
             ChainSourceSpec(
+                command="permissions",
+                minimum_fields=(
+                    "principal_id",
+                    "principal_type",
+                    "high_impact_roles",
+                    "scope_count",
+                    "privileged",
+                ),
+                rationale=(
+                    "Provides direct RBAC proof for automation identities and service-connection-"
+                    "backed principals."
+                ),
+            ),
+            ChainSourceSpec(
+                command="rbac",
+                minimum_fields=(
+                    "scope_id",
+                    "principal_id",
+                    "role_name",
+                ),
+                rationale=(
+                    "Provides exact role-to-scope evidence for the current identity when the "
+                    "family needs to prove start or edit control on an automation path."
+                ),
+            ),
+            ChainSourceSpec(
+                command="role-trusts",
+                minimum_fields=(
+                    "source_object_id",
+                    "target_object_id",
+                    "trust_type",
+                    "confidence",
+                    "summary",
+                ),
+                rationale=(
+                    "Provides trust-expansion context when the deployment identity can also "
+                    "control other app or service-principal boundaries."
+                ),
+            ),
+            ChainSourceSpec(
                 command="arm-deployments",
                 minimum_fields=(
                     "id",

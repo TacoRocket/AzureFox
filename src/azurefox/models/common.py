@@ -755,6 +755,7 @@ class AutomationAccountAsset(BaseModel):
     identity_ids: list[str] = Field(default_factory=list)
     runbook_count: int | None = None
     published_runbook_count: int | None = None
+    published_runbook_names: list[str] = Field(default_factory=list)
     schedule_count: int | None = None
     job_schedule_count: int | None = None
     webhook_count: int | None = None
@@ -765,6 +766,8 @@ class AutomationAccountAsset(BaseModel):
     variable_count: int | None = None
     encrypted_variable_count: int | None = None
     start_modes: list[str] = Field(default_factory=list)
+    primary_start_mode: str | None = None
+    primary_runbook_name: str | None = None
     schedule_runbook_names: list[str] = Field(default_factory=list)
     webhook_runbook_names: list[str] = Field(default_factory=list)
     hybrid_worker_group_ids: list[str] = Field(default_factory=list)

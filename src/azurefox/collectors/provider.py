@@ -3818,8 +3818,16 @@ def _automation_account_summary(
         webhook_count=_len_or_none(webhooks),
         hybrid_worker_group_count=_len_or_none(hybrid_worker_groups),
     )
+    published_runbook_names = _automation_published_runbook_names(runbooks)
     schedule_runbook_names = _automation_schedule_runbook_names(job_schedules)
     webhook_runbook_names = _automation_webhook_runbook_names(webhooks)
+    primary_start_mode, primary_runbook_name = _automation_primary_run_path(
+        start_modes=start_modes,
+        published_runbook_names=published_runbook_names,
+        schedule_runbook_names=schedule_runbook_names,
+        webhook_runbook_names=webhook_runbook_names,
+        hybrid_worker_group_count=_len_or_none(hybrid_worker_groups),
+    )
     hybrid_worker_group_ids = _dedupe_strings(
         _string_value(getattr(group, "id", None)) for group in (hybrid_worker_groups or [])
     )
@@ -3904,6 +3912,7 @@ def _automation_account_summary(
         "identity_ids": identity_ids,
         "runbook_count": _len_or_none(runbooks),
         "published_runbook_count": published_runbook_count,
+        "published_runbook_names": published_runbook_names,
         "schedule_count": _len_or_none(schedules),
         "job_schedule_count": _len_or_none(job_schedules),
         "webhook_count": _len_or_none(webhooks),
@@ -3914,6 +3923,8 @@ def _automation_account_summary(
         "variable_count": _len_or_none(variables),
         "encrypted_variable_count": encrypted_variable_count,
         "start_modes": start_modes,
+        "primary_start_mode": primary_start_mode,
+        "primary_runbook_name": primary_runbook_name,
         "schedule_runbook_names": schedule_runbook_names,
         "webhook_runbook_names": webhook_runbook_names,
         "hybrid_worker_group_ids": hybrid_worker_group_ids,
@@ -4067,6 +4078,45 @@ def _automation_start_modes(
     return _dedupe_strings(modes)
 
 
+def _automation_published_runbook_names(runbooks: list[object] | None) -> list[str]:
+    if runbooks is None:
+        return []
+    published_names: list[str] = []
+    for runbook in runbooks:
+        state = str(
+            getattr(getattr(runbook, "properties", None), "state", None)
+            or getattr(runbook, "state", None)
+            or ""
+        ).lower()
+        if state != "published":
+            continue
+        name = _automation_runbook_name(runbook)
+        if name:
+            published_names.append(name)
+    return _dedupe_strings(published_names)
+
+
+def _automation_primary_run_path(
+    *,
+    start_modes: list[str],
+    published_runbook_names: list[str],
+    schedule_runbook_names: list[str],
+    webhook_runbook_names: list[str],
+    hybrid_worker_group_count: int | None,
+) -> tuple[str | None, str | None]:
+    if webhook_runbook_names:
+        return "webhook", webhook_runbook_names[0]
+    if schedule_runbook_names:
+        return "schedule", schedule_runbook_names[0]
+    if published_runbook_names:
+        if "manual-only" in start_modes:
+            return "manual-only", published_runbook_names[0]
+        return "published-runbook", published_runbook_names[0]
+    if hybrid_worker_group_count and hybrid_worker_group_count > 0:
+        return "hybrid-worker", None
+    return None, None
+
+
 def _automation_schedule_runbook_names(job_schedules: list[object] | None) -> list[str]:
     if job_schedules is None:
         return []
@@ -4082,6 +4132,8 @@ def _automation_webhook_runbook_names(webhooks: list[object] | None) -> list[str
 def _automation_runbook_name(item: object) -> str | None:
     properties = getattr(item, "properties", None)
     for candidate in (
+        getattr(item, "name", None),
+        getattr(properties, "name", None),
         getattr(item, "runbook_name", None),
         getattr(properties, "runbook_name", None),
         getattr(getattr(item, "runbook", None), "name", None),

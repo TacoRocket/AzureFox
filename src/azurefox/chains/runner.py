@@ -68,6 +68,21 @@ _DEPLOYMENT_TARGET_SPECS = {
         "collection_key": "deployments",
     },
 }
+_AUTOMATION_EDIT_ROLE_NAMES = {
+    "owner",
+    "contributor",
+    "automation contributor",
+}
+_AUTOMATION_START_ROLE_NAMES = {
+    "owner",
+    "contributor",
+    "automation contributor",
+    "automation operator",
+}
+_AUTOMATION_EDIT_ROLE_DEFINITION_IDS = {
+    "8e3af657-a8ff-443c-a75c-2fe8c4bcb635",  # Owner
+    "b24988ac-6180-42a0-ab88-20f7382dd24c",  # Contributor
+}
 
 
 def implemented_chain_families() -> tuple[str, ...]:
@@ -168,6 +183,9 @@ def _build_deployment_path_output(
 
     devops_output = loaded["devops"]
     automation_output = loaded["automation"]
+    permissions_output = loaded["permissions"]
+    rbac_output = loaded["rbac"]
+    role_trusts_output = loaded["role-trusts"]
     arm_output = loaded["arm-deployments"]
     app_services_output = loaded["app-services"]
     functions_output = loaded["functions"]
@@ -206,6 +224,27 @@ def _build_deployment_path_output(
     arm_correlations = _arm_correlations_by_target_family(
         [item.model_dump(mode="json") for item in arm_output.deployments]
     )
+    permissions_by_principal = {
+        item.principal_id: item.model_dump(mode="json")
+        for item in permissions_output.permissions
+        if item.principal_id
+    }
+    current_identity_principal_ids = {
+        str(item.principal_id)
+        for item in permissions_output.permissions
+        if item.is_current_identity and item.principal_id
+    }
+    current_identity_role_assignments = [
+        item.model_dump(mode="json")
+        for item in rbac_output.role_assignments
+        if str(item.principal_id or "") in current_identity_principal_ids
+    ]
+    trusts_by_source_id: dict[str, list[dict]] = defaultdict(list)
+    for trust in role_trusts_output.trusts:
+        trust_row = trust.model_dump(mode="json")
+        source_object_id = str(trust_row.get("source_object_id") or "")
+        if source_object_id:
+            trusts_by_source_id[source_object_id].append(trust_row)
 
     paths: list[ChainPathRecord] = []
     for pipeline in devops_output.pipelines:
@@ -240,6 +279,18 @@ def _build_deployment_path_output(
 
     for account in automation_output.automation_accounts:
         account_dict = account.model_dump(mode="json")
+        account_dict["current_operator_access"] = _automation_current_operator_access(
+            account_dict,
+            current_identity_role_assignments,
+        )
+        account_dict["joined_permission"] = _automation_joined_permission(
+            account_dict,
+            permissions_by_principal,
+        )
+        account_dict["joined_role_trusts"] = _automation_joined_role_trusts(
+            account_dict,
+            trusts_by_source_id,
+        )
         assessment = assess_deployment_source(account)
         if assessment.posture == "insufficient evidence":
             continue
@@ -278,6 +329,9 @@ def _build_deployment_path_output(
     for source_name in (
         "devops",
         "automation",
+        "permissions",
+        "rbac",
+        "role-trusts",
         "arm-deployments",
         "app-services",
         "functions",
@@ -452,6 +506,12 @@ def _build_deployment_source_record(
             current_operator_can_inject=_source_current_operator_can_inject(source_command, source),
         )
     )
+    semantic_priority = _deployment_priority_override(
+        source_command=source_command,
+        source=source,
+        path_concept=assessment.path_concept,
+        semantic_priority=semantic.priority,
+    )
 
     return ChainPathRecord(
         chain_id=_source_chain_id(
@@ -467,12 +527,24 @@ def _build_deployment_source_record(
         source_context=source_context,
         clue_type=assessment.path_concept or source_command,
         confirmation_basis=record_confirmation_basis,
-        priority=semantic.priority,
+        priority=semantic_priority,
         urgency=semantic.urgency,
+        actionability_state=_deployment_actionability_state(
+            source_command=source_command,
+            source=source,
+            path_concept=assessment.path_concept,
+            target_resolution=admission.state,
+            missing_target_mapping=assessment.missing_target_mapping,
+        ),
         visible_path=_deployment_visible_path(
             source_command,
             assessment.path_concept,
             target_spec["label"],
+        ),
+        insertion_point=_deployment_insertion_point(
+            source_command=source_command,
+            source=source,
+            path_concept=assessment.path_concept,
         ),
         path_concept=assessment.path_concept,
         primary_injection_surface=(
@@ -497,6 +569,8 @@ def _build_deployment_source_record(
             missing_target_mapping=assessment.missing_target_mapping,
         ),
         confidence_boundary=_deployment_confidence_boundary(
+            source_command=source_command,
+            source=source,
             target_label=target_spec["label"],
             target_resolution=admission.state,
             confirmation_basis=record_confirmation_basis,
@@ -540,6 +614,7 @@ def _build_deployment_source_record(
             supporting_deployments=supporting_deployments,
         ),
         missing_confirmation=_deployment_missing_confirmation(
+            source=source,
             source_command=source_command,
             path_concept=assessment.path_concept,
             target_label=target_spec["label"],
@@ -573,6 +648,411 @@ def _deployment_visible_path(
     if source_command == "automation":
         return f"Automation execution hub -> likely {target_label}"
     return f"Deployment source -> likely {target_label}"
+
+
+def _deployment_actionability_state(
+    *,
+    source_command: str,
+    source: dict,
+    path_concept: str | None,
+    target_resolution: str,
+    missing_target_mapping: bool,
+) -> str:
+    if path_concept == "secret-escalation-support":
+        return "support-only"
+    if _source_current_operator_can_inject(source_command, source):
+        return "currently actionable"
+    if _source_current_operator_can_drive(source_command, source):
+        return "conditionally actionable"
+    if target_resolution == "visibility blocked" and not missing_target_mapping:
+        return "visibility-bounded"
+    return "consequence-grounded but insertion point unproven"
+
+
+def _deployment_insertion_point(
+    *,
+    source_command: str,
+    source: dict,
+    path_concept: str | None,
+) -> str:
+    if source_command == "devops":
+        return _deployment_devops_insertion_point(source)
+    if source_command == "automation":
+        return _deployment_automation_insertion_point(source, path_concept=path_concept)
+    return "Visible deployment path, but the insertion point is not yet described."
+
+
+def _deployment_devops_insertion_point(source: dict) -> str:
+    primary_input = _devops_primary_trusted_input(source)
+    trusted_input_text = _devops_trusted_input_text(primary_input)
+    injection_surfaces = [
+        str(value) for value in (source.get("current_operator_injection_surface_types") or []) if value
+    ]
+    if any(value != "definition-edit" for value in injection_surfaces):
+        surface_list = ", ".join(value for value in injection_surfaces if value != "definition-edit")
+        return f"Poison {trusted_input_text} through {surface_list}."
+    if "definition-edit" in injection_surfaces or source.get("current_operator_can_edit"):
+        return "Edit the pipeline definition directly."
+    if source.get("current_operator_can_queue"):
+        if primary_input:
+            access_state = str(primary_input.get("current_operator_access_state") or "")
+            if access_state == "read":
+                return f"Queue this pipeline now; {trusted_input_text} is only readable."
+            if access_state == "exists-only":
+                return (
+                    f"Queue this pipeline now; {trusted_input_text} is visible, but source control "
+                    "is still unproven."
+                )
+        return "Queue this pipeline now, but source poisoning is still unproven."
+    if primary_input:
+        input_type = str(primary_input.get("input_type") or "")
+        if input_type == "pipeline-artifact":
+            return (
+                f"Artifact trust is visible at {trusted_input_text}, but upstream producer control "
+                "is unproven."
+            )
+        access_state = str(primary_input.get("current_operator_access_state") or "")
+        if access_state == "read":
+            return f"{trusted_input_text} is visible and readable, but not writable from current evidence."
+        if access_state == "exists-only":
+            return f"{trusted_input_text} is visible, but current control is unproven."
+        return f"Source depends on {trusted_input_text}."
+    return "Azure-facing pipeline is visible, but the source-side insertion point is still unproven."
+
+
+def _deployment_automation_insertion_point(source: dict, *, path_concept: str | None) -> str:
+    primary_mode = str(source.get("primary_start_mode") or "") or None
+    primary_runbook = str(source.get("primary_runbook_name") or "") or None
+    identity_type = str(source.get("identity_type") or "").strip() or None
+    primary_clause = _automation_primary_run_path_clause(
+        primary_mode=primary_mode,
+        primary_runbook=primary_runbook,
+        identity_type=identity_type,
+    )
+    webhook_runbooks = [str(value) for value in (source.get("webhook_runbook_names") or []) if value]
+    schedule_runbooks = [str(value) for value in (source.get("schedule_runbook_names") or []) if value]
+    hybrid_count = int(source.get("hybrid_worker_group_count") or 0)
+
+    surfaces: list[str] = []
+    if primary_clause:
+        surfaces.append(primary_clause)
+    elif webhook_runbooks:
+        surfaces.append("webhook-triggerable runbooks " + ", ".join(webhook_runbooks[:2]))
+    elif schedule_runbooks:
+        surfaces.append("schedule-backed runbooks " + ", ".join(schedule_runbooks[:2]))
+    if hybrid_count > 0:
+        surfaces.append(f"{hybrid_count} Hybrid Worker reach point(s)")
+    operator_clause = _automation_current_operator_control_clause(source)
+    if operator_clause:
+        surfaces.append(operator_clause)
+
+    if surfaces and path_concept == "secret-escalation-support":
+        return "; ".join(surfaces) + "."
+    if surfaces:
+        if operator_clause:
+            return "; ".join(surfaces) + "."
+        return "; ".join(surfaces) + ", but current operator control is still unproven."
+    if path_concept == "secret-escalation-support":
+        return "Reusable automation support is visible, but no operator-controlled run path is proven."
+    return "Automation consequences are grounded, but the operator-controlled start or edit path is still unproven."
+
+
+def _automation_joined_permission(
+    source: dict,
+    permissions_by_principal: dict[str, dict],
+) -> dict | None:
+    identity_refs = _automation_identity_refs(source)
+    for ref in identity_refs:
+        if ref in permissions_by_principal:
+            return dict(permissions_by_principal[ref])
+    return None
+
+
+def _automation_joined_role_trusts(
+    source: dict,
+    trusts_by_source_id: dict[str, list[dict]],
+) -> list[dict]:
+    identity_refs = _automation_identity_refs(source)
+    seen: set[tuple[str, str, str]] = set()
+    joined: list[dict] = []
+    for ref in identity_refs:
+        for trust in trusts_by_source_id.get(ref, []):
+            key = (
+                str(trust.get("source_object_id") or ""),
+                str(trust.get("trust_type") or ""),
+                str(trust.get("target_object_id") or ""),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            joined.append(dict(trust))
+    return joined
+
+
+def _automation_identity_refs(source: dict) -> list[str]:
+    refs: list[str] = []
+    for value in (
+        source.get("principal_id"),
+        *list(source.get("identity_join_ids") or []),
+        *list(source.get("identity_ids") or []),
+    ):
+        text = str(value or "").strip()
+        if text and text not in refs:
+            refs.append(text)
+    return refs
+
+
+def _automation_primary_run_path_clause(
+    *,
+    primary_mode: str | None,
+    primary_runbook: str | None,
+    identity_type: str | None,
+) -> str | None:
+    identity_clause = f" under automation identity {identity_type}" if identity_type else ""
+    if primary_mode == "webhook" and primary_runbook:
+        return f"webhook path can start runbook {primary_runbook}{identity_clause}"
+    if primary_mode == "schedule" and primary_runbook:
+        return f"schedule path can start runbook {primary_runbook}{identity_clause}"
+    if primary_mode == "manual-only" and primary_runbook:
+        return f"published runbook {primary_runbook}{identity_clause} is visible"
+    if primary_mode == "published-runbook" and primary_runbook:
+        return f"published runbook {primary_runbook}{identity_clause} is visible"
+    if primary_mode == "hybrid-worker":
+        return "hybrid-worker-backed execution is visible"
+    return None
+
+
+def _automation_primary_run_path_evidence_sentence(source: dict) -> str | None:
+    primary_mode = str(source.get("primary_start_mode") or "") or None
+    primary_runbook = str(source.get("primary_runbook_name") or "") or None
+    identity_type = str(source.get("identity_type") or "").strip() or None
+    identity_clause = f" under automation identity {identity_type}" if identity_type else ""
+    if primary_mode == "webhook" and primary_runbook:
+        return f"AzureFox can identify a webhook path into runbook {primary_runbook}{identity_clause}."
+    if primary_mode == "schedule" and primary_runbook:
+        return f"AzureFox can identify a schedule-backed path into runbook {primary_runbook}{identity_clause}."
+    if primary_mode in {"manual-only", "published-runbook"} and primary_runbook:
+        return f"AzureFox can identify published runbook {primary_runbook}{identity_clause}."
+    if primary_mode == "hybrid-worker":
+        return "AzureFox can identify hybrid-worker-backed execution."
+    return None
+
+
+def _automation_current_operator_access(
+    source: dict,
+    role_assignments: list[dict],
+) -> dict | None:
+    resource_id = str(source.get("id") or "").strip()
+    if not resource_id:
+        return None
+
+    best_access: dict | None = None
+    best_sort_key: tuple[int, int] | None = None
+    for assignment in role_assignments:
+        scope_id = str(assignment.get("scope_id") or "").strip()
+        role_name = str(assignment.get("role_name") or "").strip()
+        if not scope_id or not _scope_applies_to_resource(scope_id, resource_id):
+            continue
+
+        capability = _automation_role_capability(
+            role_name=role_name,
+            role_definition_id=str(assignment.get("role_definition_id") or "").strip() or None,
+        )
+        if capability is None:
+            continue
+
+        sort_key = (1 if capability == "edit" else 0, len(scope_id))
+        if best_sort_key is not None and sort_key <= best_sort_key:
+            continue
+        best_sort_key = sort_key
+        best_access = {
+            "capability": capability,
+            "role_name": role_name,
+            "scope_id": scope_id,
+        }
+    return best_access
+
+
+def _automation_current_operator_control_clause(source: dict) -> str | None:
+    access = source.get("current_operator_access")
+    if not isinstance(access, dict):
+        return None
+
+    capability = str(access.get("capability") or "").strip()
+    role_name = str(access.get("role_name") or "").strip()
+    scope_id = str(access.get("scope_id") or "").strip()
+    if not capability or not role_name or not scope_id:
+        return None
+
+    scope_text = _automation_scope_label(scope_id, resource_id=str(source.get("id") or ""))
+    primary_mode = str(source.get("primary_start_mode") or "").strip() or None
+    primary_runbook = str(source.get("primary_runbook_name") or "").strip() or None
+
+    if capability == "edit":
+        if primary_runbook and primary_mode == "webhook":
+            return (
+                f"current role assignment {role_name} at {scope_text} can edit runbook "
+                f"{primary_runbook} or its webhook-backed execution boundary; AzureFox does not "
+                "prove possession of the current webhook URI"
+            )
+        if primary_runbook and primary_mode == "schedule":
+            return (
+                f"current role assignment {role_name} at {scope_text} can edit runbook "
+                f"{primary_runbook} or its schedule-backed execution boundary"
+            )
+        if primary_runbook:
+            return (
+                f"current role assignment {role_name} at {scope_text} can edit published "
+                f"runbook {primary_runbook}"
+            )
+        return f"current role assignment {role_name} at {scope_text} can edit this automation execution boundary"
+
+    if primary_runbook:
+        return (
+            f"current role assignment {role_name} at {scope_text} can start runbook "
+            f"{primary_runbook}, but edit control is still unproven"
+        )
+    return (
+        f"current role assignment {role_name} at {scope_text} can start visible runbook jobs, "
+        "but edit control is still unproven"
+    )
+
+
+def _automation_scope_label(scope_id: str, *, resource_id: str) -> str:
+    normalized_scope = _normalized_arm_segments(scope_id)
+    normalized_resource = _normalized_arm_segments(resource_id)
+    if normalized_scope == normalized_resource:
+        return "this automation account"
+    if _arm_scope_kind(scope_id) == "resource_group":
+        return f"resource group {_arm_scope_name(scope_id)}"
+    if _arm_scope_kind(scope_id) == "subscription":
+        return "subscription scope"
+    if _arm_scope_kind(scope_id) == "resource":
+        resource_name = _arm_scope_name(scope_id)
+        if resource_name:
+            return f"resource scope {resource_name}"
+    return "a parent scope of this automation account"
+
+
+def _scope_applies_to_resource(scope_id: str | None, resource_id: str | None) -> bool:
+    if not scope_id or not resource_id:
+        return False
+    scope_segments = _normalized_arm_segments(scope_id)
+    resource_segments = _normalized_arm_segments(resource_id)
+    if not scope_segments or len(scope_segments) > len(resource_segments):
+        return False
+    return resource_segments[: len(scope_segments)] == scope_segments
+
+
+def _normalized_arm_segments(value: str | None) -> tuple[str, ...]:
+    if not value:
+        return ()
+    return tuple(part.strip().lower() for part in str(value).split("/") if part.strip())
+
+
+def _arm_scope_kind(scope_id: str | None) -> str | None:
+    segments = _normalized_arm_segments(scope_id)
+    if len(segments) == 2 and segments[0] == "subscriptions":
+        return "subscription"
+    if len(segments) == 4 and segments[0] == "subscriptions" and segments[2] == "resourcegroups":
+        return "resource_group"
+    if len(segments) >= 8 and segments[0] == "subscriptions" and segments[2] == "resourcegroups":
+        return "resource"
+    return None
+
+
+def _arm_scope_name(scope_id: str | None) -> str | None:
+    parts = [part for part in str(scope_id or "").split("/") if part]
+    if not parts:
+        return None
+    kind = _arm_scope_kind(scope_id)
+    if kind == "resource_group" and len(parts) >= 4:
+        return parts[3]
+    if kind == "resource":
+        return parts[-1]
+    return None
+
+
+def _normalize_role_name(value: str | None) -> str:
+    return " ".join(str(value or "").split()).strip().lower()
+
+
+def _role_definition_key(role_definition_id: str | None) -> str | None:
+    text = str(role_definition_id or "").strip()
+    if not text:
+        return None
+    return text.rstrip("/").split("/")[-1].lower()
+
+
+def _automation_role_capability(
+    *,
+    role_name: str | None,
+    role_definition_id: str | None,
+) -> str | None:
+    role_key = _role_definition_key(role_definition_id)
+    if role_key in _AUTOMATION_EDIT_ROLE_DEFINITION_IDS:
+        return "edit"
+
+    normalized_role = _normalize_role_name(role_name)
+    if normalized_role in _AUTOMATION_EDIT_ROLE_NAMES:
+        return "edit"
+    if normalized_role in _AUTOMATION_START_ROLE_NAMES:
+        return "start"
+    return None
+
+
+def _deployment_priority_override(
+    *,
+    source_command: str,
+    source: dict,
+    path_concept: str | None,
+    semantic_priority: str,
+) -> str:
+    if path_concept == "secret-escalation-support":
+        return "low"
+    if source_command == "automation" and _source_current_operator_can_inject(source_command, source):
+        return "high"
+    return semantic_priority
+
+
+def _automation_permission_clause(source: dict) -> str | None:
+    permission = source.get("joined_permission")
+    if not isinstance(permission, dict):
+        return None
+    if not bool(permission.get("privileged")):
+        return None
+    roles = [str(role) for role in permission.get("high_impact_roles") or [] if role]
+    role_text = ", ".join(roles) or "high-impact RBAC"
+    scope_count = int(permission.get("scope_count") or 0)
+    scope_text = "subscription-wide scope" if scope_count <= 1 else f"{scope_count} visible scopes"
+    principal_name = str(
+        permission.get("display_name")
+        or source.get("name")
+        or permission.get("principal_id")
+        or "automation identity"
+    )
+    return f"automation identity '{principal_name}' already has {role_text} across {scope_text}"
+
+
+def _automation_role_trust_clause(source: dict) -> str | None:
+    trusts = source.get("joined_role_trusts")
+    if not isinstance(trusts, list) or not trusts:
+        return None
+    trust = trusts[0] if isinstance(trusts[0], dict) else None
+    if not trust:
+        return None
+    trust_type = str(trust.get("trust_type") or "")
+    target_name = str(trust.get("target_name") or trust.get("target_object_id") or "unknown target")
+    if trust_type == "service-principal-owner":
+        return f"role-trusts also show owner-level control over service principal '{target_name}'"
+    if trust_type == "app-owner":
+        return f"role-trusts also show owner control over application '{target_name}'"
+    if trust_type == "federated-credential":
+        return f"role-trusts also show federated trust into service principal '{target_name}'"
+    if trust_type == "app-to-service-principal":
+        return f"role-trusts also show application-permission reach into service principal '{target_name}'"
+    summary = str(trust.get("summary") or "").strip()
+    return summary or None
 
 
 def _deployment_why_care(
@@ -611,10 +1091,6 @@ def _deployment_why_care(
         current_operator_suffix = _deployment_current_operator_suffix(source_command, source)
         if current_operator_suffix:
             sentence = f"{sentence} {current_operator_suffix}"
-        if source.get("missing_target_mapping"):
-            sentence = (
-                f"{sentence} AzureFox has not yet mapped the downstream Azure footprint cleanly."
-            )
         return sentence
 
     if source_command == "devops":
@@ -649,16 +1125,26 @@ def _deployment_why_care(
         return sentence
 
     if source_command == "automation":
+        primary_mode = str(source.get("primary_start_mode") or "") or None
+        primary_runbook = str(source.get("primary_runbook_name") or "") or None
+        identity_type = str(source.get("identity_type") or "").strip() or None
+        primary_clause = _automation_primary_run_path_clause(
+            primary_mode=primary_mode,
+            primary_runbook=primary_runbook,
+            identity_type=identity_type,
+        )
         surface_parts: list[str] = []
-        if source.get("identity_type"):
+        if primary_clause:
+            surface_parts.append(primary_clause)
+        elif source.get("identity_type"):
             surface_parts.append("managed identity")
         published = int(source.get("published_runbook_count") or 0)
         if published > 0:
             surface_parts.append(f"{published} published runbook(s)")
-        if "webhook-start" in assessment.change_signals:
+        if "webhook-start" in assessment.change_signals and primary_mode != "webhook":
             webhooks = int(source.get("webhook_count") or 0)
             surface_parts.append(f"{webhooks} webhook start path(s)")
-        if "scheduled-start" in assessment.change_signals:
+        if "scheduled-start" in assessment.change_signals and primary_mode != "schedule":
             schedules = int(source.get("schedule_count") or 0)
             surface_parts.append(f"{schedules} schedule-backed run path(s)")
         if "hybrid-worker-reach" in assessment.change_signals:
@@ -675,10 +1161,15 @@ def _deployment_why_care(
                 f"{sentence} Secure assets around the account could widen blast radius once a "
                 "run path is started or modified."
             )
-        if source.get("missing_target_mapping"):
-            sentence = (
-                f"{sentence} AzureFox has not yet mapped the downstream Azure footprint cleanly."
-            )
+        current_operator_suffix = _deployment_current_operator_suffix(source_command, source)
+        if current_operator_suffix:
+            sentence = f"{sentence} {current_operator_suffix}"
+        permission_clause = _automation_permission_clause(source)
+        if permission_clause:
+            sentence = f"{sentence} The {permission_clause}."
+        trust_clause = _automation_role_trust_clause(source)
+        if trust_clause:
+            sentence = f"{sentence} {trust_clause.capitalize()}."
         return sentence
 
     return "Visible source evidence suggests Azure change capability"
@@ -787,6 +1278,10 @@ def _deployment_current_operator_suffix(source_command: str, source: dict) -> st
             return "Current evidence only shows that the trusted input exists."
         if source.get("missing_injection_point"):
             return "AzureFox has not yet proven a poisonable trusted input for current credentials."
+    if source_command == "automation":
+        clause = _automation_current_operator_control_clause(source)
+        if clause:
+            return clause[:1].upper() + clause[1:] + "."
     return ""
 
 
@@ -796,6 +1291,10 @@ def _source_current_operator_can_drive(source_command: str, source: dict) -> boo
         edit = source.get("current_operator_can_edit")
         if isinstance(queue, bool) or isinstance(edit, bool):
             return bool(queue or edit)
+    if source_command == "automation":
+        access = source.get("current_operator_access")
+        if isinstance(access, dict):
+            return str(access.get("capability") or "") in {"start", "edit"}
     return None
 
 
@@ -806,6 +1305,10 @@ def _source_current_operator_can_inject(source_command: str, source: dict) -> bo
         edit = source.get("current_operator_can_edit")
         if injection_surfaces or isinstance(queue, bool) or isinstance(edit, bool):
             return bool(injection_surfaces)
+    if source_command == "automation":
+        access = source.get("current_operator_access")
+        if isinstance(access, dict):
+            return str(access.get("capability") or "") == "edit"
     return None
 
 
@@ -877,6 +1380,8 @@ def _deployment_likely_impact(
 
 def _deployment_confidence_boundary(
     *,
+    source_command: str | None = None,
+    source: dict | None = None,
     target_label: str,
     target_resolution: str,
     confirmation_basis: str | None,
@@ -884,86 +1389,116 @@ def _deployment_confidence_boundary(
     current_operator_can_inject: bool | None,
     missing_target_mapping: bool,
 ) -> str:
+    automation_sentences: list[str] = []
+    if source_command == "automation" and source is not None:
+        primary_sentence = _automation_primary_run_path_evidence_sentence(source)
+        if primary_sentence:
+            automation_sentences.append(primary_sentence)
+        current_operator_sentence = _deployment_current_operator_suffix(source_command, source)
+        if current_operator_sentence:
+            automation_sentences.append(current_operator_sentence)
+        permission_clause = _automation_permission_clause(source)
+        if permission_clause:
+            automation_sentences.append(f"The {permission_clause}.")
+        trust_clause = _automation_role_trust_clause(source)
+        if trust_clause:
+            automation_sentences.append(f"{trust_clause.capitalize()}.")
+
     if missing_target_mapping:
+        if source_command == "automation":
+            detail = " ".join(automation_sentences).strip()
+            if detail:
+                return (
+                    f"{detail} AzureFox has not yet mapped the real Azure footprint beyond "
+                    f"{target_label} evidence."
+                )
+            return (
+                "AzureFox can ground downstream consequence here, but it has not yet mapped the "
+                f"real Azure footprint beyond {target_label} evidence."
+            )
         if current_operator_can_inject:
             return (
-                "Current credentials can control the source side, but AzureFox has not yet "
-                f"mapped the downstream Azure footprint beyond {target_label} consequence "
-                "grounding."
+                "You can control the source side now, but AzureFox has not yet mapped the "
+                f"downstream Azure footprint beyond {target_label} consequence evidence."
             )
         if current_operator_can_drive:
             return (
-                "Current credentials can start or edit the source path, but AzureFox has not yet "
-                f"mapped the downstream Azure footprint beyond {target_label} consequence "
-                "grounding."
+                "You can start or edit this path now, but AzureFox has not yet mapped the "
+                f"downstream Azure footprint beyond {target_label} consequence evidence."
             )
         return (
-            "Current evidence shows meaningful deployment support, but AzureFox has not yet "
-            f"mapped the downstream Azure footprint beyond {target_label} consequence grounding."
+            "AzureFox can ground downstream consequence here, but it has not yet mapped the "
+            f"real Azure footprint beyond {target_label} evidence."
         )
 
     if current_operator_can_inject:
         if target_resolution == "named match":
             return (
-                f"Impact is visible, the current credentials can poison a trusted input, and "
-                f"the {target_label} target is joined strongly enough to "
-                "validate next."
+                f"You can poison the source now, and AzureFox has already joined the exact "
+                f"{target_label} target strongly enough to validate next."
             )
         if target_resolution == "narrowed candidates":
             return (
-                f"Impact is visible and the current credentials can poison a trusted input, but "
-                f"the exact {target_label} target is still unconfirmed."
+                f"You can poison the source now, but AzureFox still cannot name the exact "
+                f"{target_label} target."
             )
         if target_resolution == "visibility blocked":
             return (
-                f"Current credentials can poison a trusted input, but current scope cannot name "
-                f"the downstream {target_label} target yet."
+                f"You can poison the source now, but current scope still hides the downstream "
+                f"{target_label} target."
             )
 
     if current_operator_can_drive:
         if target_resolution == "named match":
             return (
-                "Impact is visible and current credentials can start or edit this path, but "
-                "AzureFox has not yet proven a poisonable trusted input."
+                "You can start or edit this path now, but AzureFox has not yet proven a "
+                "writable source."
             )
         if target_resolution == "narrowed candidates":
             return (
-                f"Impact is visible and current credentials can start this path, but AzureFox "
-                f"has not yet proven a poisonable trusted input or the exact {target_label} "
-                "target."
+                f"You can start this path now, but AzureFox has not yet proven a writable "
+                f"source or the exact {target_label} target."
             )
         if target_resolution == "visibility blocked":
             return (
-                f"Current credentials can start this path, but AzureFox has not yet proven a "
-                f"poisonable trusted input and current scope cannot name the downstream "
-                f"{target_label} target."
+                f"You can start this path now, but AzureFox has not yet proven a writable "
+                f"source and current scope cannot name the downstream {target_label} target."
             )
 
     if target_resolution == "named match":
         if confirmation_basis == "parsed-config-target":
             return (
-                f"Impact is visible and the {target_label} target is joined from parsed source "
-                "clues, but AzureFox has not yet proven that the current credentials can invoke "
-                "this path."
+                f"AzureFox can name the exact {target_label} target from parsed source clues, "
+                "but current-credential invocation is still unproven."
             )
         return (
-            f"Impact is visible and the {target_label} target is backed by a stronger visible "
-            "join, but AzureFox has not yet proven that the current credentials can invoke this "
-            "path."
+            f"AzureFox can name the exact {target_label} target, but current-credential "
+            "invocation is still unproven."
         )
     if target_resolution == "narrowed candidates":
         return (
-            f"Impact is visible, but AzureFox has not yet proven current-credential invocation "
-            f"or the exact {target_label} target."
+            f"AzureFox narrowed the likely {target_label} targets, but current-credential "
+            "invocation is still unproven."
         )
     if target_resolution == "visibility blocked":
+        if source_command == "automation":
+            detail = " ".join(automation_sentences).strip()
+            if detail:
+                return (
+                    f"{detail} Current scope still hides the downstream {target_label} target, "
+                    "so AzureFox cannot complete the target-side actionability judgment yet."
+                )
+            return (
+                f"Current scope still hides the downstream {target_label} target, so "
+                "AzureFox cannot complete the actionability judgment yet."
+            )
         return (
-            f"Impact is partially visible, but AzureFox has not yet proven current-credential "
-            f"invocation and current scope cannot name the downstream {target_label} target."
+            f"Current scope still hides the downstream {target_label} target, so AzureFox "
+            "cannot complete the actionability judgment yet."
         )
     return (
-        f"Current evidence does not yet hold a defensible {target_label} target story or prove "
-        "that the current credentials can drive the source path."
+        f"AzureFox still cannot show either a defensible {target_label} target story or a "
+        "current operator path into this source."
     )
 
 
@@ -975,6 +1510,12 @@ def _deployment_evidence_commands(
     supporting_deployments: list[dict],
 ) -> list[str]:
     commands = [source_command, "permissions"]
+    if source_command == "automation" and source.get("current_operator_access"):
+        commands.append("rbac")
+    if source_command == "automation" and (
+        source.get("principal_id") or source.get("client_id") or source.get("identity_ids")
+    ):
+        commands.append("role-trusts")
     if source.get("azure_service_connection_client_ids") or source.get(
         "azure_service_connection_principal_ids"
     ):
@@ -984,7 +1525,7 @@ def _deployment_evidence_commands(
     commands.append(_DEPLOYMENT_TARGET_SPECS[target_family]["command"])
     if supporting_deployments and "arm-deployments" not in commands:
         commands.append("arm-deployments")
-    return commands
+    return list(dict.fromkeys(commands))
 
 
 def _deployment_next_review(
@@ -995,6 +1536,54 @@ def _deployment_next_review(
     target_family: str,
     target_resolution: str,
 ) -> str:
+    if source_command == "automation":
+        primary_mode = str(source.get("primary_start_mode") or "") or None
+        primary_runbook = str(source.get("primary_runbook_name") or "") or None
+        permission_clause = _automation_permission_clause(source)
+        trust_clause = _automation_role_trust_clause(source)
+        current_operator_can_edit = bool(_source_current_operator_can_inject(source_command, source))
+        current_operator_can_start = bool(_source_current_operator_can_drive(source_command, source))
+        if path_concept == "secret-escalation-support":
+            steps = ["Confirm what separate foothold could reuse this secret-backed support"]
+        elif current_operator_can_edit:
+            steps = ["Current RBAC evidence already shows edit-capable automation control here"]
+        elif current_operator_can_start:
+            steps = ["Current RBAC evidence already shows runbook-start control here"]
+        elif permission_clause:
+            steps = ["Validate what Azure scope the automation identity can already change"]
+        else:
+            steps = ["Check permissions for the automation identity behind this execution path"]
+        if current_operator_can_edit and primary_runbook and primary_mode == "webhook":
+            steps.append(
+                f"map what runbook {primary_runbook} changes because current control does not depend on the webhook URI"
+            )
+        elif current_operator_can_edit and primary_runbook:
+            steps.append(f"map what runbook {primary_runbook} changes on the Azure side")
+        elif current_operator_can_start and primary_runbook:
+            steps.append(f"confirm whether runbook {primary_runbook} also has an editable trigger or definition path")
+        elif primary_runbook and primary_mode == "webhook":
+            steps.append(f"confirm whether current credentials can trigger webhook runbook {primary_runbook}")
+        elif primary_runbook and primary_mode == "schedule":
+            steps.append(f"confirm whether current credentials can influence scheduled runbook {primary_runbook}")
+        elif primary_runbook:
+            steps.append(f"confirm how runbook {primary_runbook} is started from current credentials")
+        else:
+            steps.append("confirm which runbook and trigger path performs the Azure change")
+        if trust_clause:
+            steps.append("review role-trusts around the automation identity's downstream control")
+        elif source.get("principal_id") or source.get("client_id") or source.get("identity_ids"):
+            steps.append("review role-trusts for controllable automation identity links")
+        target_command = _DEPLOYMENT_TARGET_SPECS[target_family]["command"]
+        if source.get("missing_target_mapping"):
+            steps.append(
+                f"use {target_command} as consequence grounding because runbook target mapping is still missing"
+            )
+        elif target_resolution == "visibility blocked":
+            steps.append(f"restore {target_command} visibility for consequence grounding")
+        else:
+            steps.append(f"open {target_command} to validate the likely Azure impact")
+        return "; ".join(steps) + "."
+
     if path_concept == "secret-escalation-support":
         steps: list[str] = ["Confirm what separate foothold could reuse this secret-backed support"]
     elif _source_current_operator_can_inject(source_command, source):
@@ -1082,6 +1671,8 @@ def _deployment_summary(
             f"{target_label} candidate(s): {', '.join(target_names[:_CANDIDATE_LIMIT])}."
         )
     confidence_boundary = _deployment_confidence_boundary(
+        source_command=source_command,
+        source=source,
         target_label=target_label,
         target_resolution=target_resolution,
         confirmation_basis=confirmation_basis,
@@ -1164,6 +1755,7 @@ def _normalize_target_name(value: str) -> str:
 
 def _deployment_missing_confirmation(
     *,
+    source: dict,
     source_command: str,
     path_concept: str | None,
     target_label: str,
@@ -1194,6 +1786,32 @@ def _deployment_missing_confirmation(
                 "and current evidence still does not prove a poisonable trusted input or a "
                 "definition-edit path for current credentials."
             )
+        if _source_current_operator_can_inject(source_command, source):
+            return (
+                f"Missing target-side visibility for the downstream {target_label} footprint; "
+                "current RBAC evidence already shows edit-capable automation control, but AzureFox "
+                "still cannot name which Azure target that control reaches."
+            )
+        if _source_current_operator_can_drive(source_command, source):
+            return (
+                f"Missing target-side visibility for the downstream {target_label} footprint; "
+                "current RBAC evidence already shows runbook-start control, but AzureFox still "
+                "cannot name which Azure target that execution reaches."
+            )
+        primary_mode = str(source.get("primary_start_mode") or "") or None
+        primary_runbook = str(source.get("primary_runbook_name") or "") or None
+        permission_clause = _automation_permission_clause(source)
+        if primary_runbook and primary_mode:
+            return (
+                f"Missing target-side visibility for the downstream {target_label} footprint, and "
+                f"current evidence does not show that the current credentials can control the "
+                f"{primary_mode} path into runbook {primary_runbook}"
+                + (
+                    f" even though the {permission_clause}."
+                    if permission_clause
+                    else "."
+                )
+            )
         return (
             f"Missing target-side visibility for the downstream {target_label} footprint, and "
             "current evidence does not show that the current credentials can start the runbook "
@@ -1215,6 +1833,32 @@ def _deployment_missing_confirmation(
             f"Missing exact {target_label} mapping and source-side poisoning proof; current "
             "evidence does not confirm a poisonable trusted input or a current-credential "
             "definition-edit path."
+        )
+    if _source_current_operator_can_inject(source_command, source):
+        return (
+            f"Missing exact {target_label} mapping; current RBAC evidence already shows "
+            "edit-capable automation control, but AzureFox has not yet mapped which Azure target "
+            "that control reaches."
+        )
+    if _source_current_operator_can_drive(source_command, source):
+        return (
+            f"Missing exact {target_label} mapping; current RBAC evidence already shows "
+            "runbook-start control, but AzureFox has not yet mapped which Azure target that "
+            "execution reaches."
+        )
+    primary_mode = str(source.get("primary_start_mode") or "") or None
+    primary_runbook = str(source.get("primary_runbook_name") or "") or None
+    permission_clause = _automation_permission_clause(source)
+    if primary_runbook and primary_mode:
+        return (
+            f"Missing exact {target_label} mapping and runbook-level execution proof; current "
+            f"evidence does not show that the current credentials can control the {primary_mode} "
+            f"path into runbook {primary_runbook}"
+            + (
+                f" even though the {permission_clause}."
+                if permission_clause
+                else "."
+            )
         )
     return (
         f"Missing exact {target_label} mapping and runbook-level execution proof; current "

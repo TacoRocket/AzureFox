@@ -38,6 +38,30 @@
     {
       "confidence": "confirmed",
       "control_primitive": "owner-control",
+      "controlled_object_name": "ops-deploy-sp",
+      "controlled_object_type": "ServicePrincipal",
+      "defender_cut_point": "Remove the owner-level control path over service principal 'ops-deploy-sp'.",
+      "evidence_type": "graph-owner",
+      "escalation_mechanism": "Owner-level control over service principal 'ops-deploy-sp' is visible, but the exact authentication-control transform is not yet explicit.",
+      "next_review": "Review ownership around service principal 'ops-deploy-sp', then confirm Azure control in permissions.",
+      "operator_signal": "Indirect control visible; ownership review next.",
+      "related_ids": [
+        "12121212-1212-1212-1212-121212121212",
+        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+      ],
+      "source_name": "aa-hybrid-prod",
+      "source_object_id": "12121212-1212-1212-1212-121212121212",
+      "source_type": "ServicePrincipal",
+      "summary": "Owner 'aa-hybrid-prod' can modify service principal 'ops-deploy-sp'. This is an indirect-control row: ownership is the visible trust path, not direct Azure privilege by itself. Review ownership around service principal 'ops-deploy-sp', then confirm Azure control in permissions.",
+      "target_name": "ops-deploy-sp",
+      "target_object_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "target_type": "ServicePrincipal",
+      "trust_type": "service-principal-owner",
+      "usable_identity_result": null
+    },
+    {
+      "confidence": "confirmed",
+      "control_primitive": "owner-control",
       "controlled_object_name": "build-sp",
       "controlled_object_type": "ServicePrincipal",
       "defender_cut_point": "Remove the owner-level control path over service principal 'build-sp'.",

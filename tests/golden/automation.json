@@ -23,6 +23,14 @@
       ],
       "runbook_count": 7,
       "published_runbook_count": 6,
+      "published_runbook_names": [
+        "Baseline-Config",
+        "Nightly-Reconcile",
+        "Redeploy-App",
+        "Reapply-Agent",
+        "Sync-Secrets",
+        "Rotate-Certs"
+      ],
       "schedule_count": 4,
       "job_schedule_count": 5,
       "webhook_count": 2,
@@ -38,6 +46,8 @@
         "webhook",
         "hybrid-worker"
       ],
+      "primary_start_mode": "webhook",
+      "primary_runbook_name": "Redeploy-App",
       "schedule_runbook_names": [
         "Baseline-Config",
         "Nightly-Reconcile"
@@ -97,6 +107,9 @@
       "identity_ids": [],
       "runbook_count": 2,
       "published_runbook_count": 1,
+      "published_runbook_names": [
+        "Lab-Maintenance"
+      ],
       "schedule_count": 1,
       "job_schedule_count": 1,
       "webhook_count": 0,
@@ -110,6 +123,8 @@
         "schedule",
         "job-schedule"
       ],
+      "primary_start_mode": "schedule",
+      "primary_runbook_name": "Lab-Maintenance",
       "schedule_runbook_names": [
         "Lab-Maintenance"
       ],

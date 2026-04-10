@@ -630,10 +630,10 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     ("priority", "priority"),
                     ("urgency", "urgency"),
                     ("asset_name", "source"),
-                    ("path_concept", "path type"),
-                    ("why_care", "why care"),
+                    ("actionability_state", "actionability"),
+                    ("insertion_point", "insertion point"),
                     ("likely_impact", "likely azure impact"),
-                    ("confidence_boundary", "confidence boundary"),
+                    ("confidence_boundary", "what's missing"),
                     ("next_review", "next review"),
                 ],
                 [
@@ -641,12 +641,14 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                         "priority": item.get("priority"),
                         "urgency": item.get("urgency") or "-",
                         "asset_name": item.get("asset_name"),
-                        "path_concept": _deployment_path_type(item),
-                        "why_care": item.get("why_care") or item.get("asset_kind"),
+                        "actionability_state": _deployment_actionability_state_label(item),
+                        "insertion_point": item.get("insertion_point")
+                        or _deployment_path_type(item),
                         "likely_impact": item.get("likely_impact") or _chains_target_context(item),
                         "confidence_boundary": item.get("confidence_boundary")
                         or _chains_note(item, family=family),
                         "next_review": item.get("next_review"),
+                        "why_care": item.get("why_care") or item.get("asset_kind"),
                     }
                     for item in payload.get("paths", [])
                 ],
@@ -1943,6 +1945,18 @@ def _deployment_path_type(item: dict) -> str:
         "secret-escalation-support": "secret-backed support",
     }
     return labels.get(concept, concept or "-")
+
+
+def _deployment_actionability_state_label(item: dict) -> str:
+    state = str(item.get("actionability_state") or "")
+    labels = {
+        "currently actionable": "currently actionable",
+        "conditionally actionable": "conditionally actionable",
+        "consequence-grounded but insertion point unproven": "grounded, insertion unproven",
+        "visibility-bounded": "visibility-bounded",
+        "support-only": "support-only",
+    }
+    return labels.get(state, state or "-")
 
 
 def _escalation_path_type(item: dict) -> str:

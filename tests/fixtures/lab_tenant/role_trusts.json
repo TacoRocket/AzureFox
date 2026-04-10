@@ -19,6 +19,22 @@
     },
     {
       "trust_type": "service-principal-owner",
+      "source_object_id": "12121212-1212-1212-1212-121212121212",
+      "source_name": "aa-hybrid-prod",
+      "source_type": "ServicePrincipal",
+      "target_object_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "target_name": "ops-deploy-sp",
+      "target_type": "ServicePrincipal",
+      "evidence_type": "graph-owner",
+      "confidence": "confirmed",
+      "summary": "Owner 'aa-hybrid-prod' can modify service principal 'ops-deploy-sp'.",
+      "related_ids": [
+        "12121212-1212-1212-1212-121212121212",
+        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+      ]
+    },
+    {
+      "trust_type": "service-principal-owner",
       "source_object_id": "88888888-8888-8888-8888-888888888888",
       "source_name": "automation-runner",
       "source_type": "ServicePrincipal",

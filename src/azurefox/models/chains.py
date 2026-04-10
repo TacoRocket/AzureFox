@@ -53,6 +53,7 @@ class ChainPathRecord(BaseModel):
     confirmation_basis: str | None = None
     priority: str
     urgency: str | None = None
+    actionability_state: str | None = None
     visible_path: str
     insertion_point: str | None = None
     path_concept: str | None = None
