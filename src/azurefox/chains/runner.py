@@ -686,10 +686,14 @@ def _deployment_devops_insertion_point(source: dict) -> str:
     primary_input = _devops_primary_trusted_input(source)
     trusted_input_text = _devops_trusted_input_text(primary_input)
     injection_surfaces = [
-        str(value) for value in (source.get("current_operator_injection_surface_types") or []) if value
+        str(value)
+        for value in (source.get("current_operator_injection_surface_types") or [])
+        if value
     ]
     if any(value != "definition-edit" for value in injection_surfaces):
-        surface_list = ", ".join(value for value in injection_surfaces if value != "definition-edit")
+        surface_list = ", ".join(
+            value for value in injection_surfaces if value != "definition-edit"
+        )
         return f"Poison {trusted_input_text} through {surface_list}."
     if "definition-edit" in injection_surfaces or source.get("current_operator_can_edit"):
         return "Edit the pipeline definition directly."
@@ -713,11 +717,17 @@ def _deployment_devops_insertion_point(source: dict) -> str:
             )
         access_state = str(primary_input.get("current_operator_access_state") or "")
         if access_state == "read":
-            return f"{trusted_input_text} is visible and readable, but not writable from current evidence."
+            return (
+                f"{trusted_input_text} is visible and readable, but not writable from "
+                "current evidence."
+            )
         if access_state == "exists-only":
             return f"{trusted_input_text} is visible, but current control is unproven."
         return f"Source depends on {trusted_input_text}."
-    return "Azure-facing pipeline is visible, but the source-side insertion point is still unproven."
+    return (
+        "Azure-facing pipeline is visible, but the source-side insertion point is "
+        "still unproven."
+    )
 
 
 def _deployment_automation_insertion_point(source: dict, *, path_concept: str | None) -> str:
@@ -729,8 +739,12 @@ def _deployment_automation_insertion_point(source: dict, *, path_concept: str | 
         primary_runbook=primary_runbook,
         identity_type=identity_type,
     )
-    webhook_runbooks = [str(value) for value in (source.get("webhook_runbook_names") or []) if value]
-    schedule_runbooks = [str(value) for value in (source.get("schedule_runbook_names") or []) if value]
+    webhook_runbooks = [
+        str(value) for value in (source.get("webhook_runbook_names") or []) if value
+    ]
+    schedule_runbooks = [
+        str(value) for value in (source.get("schedule_runbook_names") or []) if value
+    ]
     hybrid_count = int(source.get("hybrid_worker_group_count") or 0)
 
     surfaces: list[str] = []
@@ -753,8 +767,14 @@ def _deployment_automation_insertion_point(source: dict, *, path_concept: str | 
             return "; ".join(surfaces) + "."
         return "; ".join(surfaces) + ", but current operator control is still unproven."
     if path_concept == "secret-escalation-support":
-        return "Reusable automation support is visible, but no operator-controlled run path is proven."
-    return "Automation consequences are grounded, but the operator-controlled start or edit path is still unproven."
+        return (
+            "Reusable automation support is visible, but no operator-controlled run "
+            "path is proven."
+        )
+    return (
+        "Automation consequences are grounded, but the operator-controlled start "
+        "or edit path is still unproven."
+    )
 
 
 def _automation_joined_permission(
@@ -828,9 +848,15 @@ def _automation_primary_run_path_evidence_sentence(source: dict) -> str | None:
     identity_type = str(source.get("identity_type") or "").strip() or None
     identity_clause = f" under automation identity {identity_type}" if identity_type else ""
     if primary_mode == "webhook" and primary_runbook:
-        return f"AzureFox can identify a webhook path into runbook {primary_runbook}{identity_clause}."
+        return (
+            f"AzureFox can identify a webhook path into runbook {primary_runbook}"
+            f"{identity_clause}."
+        )
     if primary_mode == "schedule" and primary_runbook:
-        return f"AzureFox can identify a schedule-backed path into runbook {primary_runbook}{identity_clause}."
+        return (
+            f"AzureFox can identify a schedule-backed path into runbook "
+            f"{primary_runbook}{identity_clause}."
+        )
     if primary_mode in {"manual-only", "published-runbook"} and primary_runbook:
         return f"AzureFox can identify published runbook {primary_runbook}{identity_clause}."
     if primary_mode == "hybrid-worker":
@@ -905,7 +931,10 @@ def _automation_current_operator_control_clause(source: dict) -> str | None:
                 f"current role assignment {role_name} at {scope_text} can edit published "
                 f"runbook {primary_runbook}"
             )
-        return f"current role assignment {role_name} at {scope_text} can edit this automation execution boundary"
+        return (
+            f"current role assignment {role_name} at {scope_text} can edit this "
+            "automation execution boundary"
+        )
 
     if primary_runbook:
         return (
@@ -1010,7 +1039,9 @@ def _deployment_priority_override(
 ) -> str:
     if path_concept == "secret-escalation-support":
         return "low"
-    if source_command == "automation" and _source_current_operator_can_inject(source_command, source):
+    if source_command == "automation" and _source_current_operator_can_inject(
+        source_command, source
+    ):
         return "high"
     return semantic_priority
 
@@ -1050,7 +1081,10 @@ def _automation_role_trust_clause(source: dict) -> str | None:
     if trust_type == "federated-credential":
         return f"role-trusts also show federated trust into service principal '{target_name}'"
     if trust_type == "app-to-service-principal":
-        return f"role-trusts also show application-permission reach into service principal '{target_name}'"
+        return (
+            "role-trusts also show application-permission reach into service "
+            f"principal '{target_name}'"
+        )
     summary = str(trust.get("summary") or "").strip()
     return summary or None
 
@@ -1541,8 +1575,12 @@ def _deployment_next_review(
         primary_runbook = str(source.get("primary_runbook_name") or "") or None
         permission_clause = _automation_permission_clause(source)
         trust_clause = _automation_role_trust_clause(source)
-        current_operator_can_edit = bool(_source_current_operator_can_inject(source_command, source))
-        current_operator_can_start = bool(_source_current_operator_can_drive(source_command, source))
+        current_operator_can_edit = bool(
+            _source_current_operator_can_inject(source_command, source)
+        )
+        current_operator_can_start = bool(
+            _source_current_operator_can_drive(source_command, source)
+        )
         if path_concept == "secret-escalation-support":
             steps = ["Confirm what separate foothold could reuse this secret-backed support"]
         elif current_operator_can_edit:
@@ -1555,18 +1593,31 @@ def _deployment_next_review(
             steps = ["Check permissions for the automation identity behind this execution path"]
         if current_operator_can_edit and primary_runbook and primary_mode == "webhook":
             steps.append(
-                f"map what runbook {primary_runbook} changes because current control does not depend on the webhook URI"
+                f"map what runbook {primary_runbook} changes because current "
+                "control does not depend on the webhook URI"
             )
         elif current_operator_can_edit and primary_runbook:
             steps.append(f"map what runbook {primary_runbook} changes on the Azure side")
         elif current_operator_can_start and primary_runbook:
-            steps.append(f"confirm whether runbook {primary_runbook} also has an editable trigger or definition path")
+            steps.append(
+                f"confirm whether runbook {primary_runbook} also has an editable "
+                "trigger or definition path"
+            )
         elif primary_runbook and primary_mode == "webhook":
-            steps.append(f"confirm whether current credentials can trigger webhook runbook {primary_runbook}")
+            steps.append(
+                "confirm whether current credentials can trigger webhook runbook "
+                f"{primary_runbook}"
+            )
         elif primary_runbook and primary_mode == "schedule":
-            steps.append(f"confirm whether current credentials can influence scheduled runbook {primary_runbook}")
+            steps.append(
+                "confirm whether current credentials can influence scheduled "
+                f"runbook {primary_runbook}"
+            )
         elif primary_runbook:
-            steps.append(f"confirm how runbook {primary_runbook} is started from current credentials")
+            steps.append(
+                f"confirm how runbook {primary_runbook} is started from current "
+                "credentials"
+            )
         else:
             steps.append("confirm which runbook and trigger path performs the Azure change")
         if trust_clause:
@@ -1576,7 +1627,8 @@ def _deployment_next_review(
         target_command = _DEPLOYMENT_TARGET_SPECS[target_family]["command"]
         if source.get("missing_target_mapping"):
             steps.append(
-                f"use {target_command} as consequence grounding because runbook target mapping is still missing"
+                f"use {target_command} as consequence grounding because runbook "
+                "target mapping is still missing"
             )
         elif target_resolution == "visibility blocked":
             steps.append(f"restore {target_command} visibility for consequence grounding")

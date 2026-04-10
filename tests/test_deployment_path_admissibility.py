@@ -8,10 +8,10 @@ from azurefox.chains.deployment_path import (
     assess_deployment_source,
     target_family_hints_from_arm_deployment,
 )
-from azurefox.chains.runner import _structured_deployment_target_matches
 from azurefox.chains.runner import (
     _automation_current_operator_access,
     _automation_scope_label,
+    _structured_deployment_target_matches,
 )
 from azurefox.models.common import (
     ArmDeploymentSummary,
@@ -292,8 +292,10 @@ def test_automation_scope_label_keeps_child_resource_scope_distinct_from_resourc
         "/subscriptions/test-sub/resourceGroups/rg-ops/providers/Microsoft.Automation/"
         "automationAccounts/aa-prod"
     )
-
-    assert _automation_scope_label(scope_id, resource_id=resource_id) == "resource scope Redeploy-App"
+    assert (
+        _automation_scope_label(scope_id, resource_id=resource_id)
+        == "resource scope Redeploy-App"
+    )
 
 
 def _load_devops_pipeline(name: str) -> DevopsPipelineAsset:

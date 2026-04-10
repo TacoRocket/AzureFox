@@ -161,7 +161,6 @@ def test_cli_smoke_chains_deployment_path_table_output(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0
-    normalized_output = " ".join(result.stdout.split())
     assert "azurefox chains" in result.stdout
     assert "why care" in result.stdout
     assert "actionability" in result.stdout
@@ -250,7 +249,10 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
     assert automation_row["actionability_state"] == "currently actionable"
     assert automation_row["priority"] == "high"
     assert "webhook path can start runbook Redeploy-App" in automation_row["insertion_point"]
-    assert "current role assignment Owner at subscription scope" in automation_row["insertion_point"]
+    assert (
+        "current role assignment Owner at subscription scope"
+        in automation_row["insertion_point"]
+    )
     assert "role-trusts" in automation_row["evidence_commands"]
     assert "rbac" in automation_row["evidence_commands"]
     assert "aa-hybrid-prod-mi" in automation_row["confidence_boundary"]
