@@ -351,6 +351,11 @@ def _build_candidate_record(
         target_names=target_names,
         target_visibility_issue=visibility_issue,
         next_review=semantic.next_review,
+        confidence_boundary=_candidate_confidence_boundary(
+            target_service=target_service,
+            target_resolution=target_resolution,
+            target_names=target_names,
+        ),
         summary=_candidate_summary(
             env=env,
             target_service=target_service,
@@ -436,6 +441,43 @@ def _candidate_summary(
     if visibility_note:
         summary = f"{summary} {visibility_note}"
     return summary
+
+
+def _candidate_confidence_boundary(
+    *,
+    target_service: str,
+    target_resolution: str,
+    target_names: list[str],
+) -> str:
+    if target_resolution == "visibility blocked":
+        return (
+            f"AzureFox cannot name the downstream {target_service} under current target-side "
+            "visibility; do not treat this as a confirmed credential path."
+        )
+
+    if target_resolution == "narrowed candidates":
+        candidate_count = max(len(target_names), 1)
+        return (
+            f"AzureFox narrowed this to {candidate_count} visible {target_service} candidate(s), "
+            "but has not yet proved the exact target or a working credential."
+        )
+
+    if target_resolution == "tenant-wide candidates":
+        return (
+            f"AzureFox can only narrow this to a broad visible {target_service} set so far; "
+            "the exact target and working credential remain unconfirmed."
+        )
+
+    if target_resolution == "service hint only":
+        return (
+            f"AzureFox only has a service hint for this {target_service} path so far; the "
+            "downstream target and working credential remain unconfirmed."
+        )
+
+    return (
+        f"AzureFox has not yet proved the exact downstream {target_service} target or a working "
+        "credential."
+    )
 
 
 def _target_visibility_note(target_label: str, issues: list[CollectionIssue]) -> str | None:
