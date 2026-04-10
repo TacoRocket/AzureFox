@@ -196,7 +196,6 @@ class DriftOrderingFixtureProvider(MetadataFixtureProvider):
             ],
             "issues": [],
         }
-
     def databases(self) -> dict:
         return {
             "database_servers": [
@@ -971,6 +970,39 @@ class PartialApplicationGatewayFixtureProvider(FixtureProvider):
                 }
             ],
         }
+
+
+def test_collectors_emit_scoped_issues_in_contract(fixture_dir: Path, options) -> None:
+    cases = (
+        (
+            collect_databases,
+            PartialDatabasesFixtureProvider(fixture_dir),
+            "database inventory partial visibility",
+        ),
+        (
+            collect_api_mgmt,
+            PartialApiMgmtFixtureProvider(fixture_dir),
+            "api management staged detail visibility",
+        ),
+        (
+            collect_auth_policies,
+            ConditionalAccessUnreadableFixtureProvider(fixture_dir),
+            "auth policy conditional access boundary",
+        ),
+        (
+            collect_network_effective,
+            NetworkEffectiveSnapshotFixtureProvider(fixture_dir),
+            "propagated endpoint issue reuse",
+        ),
+    )
+
+    for collector, provider, scenario in cases:
+        output = collector(provider, options)
+        assert output.issues, f"{collector.__name__} did not emit issues for {scenario}"
+        for issue in output.issues:
+            assert issue.scope == issue.context["collector"], (
+                f"{collector.__name__} lost scoped issue meaning for {scenario}: {issue}"
+            )
 
 
 def test_collect_whoami(fixture_provider, options) -> None:

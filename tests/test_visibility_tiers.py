@@ -319,6 +319,7 @@ def _chains_payload(*, path: dict, issues: list[dict] | None = None) -> dict:
         "command_state": "extraction-only",
         "summary": "Visibility-tier test payload.",
         "claim_boundary": "Only visible edges are shown.",
+        "current_gap": "Deeper confirmation still depends on the backing command visibility.",
         "artifact_preference_order": [],
         "backing_commands": ["env-vars", "keyvault"],
         "source_artifacts": [],
@@ -686,7 +687,7 @@ def test_devops_visibility_tiers_keep_routing_honest(options) -> None:
     assert "visibility" in low_rendered
     assert "next Azure" in low_rendered
     assert "follow-up." in low_rendered
-    assert "Credential-scope issues:" in low_rendered
+    assert "Current-scope issues:" in low_rendered
     assert "partial_collection" in low_rendered
     assert low.issues[0].kind == "partial_collection"
 
@@ -719,11 +720,11 @@ def test_functions_visibility_tiers_keep_service_shell_visible(options) -> None:
     low_rendered = render_table("functions", low.model_dump(mode="json"))
 
     assert "func-orders" in medium_rendered
-    assert "Credential-scope issues:" in medium_rendered
+    assert "Current-scope issues:" in medium_rendered
     assert "functions[rg-apps/func-orders].app_settings" in medium_rendered
 
     assert "func-orders" in low_rendered
-    assert "Credential-scope issues:" in low_rendered
+    assert "Current-scope issues:" in low_rendered
     assert "functions[rg-apps/func-orders].configuration" in low_rendered
 
 
@@ -764,13 +765,13 @@ def test_env_vars_visibility_tiers_keep_next_review_honest(options) -> None:
     assert "Check keyvault for the" in medium_rendered
     assert "referenced secret" in medium_rendered
     assert "managed-identities" in medium_rendered
-    assert "Credential-scope issues:" in medium_rendered
+    assert "Current-scope issues:" in medium_rendered
     assert "env_vars[rg-apps/func-orders].key_vault_reference" in medium_rendered
 
     assert "unknown" in low_rendered
     assert "Review the workload config" in low_rendered
     assert "deeper follow-up." in low_rendered
-    assert "Credential-scope issues:" in low_rendered
+    assert "Current-scope issues:" in low_rendered
     assert "env_vars[rg-apps/func-orders].app_settings" in low_rendered
     assert "keyvault-ref" not in low_rendered
 
@@ -865,5 +866,7 @@ def test_chains_visibility_tiers_avoid_fake_target_certainty() -> None:
     assert "target." in low_rendered
     assert "Restore keyvault" in low_rendered
     assert "choosing a target." in low_rendered
-    assert "Credential-scope issues:" in low_rendered
+    assert "Current-scope issues:" in low_rendered
+    assert "Claim boundary:" in low_rendered
+    assert "Current gap:" in low_rendered
     assert "kv-orders,kv-shared" not in low_rendered

@@ -8,6 +8,7 @@ from azurefox.models.common import (
     AppServiceAsset,
     ArmDeploymentSummary,
     AuthPolicySummary,
+    CollectionIssue,
     DatabaseServerAsset,
     DnsZoneAsset,
     EndpointSummary,
@@ -29,6 +30,27 @@ from azurefox.models.common import (
 
 def test_schema_version() -> None:
     assert SCHEMA_VERSION == "1.3.0"
+
+
+def test_collection_issue_scope_defaults_from_context_collector() -> None:
+    issue = CollectionIssue(
+        kind="permission_denied",
+        message="app_services.web_apps: 403 Forbidden",
+        context={"collector": "app_services.web_apps"},
+    )
+
+    assert issue.scope == "app_services.web_apps"
+
+
+def test_collection_issue_keeps_explicit_scope() -> None:
+    issue = CollectionIssue(
+        kind="permission_denied",
+        message="app_services.web_apps: 403 Forbidden",
+        scope="app-services.configuration",
+        context={"collector": "app_services.web_apps"},
+    )
+
+    assert issue.scope == "app-services.configuration"
 
 
 def test_arm_deployment_summary_defaults() -> None:

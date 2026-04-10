@@ -1111,6 +1111,8 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         output_highlights=(
             "family selectors",
             "backing_commands",
+            "claim_boundary",
+            "current_gap",
             "target_resolution",
             "priority",
             "target_names",
@@ -1363,6 +1365,14 @@ def _render_root_help() -> str:
                 "still landing."
             ),
             "  - ATT&CK references are investigative context, not proof that a technique occurred.",
+            (
+                "  - Default output prefers exact claims when proven, and bounded weaker claims "
+                "when they stay honest and decision-useful."
+            ),
+            (
+                "  - When visibility is partial, AzureFox says what current scope did not "
+                "confirm instead of treating a path as proven."
+            ),
         ]
     )
     return "\n".join(lines)
@@ -1438,7 +1448,13 @@ def _render_command_help(topic: CommandHelpTopic) -> str:
             "Example:",
             f"  {topic.example}",
             "",
-            "Note: ATT&CK references are leads to investigate, not proof of observed behavior.",
+            "Notes:",
+            "  - ATT&CK references are leads to investigate, not proof of observed behavior.",
+            "  - Output wording keeps proof strength separate from actionability.",
+            (
+                "  - If current visibility is partial, AzureFox keeps only the honest weaker "
+                "claim and names the current gap explicitly."
+            ),
         ]
     )
     return "\n".join(lines)

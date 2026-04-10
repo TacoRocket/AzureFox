@@ -20,6 +20,8 @@ def test_help_command_generic() -> None:
     assert "chains: Grouped family runner for higher-value preset paths" in result.stdout
     assert "Planned grouped commands:" not in result.stdout
     assert "all-checks" not in result.stdout
+    assert "bounded weaker claims" in result.stdout
+    assert "current scope did not confirm" in result.stdout
 
 
 def test_help_command_section() -> None:
@@ -46,6 +48,8 @@ def test_help_command_command_topic() -> None:
     assert "Offensive question:" in result.stdout
     assert "ATT&CK cloud leads:" in result.stdout
     assert "Temporary Elevated Cloud Access" in result.stdout
+    assert "proof strength separate from actionability" in result.stdout
+    assert "names the current gap explicitly" in result.stdout
 
 
 def test_help_command_arm_deployments_topic() -> None:
@@ -302,6 +306,8 @@ def test_help_command_chains_topic_sets_planned_runtime_expectations() -> None:
     assert "escalation-path" in result.stdout
     assert "workload-identity-path remains planned" in result.stdout
     assert "credential-path" in result.stdout
+    assert "claim_boundary" in result.stdout
+    assert "current_gap" in result.stdout
 
 
 def test_help_command_env_vars_topic() -> None:

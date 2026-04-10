@@ -11,6 +11,7 @@ from azurefox.chains.deployment_path import (
 )
 from azurefox.chains.registry import (
     GROUPED_COMMAND_NAME,
+    ChainFamilySpec,
     get_chain_family_spec,
     implemented_chain_family_names,
     is_implemented_chain_family,
@@ -151,23 +152,10 @@ def _build_credential_path_output(
         )
     )
 
-    return ChainsCommandOutput(
-        metadata=CommandMetadata(
-            command=GROUPED_COMMAND_NAME,
-            tenant_id=options.tenant,
-            subscription_id=options.subscription,
-            devops_organization=options.devops_organization,
-            token_source=None,
-        ),
-        grouped_command_name=GROUPED_COMMAND_NAME,
-        family=family_name,
-        input_mode="live",
-        command_state="extraction-only",
-        summary=family.summary,
-        claim_boundary=family.allowed_claim,
-        artifact_preference_order=[],
-        backing_commands=[source.command for source in family.source_commands],
-        source_artifacts=[],
+    return _build_chains_command_output(
+        options=options,
+        family=family,
+        family_name=family_name,
         paths=paths,
         issues=issues,
     )
@@ -352,23 +340,10 @@ def _build_deployment_path_output(
     ):
         issues.extend(getattr(loaded[source_name], "issues", []))
 
-    return ChainsCommandOutput(
-        metadata=CommandMetadata(
-            command=GROUPED_COMMAND_NAME,
-            tenant_id=options.tenant,
-            subscription_id=options.subscription,
-            devops_organization=options.devops_organization,
-            token_source=None,
-        ),
-        grouped_command_name=GROUPED_COMMAND_NAME,
-        family=family_name,
-        input_mode="live",
-        command_state="extraction-only",
-        summary=family.summary,
-        claim_boundary=family.allowed_claim,
-        artifact_preference_order=[],
-        backing_commands=[source.command for source in family.source_commands],
-        source_artifacts=[],
+    return _build_chains_command_output(
+        options=options,
+        family=family,
+        family_name=family_name,
         paths=paths,
         issues=issues,
     )
@@ -437,6 +412,23 @@ def _build_escalation_path_output(
     for source_name in ("privesc", "permissions", "role-trusts"):
         issues.extend(getattr(loaded[source_name], "issues", []))
 
+    return _build_chains_command_output(
+        options=options,
+        family=family,
+        family_name=family_name,
+        paths=paths,
+        issues=issues,
+    )
+
+
+def _build_chains_command_output(
+    *,
+    options: GlobalOptions,
+    family: ChainFamilySpec,
+    family_name: str,
+    paths: list[ChainPathRecord],
+    issues: list[CollectionIssue],
+) -> ChainsCommandOutput:
     return ChainsCommandOutput(
         metadata=CommandMetadata(
             command=GROUPED_COMMAND_NAME,
@@ -451,6 +443,7 @@ def _build_escalation_path_output(
         command_state="extraction-only",
         summary=family.summary,
         claim_boundary=family.allowed_claim,
+        current_gap=family.current_gap,
         artifact_preference_order=[],
         backing_commands=[source.command for source in family.source_commands],
         source_artifacts=[],

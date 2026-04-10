@@ -4,7 +4,7 @@ import ipaddress
 from datetime import UTC, datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 SCHEMA_VERSION = "1.3.0"
 
@@ -34,7 +34,17 @@ class CommandMetadata(BaseModel):
 class CollectionIssue(BaseModel):
     kind: str
     message: str
+    scope: str | None = None
     context: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _populate_scope_from_context(self) -> CollectionIssue:
+        if self.scope:
+            return self
+        collector = self.context.get("collector")
+        if collector:
+            self.scope = collector
+        return self
 
 
 class SubscriptionRef(BaseModel):

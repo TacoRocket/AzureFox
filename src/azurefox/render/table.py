@@ -21,7 +21,7 @@ def render_table(command: str, payload: dict) -> str:
         _render_devops_table(console, payload)
     elif command == "role-trusts":
         _render_role_trusts_table(console, payload)
-    elif command == "chains" and payload.get("families"):
+    elif command == "chains" and "families" in payload:
         _render_chains_overview_table(console, payload)
     elif command == "chains" and str(payload.get("family") or "") == "deployment-path":
         _render_deployment_path_table(console, payload)
@@ -33,7 +33,7 @@ def render_table(command: str, payload: dict) -> str:
 
         if not records:
             table.add_column("info")
-            table.add_row("No records")
+            table.add_row(_empty_state_message(command, payload))
         else:
             for _key, label in columns:
                 table.add_column(label)
@@ -57,13 +57,15 @@ def render_table(command: str, payload: dict) -> str:
     issues = payload.get("issues", [])
     if issues:
         console.print("")
-        console.print("Credential-scope issues:")
+        console.print("Current-scope issues:")
         for issue in issues[:5]:
             kind = issue.get("kind") or "unknown"
             console.print(f"- {kind}: {issue.get('message')}", markup=False)
         remaining = len(issues) - 5
         if remaining > 0:
-            console.print(f"- ... plus {remaining} more credential-scope issues in JSON artifacts.")
+            console.print(f"- ... plus {remaining} more current-scope issues in JSON artifacts.")
+
+    _render_scope_boundary_notes(console, command, payload)
 
     takeaway = _takeaway_for_command(command, payload)
     if takeaway:
@@ -80,7 +82,7 @@ def _render_devops_table(console: Console, payload: dict) -> None:
     if not records:
         table = Table(title="azurefox devops")
         table.add_column("info")
-        table.add_row("No records")
+        table.add_row(_empty_state_message("devops", payload))
         console.print(table)
         return
 
@@ -105,7 +107,7 @@ def _render_role_trusts_table(console: Console, payload: dict) -> None:
     if not records:
         table = Table(title="azurefox role-trusts")
         table.add_column("info")
-        table.add_row("No records")
+        table.add_row(_empty_state_message("role-trusts", payload))
         console.print(table)
         return
 
@@ -149,7 +151,7 @@ def _render_chains_path_table(
     if not records:
         table = Table(title="azurefox chains")
         table.add_column("info")
-        table.add_row("No records")
+        table.add_row(_empty_state_message("chains", payload))
         console.print(table)
         return
 
@@ -174,7 +176,7 @@ def _render_chains_overview_table(console: Console, payload: dict) -> None:
 
     if not records:
         table.add_column("info")
-        table.add_row("No records")
+        table.add_row(_empty_state_message("chains", payload))
         console.print(table)
         return
 
@@ -183,6 +185,19 @@ def _render_chains_overview_table(console: Console, payload: dict) -> None:
     for record in records:
         table.add_row(*[_value_to_string(record.get(key)) for key, _ in columns])
     console.print(table)
+
+    boundary_table = Table(title="chains claim boundaries")
+    boundary_table.add_column("family")
+    boundary_table.add_column("allowed claim")
+    boundary_table.add_column("current gap")
+    for item in payload.get("families", []):
+        boundary_table.add_row(
+            _value_to_string(item.get("family")),
+            _value_to_string(item.get("allowed_claim")),
+            _value_to_string(item.get("current_gap")),
+        )
+    console.print("")
+    console.print(boundary_table)
 
 
 def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], list[dict]]:
@@ -599,7 +614,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
         )
 
     if command == "chains":
-        if payload.get("families"):
+        if "families" in payload:
             return (
                 [
                     ("family", "family"),
@@ -1226,7 +1241,7 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         issues = payload.get("issues", [])
         return (
             f"{len(policies)} policy rows, {len(findings)} findings, and "
-            f"{len(issues)} credential-scope issues visible from current credentials."
+            f"{len(issues)} current-scope issues."
         )
 
     if command == "permissions":
@@ -3023,3 +3038,66 @@ def _role_trust_visible_transform(item: dict) -> str | None:
         return escalation_mechanism
 
     return None
+
+
+def _empty_state_message(command: str, payload: dict) -> str:
+    if command == "chains" and "families" in payload:
+        return "No chain families are currently registered."
+
+    if command == "chains":
+        family = str(payload.get("family") or "")
+        family_subjects = {
+            "credential-path": "credential paths",
+            "deployment-path": "deployment paths",
+            "escalation-path": "escalation paths",
+            "workload-identity-path": "workload-identity paths",
+        }
+        subject = family_subjects.get(family, "chain rows")
+        return f"No visible {subject} were confirmed from current scope."
+
+    subjects = {
+        "acr": "container registries",
+        "aks": "AKS clusters",
+        "api-mgmt": "API Management services",
+        "app-services": "App Service apps",
+        "application-gateway": "Application Gateways",
+        "arm-deployments": "ARM deployments",
+        "auth-policies": "authentication policy rows",
+        "automation": "Automation accounts",
+        "cross-tenant": "cross-tenant signals",
+        "databases": "database servers",
+        "devops": "Azure DevOps build definitions",
+        "dns": "DNS zones",
+        "endpoints": "reachable surfaces",
+        "env-vars": "environment-variable signals",
+        "functions": "Function Apps",
+        "keyvault": "Key Vaults",
+        "lighthouse": "Azure Lighthouse delegations",
+        "managed-identities": "managed identities",
+        "network-effective": "reachability rows",
+        "network-ports": "port-exposure rows",
+        "permissions": "permission rows",
+        "principals": "principals",
+        "resource-trusts": "resource trust surfaces",
+        "role-trusts": "role trust edges",
+        "storage": "storage accounts",
+        "tokens-credentials": "token or credential surfaces",
+    }
+    subject = subjects.get(command, f"{command} rows")
+    return f"No visible {subject} were confirmed from current scope."
+
+
+def _render_scope_boundary_notes(console: Console, command: str, payload: dict) -> None:
+    if command != "chains":
+        return
+
+    claim_boundary = str(payload.get("claim_boundary") or "").strip()
+    current_gap = str(payload.get("current_gap") or "").strip()
+    if not claim_boundary and not current_gap:
+        return
+
+    console.print("")
+    if claim_boundary:
+        console.print(f"Claim boundary: {claim_boundary}")
+    if current_gap:
+        console.print(f"Current gap: {current_gap}")
