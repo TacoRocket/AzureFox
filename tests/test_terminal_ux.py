@@ -781,8 +781,8 @@ def test_chains_table_mode_surfaces_priority_and_next_review(tmp_path: Path) -> 
     assert "this secret." in result.stdout
     assert "Check vault access" in normalized_output
     assert "connection clues." in normalized_output
-    assert "This app exposes a" in normalized_output
-    assert "secret-shaped" in normalized_output
+    assert "AzureFox narrowed" in normalized_output
+    assert "database" in normalized_output
 
 
 def test_deployment_chains_table_mode_surfaces_source_oriented_columns(tmp_path: Path) -> None:
@@ -952,12 +952,47 @@ def test_chains_keyvault_note_prefers_current_identity_access_sentence() -> None
     }
 
     rendered = render_table("chains", payload)
-
     normalized = " ".join(rendered.split())
 
     assert "Your current identity" in normalized
     assert "can read this secret." in normalized
     assert "Named target matched visible inventory." not in rendered
+
+
+def test_chains_named_keyvault_not_visible_prefers_inventory_boundary() -> None:
+    payload = {
+        "metadata": {"command": "chains"},
+        "family": "credential-path",
+        "paths": [
+            {
+                "priority": "low",
+                "urgency": "bookmark",
+                "asset_name": "func-orders",
+                "setting_name": "PAYMENT_API_KEY",
+                "target_service": "keyvault",
+                "target_resolution": "named target not visible",
+                "target_names": [],
+                "next_review": "Verify that the named target is visible in current inventory.",
+                "confidence_boundary": (
+                    "AzureFox can name the vault, but cannot yet tell whether your current "
+                    "identity can read the secret."
+                ),
+                "summary": (
+                    "FunctionApp 'func-orders' pulls 'PAYMENT_API_KEY' from Key Vault "
+                    "'hidden-vault.vault.azure.net', but AzureFox cannot see that vault in "
+                    "current inventory."
+                ),
+            }
+        ],
+        "issues": [],
+    }
+
+    rendered = render_table("chains", payload)
+    normalized = " ".join(rendered.split())
+
+    assert "This app names a Key" in normalized
+    assert "current inventory." in normalized
+    assert "cannot yet tell whether your current identity can read the secret" not in normalized
 
 
 def test_app_services_partial_read_surfaces_collection_issue() -> None:

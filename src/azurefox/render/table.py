@@ -1959,7 +1959,11 @@ def _chains_note(item: dict, *, family: str = "") -> str:
     target_service = str(item.get("target_service") or "target")
     confidence_boundary = str(item.get("confidence_boundary") or "").strip()
 
-    if family == "credential-path" and target_service == "keyvault" and confidence_boundary:
+    if (
+        family == "credential-path"
+        and confidence_boundary
+        and resolution != "named target not visible"
+    ):
         return confidence_boundary
 
     if resolution == "named match":
