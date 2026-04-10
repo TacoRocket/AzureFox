@@ -90,6 +90,8 @@ def test_cli_smoke_chains_credential_path_json(tmp_path: Path) -> None:
     assert payload["metadata"]["command"] == "chains"
     assert payload["family"] == "credential-path"
     assert payload["command_state"] == "extraction-only"
+    assert payload["claim_boundary"].startswith("Can claim that the visible evidence suggests")
+    assert payload["current_gap"].startswith("The live family now joins backing evidence")
     assert payload["artifact_preference_order"] == []
     assert payload["source_artifacts"] == []
     assert payload["backing_commands"] == [
@@ -148,6 +150,8 @@ def test_cli_smoke_chains_credential_path_table_output(tmp_path: Path) -> None:
     normalized_output = " ".join(result.stdout.split())
     assert "narrowed" in normalized_output
     assert "candidates" in normalized_output
+    assert "Claim boundary:" in result.stdout
+    assert "Current gap:" in result.stdout
     assert "Takeaway: 3 visible credential paths" in result.stdout
 
 
@@ -365,6 +369,8 @@ def test_cli_smoke_chains_overview_table_output(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "azurefox chains" in result.stdout
+    assert "allowed claim" in result.stdout
+    assert "current gap" in result.stdout
     assert "credential-path" in result.stdout
     assert "deployment-path" in result.stdout
     assert "escalation-path" in result.stdout

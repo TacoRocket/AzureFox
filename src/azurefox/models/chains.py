@@ -88,6 +88,7 @@ class ChainsOutput(BaseModel):
     command_state: str
     summary: str
     claim_boundary: str
+    current_gap: str | None = None
     artifact_preference_order: list[str] = Field(default_factory=list)
     backing_commands: list[str] = Field(default_factory=list)
     source_artifacts: list[ChainSourceArtifact] = Field(default_factory=list)

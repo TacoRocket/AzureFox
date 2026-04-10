@@ -8,6 +8,7 @@
     "command_state",
     "summary",
     "claim_boundary",
+    "current_gap",
     "artifact_preference_order",
     "backing_commands",
     "source_artifacts",

@@ -47,6 +47,21 @@ _PROSE_HEAVY_FIELDS = {
 }
 
 
+def _backfill_issue_scope(node: object) -> object:
+    if isinstance(node, dict):
+        collector = (
+            node.get("context", {}).get("collector")
+            if isinstance(node.get("context"), dict)
+            else None
+        )
+        if node.get("kind") and node.get("message") and collector and "scope" not in node:
+            node["scope"] = collector
+        return {key: _backfill_issue_scope(value) for key, value in node.items()}
+    if isinstance(node, list):
+        return [_backfill_issue_scope(item) for item in node]
+    return node
+
+
 def _scrub_prose_heavy_fields(node: object) -> object:
     if isinstance(node, dict):
         cleaned: dict[str, object] = {}
@@ -63,6 +78,7 @@ def _scrub_prose_heavy_fields(node: object) -> object:
 
 def _normalize(payload: dict) -> dict:
     payload = json.loads(json.dumps(payload))
+    payload = _backfill_issue_scope(payload)
     payload = _scrub_prose_heavy_fields(payload)
     metadata = payload["metadata"]
     metadata["generated_at"] = "<generated_at>"

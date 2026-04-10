@@ -89,10 +89,9 @@ def test_auth_policies_table_mode_surfaces_findings_and_issues(tmp_path: Path) -
     )
 
     assert result.exit_code == 0
-    assert "current credentials" in result.stdout
     assert "Findings:" in result.stdout
     assert "Security defaults are disabled" in result.stdout
-    assert "Takeaway: 4 policy rows, 5 findings, and 0 credential-scope issues" in result.stdout
+    assert "Takeaway: 4 policy rows, 5 findings, and 0 current-scope issues." in result.stdout
 
 
 def test_lighthouse_table_mode_surfaces_cross_tenant_scope_and_access(tmp_path: Path) -> None:
@@ -816,6 +815,8 @@ def test_deployment_chains_table_mode_surfaces_source_oriented_columns(tmp_path:
     assert "support-only" in normalized_output
     assert "Redeploy-App" in normalized_output
     assert "Lab-Maintenance" in normalized_output
+    assert "Claim boundary:" in result.stdout
+    assert "Current gap:" in result.stdout
 
 
 def test_deployment_chains_table_mode_renders_why_care_as_detail_rows(tmp_path: Path) -> None:
@@ -836,6 +837,7 @@ def test_deployment_chains_table_mode_renders_why_care_as_detail_rows(tmp_path: 
     assert "Current credentials can already poison that source" in result.stdout
     assert "If that trusted input becomes attacker-controlled" in result.stdout
     assert len(detail_header_lines) == 6
+    assert "Current gap:" in result.stdout
 
 
 def test_escalation_chains_table_mode_renders_defended_current_foothold_story(
@@ -882,7 +884,7 @@ def test_auth_policies_partial_read_surfaces_collection_issue() -> None:
     }
     rendered = render_table("auth-policies", payload)
 
-    assert "Credential-scope issues:" in rendered
+    assert "Current-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "auth_policies.security_defaults" in rendered
 
@@ -928,7 +930,21 @@ def test_chains_partial_target_visibility_prefers_issue_over_candidate_list() ->
     assert "visibility blocked" in rendered
     assert "permission_denied: databases.servers" in rendered
     assert "sql-public-legacy" not in rendered
-    assert "Credential-scope issues:" in rendered
+    assert "Current-scope issues:" in rendered
+
+
+def test_chains_overview_empty_state_stays_on_family_index_surface() -> None:
+    payload = {
+        "metadata": {"command": "chains"},
+        "families": [],
+        "issues": [],
+    }
+
+    rendered = render_table("chains", payload)
+
+    assert "No chain families are currently registered." in rendered
+    assert "azurefox chains" in rendered
+    assert "target resolution" not in rendered
 
 
 def test_chains_keyvault_note_prefers_current_identity_access_sentence() -> None:
@@ -1027,7 +1043,7 @@ def test_app_services_partial_read_surfaces_collection_issue() -> None:
     }
     rendered = render_table("app-services", payload)
 
-    assert "Credential-scope issues:" in rendered
+    assert "Current-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "app_services[rg-apps/app-empty-mi].configuration" in rendered
 
@@ -1047,8 +1063,8 @@ def test_acr_collection_issue_surfaces_in_table_output() -> None:
     }
     rendered = render_table("acr", payload)
 
-    assert "No records" in rendered
-    assert "Credential-scope issues:" in rendered
+    assert "No visible container registries were confirmed from current scope." in rendered
+    assert "Current-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "acr.registries" in rendered
 
@@ -1118,7 +1134,7 @@ def test_databases_partial_read_surfaces_collection_issue() -> None:
     }
     rendered = render_table("databases", payload)
 
-    assert "Credential-scope issues:" in rendered
+    assert "Current-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "databases[rg-data/sql-public-legacy].databases" in rendered
     assert (
@@ -1143,8 +1159,8 @@ def test_dns_collection_issue_surfaces_in_table_output() -> None:
     }
     rendered = render_table("dns", payload)
 
-    assert "No records" in rendered
-    assert "Credential-scope issues:" in rendered
+    assert "No visible DNS zones were confirmed from current scope." in rendered
+    assert "Current-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "dns.resources" in rendered
 
@@ -1198,8 +1214,8 @@ def test_application_gateway_collection_issue_surfaces_in_table_output() -> None
     }
     rendered = render_table("application-gateway", payload)
 
-    assert "No records" in rendered
-    assert "Credential-scope issues:" in rendered
+    assert "No visible Application Gateways were confirmed from current scope." in rendered
+    assert "Current-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "application_gateway.gateways" in rendered
 
@@ -1245,7 +1261,7 @@ def test_application_gateway_partial_read_keeps_public_frontend_without_ip_strin
 
     assert "public=1; subnets=1" in rendered
     assert "20.30.40.50" not in rendered
-    assert "Credential-scope issues:" in rendered
+    assert "Current-scope issues:" in rendered
 
 
 def test_application_gateway_takeaway_counts_backend_pool_breadth_as_shared_signal() -> None:
@@ -1372,7 +1388,7 @@ def test_functions_partial_read_surfaces_collection_issue() -> None:
     }
     rendered = render_table("functions", payload)
 
-    assert "Credential-scope issues:" in rendered
+    assert "Current-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "functions[rg-apps/func-orders].app_settings" in rendered
 
@@ -1408,7 +1424,7 @@ def test_api_mgmt_partial_read_surfaces_collection_issue() -> None:
     }
     rendered = render_table("api-mgmt", payload)
 
-    assert "Credential-scope issues:" in rendered
+    assert "Current-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "api_mgmt[rg-apps/apim-edge-01].named_values" in rendered
     assert "current credentials do not show named values" in " ".join(rendered.split())
@@ -1430,7 +1446,7 @@ def test_aks_collection_issue_surfaces_in_table_output() -> None:
     }
     rendered = render_table("aks", payload)
 
-    assert "No records" in rendered
-    assert "Credential-scope issues:" in rendered
+    assert "No visible AKS clusters were confirmed from current scope." in rendered
+    assert "Current-scope issues:" in rendered
     assert "permission_denied" in rendered
     assert "aks.managed_clusters" in rendered

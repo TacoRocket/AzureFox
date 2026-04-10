@@ -3679,6 +3679,7 @@ def _issue_from_exception(area: str, exc: Exception) -> dict:
     return {
         "kind": classify_exception(exc).value,
         "message": f"{area}: {exc}",
+        "scope": area,
         "context": {"collector": area},
     }
 
@@ -8310,6 +8311,7 @@ def _partial_collection_issue(
     return {
         "kind": ErrorKind.PARTIAL_COLLECTION.value,
         "message": f"{area}: {message}",
+        "scope": area,
         "context": context,
     }
 
