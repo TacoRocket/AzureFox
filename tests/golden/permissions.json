@@ -32,6 +32,27 @@
     },
     {
       "all_role_names": [
+        "Contributor"
+      ],
+      "display_name": "aa-hybrid-prod-mi",
+      "high_impact_roles": [
+        "Contributor"
+      ],
+      "is_current_identity": false,
+      "next_review": "Check role-trusts for trust expansion around who can influence this principal.",
+      "operator_signal": "Direct control visible; trust expansion follow-on.",
+      "principal_id": "12121212-1212-1212-1212-121212121212",
+      "principal_type": "ServicePrincipal",
+      "privileged": true,
+      "role_assignment_count": 1,
+      "scope_count": 1,
+      "scope_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-ops"
+      ],
+      "summary": "ServicePrincipal 'aa-hybrid-prod-mi' already has direct control visible through Contributor across subscription-wide. The next useful question is trust expansion, not more privilege ranking. Check role-trusts for trust expansion around who can influence this principal."
+    },
+    {
+      "all_role_names": [
         "Reader"
       ],
       "display_name": "operator@lab.local",

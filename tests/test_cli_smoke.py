@@ -163,21 +163,19 @@ def test_cli_smoke_chains_deployment_path_table_output(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "azurefox chains" in result.stdout
     assert "why care" in result.stdout
-    assert "path type" in result.stdout
+    assert "actionability" in result.stdout
+    assert "insertion point" in result.stdout
     assert "likely azure impact" in result.stdout
-    assert "confidence boundary" in result.stdout
+    assert "what's missing" in result.stdout
     assert "deploy-aks-prod" in result.stdout
-    assert "deploy-appservice-prod" in result.stdout
-    assert "deploy-artifact-app-p" in result.stdout
     assert "plan-infra-prod" in result.stdout
     assert "aa-hybrid-prod" in result.stdout
-    assert "trusted input" in result.stdout
-    assert "Automation account" in result.stdout
-    assert "controllable change" in result.stdout
-    assert "execution hub" in result.stdout
-    assert "secret-backed support" in result.stdout
-    assert "Check permissions for" in result.stdout
-    assert "consequence grounding" in result.stdout
+    assert "repo-content" in result.stdout
+    assert "currently actionable" in result.stdout
+    assert "conditionally" in result.stdout
+    assert "support-only" in result.stdout
+    assert "Redeploy-App" in result.stdout
+    assert "Lab-Maintenance" in result.stdout
     assert "Takeaway: 6 visible deployment paths" in result.stdout
 
 
@@ -200,6 +198,9 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
     assert payload["backing_commands"] == [
         "devops",
         "automation",
+        "permissions",
+        "rbac",
+        "role-trusts",
         "arm-deployments",
         "aks",
         "functions",
@@ -229,18 +230,45 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
         "execution-hub",
         "secret-escalation-support",
     }
+    assert {item["actionability_state"] for item in payload["paths"]} == {
+        "currently actionable",
+        "conditionally actionable",
+        "consequence-grounded but insertion point unproven",
+        "support-only",
+    }
     support_row = next(item for item in payload["paths"] if item["asset_name"] == "aa-lab-quiet")
     assert support_row["priority"] == "low"
+    assert support_row["actionability_state"] == "support-only"
+    assert "Lab-Maintenance" in support_row["insertion_point"]
     assert "Another foothold" in support_row["why_care"]
     assert "target mapping is still missing" in support_row["next_review"]
     automation_row = next(
         item for item in payload["paths"] if item["asset_name"] == "aa-hybrid-prod"
     )
     assert automation_row["target_resolution"] == "visibility blocked"
+    assert automation_row["actionability_state"] == "currently actionable"
+    assert automation_row["priority"] == "high"
+    assert "webhook path can start runbook Redeploy-App" in automation_row["insertion_point"]
+    assert (
+        "current role assignment Owner at subscription scope"
+        in automation_row["insertion_point"]
+    )
+    assert "role-trusts" in automation_row["evidence_commands"]
+    assert "rbac" in automation_row["evidence_commands"]
+    assert "aa-hybrid-prod-mi" in automation_row["confidence_boundary"]
+    assert "ops-deploy-sp" in automation_row["why_care"]
+    assert "map what runbook Redeploy-App changes" in automation_row["next_review"]
     assert "run recurring Azure-facing execution" in automation_row["why_care"]
     aks_row = next(item for item in payload["paths"] if item["asset_name"] == "deploy-aks-prod")
+    assert aks_row["actionability_state"] == "conditionally actionable"
+    assert "Queue this pipeline now" in aks_row["insertion_point"]
     assert "permissions" in aks_row["evidence_commands"]
     assert "keyvault" in aks_row["evidence_commands"]
+    appsvc_row = next(
+        item for item in payload["paths"] if item["asset_name"] == "deploy-appservice-prod"
+    )
+    assert appsvc_row["actionability_state"] == "currently actionable"
+    assert "Poison repository" in appsvc_row["insertion_point"]
 
 
 def test_cli_smoke_chains_escalation_path_json(tmp_path: Path) -> None:

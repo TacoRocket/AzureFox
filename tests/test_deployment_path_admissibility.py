@@ -8,7 +8,11 @@ from azurefox.chains.deployment_path import (
     assess_deployment_source,
     target_family_hints_from_arm_deployment,
 )
-from azurefox.chains.runner import _structured_deployment_target_matches
+from azurefox.chains.runner import (
+    _automation_current_operator_access,
+    _automation_scope_label,
+    _structured_deployment_target_matches,
+)
 from azurefox.models.common import (
     ArmDeploymentSummary,
     AutomationAccountAsset,
@@ -242,6 +246,56 @@ def test_structured_target_clue_can_reach_exact_named_match_input() -> None:
 
     assert confirmation_basis == "parsed-config-target"
     assert [item["name"] for item in matches] == ["app-public-api"]
+
+
+def test_automation_current_operator_access_uses_role_definition_id_and_best_scope_match() -> None:
+    access = _automation_current_operator_access(
+        {
+            "id": (
+                "/subscriptions/test-sub/resourceGroups/rg-ops/providers/Microsoft.Automation/"
+                "automationAccounts/aa-prod"
+            )
+        },
+        [
+            {
+                "scope_id": "/subscriptions/test-sub",
+                "role_definition_id": (
+                    "/subscriptions/test-sub/providers/Microsoft.Authorization/"
+                    "roleDefinitions/8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
+                ),
+                "role_name": "Owner (renamed locally)",
+            },
+            {
+                "scope_id": (
+                    "/subscriptions/test-sub/resourceGroups/rg-ops/providers/Microsoft.Automation/"
+                    "automationAccounts/aa-prod"
+                ),
+                "role_definition_id": None,
+                "role_name": " automation  operator ",
+            },
+        ],
+    )
+
+    assert access == {
+        "capability": "edit",
+        "role_name": "Owner (renamed locally)",
+        "scope_id": "/subscriptions/test-sub",
+    }
+
+
+def test_automation_scope_label_keeps_child_resource_scope_distinct_from_resource_group() -> None:
+    scope_id = (
+        "/subscriptions/test-sub/resourceGroups/rg-ops/providers/Microsoft.Automation/"
+        "automationAccounts/aa-prod/runbooks/Redeploy-App"
+    )
+    resource_id = (
+        "/subscriptions/test-sub/resourceGroups/rg-ops/providers/Microsoft.Automation/"
+        "automationAccounts/aa-prod"
+    )
+    assert (
+        _automation_scope_label(scope_id, resource_id=resource_id)
+        == "resource scope Redeploy-App"
+    )
 
 
 def _load_devops_pipeline(name: str) -> DevopsPipelineAsset:

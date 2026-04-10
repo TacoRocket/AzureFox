@@ -33,6 +33,24 @@
       ],
       "privileged": false,
       "is_current_identity": false
+    },
+    {
+      "principal_id": "12121212-1212-1212-1212-121212121212",
+      "display_name": "aa-hybrid-prod-mi",
+      "principal_type": "ServicePrincipal",
+      "high_impact_roles": [
+        "Contributor"
+      ],
+      "all_role_names": [
+        "Contributor"
+      ],
+      "role_assignment_count": 1,
+      "scope_count": 1,
+      "scope_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-ops"
+      ],
+      "privileged": true,
+      "is_current_identity": false
     }
   ],
   "issues": []
