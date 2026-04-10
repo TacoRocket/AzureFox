@@ -9818,7 +9818,7 @@ def _devops_package_feed_input(
 
 
 def _devops_access_state_rank(value: object) -> int:
-    return {"write": 0, "read": 1, "exists-only": 2}.get(str(value or ""), 9)
+    return {"write": 0, "use": 1, "read": 2, "exists-only": 3}.get(str(value or ""), 9)
 
 
 def _devops_apply_permission_proof(
@@ -10100,7 +10100,7 @@ def _devops_apply_secure_file_role_proof(
     if best_role == "user":
         return _devops_apply_permission_proof(
             trusted_input,
-            access_state="read",
+            access_state="use",
             can_poison=False,
             evidence_basis="secure-file-role",
             permission_source="azure-devops-library-security-role",
@@ -10476,7 +10476,112 @@ def _devops_target_clues(definition: dict[str, object]) -> list[str]:
     for clue, keywords in patterns.items():
         if any(keyword in text for keyword in keywords for text in strings):
             clues.append(clue)
-    return clues
+    structured_clues = _devops_structured_target_clues(definition, broad_clues=clues)
+    clues.extend(
+        clue.split(":", 1)[0].strip() for clue in structured_clues if ":" in clue and clue
+    )
+    clues.extend(structured_clues)
+    return _dedupe_strings(clues)
+
+
+def _devops_structured_target_clues(
+    definition: dict[str, object],
+    *,
+    broad_clues: list[str],
+) -> list[str]:
+    structured: list[str] = []
+    lowered_broad_clues = {value.lower() for value in broad_clues}
+    for path, node in _recursive_nodes(definition):
+        if not isinstance(node, dict):
+            continue
+
+        app_service_name = _devops_named_target_input(
+            node,
+            token_groups=(
+                ("azure", "web", "app", "name"),
+                ("web", "app", "name"),
+                ("app", "service", "name"),
+            ),
+        )
+        if not app_service_name and "app service" in lowered_broad_clues:
+            app_service_name = _devops_named_target_input(
+                node,
+                token_groups=(("app", "name"),),
+            )
+        if app_service_name:
+            structured.append(f"App Service: {app_service_name}")
+
+        function_name = _devops_named_target_input(
+            node,
+            token_groups=(
+                ("azure", "function", "app", "name"),
+                ("function", "app", "name"),
+            ),
+        )
+        if not function_name and "functions" in lowered_broad_clues:
+            function_name = _devops_named_target_input(
+                node,
+                token_groups=(("function", "name"),),
+            )
+        if function_name:
+            structured.append(f"Functions: {function_name}")
+
+        cluster_name = _devops_named_target_input(
+            node,
+            token_groups=(
+                ("aks", "cluster", "name"),
+                ("kubernetes", "cluster", "name"),
+            ),
+        )
+        if not cluster_name and "aks/kubernetes" in lowered_broad_clues:
+            cluster_name = _devops_named_target_input(
+                node,
+                token_groups=(("cluster", "name"),),
+            )
+        if cluster_name:
+            structured.append(f"AKS/Kubernetes: {cluster_name}")
+
+        node_tokens = {
+            token for key in node for token in _devops_identifier_tokens(key)
+        } | set(_devops_path_tokens(path))
+        if "arm/bicep/terraform" in lowered_broad_clues or _devops_node_has_arm_target_context(
+            node_tokens
+        ):
+            deployment_name = _devops_named_target_input(
+                node,
+                token_groups=(("deployment", "name"),),
+            )
+            if deployment_name:
+                structured.append(f"ARM/Bicep/Terraform: {deployment_name}")
+
+    return structured
+
+
+def _devops_node_has_arm_target_context(tokens: set[str]) -> bool:
+    return bool(
+        "arm" in tokens
+        or "bicep" in tokens
+        or "terraform" in tokens
+        or ("resource" in tokens and "manager" in tokens)
+    )
+
+
+def _devops_named_target_input(
+    node: dict[str, object],
+    *,
+    token_groups: tuple[tuple[str, ...], ...],
+) -> str | None:
+    for key, value in node.items():
+        if not isinstance(value, str):
+            continue
+        cleaned_value = value.strip()
+        if not cleaned_value or _looks_like_expression(cleaned_value):
+            continue
+        key_tokens = set(_devops_identifier_tokens(key))
+        for token_group in token_groups:
+            if set(token_group).issubset(key_tokens):
+                return cleaned_value
+    return None
 
 
 def _devops_secret_support_types(
@@ -10758,6 +10863,12 @@ def _devops_injection_clause(
         return "current credentials can inject through " + ", ".join(
             current_operator_injection_surface_types
         )
+    if primary_trusted_input_access_state == "use":
+        if primary_trusted_input_type == "secure-file":
+            return (
+                f"current credentials can use {trusted_input} in pipeline context, but Azure "
+                "DevOps evidence here does not prove secure-file administration"
+            )
     if primary_trusted_input_access_state == "read":
         if primary_trusted_input_type == "pipeline-artifact":
             return (

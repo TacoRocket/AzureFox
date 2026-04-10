@@ -99,15 +99,15 @@ azurefox permissions
 
 | Section | Commands |
 | --- | --- |
-| `core` | `inventory` |
-| `identity` | `whoami`, `rbac`, `principals`, `permissions`, `privesc`, `role-trusts`, `lighthouse`, `auth-policies`, `managed-identities` |
-| `config` | `arm-deployments`, `env-vars` |
-| `secrets` | `keyvault`, `tokens-credentials` |
-| `resource` | `automation`, `devops`, `acr`, `api-mgmt`, `databases`, `resource-trusts` |
-| `storage` | `storage` |
-| `network` | `nics`, `dns`, `endpoints`, `network-effective`, `network-ports` |
-| `compute` | `workloads`, `app-services`, `functions`, `aks`, `vms`, `vmss`, `snapshots-disks` |
-| orchestration | `chains` |
+| `core` | [`inventory`](https://github.com/TacoRocket/AzureFox/wiki/Inventory) |
+| `identity` | [`whoami`](https://github.com/TacoRocket/AzureFox/wiki/Whoami), [`rbac`](https://github.com/TacoRocket/AzureFox/wiki/RBAC), [`principals`](https://github.com/TacoRocket/AzureFox/wiki/Principals), [`permissions`](https://github.com/TacoRocket/AzureFox/wiki/Permissions), [`privesc`](https://github.com/TacoRocket/AzureFox/wiki/Privesc), [`role-trusts`](https://github.com/TacoRocket/AzureFox/wiki/Role-Trusts), [`lighthouse`](https://github.com/TacoRocket/AzureFox/wiki/Lighthouse), [`auth-policies`](https://github.com/TacoRocket/AzureFox/wiki/Auth-Policies), [`managed-identities`](https://github.com/TacoRocket/AzureFox/wiki/Managed-Identities) |
+| `config` | [`arm-deployments`](https://github.com/TacoRocket/AzureFox/wiki/Arm-Deployments), [`env-vars`](https://github.com/TacoRocket/AzureFox/wiki/Env-Vars) |
+| `secrets` | [`keyvault`](https://github.com/TacoRocket/AzureFox/wiki/Keyvault), [`tokens-credentials`](https://github.com/TacoRocket/AzureFox/wiki/Tokens-Credentials) |
+| `resource` | [`automation`](https://github.com/TacoRocket/AzureFox/wiki/Automation), [`devops`](https://github.com/TacoRocket/AzureFox/wiki/Devops), [`acr`](https://github.com/TacoRocket/AzureFox/wiki/ACR), [`api-mgmt`](https://github.com/TacoRocket/AzureFox/wiki/API-Mgmt), [`databases`](https://github.com/TacoRocket/AzureFox/wiki/Databases), [`resource-trusts`](https://github.com/TacoRocket/AzureFox/wiki/Resource-Trusts) |
+| `storage` | [`storage`](https://github.com/TacoRocket/AzureFox/wiki/Storage) |
+| `network` | [`nics`](https://github.com/TacoRocket/AzureFox/wiki/Nics), [`dns`](https://github.com/TacoRocket/AzureFox/wiki/DNS), [`endpoints`](https://github.com/TacoRocket/AzureFox/wiki/Endpoints), [`network-effective`](https://github.com/TacoRocket/AzureFox/wiki/Network-Effective), [`network-ports`](https://github.com/TacoRocket/AzureFox/wiki/Network-Ports) |
+| `compute` | [`workloads`](https://github.com/TacoRocket/AzureFox/wiki/Workloads), [`app-services`](https://github.com/TacoRocket/AzureFox/wiki/App-Services), [`functions`](https://github.com/TacoRocket/AzureFox/wiki/Functions), [`aks`](https://github.com/TacoRocket/AzureFox/wiki/AKS), [`vms`](https://github.com/TacoRocket/AzureFox/wiki/VMs), [`vmss`](https://github.com/TacoRocket/AzureFox/wiki/VMSS), [`snapshots-disks`](https://github.com/TacoRocket/AzureFox/wiki/Snapshots-Disks) |
+| orchestration | [`chains`](https://github.com/TacoRocket/AzureFox/wiki/Chains) |
 
 ## Need A Test Lab?
 
