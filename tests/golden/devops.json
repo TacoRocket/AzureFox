@@ -231,7 +231,8 @@
         "22222222-2222-2222-2222-222222222222"
       ],
       "target_clues": [
-        "App Service"
+        "App Service",
+        "App Service: app-public-api"
       ],
       "risk_cues": [
         "auto-triggered",

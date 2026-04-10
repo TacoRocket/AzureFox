@@ -278,7 +278,8 @@
       "source_visibility_state": "visible",
       "summary": "Build definition 'deploy-appservice-prod' in project 'prod-platform' exposes an Azure change path. trusted inputs include repository azure-repos:customer-portal@refs/heads/main. execution can start through pr-trigger. current credentials can poison repo-content through repository azure-repos:customer-portal@refs/heads/main. uses Azure-facing service connection(s) prod-appsvc-wif. references variable group(s) prod-appsvc-release. surfaces 3 secret-marked variable name(s). source clues ground likely Azure impact in App Service. Current credentials can poison repo-content through repository azure-repos:customer-portal@refs/heads/main. Check app-services for the named deployment target; review permissions and role-trusts for Azure control.",
       "target_clues": [
-        "App Service"
+        "App Service",
+        "App Service: app-public-api"
       ],
       "trigger_join_ids": [
         "devops-trigger://contoso/prod-platform/23/pr-trigger",

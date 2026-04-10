@@ -57,6 +57,7 @@ from azurefox.collectors.provider import (
     _devops_operator_summary,
     _devops_package_feed_input,
     _devops_pipeline_summary,
+    _devops_structured_target_clues,
     _env_var_reference_target,
     _network_effective_row_from_endpoint,
     _network_scope_label,
@@ -2227,6 +2228,140 @@ def test_devops_pipeline_summary_extracts_non_repo_trusted_inputs() -> None:
     assert pipeline["trusted_input_refs"]
 
 
+def test_devops_pipeline_summary_extracts_structured_app_service_target_clue() -> None:
+    pipeline, issues = _devops_pipeline_summary(
+        organization="contoso",
+        project={"name": "prod-platform", "id": "project-1"},
+        definition={
+            "id": 23,
+            "name": "deploy-appservice-prod",
+            "repository": {"name": "customer-portal", "type": "TfsGit"},
+            "process": {
+                "phases": [
+                    {
+                        "steps": [
+                            {
+                                "inputs": {
+                                    "azureWebAppName": "app-public-api",
+                                    "connectedServiceNameARM": "prod-appsvc-wif",
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+        },
+        service_endpoints_by_id={},
+        service_endpoints_by_name={
+            "prod-appsvc-wif": {
+                "id": "endpoint-1",
+                "name": "prod-appsvc-wif",
+                "type": "azurerm",
+                "authorization": {"scheme": "WorkloadIdentityFederation"},
+            }
+        },
+        repositories_by_id={},
+        repositories_by_name={},
+        variable_groups_by_id={},
+    )
+
+    assert issues == []
+    assert "App Service" in pipeline["target_clues"]
+    assert "App Service: app-public-api" in pipeline["target_clues"]
+
+
+def test_devops_pipeline_summary_extracts_structured_aks_and_arm_target_clues() -> None:
+    pipeline, issues = _devops_pipeline_summary(
+        organization="contoso",
+        project={"name": "platform-infra", "id": "project-1"},
+        definition={
+            "id": 34,
+            "name": "plan-infra-prod",
+            "repository": {"name": "infra-live", "type": "TfsGit"},
+            "process": {
+                "phases": [
+                    {
+                        "steps": [
+                            {
+                                "inputs": {
+                                    "aksClusterName": "aks-ops-01",
+                                    "script": "az deployment group create",
+                                    "deploymentName": "sub-foundation",
+                                    "connectedServiceNameARM": "infra-subscription",
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+        },
+        service_endpoints_by_id={},
+        service_endpoints_by_name={
+            "infra-subscription": {
+                "id": "endpoint-1",
+                "name": "infra-subscription",
+                "type": "azurerm",
+                "authorization": {"scheme": "ManagedServiceIdentity"},
+            }
+        },
+        repositories_by_id={},
+        repositories_by_name={},
+        variable_groups_by_id={},
+    )
+
+    assert issues == []
+    assert "AKS/Kubernetes" in pipeline["target_clues"]
+    assert "AKS/Kubernetes: aks-ops-01" in pipeline["target_clues"]
+    assert "ARM/Bicep/Terraform" in pipeline["target_clues"]
+    assert "ARM/Bicep/Terraform: sub-foundation" in pipeline["target_clues"]
+
+
+def test_devops_structured_target_clues_do_not_depend_on_broad_clues() -> None:
+    clues = _devops_structured_target_clues(
+        {
+            "process": {
+                "phases": [
+                    {
+                        "steps": [
+                            {"inputs": {"azureWebAppName": "app-public-api"}},
+                            {"inputs": {"aksClusterName": "aks-ops-01"}},
+                        ]
+                    }
+                ]
+            }
+        },
+        broad_clues=[],
+    )
+
+    assert "App Service: app-public-api" in clues
+    assert "AKS/Kubernetes: aks-ops-01" in clues
+
+
+def test_devops_structured_target_clues_ignore_generic_names_without_azure_context() -> None:
+    clues = _devops_structured_target_clues(
+        {
+            "process": {
+                "phases": [
+                    {
+                        "steps": [
+                            {
+                                "inputs": {
+                                    "appName": "docs-site",
+                                    "clusterName": "shared-cluster",
+                                    "deploymentName": "release-42",
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        broad_clues=[],
+    )
+
+    assert clues == []
+
+
 def test_devops_finalize_trusted_inputs_adds_exists_only_proof_metadata() -> None:
     trusted_inputs = _devops_finalize_trusted_inputs(
         trusted_inputs=[
@@ -2409,7 +2544,7 @@ def test_devops_secure_file_role_proof_distinguishes_visible_use_and_manage() ->
     assert visible_only["current_operator_access_state"] == "exists-only"
     assert visible_only["current_operator_can_poison"] is False
     assert visible_only["trusted_input_permission_detail"] == "role=reader"
-    assert usable["current_operator_access_state"] == "read"
+    assert usable["current_operator_access_state"] == "use"
     assert usable["current_operator_can_poison"] is False
     assert usable["trusted_input_permission_detail"] == "role=user"
     assert manageable["current_operator_access_state"] == "write"
@@ -2425,7 +2560,7 @@ def test_devops_secure_file_use_proof_does_not_overstate_generic_reading() -> No
             {
                 "input_type": "secure-file",
                 "ref": "secure-file:codesign-cert.pfx",
-                "current_operator_access_state": "read",
+                "current_operator_access_state": "use",
                 "current_operator_can_poison": False,
                 "surface_types": ["secure-file"],
             }
@@ -2447,7 +2582,7 @@ def test_devops_secure_file_use_proof_does_not_overstate_generic_reading() -> No
         current_operator_can_contribute_source=False,
         current_operator_injection_surface_types=[],
         primary_trusted_input_type="secure-file",
-        primary_trusted_input_access_state="read",
+        primary_trusted_input_access_state="use",
     )
 
     assert "can use secure file codesign-cert.pfx in pipeline context" in summary

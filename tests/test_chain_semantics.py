@@ -1,8 +1,17 @@
 from __future__ import annotations
 
 from azurefox.chains.credential_path import _build_candidate_record
+from azurefox.chains.deployment_path import DeploymentSourceAssessment
 from azurefox.chains.runner import (
     _build_escalation_trust_record,
+    _deployment_confidence_boundary,
+    _deployment_current_operator_suffix,
+    _deployment_devops_insertion_point,
+    _deployment_next_review,
+    _deployment_why_care,
+    _devops_execution_identity_name,
+    _devops_joined_permission,
+    _devops_joined_role_trusts,
     _source_current_operator_can_inject,
 )
 from azurefox.chains.semantics import (
@@ -160,6 +169,131 @@ def test_devops_edit_rights_count_as_definition_edit_injection() -> None:
             },
         )
         is True
+    )
+
+
+def test_deployment_path_secure_file_use_suffix_stays_use_scoped() -> None:
+    assert (
+        _deployment_current_operator_suffix(
+            "devops",
+            {
+                "trusted_inputs": [
+                    {
+                        "input_type": "secure-file",
+                        "ref": "secure-file:codesign-cert.pfx",
+                        "current_operator_access_state": "use",
+                    }
+                ],
+                "primary_trusted_input_ref": "secure-file:codesign-cert.pfx",
+                "current_operator_injection_surface_types": [],
+                "current_operator_can_queue": False,
+                "current_operator_can_edit": False,
+            },
+        )
+        == (
+            "Current credentials can use that secure file in pipeline context, but "
+            "Azure DevOps evidence here does not prove secure-file administration."
+        )
+    )
+
+
+def test_deployment_path_secure_file_use_insertion_point_stays_use_scoped() -> None:
+    assert (
+        _deployment_devops_insertion_point(
+            {
+                "trusted_inputs": [
+                    {
+                        "input_type": "secure-file",
+                        "ref": "secure-file:codesign-cert.pfx",
+                        "current_operator_access_state": "use",
+                    }
+                ],
+                "primary_trusted_input_ref": "secure-file:codesign-cert.pfx",
+                "current_operator_injection_surface_types": [],
+                "current_operator_can_queue": False,
+                "current_operator_can_edit": False,
+            }
+        )
+        == (
+            "secure file codesign-cert.pfx is usable in pipeline context, but "
+            "secure-file administration is unproven."
+        )
+    )
+
+
+def test_deployment_path_artifact_read_insertion_point_stays_producer_scoped() -> None:
+    assert (
+        _deployment_devops_insertion_point(
+            {
+                "trusted_inputs": [
+                    {
+                        "input_type": "pipeline-artifact",
+                        "ref": "pipeline-artifact:prod-platform/shared-build#signed-drop",
+                        "current_operator_access_state": "read",
+                    }
+                ],
+                "primary_trusted_input_ref": (
+                    "pipeline-artifact:prod-platform/shared-build#signed-drop"
+                ),
+                "current_operator_injection_surface_types": [],
+                "current_operator_can_queue": False,
+                "current_operator_can_edit": False,
+            }
+        )
+        == (
+            "The upstream producer behind pipeline artifact "
+            "prod-platform/shared-build#signed-drop is inspectable, but producer control is "
+            "unproven."
+        )
+    )
+
+
+def test_deployment_path_definition_edit_boundary_stays_definition_scoped() -> None:
+    source = {
+        "current_operator_can_edit": True,
+        "current_operator_injection_surface_types": ["definition-edit"],
+        "joined_permission": {"display_name": "build-sp"},
+    }
+
+    assert (
+        _deployment_confidence_boundary(
+            source_command="devops",
+            source=source,
+            target_label="App Service",
+            target_resolution="named match",
+            confirmation_basis="parsed-config-target",
+            current_operator_can_drive=True,
+            current_operator_can_inject=True,
+            missing_target_mapping=False,
+        )
+        == (
+            "Current evidence shows you can edit this pipeline definition so it runs as Azure "
+            "identity 'build-sp' against the exact App Service target, but not a separate "
+            "direct sign-in as Azure identity 'build-sp'."
+        )
+    )
+
+
+def test_deployment_path_definition_edit_next_review_stays_definition_scoped() -> None:
+    assert (
+        _deployment_next_review(
+            source_command="devops",
+            source={
+                "current_operator_can_edit": True,
+                "current_operator_injection_surface_types": ["definition-edit"],
+            },
+            path_concept="controllable-change-path",
+            target_family="app-services",
+            target_resolution="named match",
+            target_names=["app-public-api"],
+            target_label="App Service",
+            supporting_deployments=[],
+        )
+        == (
+            "Current credentials can already edit this pipeline definition directly; AzureFox "
+            "already named the exact App Service target app-public-api; validate that target "
+            "directly."
+        )
     )
 
 
@@ -332,6 +466,102 @@ def test_escalation_path_trust_rows_use_hidden_role_trust_transform_fields() -> 
     assert "could make service principal 'build-sp' usable" in record.confidence_boundary
     assert "Remove the ownership path" in (record.why_care or "")
     assert record.target_resolution == "path-confirmed"
+
+
+def test_devops_joined_permission_ignores_service_connection_id_matches() -> None:
+    joined = _devops_joined_permission(
+        {
+            "azure_service_connection_ids": ["endpoint-1"],
+            "azure_service_connection_principal_ids": ["sp-1"],
+            "azure_service_connection_client_ids": ["app-1"],
+            "identity_join_ids": ["endpoint-1", "sp-1", "app-1"],
+        },
+        {
+            "endpoint-1": {"display_name": "wrong-endpoint"},
+            "sp-1": {"display_name": "build-sp"},
+        },
+    )
+
+    assert joined == {"display_name": "build-sp"}
+
+
+def test_devops_joined_role_trusts_prefers_internal_app_to_sp_link_first() -> None:
+    trusts = _devops_joined_role_trusts(
+        {
+            "azure_service_connection_principal_ids": ["sp-1"],
+            "azure_service_connection_client_ids": ["app-1"],
+        },
+        {
+            "sp-1": [
+                {
+                    "trust_type": "service-principal-owner",
+                    "source_object_id": "runner-sp",
+                    "source_name": "automation-runner",
+                    "target_object_id": "sp-1",
+                    "target_name": "build-sp",
+                },
+                {
+                    "trust_type": "federated-credential",
+                    "source_object_id": "app-1",
+                    "source_name": "build-app",
+                    "target_object_id": "sp-1",
+                    "target_name": "build-sp",
+                },
+            ],
+            "app-1": [
+                {
+                    "trust_type": "app-owner",
+                    "source_object_id": "user-1",
+                    "source_name": "ci-admin@lab.local",
+                    "target_object_id": "app-1",
+                    "target_name": "build-app",
+                },
+                {
+                    "trust_type": "federated-credential",
+                    "source_object_id": "app-1",
+                    "source_name": "build-app",
+                    "target_object_id": "sp-1",
+                    "target_name": "build-sp",
+                },
+            ],
+        },
+    )
+
+    assert trusts[0]["trust_type"] == "federated-credential"
+    assert _devops_execution_identity_name(
+        {
+            "azure_service_connection_principal_ids": ["sp-1"],
+            "azure_service_connection_client_ids": ["app-1"],
+            "joined_role_trusts": trusts,
+        }
+    ) == "build-sp"
+
+
+def test_deployment_why_care_definition_edit_does_not_claim_trusted_input_poisoning() -> None:
+    text = _deployment_why_care(
+        "devops",
+        {
+            "trusted_inputs": [
+                {
+                    "input_type": "repository",
+                    "ref": "repository:azure-repos:customer-portal@refs/heads/main",
+                }
+            ],
+            "primary_trusted_input_ref": "repository:azure-repos:customer-portal@refs/heads/main",
+            "current_operator_can_edit": True,
+            "current_operator_injection_surface_types": ["definition-edit"],
+            "joined_permission": {"display_name": "build-sp", "privileged": False},
+        },
+        assessment=DeploymentSourceAssessment(
+            source_command="devops",
+            source_name="deploy-appservice-prod",
+            posture="can already change Azure here",
+            path_concept="controllable-change-path",
+        ),
+    )
+
+    assert "edit this pipeline definition directly" in text
+    assert "poison that source" not in text
 
 
 def test_semantic_priority_sort_value_orders_highest_first() -> None:

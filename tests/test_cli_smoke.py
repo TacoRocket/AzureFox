@@ -221,6 +221,7 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
         "arm-deployment",
     }
     assert {item["target_resolution"] for item in payload["paths"]} == {
+        "named match",
         "narrowed candidates",
         "visibility blocked",
     }
@@ -255,20 +256,41 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
     )
     assert "role-trusts" in automation_row["evidence_commands"]
     assert "rbac" in automation_row["evidence_commands"]
-    assert "aa-hybrid-prod-mi" in automation_row["confidence_boundary"]
+    assert "This row proves source-side control" in automation_row["confidence_boundary"]
+    assert "Azure footprint beyond ARM deployment evidence" in automation_row["confidence_boundary"]
     assert "ops-deploy-sp" in automation_row["why_care"]
     assert "map what runbook Redeploy-App changes" in automation_row["next_review"]
     assert "run recurring Azure-facing execution" in automation_row["why_care"]
     aks_row = next(item for item in payload["paths"] if item["asset_name"] == "deploy-aks-prod")
     assert aks_row["actionability_state"] == "conditionally actionable"
     assert "Queue this pipeline now" in aks_row["insertion_point"]
+    assert "permission-summary" in aks_row["joined_surface_types"]
     assert "permissions" in aks_row["evidence_commands"]
     assert "keyvault" in aks_row["evidence_commands"]
+    assert "current-credential run-path control" in aks_row["confidence_boundary"]
+    assert "not a writable source" in aks_row["confidence_boundary"]
+    assert "exact AKS cluster target" in aks_row["confidence_boundary"]
+    assert "AzureFox already narrowed the likely AKS cluster candidates" in aks_row["next_review"]
     appsvc_row = next(
         item for item in payload["paths"] if item["asset_name"] == "deploy-appservice-prod"
     )
+    assert appsvc_row["target_resolution"] == "named match"
+    assert appsvc_row["confirmation_basis"] == "parsed-config-target"
     assert appsvc_row["actionability_state"] == "currently actionable"
     assert "Poison repository" in appsvc_row["insertion_point"]
+    assert appsvc_row["target_names"] == ["app-public-api"]
+    assert appsvc_row["likely_impact"] == "exact app service: app-public-api"
+    assert "trust-edge" in appsvc_row["joined_surface_types"]
+    assert "runs as Azure identity 'build-sp'" in appsvc_row["confidence_boundary"]
+    assert "exact App Service target" in appsvc_row["confidence_boundary"]
+    assert (
+        "separate direct sign-in as Azure identity 'build-sp'"
+        in appsvc_row["confidence_boundary"]
+    )
+    assert (
+        "AzureFox already named the exact App Service target app-public-api"
+        in appsvc_row["next_review"]
+    )
 
 
 def test_cli_smoke_chains_escalation_path_json(tmp_path: Path) -> None:

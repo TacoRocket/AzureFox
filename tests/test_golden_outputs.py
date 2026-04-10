@@ -41,9 +41,29 @@ from azurefox.collectors.commands import (
     collect_workloads,
 )
 
+_PROSE_HEAVY_FIELDS = {
+    "summary",
+    "next_review",
+}
+
+
+def _scrub_prose_heavy_fields(node: object) -> object:
+    if isinstance(node, dict):
+        cleaned: dict[str, object] = {}
+        for key, value in node.items():
+            if key in _PROSE_HEAVY_FIELDS and isinstance(value, str):
+                cleaned[key] = f"<{key}>"
+            else:
+                cleaned[key] = _scrub_prose_heavy_fields(value)
+        return cleaned
+    if isinstance(node, list):
+        return [_scrub_prose_heavy_fields(item) for item in node]
+    return node
+
 
 def _normalize(payload: dict) -> dict:
     payload = json.loads(json.dumps(payload))
+    payload = _scrub_prose_heavy_fields(payload)
     metadata = payload["metadata"]
     metadata["generated_at"] = "<generated_at>"
     metadata.setdefault("auth_mode", None)

@@ -808,7 +808,8 @@ def test_deployment_chains_table_mode_surfaces_source_oriented_columns(tmp_path:
     assert "aa-hybrid-prod" in result.stdout
     assert "aa-lab-quiet" in result.stdout
     assert "pivot-now" in normalized_output
-    assert "upstream producer control" in normalized_output
+    assert "Artifact trust is" in normalized_output
+    assert "pipeline artifact" in normalized_output
     assert "currently actionable" in normalized_output
     assert "conditionally" in normalized_output
     assert "grounded, insertion" in normalized_output
@@ -832,8 +833,8 @@ def test_deployment_chains_table_mode_renders_why_care_as_detail_rows(tmp_path: 
     assert main_header_lines
     assert all("why care" not in line for line in main_header_lines)
     assert detail_header_lines
-    assert "Current credentials can already poison that trusted input" in result.stdout
-    assert "Current evidence only shows that the trusted input exists" in result.stdout
+    assert "Current credentials can already poison that source" in result.stdout
+    assert "If that trusted input becomes attacker-controlled" in result.stdout
     assert len(detail_header_lines) == 6
 
 
