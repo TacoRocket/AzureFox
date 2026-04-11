@@ -848,7 +848,8 @@ def test_chains_visibility_tiers_avoid_fake_target_certainty() -> None:
     assert "func-orders" in medium_rendered
     assert "PAYMENT_API_KEY" in medium_rendered
     assert "narrowed candidates" in medium_rendered
-    assert "kv-orders,kv-shared" in medium_rendered
+    assert "kv-orders" in medium_rendered
+    assert "kv-shared" in medium_rendered
     assert "This app exposes a" in medium_rendered
     assert "secret-shaped" in medium_rendered
     assert "exact target" in medium_rendered
@@ -867,6 +868,6 @@ def test_chains_visibility_tiers_avoid_fake_target_certainty() -> None:
     assert "Restore keyvault" in low_rendered
     assert "choosing a target." in low_rendered
     assert "Current-scope issues:" in low_rendered
-    assert "Claim boundary:" in low_rendered
-    assert "Current gap:" in low_rendered
+    assert "Claim boundary:" not in low_rendered
+    assert "Current gap:" not in low_rendered
     assert "kv-orders,kv-shared" not in low_rendered

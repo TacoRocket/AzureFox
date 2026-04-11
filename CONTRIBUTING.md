@@ -33,18 +33,30 @@ pytest -m integration
 
 ## Semantics + Contracts
 
+- Before changing output wording, proof language, help text, or artifact behavior that could apply
+  across the HarrierOps family, read:
+  - the shared family style guide
+  - the shared family style guide applicability register
 - Keep command boundaries stable.
 - Use normalized models under `src/azurefox/models/`.
 - Keep JSON output deterministic and schema-compatible.
+- Keep family-wide truthfulness rules, claim-strength rules, and partial-read rules aligned with
+  the shared family documents instead of re-inventing them in repo-local prose.
 - Update schemas with `python scripts/generate_schemas.py`.
+- If AzureFox needs a documented wording or contract exception, update the applicability register in
+  the same change instead of leaving the exception implied only by local docs, help text, or tests.
 
 ## Documentation Boundaries
 
 - Keep live operator guidance in `azurefox help`, `azurefox help <command>`, `README.md`, and curated `docs/` content.
-- Treat `wiki/` as source material for intentional long-form wiki pages, not as a catch-all for internal planning notes.
-- Do not add new command-by-command planning trees under `wiki/` unless they are actively maintained and have a clear published destination.
-- If a note is temporary design scratch work, keep it out of the main repo or remove it once the implementation lands.
-- If planning material becomes durable user-facing documentation, promote it into a maintained docs/wiki page instead of leaving README links pointed at planning notes.
+- Keep non-operator documentation out of the repo unless the file is directly needed for build,
+  validation, release, install, or packaging flow.
+- Treat maintainer-only planning, drift-control, and family-governance notes as external reference
+  material rather than repo content.
+- If a temporary note or governance reminder lands locally during implementation, remove it before
+  merge unless it is truly required for the repo to build, validate, release, install, or package.
+- If planning material becomes durable user-facing documentation, promote it into maintained
+  operator documentation instead of leaving internal notes in the repo.
 
 ## Lightweight Guardrails (Solo)
 
@@ -56,3 +68,5 @@ pytest -m integration
 - Local pre-push hook blocks `codex` branch names, blocks direct pushes to `main`, and runs lint/tests.
 - CI blocks Codex-branded PR titles.
 - Temporary bypass for emergency push: `AZUREFOX_ALLOW_MAIN_PUSH=1 git push`.
+- Before merge, remove any non-operator doc that is not required for build, validation, release,
+  install, or packaging.

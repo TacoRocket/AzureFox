@@ -137,21 +137,36 @@ def test_cli_smoke_chains_credential_path_table_output(tmp_path: Path) -> None:
         ["--outdir", str(tmp_path), "chains", "credential-path"],
         env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
     )
+    normalized_output = " ".join(result.stdout.split()).lower()
 
     assert result.exit_code == 0
     assert "azurefox chains" in result.stdout
+    assert (
+        "Follow credential clues from surfaced secret-bearing or token-bearing evidence toward "
+        "the likely downstream service."
+        in result.stdout
+    )
     assert "kvlabopen01" in result.stdout
     assert "priority" in result.stdout
     assert "target resolution" in result.stdout
     assert "next review" in result.stdout
+    assert "confidence boundary" in result.stdout
     assert "high" in result.stdout
     assert "medium" in result.stdout
     assert "low" in result.stdout
-    normalized_output = " ".join(result.stdout.split())
     assert "narrowed" in normalized_output
     assert "candidates" in normalized_output
-    assert "Claim boundary:" in result.stdout
-    assert "Current gap:" in result.stdout
+    assert "token surfaces do not" in normalized_output
+    assert "database target." in normalized_output
+    assert "stlabpub01" in result.stdout
+    assert "stlabpriv01" in result.stdout
+    assert "exact storage" in normalized_output
+    assert "target." in normalized_output
+    assert "loaded evidence does" in normalized_output
+    assert "setting is not" in normalized_output
+    assert "confirmed to reach it." in normalized_output
+    assert "Claim boundary:" not in result.stdout
+    assert "Current gap:" not in result.stdout
     assert "Takeaway: 3 visible credential paths" in result.stdout
 
 
@@ -166,7 +181,7 @@ def test_cli_smoke_chains_deployment_path_table_output(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "azurefox chains" in result.stdout
-    assert "why care" in result.stdout
+    assert "note" in result.stdout
     assert "actionability" in result.stdout
     assert "insertion point" in result.stdout
     assert "likely azure impact" in result.stdout
@@ -245,12 +260,16 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
     assert support_row["priority"] == "low"
     assert support_row["actionability_state"] == "support-only"
     assert "Lab-Maintenance" in support_row["insertion_point"]
-    assert "Another foothold" in support_row["why_care"]
-    assert "target mapping is still missing" in support_row["next_review"]
+    assert (
+        "concentrates connections and encrypted variables around reusable automation"
+        in support_row["why_care"]
+    )
+    assert "does not yet map what runbook Lab-Maintenance changes" in support_row["next_review"]
     automation_row = next(
         item for item in payload["paths"] if item["asset_name"] == "aa-hybrid-prod"
     )
-    assert automation_row["target_resolution"] == "visibility blocked"
+    assert automation_row["target_resolution"] == "narrowed candidates"
+    assert automation_row["target_service"] == "app-service"
     assert automation_row["actionability_state"] == "currently actionable"
     assert automation_row["priority"] == "high"
     assert "webhook path can start runbook Redeploy-App" in automation_row["insertion_point"]
@@ -261,10 +280,23 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
     assert "role-trusts" in automation_row["evidence_commands"]
     assert "rbac" in automation_row["evidence_commands"]
     assert "This row proves source-side control" in automation_row["confidence_boundary"]
-    assert "Azure footprint beyond ARM deployment evidence" in automation_row["confidence_boundary"]
+    assert "not the exact App Service target" in automation_row["confidence_boundary"]
     assert "ops-deploy-sp" in automation_row["why_care"]
-    assert "map what runbook Redeploy-App changes" in automation_row["next_review"]
-    assert "run recurring Azure-facing execution" in automation_row["why_care"]
+    assert automation_row["target_names"] == ["app-empty-mi", "app-public-api"]
+    assert (
+        automation_row["likely_impact"]
+        == "2 visible app service candidate(s): app-empty-mi, app-public-api"
+    )
+    assert "AzureFox already narrowed the visible App Service candidates" in automation_row[
+        "next_review"
+    ]
+    assert "editable trigger or definition path" not in automation_row["next_review"]
+    assert "trigger webhook runbook Redeploy-App" not in automation_row["next_review"]
+    assert "confirm which runbook and trigger path performs the Azure change" not in (
+        automation_row["next_review"]
+    )
+    assert "app-failed" in automation_row["next_review"]
+    assert "recurring Azure execution" in automation_row["why_care"]
     aks_row = next(item for item in payload["paths"] if item["asset_name"] == "deploy-aks-prod")
     assert aks_row["actionability_state"] == "conditionally actionable"
     assert "Queue this pipeline now" in aks_row["insertion_point"]
@@ -274,7 +306,7 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
     assert "current-credential run-path control" in aks_row["confidence_boundary"]
     assert "not a writable source" in aks_row["confidence_boundary"]
     assert "exact AKS cluster target" in aks_row["confidence_boundary"]
-    assert "AzureFox already narrowed the likely AKS cluster candidates" in aks_row["next_review"]
+    assert "AzureFox already narrowed the visible AKS cluster candidates" in aks_row["next_review"]
     appsvc_row = next(
         item for item in payload["paths"] if item["asset_name"] == "deploy-appservice-prod"
     )
@@ -346,16 +378,37 @@ def test_cli_smoke_chains_escalation_path_table_output(tmp_path: Path) -> None:
     assert "path type" in result.stdout
     assert "stronger outcome" in result.stdout
     assert "confidence boundary" in result.stdout
-    assert "why care" in result.stdout
-    normalized_output = " ".join(result.stdout.split())
-    assert "azurefox-lab-sp" in normalized_output
-    assert "(current" in normalized_output
-    assert "foothold)" in normalized_output
-    assert "current foothold direct control" in normalized_output
-    assert "Owner across" in normalized_output
-    assert "subscription-wide scope" in normalized_output
-    assert "pivot-now" in result.stdout
-    assert "Takeaway: 1 visible escalation paths" in result.stdout
+    assert "note" in result.stdout
+
+
+def test_cli_smoke_deployment_path_operator_language_guard(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "json", "chains", "deployment-path"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    text = " ".join(
+        str(item.get(field) or "")
+        for item in payload["paths"]
+        for field in ("why_care", "next_review", "confidence_boundary", "likely_impact")
+    )
+
+    banned = [
+        "visible workload deployment reach",
+        "visible configuration change reach",
+        "visible recurring Azure execution",
+        "visible secret-backed deployment support",
+        "not that current credentials can run this path",
+        "not yet proven",
+        "has not yet proven",
+    ]
+    for phrase in banned:
+        assert phrase not in text
 
 
 def test_cli_smoke_chains_overview_table_output(tmp_path: Path) -> None:

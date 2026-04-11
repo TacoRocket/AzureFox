@@ -68,13 +68,17 @@ def _credential_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
             return ChainSemanticDecision(
                 priority="medium",
                 urgency="review-soon",
-                next_review="Confirm the database target from app config or connection clues.",
+                next_review=(
+                    "Current env-vars and token surfaces do not name the exact database target."
+                ),
             )
         if context.target_service == "storage":
             return ChainSemanticDecision(
                 priority="medium",
                 urgency="bookmark",
-                next_review="Confirm the storage target from binding or connection clues.",
+                next_review=(
+                    "Current env-vars and token surfaces do not name the exact storage target."
+                ),
             )
         return ChainSemanticDecision(
             priority="medium",
@@ -87,32 +91,45 @@ def _credential_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
             return ChainSemanticDecision(
                 priority="low",
                 urgency="bookmark",
-                next_review="Confirm the database target from app config or connection clues.",
+                next_review=(
+                    "Current env-vars and token surfaces do not name the exact database target."
+                ),
             )
         if context.target_service == "storage":
             return ChainSemanticDecision(
                 priority="low",
                 urgency="bookmark",
-                next_review="Confirm the storage target from binding or connection clues.",
+                next_review=(
+                    "Current env-vars and token surfaces do not name the exact storage target."
+                ),
             )
         return ChainSemanticDecision(
             priority="low",
             urgency="bookmark",
-            next_review="Confirm the exact target before deeper follow-up.",
+            next_review=(
+                "Current evidence does not name the exact target yet; review the visible "
+                "candidates next."
+            ),
         )
 
     if context.target_resolution == "tenant-wide candidates":
         return ChainSemanticDecision(
             priority="low",
             urgency="bookmark",
-            next_review="Narrow the target with stronger naming or deployment clues.",
+            next_review=(
+                "Current evidence only narrows this to a broad visible target set; review the "
+                "visible candidates and look for stronger naming clues next."
+            ),
         )
 
     if context.target_resolution == "service hint only":
         return ChainSemanticDecision(
             priority="low",
             urgency="bookmark",
-            next_review="Collect richer target-side inventory before follow-up.",
+            next_review=(
+                "Current target-side inventory does not name any concrete target here; collect "
+                "richer target visibility before follow-up."
+            ),
         )
 
     if context.target_resolution == "named target not visible":

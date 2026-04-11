@@ -363,9 +363,11 @@ def _build_candidate_record(
             target_resolution=target_resolution,
             visibility_note=visibility_note,
         ),
-        missing_confirmation=(
-            f"AzureFox has not yet shown which {target_service} this setting reaches or whether "
-            "the credential works there."
+        missing_confirmation=_candidate_missing_confirmation(
+            target_service=target_service,
+            target_resolution=target_resolution,
+            target_count=len(target_ids),
+            visibility_issue=visibility_issue,
         ),
         related_ids=_merge_related_ids(
             env.get("related_ids", []),
@@ -451,29 +453,75 @@ def _candidate_confidence_boundary(
 ) -> str:
     if target_resolution == "visibility blocked":
         return (
-            f"AzureFox cannot name the downstream {target_service} under current target-side "
-            "visibility; do not treat this as a confirmed credential path."
+            f"Current scope does not confirm which downstream {target_service} target this "
+            "setting reaches."
         )
 
     if target_resolution == "narrowed candidates":
         candidate_count = max(len(target_names), 1)
+        candidate_text = "candidate" if candidate_count == 1 else "candidates"
         return (
-            f"AzureFox narrowed this to {candidate_count} visible {target_service} candidate(s), "
-            "but has not yet proved the exact target or a working credential."
+            f"AzureFox narrowed this to {candidate_count} visible {target_service} "
+            f"{candidate_text}, but the loaded evidence does not name the exact target, so this "
+            "setting is not confirmed to reach it."
         )
 
     if target_resolution == "tenant-wide candidates":
         return (
             f"AzureFox can only narrow this to a broad visible {target_service} set so far; "
-            "the exact target and working credential remain unconfirmed."
+            "the loaded evidence does not name the exact target, so this setting is not "
+            "confirmed to reach a specific downstream target."
         )
 
     if target_resolution == "service hint only":
         return (
-            f"AzureFox only has a service hint for this {target_service} path so far; the "
-            "downstream target and working credential remain unconfirmed."
+            f"AzureFox only has a service hint for this {target_service} path so far; no "
+            "concrete downstream target is visible, so this setting is not confirmed to reach a "
+            "specific downstream target."
         )
 
+    return (
+        f"AzureFox has not yet proved the exact downstream {target_service} target, so this "
+        "setting is not confirmed to reach a specific downstream target."
+    )
+
+
+def _candidate_missing_confirmation(
+    *,
+    target_service: str,
+    target_resolution: str,
+    target_count: int,
+    visibility_issue: str | None,
+) -> str:
+    if target_resolution == "visibility blocked" or visibility_issue:
+        return (
+            f"Current scope does not confirm which {target_service} target this setting reaches. "
+            "AzureFox also has not proved a working credential there."
+        )
+    if target_resolution == "narrowed candidates":
+        if target_count == 1:
+            return (
+                f"Current env-vars and token surfaces narrow this to one visible "
+                f"{target_service} candidate, but they do not name the exact downstream target. "
+                "AzureFox also has not proved a working credential there."
+            )
+        return (
+            f"Current env-vars and token surfaces narrow this to {target_count} visible "
+            f"{target_service} candidates, but they do not show which one this setting reaches. "
+            "AzureFox also has not proved a working credential against any listed target."
+        )
+    if target_resolution == "tenant-wide candidates":
+        return (
+            f"Current evidence only narrows this to a broad visible {target_service} set and "
+            "does not name the exact downstream target. AzureFox also has not proved a working "
+            "credential there."
+        )
+    if target_resolution == "service hint only":
+        return (
+            f"Current evidence suggests a {target_service} path, but no concrete downstream "
+            "target is visible from current inventory and AzureFox has not proved a working "
+            "credential."
+        )
     return (
         f"AzureFox has not yet proved the exact downstream {target_service} target or a working "
         "credential."

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import Counter
 from io import StringIO
 from urllib.parse import urlparse
@@ -25,6 +26,8 @@ def render_table(command: str, payload: dict) -> str:
         _render_chains_overview_table(console, payload)
     elif command == "chains" and str(payload.get("family") or "") == "deployment-path":
         _render_deployment_path_table(console, payload)
+    elif command == "chains" and str(payload.get("family") or "") == "credential-path":
+        _render_credential_path_table(console, payload)
     elif command == "chains" and str(payload.get("family") or "") == "escalation-path":
         _render_escalation_path_table(console, payload)
     else:
@@ -89,7 +92,7 @@ def _render_devops_table(console: Console, payload: dict) -> None:
     for index, record in enumerate(records):
         table = Table(title="azurefox devops" if index == 0 else None)
         for _key, label in display_columns:
-            table.add_column(label)
+            table.add_column(label, overflow="fold")
         table.add_row(*[_value_to_string(record.get(key)) for key, _ in display_columns])
         console.print(table)
         if record.get("why_it_matters"):
@@ -134,6 +137,10 @@ def _render_deployment_path_table(console: Console, payload: dict) -> None:
     _render_chains_path_table(console, payload)
 
 
+def _render_credential_path_table(console: Console, payload: dict) -> None:
+    _render_chains_path_table(console, payload, detail_key=None, detail_label=None)
+
+
 def _render_escalation_path_table(console: Console, payload: dict) -> None:
     _render_chains_path_table(console, payload)
 
@@ -142,8 +149,8 @@ def _render_chains_path_table(
     console: Console,
     payload: dict,
     *,
-    detail_key: str = "why_care",
-    detail_label: str = "why care",
+    detail_key: str | None = "why_care",
+    detail_label: str | None = "note",
 ) -> None:
     columns, records = _table_spec("chains", payload)
     display_columns = [item for item in columns if item[0] != detail_key]
@@ -156,14 +163,14 @@ def _render_chains_path_table(
         return
 
     for index, record in enumerate(records):
-        table = Table(title="azurefox chains" if index == 0 else None)
+        table = Table(title="azurefox chains" if index == 0 else None, expand=True)
         for _key, label in display_columns:
             table.add_column(label)
         table.add_row(*[_value_to_string(record.get(key)) for key, _ in display_columns])
         console.print(table)
-        if record.get(detail_key):
+        if detail_key and record.get(detail_key):
             detail = Table(expand=True)
-            detail.add_column(detail_label)
+            detail.add_column(detail_label or detail_key, overflow="fold")
             detail.add_row(_value_to_string(record.get(detail_key)))
             console.print(detail)
         if index != len(records) - 1:
@@ -655,10 +662,11 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     {
                         "priority": item.get("priority"),
                         "urgency": item.get("urgency") or "-",
-                        "asset_name": item.get("asset_name"),
+                        "asset_name": _stack_chain_source(item.get("asset_name")),
                         "actionability_state": _deployment_actionability_state_label(item),
-                        "insertion_point": item.get("insertion_point")
-                        or _deployment_path_type(item),
+                        "insertion_point": _stack_chain_insertion_point(
+                            item.get("insertion_point") or _deployment_path_type(item)
+                        ),
                         "likely_impact": item.get("likely_impact") or _chains_target_context(item),
                         "confidence_boundary": item.get("confidence_boundary")
                         or _chains_note(item, family=family),
@@ -692,6 +700,35 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                         or _chains_note(item, family=family),
                         "next_review": item.get("next_review"),
                         "why_care": item.get("why_care"),
+                    }
+                    for item in payload.get("paths", [])
+                ],
+            )
+        if family == "credential-path":
+            return (
+                [
+                    ("priority", "priority"),
+                    ("urgency", "urgency"),
+                    ("asset_name", "asset"),
+                    ("setting_name", "setting"),
+                    ("target_service", "target"),
+                    ("target_resolution", "target resolution"),
+                    ("target_names", "visible targets"),
+                    ("next_review", "next review"),
+                    ("confidence_boundary", "confidence boundary"),
+                ],
+                [
+                    {
+                        "priority": item.get("priority"),
+                        "urgency": item.get("urgency") or "-",
+                        "asset_name": item.get("asset_name"),
+                        "setting_name": item.get("setting_name"),
+                        "target_service": item.get("target_service"),
+                        "target_resolution": item.get("target_resolution"),
+                        "target_names": _chains_target_context(item),
+                        "next_review": item.get("next_review"),
+                        "confidence_boundary": item.get("confidence_boundary")
+                        or _chains_note(item, family=family),
                     }
                     for item in payload.get("paths", [])
                 ],
@@ -1945,11 +1982,14 @@ def _chains_target_context(item: dict) -> str:
         return str(item.get("target_visibility_issue"))
     target_names = item.get("target_names") or []
     if target_names:
-        return ",".join(str(value) for value in target_names[:3])
+        names = [str(value) for value in target_names[:3]]
+        if len(names) == 1:
+            return names[0]
+        return "\n".join(names)
     target_count = item.get("target_count") or 0
     if target_count:
         return f"{target_count} visible target(s)"
-    return "none joined"
+    return "none visible"
 
 
 def _deployment_path_type(item: dict) -> str:
@@ -1972,6 +2012,29 @@ def _deployment_actionability_state_label(item: dict) -> str:
         "support-only": "support-only",
     }
     return labels.get(state, state or "-")
+
+
+def _stack_chain_source(value: object) -> str:
+    text = str(value or "").strip()
+    if not text or len(text) <= 18 or "-" not in text:
+        return text
+    return text.replace("-", "-\n")
+
+
+def _stack_chain_insertion_point(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return text
+    text = re.sub(r";\s+", ";\n", text)
+    text = re.sub(r",\s+", ",\n", text)
+    text = text.replace(":", ":\n")
+    text = text.replace("/", "/\n")
+    text = text.replace("#", "#\n")
+    text = text.replace("@refs/", "@\nrefs/")
+    text = text.replace(" through ", "\nthrough ")
+    text = text.replace(" under ", "\nunder ")
+    text = text.replace(" at ", "\nat ")
+    return text
 
 
 def _escalation_path_type(item: dict) -> str:
@@ -3090,9 +3153,14 @@ def _empty_state_message(command: str, payload: dict) -> str:
 def _render_scope_boundary_notes(console: Console, command: str, payload: dict) -> None:
     if command != "chains":
         return
+    if str(payload.get("family") or "").strip() == "credential-path":
+        return
+    if str(payload.get("family") or "").strip() == "deployment-path":
+        current_gap = ""
+    else:
+        current_gap = str(payload.get("current_gap") or "").strip()
 
     claim_boundary = str(payload.get("claim_boundary") or "").strip()
-    current_gap = str(payload.get("current_gap") or "").strip()
     if not claim_boundary and not current_gap:
         return
 
