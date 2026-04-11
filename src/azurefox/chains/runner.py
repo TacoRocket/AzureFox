@@ -33,6 +33,10 @@ from azurefox.models.chains import (
 from azurefox.models.commands import ChainsCommandOutput
 from azurefox.models.common import ArmDeploymentSummary, CollectionIssue, CommandMetadata
 from azurefox.registry import get_command_specs
+from azurefox.target_matching import (
+    normalize_exact_target_host,
+    normalize_exact_target_resource_id,
+)
 
 _CANDIDATE_LIMIT = 3
 _JOIN_QUALITY_ORDER = {
@@ -201,6 +205,7 @@ def _build_deployment_path_output(
     permissions_output = loaded["permissions"]
     rbac_output = loaded["rbac"]
     role_trusts_output = loaded["role-trusts"]
+    keyvault_output = loaded["keyvault"]
     arm_output = loaded["arm-deployments"]
     app_services_output = loaded["app-services"]
     functions_output = loaded["functions"]
@@ -239,6 +244,11 @@ def _build_deployment_path_output(
     arm_correlations = _arm_correlations_by_target_family(
         [item.model_dump(mode="json") for item in arm_output.deployments]
     )
+    key_vaults_by_name: dict[str, list[dict]] = defaultdict(list)
+    for item in keyvault_output.key_vaults:
+        if not item.name:
+            continue
+        key_vaults_by_name[_normalize_target_name(item.name)].append(item.model_dump(mode="json"))
     permissions_by_principal = {
         item.principal_id: item.model_dump(mode="json")
         for item in permissions_output.permissions
@@ -276,6 +286,10 @@ def _build_deployment_path_output(
         pipeline_dict["joined_role_trusts"] = _devops_joined_role_trusts(
             pipeline_dict,
             trusts_by_object_id,
+        )
+        pipeline_dict["joined_key_vaults"] = _deployment_joined_key_vaults(
+            pipeline_dict,
+            key_vaults_by_name,
         )
         assessment = assess_deployment_source(pipeline)
         for target_family in assessment.target_family_hints:
@@ -318,6 +332,10 @@ def _build_deployment_path_output(
         account_dict["joined_role_trusts"] = _automation_joined_role_trusts(
             account_dict,
             trusts_by_source_id,
+        )
+        account_dict["joined_key_vaults"] = _deployment_joined_key_vaults(
+            account_dict,
+            key_vaults_by_name,
         )
         assessment = assess_deployment_source(account)
         if assessment.posture == "insufficient evidence":
@@ -377,6 +395,7 @@ def _build_deployment_path_output(
         "permissions",
         "rbac",
         "role-trusts",
+        "keyvault",
         "arm-deployments",
         "app-services",
         "functions",
@@ -548,6 +567,7 @@ def _build_deployment_source_record(
         )
     ):
         record_confirmation_basis = "source-issue-present"
+    record_source["confirmation_basis"] = record_confirmation_basis
 
     semantic = evaluate_chain_semantics(
         ChainSemanticContext(
@@ -621,11 +641,15 @@ def _build_deployment_source_record(
             source_command,
             record_source,
             assessment=record_assessment,
+            target_family=target_family,
+            selected_targets=selected_targets,
+            target_resolution=admission.state,
         ),
         likely_impact=_deployment_likely_impact(
             target_label=target_spec["label"],
             target_names=target_names,
             target_resolution=admission.state,
+            confirmation_basis=record_confirmation_basis,
             missing_target_mapping=record_assessment.missing_target_mapping,
         ),
         confidence_boundary=_deployment_confidence_boundary(
@@ -674,7 +698,9 @@ def _build_deployment_source_record(
             source=record_source,
             source_command=source_command,
             assessment=record_assessment,
+            target_family=target_family,
             target_label=target_spec["label"],
+            selected_targets=selected_targets,
             target_names=target_names,
             target_resolution=admission.state,
             confirmation_basis=record_confirmation_basis,
@@ -748,35 +774,147 @@ def _automation_target_matches(
     candidates: list[dict],
     supporting_deployments: list[dict],
 ) -> tuple[list[dict], list[dict], str | None]:
+    evidence_groups = _automation_target_evidence_groups(source)
     runbook_names = _automation_runbook_names(source)
-    if not runbook_names:
+    if not evidence_groups and not runbook_names:
         return [], [], None
 
-    normalized_runbook_names = {_normalize_target_name(name) for name in runbook_names}
-    runbook_tokens = _automation_runbook_tokens(runbook_names)
-    if not runbook_tokens:
-        return [], [], None
+    best_name_only_targets: list[dict] = []
+    best_name_only_rank = 99
+    for rank, group in enumerate(evidence_groups):
+        matched_targets = _automation_exact_name_matches(candidates, group["names"])
+        if not matched_targets:
+            continue
+        if group["allow_exact"] and supporting_deployments and len(matched_targets) == 1:
+            return matched_targets, matched_targets, "same-workload-corroborated"
+        if (
+            not best_name_only_targets
+            or len(matched_targets) < len(best_name_only_targets)
+            or (len(matched_targets) == len(best_name_only_targets) and rank < best_name_only_rank)
+        ):
+            best_name_only_targets = matched_targets
+            best_name_only_rank = rank
 
-    exact_targets = [
-        dict(candidate)
-        for candidate in candidates
-        if _normalize_target_name(str(candidate.get("name") or "")) in normalized_runbook_names
-    ]
-    if exact_targets:
-        confirmation_basis = (
-            "same-workload-corroborated" if supporting_deployments else "name-only-inference"
-        )
-        return exact_targets, exact_targets, confirmation_basis
+    if best_name_only_targets:
+        return [], best_name_only_targets, "name-only-inference"
 
-    narrowed_targets = [
-        dict(candidate)
-        for candidate in candidates
-        if _automation_candidate_overlap_tokens(candidate, runbook_tokens)
-    ]
-    if narrowed_targets and supporting_deployments:
-        return [], narrowed_targets, "same-workload-corroborated"
+    overlap_tokens = _automation_overlap_signal_tokens(source, runbook_names)
+    if overlap_tokens:
+        narrowed_targets = [
+            dict(candidate)
+            for candidate in candidates
+            if _automation_candidate_overlap_tokens(candidate, overlap_tokens)
+        ]
+        if narrowed_targets and supporting_deployments:
+            return [], narrowed_targets, "same-workload-corroborated"
 
     return [], [], None
+
+
+def _automation_target_evidence_groups(source: dict) -> list[dict[str, object]]:
+    groups: list[dict[str, object]] = []
+    active_trigger_names = _automation_active_trigger_names(source)
+    if active_trigger_names:
+        groups.append({"names": active_trigger_names, "allow_exact": True})
+    primary_runbook = str(source.get("primary_runbook_name") or "").strip()
+    if primary_runbook:
+        groups.append({"names": [primary_runbook], "allow_exact": True})
+    active_mode_runbooks = _automation_active_mode_runbook_names(source)
+    if active_mode_runbooks:
+        groups.append({"names": active_mode_runbooks, "allow_exact": True})
+    fallback_runbooks = _automation_runbook_names(source)
+    if fallback_runbooks:
+        groups.append({"names": fallback_runbooks, "allow_exact": False})
+    deduped_groups: list[dict[str, object]] = []
+    seen: set[tuple[str, ...]] = set()
+    for group in groups:
+        names = [str(name or "").strip() for name in group["names"] if str(name or "").strip()]
+        normalized_group = tuple(sorted(_normalize_target_name(name) for name in names))
+        if not normalized_group or normalized_group in seen:
+            continue
+        seen.add(normalized_group)
+        deduped_groups.append(
+            {
+                "names": names,
+                "allow_exact": bool(group["allow_exact"]),
+            }
+        )
+    return deduped_groups
+
+
+def _automation_exact_name_matches(candidates: list[dict], names: list[str]) -> list[dict]:
+    normalized_names = {_normalize_target_name(name) for name in names if name}
+    return [
+        dict(candidate)
+        for candidate in candidates
+        if _normalize_target_name(str(candidate.get("name") or "")) in normalized_names
+    ]
+
+
+def _automation_active_mode_runbook_names(source: dict) -> list[str]:
+    primary_mode = str(source.get("primary_start_mode") or "").strip().lower() or None
+    names: list[str] = []
+
+    primary_runbook = str(source.get("primary_runbook_name") or "").strip()
+    if primary_runbook:
+        names.append(primary_runbook)
+
+    if primary_mode == "webhook":
+        _append_unique_runbook_names(names, source.get("webhook_runbook_names") or [])
+    elif primary_mode == "schedule":
+        _append_unique_runbook_names(names, source.get("schedule_runbook_names") or [])
+    elif primary_mode in {"manual-only", "published-runbook"}:
+        _append_unique_runbook_names(names, source.get("published_runbook_names") or [])
+
+    return names
+
+
+def _automation_active_trigger_names(source: dict) -> list[str]:
+    primary_mode = str(source.get("primary_start_mode") or "").strip().lower()
+    if primary_mode == "webhook":
+        prefix = "automation-webhook:"
+        raw_segment = "/webhooks/"
+    elif primary_mode == "schedule":
+        prefix = "automation-job-schedule:"
+        raw_segment = "/jobschedules/"
+    else:
+        return []
+
+    names: list[str] = []
+    for value in source.get("trigger_join_ids") or []:
+        text = str(value or "").strip()
+        lowered = text.lower()
+        if lowered.startswith(prefix):
+            trigger_name = text.split(":", 1)[1].strip()
+        elif raw_segment in lowered:
+            trigger_name = text.rsplit("/", 1)[-1].strip()
+        else:
+            continue
+        if trigger_name and trigger_name not in names:
+            names.append(trigger_name)
+    return names
+
+
+def _automation_overlap_signal_tokens(
+    source: dict,
+    runbook_names: list[str],
+) -> set[str]:
+    trigger_tokens = _automation_runbook_tokens(_automation_active_trigger_names(source))
+    if trigger_tokens:
+        return trigger_tokens
+    active_mode_tokens = _automation_runbook_tokens(_automation_active_mode_runbook_names(source))
+    if active_mode_tokens:
+        return active_mode_tokens
+    if source.get("primary_runbook_name") or source.get("primary_start_mode"):
+        return set()
+    return _automation_runbook_tokens(runbook_names)
+
+
+def _append_unique_runbook_names(names: list[str], values: list[object]) -> None:
+    for value in values:
+        text = str(value or "").strip()
+        if text and text not in names:
+            names.append(text)
 
 
 def _automation_runbook_names(source: dict) -> list[str]:
@@ -1119,6 +1257,41 @@ def _devops_joined_role_trusts(
                 best_scores[key] = score
                 best_rows[key] = dict(trust)
     return [best_rows[key] for key in sorted(best_rows, key=lambda item: best_scores[item])]
+
+
+def _deployment_joined_key_vaults(
+    source: dict,
+    key_vaults_by_name: dict[str, list[dict]],
+) -> list[dict]:
+    joined: list[dict] = []
+    seen: set[str] = set()
+    for name in _deployment_named_key_vaults(source):
+        key = _normalize_target_name(name)
+        if not key:
+            continue
+        for vault in key_vaults_by_name.get(key, []):
+            vault_id = str(vault.get("id") or "").strip() or key
+            if vault_id in seen:
+                continue
+            seen.add(vault_id)
+            joined.append(dict(vault))
+    return joined
+
+
+def _deployment_named_key_vaults(source: dict) -> list[str]:
+    names: list[str] = []
+    for value in source.get("key_vault_names") or []:
+        text = str(value or "").strip()
+        if text and text not in names:
+            names.append(text)
+    for value in source.get("secret_dependency_ids") or []:
+        text = str(value or "").strip()
+        if not text.lower().startswith("keyvault:"):
+            continue
+        name = text.split(":", 1)[1].strip()
+        if name and name not in names:
+            names.append(name)
+    return names
 
 
 def _devops_service_principal_refs(source: dict) -> list[str]:
@@ -1472,6 +1645,9 @@ def _deployment_why_care(
     source: dict,
     *,
     assessment: DeploymentSourceAssessment,
+    target_family: str,
+    selected_targets: list[dict],
+    target_resolution: str,
 ) -> str:
     source_name = str(source.get("name") or source.get("id") or source_command)
     support_parts = _deployment_support_phrase_parts(source)
@@ -1506,22 +1682,15 @@ def _deployment_why_care(
     if source_command == "devops":
         trusted_input = _devops_primary_trusted_input(source)
         sentence = _devops_why_care_intro(source, trusted_input=trusted_input)
-        grounded_reach = _deployment_grounded_reach_clause(source)
-        if grounded_reach:
-            sentence = f"{sentence} {grounded_reach}"
-
-        if support_parts:
-            sentence = (
-                f"{sentence} Additional visible deployment support around this path includes "
-                + " and ".join(support_parts)
-                + "."
-            )
-        permission_clause = _devops_permission_clause(source)
-        if permission_clause:
-            sentence = f"{sentence} {permission_clause}."
-        trust_clause = _devops_role_trust_clause(source)
-        if trust_clause:
-            sentence = f"{sentence} {trust_clause}."
+        for clause in _deployment_why_care_clauses(
+            source_command=source_command,
+            source=source,
+            support_parts=support_parts,
+            target_family=target_family,
+            selected_targets=selected_targets,
+            target_resolution=target_resolution,
+        ):
+            sentence = f"{sentence} {clause}"
         if source.get("missing_target_mapping"):
             sentence = (
                 f"{sentence} AzureFox has not yet mapped the downstream Azure footprint cleanly."
@@ -1557,27 +1726,71 @@ def _deployment_why_care(
         sentence = (
             f"Automation account '{source_name}' combines " + ", ".join(surface_parts) + "."
         )
-        grounded_reach = _deployment_grounded_reach_clause(source)
-        if grounded_reach:
-            sentence = f"{sentence} {grounded_reach}"
-        if support_parts:
-            sentence = (
-                f"{sentence} Additional visible deployment support around this account includes "
-                + " and ".join(support_parts)
-                + "."
-            )
         current_operator_suffix = _deployment_current_operator_suffix(source_command, source)
-        if current_operator_suffix:
-            sentence = f"{sentence} {current_operator_suffix}"
-        permission_clause = _automation_permission_clause(source)
-        if permission_clause:
-            sentence = f"{sentence} {permission_clause}."
-        trust_clause = _automation_role_trust_clause(source)
-        if trust_clause:
-            sentence = f"{sentence} {trust_clause}."
+        for clause in _deployment_why_care_clauses(
+            source_command=source_command,
+            source=source,
+            support_parts=support_parts,
+            target_family=target_family,
+            selected_targets=selected_targets,
+            target_resolution=target_resolution,
+            include_current_operator_suffix=current_operator_suffix,
+        ):
+            sentence = f"{sentence} {clause}"
         return sentence
 
     return "Visible source evidence suggests Azure change capability"
+
+
+def _deployment_why_care_clauses(
+    *,
+    source_command: str,
+    source: dict,
+    support_parts: list[str],
+    target_family: str,
+    selected_targets: list[dict],
+    target_resolution: str,
+    include_current_operator_suffix: str | None = None,
+) -> list[str]:
+    clauses: list[str] = []
+    grounded_reach = _deployment_grounded_reach_clause(source)
+    if grounded_reach:
+        clauses.append(grounded_reach)
+    if support_parts:
+        support_subject = "path" if source_command == "devops" else "account"
+        clauses.append(
+            f"Additional visible deployment support around this {support_subject} includes "
+            + " and ".join(support_parts)
+            + "."
+        )
+    key_vault_clause = _deployment_key_vault_support_clause(source)
+    if key_vault_clause:
+        clauses.append(key_vault_clause)
+    if include_current_operator_suffix:
+        clauses.append(include_current_operator_suffix)
+    permission_clause = (
+        _devops_permission_clause(source)
+        if source_command == "devops"
+        else _automation_permission_clause(source)
+    )
+    if permission_clause:
+        clauses.append(permission_clause + ".")
+    trust_clause = (
+        _devops_role_trust_clause(source)
+        if source_command == "devops"
+        else _automation_role_trust_clause(source)
+    )
+    if trust_clause:
+        clauses.append(trust_clause + ".")
+    target_clause = _deployment_target_evidence_clause(
+        target_family=target_family,
+        selected_targets=selected_targets,
+        target_resolution=target_resolution,
+        confirmation_basis=str(source.get("confirmation_basis") or "") or None,
+    )
+    if target_clause:
+        clauses.append(target_clause)
+    return clauses
 
 
 def _devops_why_care_intro(source: dict, *, trusted_input: dict | None) -> str:
@@ -1652,6 +1865,35 @@ def _deployment_support_phrase_parts(source: dict) -> list[str]:
         for value in source.get("secret_support_types", []) or []
         if value != "variable-groups"
     ]
+
+
+def _deployment_key_vault_support_clause(source: dict) -> str | None:
+    named_vaults = _deployment_named_key_vaults(source)
+    joined_vaults = source.get("joined_key_vaults")
+    if isinstance(joined_vaults, list) and joined_vaults:
+        shown = ", ".join(
+            _key_vault_support_summary(vault)
+            for vault in joined_vaults[:_CANDIDATE_LIMIT]
+            if isinstance(vault, dict)
+        )
+        if shown:
+            return f"Visible Key Vault support includes {shown}."
+    if named_vaults:
+        shown_names = ", ".join(named_vaults[:_CANDIDATE_LIMIT])
+        return (
+            "AzureFox has not matched named Key Vault support "
+            f"({shown_names}) to visible vault inventory."
+        )
+    return None
+
+
+def _key_vault_support_summary(vault: dict) -> str:
+    name = str(vault.get("name") or vault.get("vault_uri") or "visible vault").strip()
+    public_network = str(vault.get("public_network_access") or "").strip() or None
+    auth_mode = "RBAC auth" if vault.get("enable_rbac_authorization") else "access-policy auth"
+    if public_network:
+        return f"vault '{name}' ({public_network} network, {auth_mode})"
+    return f"vault '{name}' ({auth_mode})"
 
 
 def _deployment_current_operator_suffix(source_command: str, source: dict) -> str:
@@ -1736,6 +1978,118 @@ def _source_current_operator_can_drive(source_command: str, source: dict) -> boo
         if isinstance(access, dict):
             return str(access.get("capability") or "") in {"start", "edit"}
     return None
+
+
+def _deployment_target_evidence_clause(
+    *,
+    target_family: str,
+    selected_targets: list[dict],
+    target_resolution: str,
+    confirmation_basis: str | None = None,
+) -> str | None:
+    if not selected_targets:
+        return None
+    if target_resolution == "named match" and len(selected_targets) == 1:
+        selected_target = selected_targets[0]
+        summary = str(selected_target.get("summary") or "").strip()
+        if summary:
+            if confirmation_basis in {"normalized-uri-match", "resource-id-match"}:
+                return f"Matched visible target-side record: {summary}"
+            if confirmation_basis == "same-workload-corroborated":
+                return f"Corroborated target-side record for this path: {summary}"
+            return f"Visible target-side record: {summary}"
+        target_name = str(selected_target.get("name") or "").strip()
+        if not target_name:
+            return None
+        target_label = _DEPLOYMENT_TARGET_SPECS[target_family]["label"].lower()
+        if confirmation_basis in {"normalized-uri-match", "resource-id-match"}:
+            return f"Matched visible target-side record: {target_label} '{target_name}'."
+        if confirmation_basis == "same-workload-corroborated":
+            return f"Corroborated target-side record for this path: {target_label} '{target_name}'."
+        return f"Visible target-side record: {target_label} '{target_name}'."
+    if target_resolution != "narrowed candidates":
+        return None
+    if target_family == "app-services":
+        return _deployment_app_service_target_clause(selected_targets)
+    if target_family == "functions":
+        return _deployment_function_target_clause(selected_targets)
+    if target_family == "aks":
+        return _deployment_aks_target_clause(selected_targets)
+    if target_family == "arm-deployments":
+        return _deployment_arm_target_clause(selected_targets)
+    return None
+
+
+def _deployment_app_service_target_clause(targets: list[dict]) -> str:
+    total = len(targets)
+    public_enabled = sum(
+        str(item.get("public_network_access") or "").strip().lower() == "enabled"
+        for item in targets
+    )
+    identities = sum(bool(item.get("workload_identity_type")) for item in targets)
+    weaker_posture = sum(
+        item.get("https_only") is False
+        or str(item.get("min_tls_version") or "").strip() in {"1.0", "1.1"}
+        for item in targets
+    )
+    details = [
+        f"Visible App Service evidence keeps {total} candidate(s) in play; "
+        f"{public_enabled} keep public network access enabled and {identities} carry "
+        "managed identity."
+    ]
+    if weaker_posture:
+        details.append(f"{weaker_posture} still show weaker HTTPS or TLS posture.")
+    return " ".join(details)
+
+
+def _deployment_function_target_clause(targets: list[dict]) -> str:
+    total = len(targets)
+    identities = sum(bool(item.get("workload_identity_type")) for item in targets)
+    deployment_signals = sum(
+        bool(item.get("azure_webjobs_storage_value_type"))
+        or int(item.get("key_vault_reference_count") or 0) > 0
+        for item in targets
+    )
+    return (
+        f"Visible Function evidence keeps {total} candidate(s) in play; "
+        f"{identities} carry managed identity and {deployment_signals} still show storage- or "
+        "Key Vault-backed deployment signals."
+    )
+
+
+def _deployment_aks_target_clause(targets: list[dict]) -> str:
+    total = len(targets)
+    private_api = sum(item.get("private_cluster_enabled") is True for item in targets)
+    workload_identity = sum(item.get("workload_identity_enabled") is True for item in targets)
+    service_principal = sum(
+        str(item.get("cluster_identity_type") or "").strip() == "ServicePrincipal"
+        for item in targets
+    )
+    return (
+        f"Visible AKS evidence keeps {total} candidate(s) in play; "
+        f"{private_api} keep private API endpoints, {workload_identity} keep workload identity "
+        f"enabled, and {service_principal} still use service principal auth."
+    )
+
+
+def _deployment_arm_target_clause(targets: list[dict]) -> str:
+    scope_counts: defaultdict[str, int] = defaultdict(int)
+    providers: set[str] = set()
+    for item in targets:
+        scope_counts[str(item.get("scope_type") or "unknown")] += 1
+        providers.update(str(provider) for provider in item.get("providers") or [] if provider)
+    scope_parts = []
+    for scope in ("resource_group", "subscription", "management_group", "tenant", "unknown"):
+        count = scope_counts.get(scope)
+        if not count:
+            continue
+        label = scope.replace("_", " ")
+        scope_parts.append(f"{count} {label} deployment(s)")
+    provider_names = ", ".join(sorted(providers)[:_CANDIDATE_LIMIT + 1])
+    sentence = "Visible ARM deployment history keeps " + ", ".join(scope_parts) + " in play."
+    if provider_names:
+        sentence = f"{sentence[:-1]} across providers {provider_names}."
+    return sentence
 
 
 def _source_current_operator_can_inject(source_command: str, source: dict) -> bool | None:
@@ -1870,13 +2224,18 @@ def _deployment_likely_impact(
     target_label: str,
     target_names: list[str],
     target_resolution: str,
+    confirmation_basis: str | None,
     missing_target_mapping: bool,
 ) -> str:
     lowered_label = target_label.lower()
     if missing_target_mapping:
         return f"Azure footprint not yet mapped; visible {lowered_label} clues only"
     if target_resolution == "named match":
-        return f"exact {lowered_label}: {', '.join(target_names[:_CANDIDATE_LIMIT])}"
+        return _deployment_named_match_label(
+            lowered_label,
+            target_names,
+            confirmation_basis=confirmation_basis,
+        )
     if target_resolution == "narrowed candidates":
         shown = ", ".join(target_names[:_CANDIDATE_LIMIT])
         if shown:
@@ -1917,8 +2276,14 @@ def _deployment_confidence_boundary(
 
     if current_operator_can_inject:
         if target_resolution == "named match":
+            control_boundary = _deployment_operator_control_boundary(
+                source_command,
+                source,
+                target_label,
+                confirmation_basis,
+            )
             return (
-                f"{_deployment_operator_control_boundary(source_command, source, target_label)}, "
+                f"{control_boundary}, "
                 f"but not {_deployment_remaining_identity_boundary(source_command, source)}."
             )
         if target_resolution == "narrowed candidates":
@@ -1934,8 +2299,9 @@ def _deployment_confidence_boundary(
     if current_operator_can_drive:
         if target_resolution == "named match":
             return (
-                f"This row proves current-credential run-path control and the exact "
-                f"{target_label} target, but not a writable source."
+                "This row proves current-credential run-path control and "
+                f"{_deployment_named_match_narrative(target_label, confirmation_basis)}, "
+                "but not a writable source."
             )
         if target_resolution == "narrowed candidates":
             return (
@@ -1953,6 +2319,13 @@ def _deployment_confidence_boundary(
             return (
                 f"This row proves the exact {target_label} target from parsed source clues. "
                 "Current evidence does not show that current credentials can run this path."
+            )
+        if confirmation_basis == "same-workload-corroborated":
+            return (
+                "This row proves "
+                f"{_deployment_named_match_narrative(target_label, confirmation_basis)} "
+                "through same-workload corroboration. Current evidence does not show that "
+                "current credentials can run this path."
             )
         return (
             f"This row proves the exact {target_label} target. Current evidence does not show "
@@ -1993,34 +2366,55 @@ def _deployment_operator_control_boundary(
     source_command: str | None,
     source: dict | None,
     target_label: str,
+    confirmation_basis: str | None,
 ) -> str:
     if source_command == "devops" and source is not None:
         identity_name = _devops_execution_identity_name(source)
+        target_phrase = _deployment_named_match_narrative(target_label, confirmation_basis)
         if _devops_current_operator_control_mode(source) == "definition-edit":
             if identity_name:
                 return (
                     "Current evidence shows you can edit this pipeline definition so it runs as "
-                    f"Azure identity '{identity_name}' against the exact {target_label} target"
+                    f"Azure identity '{identity_name}' against {target_phrase}"
                 )
             return (
                 "Current evidence shows you can edit this pipeline definition so it runs "
-                f"against the exact {target_label} target"
+                f"against {target_phrase}"
             )
         if identity_name:
             return (
                 "Current evidence shows you can poison this trusted input so it runs as Azure "
-                f"identity '{identity_name}' against the exact {target_label} target"
+                f"identity '{identity_name}' against {target_phrase}"
             )
         return (
-            "Current evidence shows you can poison this trusted input against the exact "
-            f"{target_label} target"
+            "Current evidence shows you can poison this trusted input against "
+            f"{target_phrase}"
         )
     if source_command == "automation":
         return (
-            "Current evidence shows you can control this source-side path against the exact "
-            f"{target_label} target"
+            "Current evidence shows you can control this source-side path against the "
+            f"{_deployment_named_match_narrative(target_label, confirmation_basis)}"
         )
     return f"Current evidence shows source poisoning and the exact {target_label} target"
+
+
+def _deployment_named_match_label(
+    lowered_label: str,
+    target_names: list[str],
+    *,
+    confirmation_basis: str | None,
+) -> str:
+    prefix = "corroborated exact" if confirmation_basis == "same-workload-corroborated" else "exact"
+    return f"{prefix} {lowered_label}: {', '.join(target_names[:_CANDIDATE_LIMIT])}"
+
+
+def _deployment_named_match_narrative(
+    target_label: str,
+    confirmation_basis: str | None,
+) -> str:
+    if confirmation_basis == "same-workload-corroborated":
+        return f"the corroborated exact {target_label} target"
+    return f"the exact {target_label} target"
 
 
 def _deployment_source_control_label(
@@ -2123,6 +2517,7 @@ def _deployment_next_review(
                     target_resolution=target_resolution,
                     target_label=target_label,
                     target_names=target_names,
+                    confirmation_basis=str(source.get("confirmation_basis") or "") or None,
                     supporting_deployments=supporting_deployments,
                 )
             )
@@ -2170,6 +2565,7 @@ def _deployment_next_review(
                 target_resolution=target_resolution,
                 target_label=target_label,
                 target_names=target_names,
+                confirmation_basis=str(source.get("confirmation_basis") or "") or None,
                 supporting_deployments=supporting_deployments,
             )
         )
@@ -2181,11 +2577,15 @@ def _deployment_target_review_step(
     target_resolution: str,
     target_label: str,
     target_names: list[str],
+    confirmation_basis: str | None,
     supporting_deployments: list[dict],
 ) -> str:
     shown_targets = ", ".join(target_names[:_CANDIDATE_LIMIT])
     if target_resolution == "named match" and shown_targets:
-        step = f"AzureFox already named the exact {target_label} target {shown_targets}"
+        if confirmation_basis == "same-workload-corroborated":
+            step = f"AzureFox already corroborated the exact {target_label} target {shown_targets}"
+        else:
+            step = f"AzureFox already named the exact {target_label} target {shown_targets}"
     elif shown_targets:
         step = (
             f"AzureFox already narrowed the visible {target_label} candidates to {shown_targets}; "
@@ -2242,6 +2642,10 @@ def _deployment_joined_surfaces(
             joined.append("permission-summary")
         if source.get("joined_role_trusts"):
             joined.append("trust-edge")
+        if source.get("joined_key_vaults"):
+            joined.append("keyvault-support")
+    if source_command == "automation" and source is not None and source.get("joined_key_vaults"):
+        joined.append("keyvault-support")
     return sorted(dict.fromkeys(joined))
 
 
@@ -2250,14 +2654,23 @@ def _deployment_summary(
     source: dict,
     source_command: str,
     assessment: DeploymentSourceAssessment,
+    target_family: str,
     target_label: str,
+    selected_targets: list[dict],
     target_names: list[str],
     target_resolution: str,
     confirmation_basis: str | None,
     target_visibility_note: str | None,
     supporting_deployments: list[dict],
 ) -> str:
-    summary = _deployment_why_care(source_command, source, assessment=assessment)
+    summary = _deployment_why_care(
+        source_command,
+        source,
+        assessment=assessment,
+        target_family=target_family,
+        selected_targets=selected_targets,
+        target_resolution=target_resolution,
+    )
     if assessment.missing_target_mapping:
         impact_sentence = (
             f"AzureFox has not yet mapped the downstream Azure footprint cleanly, so "
@@ -2269,8 +2682,12 @@ def _deployment_summary(
             f"scope cannot name visible {target_label} targets."
         )
     elif target_resolution == "named match":
+        target_phrase = _deployment_named_match_narrative(
+            target_label,
+            confirmation_basis,
+        )
         impact_sentence = (
-            f"The likeliest downstream Azure footprint is the exact visible {target_label} target "
+            f"The likeliest downstream Azure footprint is {target_phrase} "
             f"{', '.join(target_names[:_CANDIDATE_LIMIT])}."
         )
     else:
@@ -2317,42 +2734,142 @@ def _structured_deployment_target_matches(
     target_family: str,
     candidates: list[dict],
 ) -> tuple[list[dict], str | None]:
-    structured_names = _structured_target_names(source, target_family)
-    if not structured_names:
-        return [], None
-    matched = [
-        item
-        for item in candidates
-        if _normalize_target_name(str(item.get("name") or "")) in structured_names
-    ]
-    if matched:
-        return matched, "parsed-config-target"
-    return [], "parsed-config-target"
+    signals = _structured_target_signals(source, target_family)
+    if signals["resource_ids"]:
+        matched = [
+            item
+            for item in candidates
+            if _deployment_candidate_resource_ids(item, target_family) & signals["resource_ids"]
+        ]
+        if matched:
+            return matched, "resource-id-match"
+    if signals["hosts"]:
+        matched = [
+            item
+            for item in candidates
+            if _deployment_candidate_hosts(item, target_family) & signals["hosts"]
+        ]
+        if matched:
+            return matched, "normalized-uri-match"
+    if signals["names"]:
+        matched = [
+            item
+            for item in candidates
+            if _normalize_target_name(str(item.get("name") or "")) in signals["names"]
+        ]
+        if matched:
+            return matched, "parsed-config-target"
+        return [], "parsed-config-target"
+    if signals["resource_ids"] or signals["hosts"]:
+        return [], "parsed-config-target"
+    return [], None
 
 
-def _structured_target_names(source: dict, target_family: str) -> set[str]:
-    family_tokens = {
-        "aks": {"aks", "kubernetes"},
-        "app-services": {"appservice", "app-service"},
-        "functions": {"function", "functions", "functionapp", "function-app"},
-        "arm-deployments": {"deployment", "arm", "bicep", "terraform"},
-    }[target_family]
-    normalized_names: set[str] = set()
+def _structured_target_signals(source: dict, target_family: str) -> dict[str, set[str]]:
+    signals = {
+        "names": set(),
+        "resource_ids": set(),
+        "hosts": set(),
+    }
     for clue in source.get("target_clues", []) or []:
         text = str(clue).strip()
         lowered = text.lower()
+        payloads: list[str] = []
         if ":" in text:
             prefix, raw_name = text.split(":", 1)
-            prefix_tokens = {
-                token.strip().lower().replace(" ", "").replace("/", "")
-                for token in prefix.split("/")
-                if token.strip()
-            }
-            if prefix_tokens & family_tokens and raw_name.strip():
-                normalized_names.add(_normalize_target_name(raw_name))
+            normalized_prefix = _normalize_target_name(prefix)
+            payload = raw_name.strip()
+            if (
+                normalized_prefix in _STRUCTURED_TARGET_PREFIXES[target_family]
+                and _looks_like_structured_target_payload(payload, target_family)
+            ):
+                payloads.append(payload)
         elif lowered.startswith("target="):
-            normalized_names.add(_normalize_target_name(text.split("=", 1)[1]))
-    return normalized_names
+            payload = text.split("=", 1)[1].strip()
+            if _looks_like_structured_target_payload(payload, target_family):
+                payloads.append(payload)
+        elif (
+            text.startswith("/subscriptions/")
+            or normalize_exact_target_host(text, target_family=target_family) is not None
+        ):
+            payloads.append(text)
+
+        for payload in payloads:
+            if payload.startswith("/subscriptions/"):
+                normalized_resource_id = normalize_exact_target_resource_id(
+                    payload,
+                    target_family=target_family,
+                )
+                if normalized_resource_id:
+                    signals["resource_ids"].add(normalized_resource_id)
+                continue
+            normalized_resource_id = normalize_exact_target_resource_id(
+                payload,
+                target_family=target_family,
+            )
+            if normalized_resource_id:
+                signals["resource_ids"].add(normalized_resource_id)
+                continue
+            host = normalize_exact_target_host(payload, target_family=target_family)
+            if host:
+                signals["hosts"].add(host)
+                continue
+            if "://" in payload:
+                continue
+            normalized_name = _normalize_target_name(payload)
+            if normalized_name:
+                signals["names"].add(normalized_name)
+    return signals
+
+
+_STRUCTURED_TARGET_PREFIXES = {
+    "aks": {"aks", "kubernetes", "akskubernetes"},
+    "app-services": {"appservice", "appservices"},
+    "functions": {"function", "functions", "functionapp", "azurefunctions"},
+    "arm-deployments": {"deployment", "arm", "bicep", "terraform", "armbicepterraform"},
+}
+
+
+def _looks_like_structured_target_payload(payload: str, target_family: str) -> bool:
+    text = str(payload or "").strip()
+    if not text:
+        return False
+    if normalize_exact_target_resource_id(text, target_family=target_family):
+        return True
+    if normalize_exact_target_host(text, target_family=target_family):
+        return True
+    if "://" in text or "/" in text or " " in text or "." in text:
+        return False
+    return bool(re.fullmatch(r"[A-Za-z0-9_-]+", text))
+
+
+def _deployment_candidate_resource_ids(item: dict, target_family: str) -> set[str]:
+    ids: set[str] = set()
+    for value in (item.get("id"), item.get("scope")):
+        normalized = normalize_exact_target_resource_id(
+            str(value or ""),
+            target_family=target_family,
+        )
+        if normalized:
+            ids.add(normalized)
+    return ids
+
+
+def _deployment_candidate_hosts(item: dict, target_family: str) -> set[str]:
+    hosts: set[str] = set()
+    if target_family in {"app-services", "functions"}:
+        host = normalize_exact_target_host(
+            str(item.get("default_hostname") or ""),
+            target_family=target_family,
+        )
+        if host:
+            hosts.add(host)
+    if target_family == "aks":
+        for value in (item.get("fqdn"), item.get("private_fqdn")):
+            host = normalize_exact_target_host(str(value or ""), target_family=target_family)
+            if host:
+                hosts.add(host)
+    return hosts
 
 
 def _normalize_target_name(value: str) -> str:
@@ -2432,6 +2949,14 @@ def _deployment_missing_confirmation(
                 f"Current evidence names the likely {target_label} target, but does not confirm a "
                 + _devops_missing_source_control_text(definite=False)
                 + " on the source side."
+            )
+        primary_mode = str(source.get("primary_start_mode") or "").strip() or None
+        primary_runbook = str(source.get("primary_runbook_name") or "").strip() or None
+        if primary_runbook and primary_mode:
+            return (
+                f"Current evidence names the likely {target_label} target and the {primary_mode} "
+                f"path into runbook {primary_runbook}, but does not show that current credentials "
+                "can control that path."
             )
         return (
             f"Current evidence names the likely {target_label} target, but does not confirm which "

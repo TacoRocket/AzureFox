@@ -39,6 +39,7 @@ from azurefox.privesc_hints import (
     privesc_proven_path,
     privesc_summary,
 )
+from azurefox.target_matching import looks_like_exact_target_value
 from azurefox.tokens_credential_hints import tokens_credential_next_review_hint
 
 _DNS_RESOURCE_API_VERSION = {
@@ -4154,7 +4155,6 @@ def _automation_object_join_ids(items: list[object] | None, *, prefix: str) -> l
         raw_id = _string_value(getattr(item, "id", None))
         if raw_id:
             ids.append(raw_id)
-            continue
         name = _string_value(getattr(item, "name", None))
         if name:
             ids.append(f"{prefix}:{name}")
@@ -10493,68 +10493,102 @@ def _devops_structured_target_clues(
 ) -> list[str]:
     structured: list[str] = []
     lowered_broad_clues = {value.lower() for value in broad_clues}
-    for path, node in _recursive_nodes(definition):
-        if not isinstance(node, dict):
-            continue
-
-        app_service_name = _devops_named_target_input(
-            node,
-            token_groups=(
+    target_specs = (
+        {
+            "target_family": "app-services",
+            "label": "App Service",
+            "broad_clue": "app service",
+            "named_groups": (
                 ("azure", "web", "app", "name"),
                 ("web", "app", "name"),
                 ("app", "service", "name"),
             ),
-        )
-        if not app_service_name and "app service" in lowered_broad_clues:
-            app_service_name = _devops_named_target_input(
-                node,
-                token_groups=(("app", "name"),),
-            )
-        if app_service_name:
-            structured.append(f"App Service: {app_service_name}")
-
-        function_name = _devops_named_target_input(
-            node,
-            token_groups=(
+            "fallback_named_groups": (("app", "name"),),
+            "exact_groups": (
+                ("azure", "web", "app"),
+                ("web", "app"),
+                ("app", "service"),
+            ),
+            "allow_host_or_url": True,
+            "needs_arm_context": False,
+        },
+        {
+            "target_family": "functions",
+            "label": "Functions",
+            "broad_clue": "functions",
+            "named_groups": (
                 ("azure", "function", "app", "name"),
                 ("function", "app", "name"),
             ),
-        )
-        if not function_name and "functions" in lowered_broad_clues:
-            function_name = _devops_named_target_input(
-                node,
-                token_groups=(("function", "name"),),
-            )
-        if function_name:
-            structured.append(f"Functions: {function_name}")
-
-        cluster_name = _devops_named_target_input(
-            node,
-            token_groups=(
+            "fallback_named_groups": (("function", "name"),),
+            "exact_groups": (
+                ("azure", "function", "app"),
+                ("function", "app"),
+                ("function",),
+            ),
+            "allow_host_or_url": True,
+            "needs_arm_context": False,
+        },
+        {
+            "target_family": "aks",
+            "label": "AKS/Kubernetes",
+            "broad_clue": "aks/kubernetes",
+            "named_groups": (
                 ("aks", "cluster", "name"),
                 ("kubernetes", "cluster", "name"),
             ),
-        )
-        if not cluster_name and "aks/kubernetes" in lowered_broad_clues:
-            cluster_name = _devops_named_target_input(
-                node,
-                token_groups=(("cluster", "name"),),
-            )
-        if cluster_name:
-            structured.append(f"AKS/Kubernetes: {cluster_name}")
-
+            "fallback_named_groups": (("cluster", "name"),),
+            "exact_groups": (
+                ("aks", "cluster"),
+                ("kubernetes", "cluster"),
+                ("kubernetes",),
+            ),
+            "allow_host_or_url": True,
+            "needs_arm_context": False,
+        },
+        {
+            "target_family": "arm-deployments",
+            "label": "ARM/Bicep/Terraform",
+            "broad_clue": "arm/bicep/terraform",
+            "named_groups": (("deployment", "name"),),
+            "fallback_named_groups": (),
+            "exact_groups": (("deployment",),),
+            "allow_host_or_url": False,
+            "needs_arm_context": True,
+        },
+    )
+    for path, node in _recursive_nodes(definition):
+        if not isinstance(node, dict):
+            continue
         node_tokens = {
             token for key in node for token in _devops_identifier_tokens(key)
         } | set(_devops_path_tokens(path))
-        if "arm/bicep/terraform" in lowered_broad_clues or _devops_node_has_arm_target_context(
-            node_tokens
-        ):
-            deployment_name = _devops_named_target_input(
+        arm_context_present = _devops_node_has_arm_target_context(node_tokens)
+        for spec in target_specs:
+            broad_present = spec["broad_clue"] in lowered_broad_clues
+            if spec["needs_arm_context"] and not (broad_present or arm_context_present):
+                continue
+            named_target = _devops_named_target_input(
                 node,
-                token_groups=(("deployment", "name"),),
+                token_groups=spec["named_groups"],
             )
-            if deployment_name:
-                structured.append(f"ARM/Bicep/Terraform: {deployment_name}")
+            if not named_target and broad_present and spec["fallback_named_groups"]:
+                named_target = _devops_named_target_input(
+                    node,
+                    token_groups=spec["fallback_named_groups"],
+                )
+            if named_target:
+                structured.append(f"{spec['label']}: {named_target}")
+            exact_target = _devops_exact_target_input(
+                node,
+                target_family=spec["target_family"],
+                node_tokens=node_tokens,
+                token_groups=spec["exact_groups"],
+                broad_clue_present=broad_present,
+                allow_host_or_url=spec["allow_host_or_url"],
+            )
+            if exact_target:
+                structured.append(f"{spec['label']}: {exact_target}")
 
     return structured
 
@@ -10583,6 +10617,53 @@ def _devops_named_target_input(
         for token_group in token_groups:
             if set(token_group).issubset(key_tokens):
                 return cleaned_value
+    return None
+
+
+def _devops_exact_target_input(
+    node: dict[str, object],
+    *,
+    target_family: str,
+    node_tokens: set[str],
+    token_groups: tuple[tuple[str, ...], ...],
+    broad_clue_present: bool,
+    allow_host_or_url: bool,
+) -> str | None:
+    generic_exact_tokens = {
+        "resourceid",
+        "resource",
+        "id",
+        "url",
+        "uri",
+        "hostname",
+        "host",
+        "fqdn",
+    }
+    family_tokens = {token for group in token_groups for token in group}
+    for key, value in node.items():
+        if not isinstance(value, str):
+            continue
+        cleaned_value = value.strip()
+        if not cleaned_value or _looks_like_expression(cleaned_value):
+            continue
+        if not looks_like_exact_target_value(
+            cleaned_value,
+            target_family=target_family,
+            allow_host_or_url=allow_host_or_url,
+        ):
+            continue
+        key_tokens = set(_devops_identifier_tokens(key))
+        has_direct_context = any(set(group).issubset(key_tokens) for group in token_groups)
+        has_generic_exact_key = bool(key_tokens & generic_exact_tokens)
+        has_family_key_context = bool(key_tokens & family_tokens)
+        has_node_context = any(set(group).issubset(node_tokens) for group in token_groups)
+        if has_direct_context or (
+            broad_clue_present
+            and has_generic_exact_key
+            and has_family_key_context
+            and has_node_context
+        ):
+            return cleaned_value
     return None
 
 

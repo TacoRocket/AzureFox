@@ -130,40 +130,24 @@ def admit_deployment_path_row(
     candidate_count = max(exact_target_count, narrowed_candidate_count)
 
     if source.posture == "stores secrets here":
-        if exact_target_count == 1 and confirmation_basis in _CANONICAL_CONFIRMATION_BASES:
-            return DeploymentRowAdmission(
-                state="named match",
-                admitted=True,
-                reason=(
-                    "Secret-bearing deployment support is tied to a visible Azure change path, "
-                    "and the downstream target is joined by canonical evidence."
-                ),
-            )
-
-        if visibility_issue or source.missing_target_mapping:
-            return DeploymentRowAdmission(
-                state="visibility blocked",
-                admitted=True,
-                reason=(
-                    "Secret-bearing deployment support is visible, but AzureFox still needs "
-                    "stronger target mapping before it can name the downstream Azure footprint."
-                ),
-            )
-
-        if candidate_count > 0:
-            return DeploymentRowAdmission(
-                state="narrowed candidates",
-                admitted=True,
-                reason=(
-                    "Secret-bearing deployment support is visible, and current evidence narrows "
-                    "the Azure footprint it could widen if another foothold controls execution."
-                ),
-            )
-
-        return DeploymentRowAdmission(
-            state="blocked",
-            admitted=False,
-            reason=(
+        return _resolved_deployment_row_admission(
+            exact_target_count=exact_target_count,
+            candidate_count=candidate_count,
+            confirmation_basis=confirmation_basis,
+            visibility_blocked=bool(visibility_issue or source.missing_target_mapping),
+            named_match_reason=(
+                "Secret-bearing deployment support is tied to a visible Azure change path, "
+                "and the downstream target is joined by canonical evidence."
+            ),
+            visibility_reason=(
+                "Secret-bearing deployment support is visible, but AzureFox still needs "
+                "stronger target mapping before it can name the downstream Azure footprint."
+            ),
+            narrowed_reason=(
+                "Secret-bearing deployment support is visible, and current evidence narrows "
+                "the Azure footprint it could widen if another foothold controls execution."
+            ),
+            blocked_reason=(
                 "Support-only deployment rows still need a named target, a narrowed candidate "
                 "set, or an explicit missing target-mapping boundary."
             ),
@@ -179,44 +163,64 @@ def admit_deployment_path_row(
             ),
         )
 
-    if exact_target_count == 1 and confirmation_basis in _CANONICAL_CONFIRMATION_BASES:
-        return DeploymentRowAdmission(
-            state="named match",
-            admitted=True,
-            reason=(
-                "The source already looks change-capable and the downstream target is joined by "
-                "canonical evidence rather than name-only inference."
-            ),
-        )
-
-    if visibility_issue:
-        return DeploymentRowAdmission(
-            state="visibility blocked",
-            admitted=True,
-            reason=(
-                "The source already looks change-capable, but current scope does not confirm "
-                "which downstream Azure targets are visible enough to name."
-            ),
-        )
-
-    if candidate_count > 0:
-        return DeploymentRowAdmission(
-            state="narrowed candidates",
-            admitted=True,
-            reason=(
-                "The source already looks change-capable, but current evidence narrows the next "
-                "review set without proving one exact downstream target."
-            ),
-        )
-
-    return DeploymentRowAdmission(
-        state="blocked",
-        admitted=False,
-        reason=(
+    return _resolved_deployment_row_admission(
+        exact_target_count=exact_target_count,
+        candidate_count=candidate_count,
+        confirmation_basis=confirmation_basis,
+        visibility_blocked=bool(visibility_issue),
+        named_match_reason=(
+            "The source already looks change-capable and the downstream target is joined by "
+            "canonical evidence rather than name-only inference."
+        ),
+        visibility_reason=(
+            "The source already looks change-capable, but current scope does not confirm "
+            "which downstream Azure targets are visible enough to name."
+        ),
+        narrowed_reason=(
+            "The source already looks change-capable, but current evidence narrows the next "
+            "review set without proving one exact downstream target."
+        ),
+        blocked_reason=(
             "Visible execution or service-connection posture alone is not enough; a default "
             "deployment-path row also needs a named target, a narrowed candidate set, or an "
             "explicit visibility block."
         ),
+    )
+
+
+def _resolved_deployment_row_admission(
+    *,
+    exact_target_count: int,
+    candidate_count: int,
+    confirmation_basis: DeploymentConfirmationBasis | None,
+    visibility_blocked: bool,
+    named_match_reason: str,
+    visibility_reason: str,
+    narrowed_reason: str,
+    blocked_reason: str,
+) -> DeploymentRowAdmission:
+    if exact_target_count == 1 and confirmation_basis in _CANONICAL_CONFIRMATION_BASES:
+        return DeploymentRowAdmission(
+            state="named match",
+            admitted=True,
+            reason=named_match_reason,
+        )
+    if visibility_blocked:
+        return DeploymentRowAdmission(
+            state="visibility blocked",
+            admitted=True,
+            reason=visibility_reason,
+        )
+    if candidate_count > 0:
+        return DeploymentRowAdmission(
+            state="narrowed candidates",
+            admitted=True,
+            reason=narrowed_reason,
+        )
+    return DeploymentRowAdmission(
+        state="blocked",
+        admitted=False,
+        reason=blocked_reason,
     )
 
 

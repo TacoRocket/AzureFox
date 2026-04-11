@@ -2394,6 +2394,123 @@ def test_devops_structured_target_clues_ignore_generic_names_without_azure_conte
     assert clues == []
 
 
+def test_devops_structured_target_clues_capture_exact_urls_and_resource_ids() -> None:
+    clues = _devops_structured_target_clues(
+        {
+            "process": {
+                "phases": [
+                    {
+                        "steps": [
+                            {
+                                "inputs": {
+                                    "azureWebAppResourceId": (
+                                        "/subscriptions/sub/resourceGroups/rg-apps/providers/"
+                                        "Microsoft.Web/sites/app-public-api"
+                                    ),
+                                    "aksClusterUrl": (
+                                        "https://aks-ops-01-abcd1234.privatelink.eastus.azmk8s.io"
+                                    ),
+                                    "deploymentResourceId": (
+                                        "/subscriptions/sub/resourceGroups/rg-app/providers/"
+                                        "Microsoft.Resources/deployments/app-failed"
+                                    ),
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        broad_clues=["App Service", "AKS/Kubernetes", "ARM/Bicep/Terraform"],
+    )
+
+    assert (
+        "App Service: /subscriptions/sub/resourceGroups/rg-apps/providers/"
+        "Microsoft.Web/sites/app-public-api"
+    ) in clues
+    assert (
+        "AKS/Kubernetes: https://aks-ops-01-abcd1234.privatelink.eastus.azmk8s.io"
+    ) in clues
+    assert (
+        "ARM/Bicep/Terraform: /subscriptions/sub/resourceGroups/rg-app/providers/"
+        "Microsoft.Resources/deployments/app-failed"
+    ) in clues
+
+
+def test_devops_structured_target_clues_ignore_non_azure_hosts_and_generic_urls() -> None:
+    clues = _devops_structured_target_clues(
+        {
+            "process": {
+                "phases": [
+                    {
+                        "steps": [
+                            {
+                                "inputs": {
+                                    "appServiceUrl": "https://example.com/releases/app",
+                                    "functionHost": "release-1.2.3",
+                                    "aksClusterUrl": "https://cluster.internal.local",
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        broad_clues=["App Service", "Functions", "AKS/Kubernetes"],
+    )
+
+    assert clues == []
+
+
+def test_devops_structured_target_clues_ignore_wrong_family_resource_ids() -> None:
+    clues = _devops_structured_target_clues(
+        {
+            "process": {
+                "phases": [
+                    {
+                        "steps": [
+                            {
+                                "inputs": {
+                                    "azureWebAppResourceId": (
+                                        "/subscriptions/sub/resourceGroups/rg-workload/providers/"
+                                        "Microsoft.ContainerService/managedClusters/aks-ops-01"
+                                    ),
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        broad_clues=["App Service"],
+    )
+
+    assert clues == []
+
+
+def test_devops_structured_target_clues_ignore_appservice_scm_hosts() -> None:
+    clues = _devops_structured_target_clues(
+        {
+            "process": {
+                "phases": [
+                    {
+                        "steps": [
+                            {
+                                "inputs": {
+                                    "azureWebAppUrl": "https://app-public-api.scm.azurewebsites.net",
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        broad_clues=["App Service"],
+    )
+
+    assert clues == []
+
+
 def test_devops_finalize_trusted_inputs_adds_exists_only_proof_metadata() -> None:
     trusted_inputs = _devops_finalize_trusted_inputs(
         trusted_inputs=[
