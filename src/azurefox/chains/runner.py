@@ -1645,12 +1645,13 @@ def _deployment_why_care(
     source: dict,
     *,
     assessment: DeploymentSourceAssessment,
-    target_family: str,
-    selected_targets: list[dict],
-    target_resolution: str,
+    target_family: str | None = None,
+    selected_targets: list[dict] | None = None,
+    target_resolution: str = "narrowed candidates",
 ) -> str:
     source_name = str(source.get("name") or source.get("id") or source_command)
     support_parts = _deployment_support_phrase_parts(source)
+    selected_targets = selected_targets or []
     support_phrase = (
         " and ".join(support_parts) if support_parts else "secret-backed deployment support"
     )
@@ -1747,7 +1748,7 @@ def _deployment_why_care_clauses(
     source_command: str,
     source: dict,
     support_parts: list[str],
-    target_family: str,
+    target_family: str | None,
     selected_targets: list[dict],
     target_resolution: str,
     include_current_operator_suffix: str | None = None,
@@ -1782,14 +1783,15 @@ def _deployment_why_care_clauses(
     )
     if trust_clause:
         clauses.append(trust_clause + ".")
-    target_clause = _deployment_target_evidence_clause(
-        target_family=target_family,
-        selected_targets=selected_targets,
-        target_resolution=target_resolution,
-        confirmation_basis=str(source.get("confirmation_basis") or "") or None,
-    )
-    if target_clause:
-        clauses.append(target_clause)
+    if target_family:
+        target_clause = _deployment_target_evidence_clause(
+            target_family=target_family,
+            selected_targets=selected_targets,
+            target_resolution=target_resolution,
+            confirmation_basis=str(source.get("confirmation_basis") or "") or None,
+        )
+        if target_clause:
+            clauses.append(target_clause)
     return clauses
 
 

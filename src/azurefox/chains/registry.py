@@ -234,7 +234,6 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
                     "public_network_access",
                     "enable_rbac_authorization",
                     "access_policy_count",
-                    "summary",
                 ),
                 rationale=(
                     "Provides the visible secret-store boundary when the deployment path relies "
