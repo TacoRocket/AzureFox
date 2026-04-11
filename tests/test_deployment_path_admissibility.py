@@ -12,6 +12,7 @@ from azurefox.chains.runner import (
     _automation_current_operator_access,
     _automation_scope_label,
     _best_automation_target_mapping,
+    _deployment_joined_key_vaults,
     _structured_deployment_target_matches,
 )
 from azurefox.models.common import (
@@ -249,6 +250,101 @@ def test_structured_target_clue_can_reach_exact_named_match_input() -> None:
     assert [item["name"] for item in matches] == ["app-public-api"]
 
 
+def test_structured_target_clue_can_match_exact_resource_id() -> None:
+    pipeline = DevopsPipelineAsset(
+        id="devops/pipeline/release-appservice-prod",
+        definition_id="88",
+        name="release-appservice-prod",
+        project_name="prod-platform",
+        azure_service_connection_names=["prod-appsvc-wif"],
+        target_clues=[
+            "App Service: "
+            "/subscriptions/sub/resourceGroups/rg-apps/providers/"
+            "Microsoft.Web/sites/app-public-api"
+        ],
+        summary="Structured target resource id test.",
+    )
+
+    matches, confirmation_basis = _structured_deployment_target_matches(
+        pipeline.model_dump(mode="json"),
+        "app-services",
+        [
+            {
+                "id": (
+                    "/subscriptions/sub/resourceGroups/rg-apps/providers/Microsoft.Web/sites/"
+                    "app-public-api"
+                ),
+                "name": "not-the-join-key",
+            }
+        ],
+    )
+
+    assert confirmation_basis == "resource-id-match"
+    assert [item["id"] for item in matches] == [
+        "/subscriptions/sub/resourceGroups/rg-apps/providers/Microsoft.Web/sites/app-public-api"
+    ]
+
+
+def test_structured_target_clue_can_match_exact_hostname() -> None:
+    pipeline = DevopsPipelineAsset(
+        id="devops/pipeline/release-appservice-prod",
+        definition_id="88",
+        name="release-appservice-prod",
+        project_name="prod-platform",
+        azure_service_connection_names=["prod-appsvc-wif"],
+        target_clues=["App Service: https://app-public-api.azurewebsites.net"],
+        summary="Structured target hostname test.",
+    )
+
+    matches, confirmation_basis = _structured_deployment_target_matches(
+        pipeline.model_dump(mode="json"),
+        "app-services",
+        [
+            {
+                "id": (
+                    "/subscriptions/sub/resourceGroups/rg-apps/providers/Microsoft.Web/sites/"
+                    "app-public-api"
+                ),
+                "name": "app-public-api",
+                "default_hostname": "app-public-api.azurewebsites.net",
+            }
+        ],
+    )
+
+    assert confirmation_basis == "normalized-uri-match"
+    assert [item["name"] for item in matches] == ["app-public-api"]
+
+
+def test_structured_target_clue_can_match_exact_aks_private_fqdn() -> None:
+    pipeline = DevopsPipelineAsset(
+        id="devops/pipeline/deploy-aks-prod",
+        definition_id="17",
+        name="deploy-aks-prod",
+        project_name="prod-platform",
+        azure_service_connection_names=["prod-subscription"],
+        target_clues=["AKS/Kubernetes: https://aks-ops-01-abcd1234.privatelink.eastus.azmk8s.io"],
+        summary="Structured target AKS hostname test.",
+    )
+
+    matches, confirmation_basis = _structured_deployment_target_matches(
+        pipeline.model_dump(mode="json"),
+        "aks",
+        [
+            {
+                "id": (
+                    "/subscriptions/sub/resourceGroups/rg-workload/providers/"
+                    "Microsoft.ContainerService/managedClusters/aks-ops-01"
+                ),
+                "name": "aks-ops-01",
+                "private_fqdn": "aks-ops-01-abcd1234.privatelink.eastus.azmk8s.io",
+            }
+        ],
+    )
+
+    assert confirmation_basis == "normalized-uri-match"
+    assert [item["name"] for item in matches] == ["aks-ops-01"]
+
+
 def test_automation_current_operator_access_uses_role_definition_id_and_best_scope_match() -> None:
     access = _automation_current_operator_access(
         {
@@ -353,65 +449,324 @@ def test_best_automation_target_mapping_uses_runbook_names_to_narrow_visible_tar
     assert mapping is not None
     assert mapping["target_family"] == "app-services"
     assert mapping["exact_targets"] == []
-    assert [item["name"] for item in mapping["target_candidates"]] == [
-        "app-empty-mi",
-        "app-public-api",
-    ]
+    assert [item["name"] for item in mapping["target_candidates"]] == ["app-public-api"]
     assert mapping["confirmation_basis"] == "same-workload-corroborated"
 
 
 def test_best_automation_target_mapping_does_not_remap_from_name_overlap_alone() -> None:
     account = _load_automation_account("aa-hybrid-prod").model_dump(mode="json")
-    app_services = json.loads(
-        (
-            Path(__file__).resolve().parent / "fixtures" / "lab_tenant" / "app_services.json"
-        ).read_text(encoding="utf-8")
-    )
-    functions = json.loads(
-        (Path(__file__).resolve().parent / "fixtures" / "lab_tenant" / "functions.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    aks = json.loads(
-        (Path(__file__).resolve().parent / "fixtures" / "lab_tenant" / "aks.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    arm = json.loads(
-        (
-            Path(__file__).resolve().parent / "fixtures" / "lab_tenant" / "arm_deployments.json"
-        ).read_text(encoding="utf-8")
-    )
+    target_inputs = _load_automation_target_inputs()
 
-    mapping = _best_automation_target_mapping(
+    mapping = _best_automation_mapping(
         account,
-        target_candidates={
-            "app-services": app_services["app_services"],
-            "functions": functions["function_apps"],
-            "aks": aks["aks_clusters"],
-            "arm-deployments": arm["deployments"],
-        },
-        target_visibility_notes={
-            "app-services": None,
-            "functions": None,
-            "aks": None,
-            "arm-deployments": None,
-        },
-        target_visibility_issues={
-            "app-services": None,
-            "functions": None,
-            "aks": None,
-            "arm-deployments": None,
-        },
+        target_inputs=target_inputs,
         arm_correlations={
             "app-services": [],
             "functions": [],
             "aks": [],
-            "arm-deployments": arm["deployments"],
+            "arm-deployments": target_inputs["arm-deployments"],
         },
     )
 
     assert mapping is None
+
+
+def test_best_automation_target_mapping_uses_primary_runbook_path_for_exact_match() -> None:
+    account = _load_automation_account("aa-hybrid-prod").model_dump(mode="json")
+    account["primary_runbook_name"] = "app-public-api"
+    account["webhook_runbook_names"] = ["app-public-api", "app-empty-mi"]
+    account["published_runbook_names"] = ["app-public-api", "app-empty-mi", "func-orders"]
+    target_inputs = _load_automation_target_inputs()
+
+    mapping = _best_automation_mapping(
+        account,
+        target_inputs=target_inputs,
+        arm_correlations={
+            "app-services": [],
+            "functions": [],
+            "aks": [],
+            "arm-deployments": target_inputs["arm-deployments"],
+        },
+    )
+
+    assert mapping is not None
+    assert mapping["target_family"] == "app-services"
+    assert mapping["exact_targets"] == []
+    assert [item["name"] for item in mapping["target_candidates"]] == ["app-public-api"]
+    assert mapping["confirmation_basis"] == "name-only-inference"
+
+
+def test_best_automation_target_mapping_does_not_widen_from_non_active_published_runbooks() -> None:
+    account = _load_automation_account("aa-hybrid-prod").model_dump(mode="json")
+    account["primary_runbook_name"] = "func-orders"
+    account["primary_start_mode"] = "webhook"
+    account["webhook_runbook_names"] = ["func-orders"]
+    account["published_runbook_names"] = ["func-orders", "app-empty-mi", "app-public-api"]
+    target_inputs = _load_automation_target_inputs()
+
+    mapping = _best_automation_mapping(
+        account,
+        target_inputs=target_inputs,
+        arm_correlations={
+            "app-services": [target_inputs["arm-deployments"][2]],
+            "functions": [target_inputs["arm-deployments"][2]],
+            "aks": [],
+            "arm-deployments": target_inputs["arm-deployments"],
+        },
+    )
+
+    assert mapping is not None
+    assert mapping["target_family"] == "functions"
+    assert [item["name"] for item in mapping["exact_targets"]] == ["func-orders"]
+    assert mapping["confirmation_basis"] == "same-workload-corroborated"
+
+
+def test_best_automation_target_mapping_falls_back_to_published_name_only_inference() -> None:
+    account = _load_automation_account("aa-hybrid-prod").model_dump(mode="json")
+    account["primary_runbook_name"] = "Nightly-Reconcile"
+    account["primary_start_mode"] = "webhook"
+    account["webhook_runbook_names"] = ["Nightly-Reconcile"]
+    account["published_runbook_names"] = ["Nightly-Reconcile", "app-public-api"]
+    account["trigger_join_ids"] = ["automation-webhook:nightly-reconcile"]
+    target_inputs = _load_automation_target_inputs()
+
+    mapping = _best_automation_mapping(
+        account,
+        target_inputs=target_inputs,
+        arm_correlations={
+            "app-services": [target_inputs["arm-deployments"][2]],
+            "functions": [],
+            "aks": [],
+            "arm-deployments": target_inputs["arm-deployments"],
+        },
+    )
+
+    assert mapping is not None
+    assert mapping["exact_targets"] == []
+    assert [item["name"] for item in mapping["target_candidates"]] == ["app-public-api"]
+    assert mapping["confirmation_basis"] == "name-only-inference"
+
+
+def test_best_automation_target_mapping_supports_raw_trigger_join_ids() -> None:
+    account = _load_automation_account("aa-hybrid-prod").model_dump(mode="json")
+    account["trigger_join_ids"] = [
+        "/subscriptions/sub/resourceGroups/rg-ops/providers/Microsoft.Automation/"
+        "automationAccounts/aa-hybrid-prod/webhooks/app-public-api"
+    ]
+    target_inputs = _load_automation_target_inputs()
+
+    mapping = _best_automation_mapping(
+        account,
+        target_inputs=target_inputs,
+        arm_correlations={
+            "app-services": [target_inputs["arm-deployments"][2]],
+            "functions": [],
+            "aks": [],
+            "arm-deployments": target_inputs["arm-deployments"],
+        },
+    )
+
+    assert mapping is not None
+    assert mapping["target_family"] == "app-services"
+    assert [item["name"] for item in mapping["exact_targets"]] == ["app-public-api"]
+    assert mapping["confirmation_basis"] == "same-workload-corroborated"
+
+
+def test_best_automation_target_mapping_does_not_promote_duplicate_name_collisions() -> None:
+    account = _load_automation_account("aa-hybrid-prod").model_dump(mode="json")
+    account["primary_runbook_name"] = "shared-api"
+    account["webhook_runbook_names"] = ["shared-api"]
+    target_inputs = _load_automation_target_inputs()
+    target_inputs["app-services"] = [
+        {
+            "id": (
+                "/subscriptions/sub/resourceGroups/rg-apps/providers/"
+                "Microsoft.Web/sites/shared-a"
+            ),
+            "name": "shared-api",
+        },
+        {
+            "id": (
+                "/subscriptions/sub/resourceGroups/rg-apps/providers/"
+                "Microsoft.Web/sites/shared-b"
+            ),
+            "name": "shared-api",
+        },
+    ]
+
+    mapping = _best_automation_mapping(
+        account,
+        target_inputs=target_inputs,
+        arm_correlations={
+            "app-services": [target_inputs["arm-deployments"][2]],
+            "functions": [],
+            "aks": [],
+            "arm-deployments": target_inputs["arm-deployments"],
+        },
+    )
+
+    assert mapping is not None
+    assert mapping["target_family"] == "app-services"
+    assert mapping["exact_targets"] == []
+    assert [item["id"] for item in mapping["target_candidates"]] == [
+        "/subscriptions/sub/resourceGroups/rg-apps/providers/Microsoft.Web/sites/shared-a",
+        "/subscriptions/sub/resourceGroups/rg-apps/providers/Microsoft.Web/sites/shared-b",
+    ]
+    assert mapping["confirmation_basis"] == "name-only-inference"
+
+
+def test_structured_target_clue_ignores_non_azure_dotted_host_values() -> None:
+    pipeline = DevopsPipelineAsset(
+        id="devops/pipeline/release-appservice-prod",
+        definition_id="88",
+        name="release-appservice-prod",
+        project_name="prod-platform",
+        azure_service_connection_names=["prod-appsvc-wif"],
+        target_clues=["App Service: release-1.2.3"],
+        summary="Structured target dotted host guard.",
+    )
+
+    matches, confirmation_basis = _structured_deployment_target_matches(
+        pipeline.model_dump(mode="json"),
+        "app-services",
+        [
+            {
+                "id": (
+                    "/subscriptions/sub/resourceGroups/rg-apps/providers/Microsoft.Web/sites/"
+                    "app-public-api"
+                ),
+                "name": "app-public-api",
+                "default_hostname": "app-public-api.azurewebsites.net",
+            }
+        ],
+    )
+
+    assert matches == []
+    assert confirmation_basis is None
+
+
+def test_structured_target_clue_ignores_appservice_scm_hosts() -> None:
+    pipeline = DevopsPipelineAsset(
+        id="devops/pipeline/release-appservice-prod",
+        definition_id="88",
+        name="release-appservice-prod",
+        project_name="prod-platform",
+        azure_service_connection_names=["prod-appsvc-wif"],
+        target_clues=["App Service: https://app-public-api.scm.azurewebsites.net"],
+        summary="Structured target scm host guard.",
+    )
+
+    matches, confirmation_basis = _structured_deployment_target_matches(
+        pipeline.model_dump(mode="json"),
+        "app-services",
+        [
+            {
+                "id": (
+                    "/subscriptions/sub/resourceGroups/rg-apps/providers/Microsoft.Web/sites/"
+                    "app-public-api"
+                ),
+                "name": "app-public-api",
+                "default_hostname": "app-public-api.azurewebsites.net",
+            }
+        ],
+    )
+
+    assert matches == []
+    assert confirmation_basis is None
+
+
+def test_structured_target_clue_ignores_unstructured_prefixed_payloads() -> None:
+    pipeline = DevopsPipelineAsset(
+        id="devops/pipeline/release-appservice-prod",
+        definition_id="88",
+        name="release-appservice-prod",
+        project_name="prod-platform",
+        azure_service_connection_names=["prod-appsvc-wif"],
+        target_clues=["App Service: release notes for blue deployment"],
+        summary="Structured target prefixed payload guard.",
+    )
+
+    matches, confirmation_basis = _structured_deployment_target_matches(
+        pipeline.model_dump(mode="json"),
+        "app-services",
+        [
+            {
+                "id": (
+                    "/subscriptions/sub/resourceGroups/rg-apps/providers/Microsoft.Web/sites/"
+                    "app-public-api"
+                ),
+                "name": "app-public-api",
+                "default_hostname": "app-public-api.azurewebsites.net",
+            }
+        ],
+    )
+
+    assert matches == []
+    assert confirmation_basis is None
+
+
+def test_structured_target_clue_ignores_wrong_family_resource_ids() -> None:
+    pipeline = DevopsPipelineAsset(
+        id="devops/pipeline/release-appservice-prod",
+        definition_id="88",
+        name="release-appservice-prod",
+        project_name="prod-platform",
+        azure_service_connection_names=["prod-appsvc-wif"],
+        target_clues=[
+            "App Service: "
+            "/subscriptions/sub/resourceGroups/rg-workload/providers/"
+            "Microsoft.ContainerService/managedClusters/aks-ops-01"
+        ],
+        summary="Structured target wrong-family resource id guard.",
+    )
+
+    matches, confirmation_basis = _structured_deployment_target_matches(
+        pipeline.model_dump(mode="json"),
+        "app-services",
+        [
+            {
+                "id": (
+                    "/subscriptions/sub/resourceGroups/rg-apps/providers/Microsoft.Web/sites/"
+                    "app-public-api"
+                ),
+                "name": "app-public-api",
+            }
+        ],
+    )
+
+    assert matches == []
+    assert confirmation_basis is None
+
+
+def test_deployment_joined_key_vaults_keeps_duplicate_named_vault_records() -> None:
+    joined = _deployment_joined_key_vaults(
+        {
+            "key_vault_names": ["kv-prod-shared"],
+        },
+        {
+            "kv-prod-shared": [
+                {
+                    "id": (
+                        "/subscriptions/sub-a/resourceGroups/rg-a/providers/"
+                        "Microsoft.KeyVault/vaults/kv-prod-shared"
+                    ),
+                    "name": "kv-prod-shared",
+                },
+                {
+                    "id": (
+                        "/subscriptions/sub-b/resourceGroups/rg-b/providers/"
+                        "Microsoft.KeyVault/vaults/kv-prod-shared"
+                    ),
+                    "name": "kv-prod-shared",
+                },
+            ]
+        },
+    )
+
+    assert [item["id"] for item in joined] == [
+        "/subscriptions/sub-a/resourceGroups/rg-a/providers/Microsoft.KeyVault/vaults/kv-prod-shared",
+        "/subscriptions/sub-b/resourceGroups/rg-b/providers/Microsoft.KeyVault/vaults/kv-prod-shared",
+    ]
 
 
 def _load_devops_pipeline(name: str) -> DevopsPipelineAsset:
@@ -424,6 +779,45 @@ def _load_devops_pipeline(name: str) -> DevopsPipelineAsset:
         if item["name"] == name:
             return DevopsPipelineAsset.model_validate(item)
     raise AssertionError(f"missing devops fixture pipeline {name}")
+
+
+def _best_automation_mapping(
+    account: dict,
+    *,
+    target_inputs: dict[str, list[dict]],
+    arm_correlations: dict[str, list[dict]],
+) -> dict[str, object] | None:
+    return _best_automation_target_mapping(
+        account,
+        target_candidates=target_inputs,
+        target_visibility_notes={
+            "app-services": None,
+            "functions": None,
+            "aks": None,
+            "arm-deployments": None,
+        },
+        target_visibility_issues={
+            "app-services": None,
+            "functions": None,
+            "aks": None,
+            "arm-deployments": None,
+        },
+        arm_correlations=arm_correlations,
+    )
+
+
+def _load_automation_target_inputs() -> dict[str, list[dict]]:
+    fixtures_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+    app_services = json.loads((fixtures_dir / "app_services.json").read_text(encoding="utf-8"))
+    functions = json.loads((fixtures_dir / "functions.json").read_text(encoding="utf-8"))
+    aks = json.loads((fixtures_dir / "aks.json").read_text(encoding="utf-8"))
+    arm = json.loads((fixtures_dir / "arm_deployments.json").read_text(encoding="utf-8"))
+    return {
+        "app-services": app_services["app_services"],
+        "functions": functions["function_apps"],
+        "aks": aks["aks_clusters"],
+        "arm-deployments": arm["deployments"],
+    }
 
 
 def _load_automation_account(name: str) -> AutomationAccountAsset:

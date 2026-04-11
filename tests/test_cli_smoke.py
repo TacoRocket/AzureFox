@@ -220,6 +220,7 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
         "permissions",
         "rbac",
         "role-trusts",
+        "keyvault",
         "arm-deployments",
         "aks",
         "functions",
@@ -279,15 +280,12 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
     )
     assert "role-trusts" in automation_row["evidence_commands"]
     assert "rbac" in automation_row["evidence_commands"]
-    assert "This row proves source-side control" in automation_row["confidence_boundary"]
     assert "not the exact App Service target" in automation_row["confidence_boundary"]
+    assert automation_row["confirmation_basis"] == "same-workload-corroborated"
     assert "ops-deploy-sp" in automation_row["why_care"]
-    assert automation_row["target_names"] == ["app-empty-mi", "app-public-api"]
-    assert (
-        automation_row["likely_impact"]
-        == "2 visible app service candidate(s): app-empty-mi, app-public-api"
-    )
-    assert "AzureFox already narrowed the visible App Service candidates" in automation_row[
+    assert automation_row["target_names"] == ["app-public-api"]
+    assert automation_row["likely_impact"] == "1 visible app service candidate(s): app-public-api"
+    assert "narrowed the visible App Service candidates to app-public-api" in automation_row[
         "next_review"
     ]
     assert "editable trigger or definition path" not in automation_row["next_review"]
@@ -297,15 +295,19 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
     )
     assert "app-failed" in automation_row["next_review"]
     assert "recurring Azure execution" in automation_row["why_care"]
+    assert "Visible App Service evidence keeps 1 candidate(s) in play" in automation_row["why_care"]
     aks_row = next(item for item in payload["paths"] if item["asset_name"] == "deploy-aks-prod")
     assert aks_row["actionability_state"] == "conditionally actionable"
     assert "Queue this pipeline now" in aks_row["insertion_point"]
     assert "permission-summary" in aks_row["joined_surface_types"]
     assert "permissions" in aks_row["evidence_commands"]
     assert "keyvault" in aks_row["evidence_commands"]
+    assert "kv-prod-shared" in aks_row["why_care"]
+    assert "Key Vault support" in aks_row["why_care"]
     assert "current-credential run-path control" in aks_row["confidence_boundary"]
     assert "not a writable source" in aks_row["confidence_boundary"]
     assert "exact AKS cluster target" in aks_row["confidence_boundary"]
+    assert "candidate(s) in play" in aks_row["why_care"]
     assert "AzureFox already narrowed the visible AKS cluster candidates" in aks_row["next_review"]
     appsvc_row = next(
         item for item in payload["paths"] if item["asset_name"] == "deploy-appservice-prod"
@@ -317,8 +319,10 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
     assert appsvc_row["target_names"] == ["app-public-api"]
     assert appsvc_row["likely_impact"] == "exact app service: app-public-api"
     assert "trust-edge" in appsvc_row["joined_surface_types"]
-    assert "runs as Azure identity 'build-sp'" in appsvc_row["confidence_boundary"]
-    assert "exact App Service target" in appsvc_row["confidence_boundary"]
+    assert "Azure identity 'build-sp'" in appsvc_row["confidence_boundary"]
+    assert "App Service target" in appsvc_row["confidence_boundary"]
+    assert "target-side record" in appsvc_row["why_care"]
+    assert "app-public-api.azurewebsites.net" in appsvc_row["why_care"]
     assert (
         "separate direct sign-in as Azure identity 'build-sp'"
         in appsvc_row["confidence_boundary"]
@@ -327,6 +331,9 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
         "AzureFox already named the exact App Service target app-public-api"
         in appsvc_row["next_review"]
     )
+    plan_row = next(item for item in payload["paths"] if item["asset_name"] == "plan-infra-prod")
+    assert "kv-platform-shared" in plan_row["why_care"]
+    assert "Key Vault support" in plan_row["why_care"]
 
 
 def test_cli_smoke_chains_escalation_path_json(tmp_path: Path) -> None:

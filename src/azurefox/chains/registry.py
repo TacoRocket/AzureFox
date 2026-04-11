@@ -227,6 +227,20 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
                 ),
             ),
             ChainSourceSpec(
+                command="keyvault",
+                minimum_fields=(
+                    "name",
+                    "vault_uri",
+                    "public_network_access",
+                    "enable_rbac_authorization",
+                    "access_policy_count",
+                ),
+                rationale=(
+                    "Provides the visible secret-store boundary when the deployment path relies "
+                    "on Key Vault-backed variable or input support."
+                ),
+            ),
+            ChainSourceSpec(
                 command="arm-deployments",
                 minimum_fields=(
                     "id",
