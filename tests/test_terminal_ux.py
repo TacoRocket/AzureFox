@@ -768,21 +768,30 @@ def test_chains_table_mode_surfaces_priority_and_next_review(tmp_path: Path) -> 
     )
 
     assert result.exit_code == 0
-    normalized_output = " ".join(result.stdout.split())
+    normalized_output = " ".join(result.stdout.split()).lower()
     assert "priority" in result.stdout
     assert "urgency" in result.stdout
     assert "next review" in result.stdout
-    assert "note" in result.stdout
+    assert "confidence boundary" in result.stdout
     assert "review-soon" in normalized_output
     assert "bookmark" in normalized_output
     assert "func-orders" in result.stdout
     assert "app-public-api" in result.stdout
     assert "Your current" in result.stdout
     assert "this secret." in result.stdout
-    assert "Check vault access" in normalized_output
-    assert "connection clues." in normalized_output
-    assert "AzureFox narrowed" in normalized_output
+    assert "check vault access" in normalized_output
+    assert "token surfaces do not" in normalized_output
+    assert "database target." in normalized_output
+    assert "exact storage" in normalized_output
+    assert "target." in normalized_output
+    assert "azurefox narrowed" in normalized_output
+    assert "setting is not" in normalized_output
+    assert "confirmed to reach it." in normalized_output
     assert "database" in normalized_output
+    assert "stlabpub01" in result.stdout
+    assert "stlabpriv01" in result.stdout
+    assert "Claim boundary:" not in result.stdout
+    assert "Current gap:" not in result.stdout
 
 
 def test_deployment_chains_table_mode_surfaces_source_oriented_columns(tmp_path: Path) -> None:
@@ -796,7 +805,7 @@ def test_deployment_chains_table_mode_surfaces_source_oriented_columns(tmp_path:
     normalized_output = " ".join(result.stdout.split())
     assert "likely azure impact" in result.stdout
     assert "next review" in result.stdout
-    assert "why care" in result.stdout
+    assert "note" in result.stdout
     assert "priority" in result.stdout
     assert "urgency" in result.stdout
     assert "actionability" in result.stdout
@@ -807,7 +816,6 @@ def test_deployment_chains_table_mode_surfaces_source_oriented_columns(tmp_path:
     assert "aa-hybrid-prod" in result.stdout
     assert "aa-lab-quiet" in result.stdout
     assert "pivot-now" in normalized_output
-    assert "Artifact trust is" in normalized_output
     assert "pipeline artifact" in normalized_output
     assert "currently actionable" in normalized_output
     assert "conditionally" in normalized_output
@@ -816,10 +824,10 @@ def test_deployment_chains_table_mode_surfaces_source_oriented_columns(tmp_path:
     assert "Redeploy-App" in normalized_output
     assert "Lab-Maintenance" in normalized_output
     assert "Claim boundary:" in result.stdout
-    assert "Current gap:" in result.stdout
+    assert "Current gap:" not in result.stdout
 
 
-def test_deployment_chains_table_mode_renders_why_care_as_detail_rows(tmp_path: Path) -> None:
+def test_deployment_chains_table_mode_renders_note_as_detail_rows(tmp_path: Path) -> None:
     result = runner.invoke(
         app,
         ["--outdir", str(tmp_path), "chains", "deployment-path"],
@@ -829,15 +837,15 @@ def test_deployment_chains_table_mode_renders_why_care_as_detail_rows(tmp_path: 
     assert result.exit_code == 0
     lines = result.stdout.splitlines()
     main_header_lines = [line for line in lines if "┃ priority" in line]
-    detail_header_lines = [line for line in lines if line.startswith("┃ why care")]
+    detail_header_lines = [line for line in lines if line.startswith("┃ note")]
 
     assert main_header_lines
-    assert all("why care" not in line for line in main_header_lines)
+    assert all("note" not in line for line in main_header_lines)
     assert detail_header_lines
-    assert "Current credentials can already poison that source" in result.stdout
-    assert "If that trusted input becomes attacker-controlled" in result.stdout
+    assert "Current credentials can already modify that trusted input" in result.stdout
+    assert "If that trusted input is changed upstream" in result.stdout
     assert len(detail_header_lines) == 6
-    assert "Current gap:" in result.stdout
+    assert "Current gap:" not in result.stdout
 
 
 def test_escalation_chains_table_mode_renders_defended_current_foothold_story(
@@ -855,7 +863,7 @@ def test_escalation_chains_table_mode_renders_defended_current_foothold_story(
     assert "starting foothold" in result.stdout
     assert "path type" in result.stdout
     assert "stronger outcome" in result.stdout
-    assert "why care" in result.stdout
+    assert "note" in result.stdout
     assert "azurefox-lab-sp" in normalized_output
     assert "(current" in normalized_output
     assert "foothold)" in normalized_output
@@ -1010,9 +1018,12 @@ def test_chains_named_keyvault_not_visible_prefers_inventory_boundary() -> None:
     rendered = render_table("chains", payload)
     normalized = " ".join(rendered.split())
 
-    assert "This app names a Key" in normalized
+    assert "AzureFox can name the" in normalized
+    assert "vault, but cannot yet" in normalized
+    assert "read the secret." in normalized
+    assert "Verify that the named" in normalized
+    assert "target is visible in" in normalized
     assert "current inventory." in normalized
-    assert "cannot yet tell whether your current identity can read the secret" not in normalized
 
 
 def test_app_services_partial_read_surfaces_collection_issue() -> None:

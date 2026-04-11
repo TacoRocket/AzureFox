@@ -215,8 +215,8 @@ def test_deployment_path_secure_file_use_insertion_point_stays_use_scoped() -> N
             }
         )
         == (
-            "secure file codesign-cert.pfx is usable in pipeline context, but "
-            "secure-file administration is unproven."
+            "Current scope shows secure file codesign-cert.pfx as usable in pipeline context, "
+            "but not administrable."
         )
     )
 
@@ -241,9 +241,8 @@ def test_deployment_path_artifact_read_insertion_point_stays_producer_scoped() -
             }
         )
         == (
-            "The upstream producer behind pipeline artifact "
-            "prod-platform/shared-build#signed-drop is inspectable, but producer control is "
-            "unproven."
+            "Current scope shows the upstream producer behind pipeline artifact "
+            "prod-platform/shared-build#signed-drop as readable, not writable."
         )
     )
 
@@ -291,8 +290,7 @@ def test_deployment_path_definition_edit_next_review_stays_definition_scoped() -
         )
         == (
             "Current credentials can already edit this pipeline definition directly; AzureFox "
-            "already named the exact App Service target app-public-api; validate that target "
-            "directly."
+            "already named the exact App Service target app-public-api."
         )
     )
 

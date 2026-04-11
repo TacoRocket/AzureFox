@@ -309,10 +309,11 @@ def chains(
         provider = get_provider(options)
         if options.output != OutputMode.JSON:
             emit_context_banner(options)
-            emit_command_intro("chains")
+            typer.echo(family_spec.summary)
         model = run_chain_family(provider, options, family)
         artifact_paths = emit_output("chains", model, options)
-        emit_artifact_paths("chains", artifact_paths, options)
+        if options.output == OutputMode.JSON:
+            emit_artifact_paths("chains", artifact_paths, options)
     except AzureFoxError as exc:
         typer.echo(f"[{exc.kind}] {exc}", err=True)
         if options.debug and exc.details:

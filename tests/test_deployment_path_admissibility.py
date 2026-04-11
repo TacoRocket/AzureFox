@@ -11,6 +11,7 @@ from azurefox.chains.deployment_path import (
 from azurefox.chains.runner import (
     _automation_current_operator_access,
     _automation_scope_label,
+    _best_automation_target_mapping,
     _structured_deployment_target_matches,
 )
 from azurefox.models.common import (
@@ -296,6 +297,121 @@ def test_automation_scope_label_keeps_child_resource_scope_distinct_from_resourc
         _automation_scope_label(scope_id, resource_id=resource_id)
         == "resource scope Redeploy-App"
     )
+
+
+def test_best_automation_target_mapping_uses_runbook_names_to_narrow_visible_targets() -> None:
+    account = _load_automation_account("aa-hybrid-prod").model_dump(mode="json")
+    app_services = json.loads(
+        (
+            Path(__file__).resolve().parent / "fixtures" / "lab_tenant" / "app_services.json"
+        ).read_text(encoding="utf-8")
+    )
+    functions = json.loads(
+        (Path(__file__).resolve().parent / "fixtures" / "lab_tenant" / "functions.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    aks = json.loads(
+        (Path(__file__).resolve().parent / "fixtures" / "lab_tenant" / "aks.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    arm = json.loads(
+        (
+            Path(__file__).resolve().parent / "fixtures" / "lab_tenant" / "arm_deployments.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    mapping = _best_automation_target_mapping(
+        account,
+        target_candidates={
+            "app-services": app_services["app_services"],
+            "functions": functions["function_apps"],
+            "aks": aks["aks_clusters"],
+            "arm-deployments": arm["deployments"],
+        },
+        target_visibility_notes={
+            "app-services": None,
+            "functions": None,
+            "aks": None,
+            "arm-deployments": None,
+        },
+        target_visibility_issues={
+            "app-services": None,
+            "functions": None,
+            "aks": None,
+            "arm-deployments": None,
+        },
+        arm_correlations={
+            "app-services": [arm["deployments"][2]],
+            "functions": [arm["deployments"][2]],
+            "aks": [],
+            "arm-deployments": arm["deployments"],
+        },
+    )
+
+    assert mapping is not None
+    assert mapping["target_family"] == "app-services"
+    assert mapping["exact_targets"] == []
+    assert [item["name"] for item in mapping["target_candidates"]] == [
+        "app-empty-mi",
+        "app-public-api",
+    ]
+    assert mapping["confirmation_basis"] == "same-workload-corroborated"
+
+
+def test_best_automation_target_mapping_does_not_remap_from_name_overlap_alone() -> None:
+    account = _load_automation_account("aa-hybrid-prod").model_dump(mode="json")
+    app_services = json.loads(
+        (
+            Path(__file__).resolve().parent / "fixtures" / "lab_tenant" / "app_services.json"
+        ).read_text(encoding="utf-8")
+    )
+    functions = json.loads(
+        (Path(__file__).resolve().parent / "fixtures" / "lab_tenant" / "functions.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    aks = json.loads(
+        (Path(__file__).resolve().parent / "fixtures" / "lab_tenant" / "aks.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    arm = json.loads(
+        (
+            Path(__file__).resolve().parent / "fixtures" / "lab_tenant" / "arm_deployments.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    mapping = _best_automation_target_mapping(
+        account,
+        target_candidates={
+            "app-services": app_services["app_services"],
+            "functions": functions["function_apps"],
+            "aks": aks["aks_clusters"],
+            "arm-deployments": arm["deployments"],
+        },
+        target_visibility_notes={
+            "app-services": None,
+            "functions": None,
+            "aks": None,
+            "arm-deployments": None,
+        },
+        target_visibility_issues={
+            "app-services": None,
+            "functions": None,
+            "aks": None,
+            "arm-deployments": None,
+        },
+        arm_correlations={
+            "app-services": [],
+            "functions": [],
+            "aks": [],
+            "arm-deployments": arm["deployments"],
+        },
+    )
+
+    assert mapping is None
 
 
 def _load_devops_pipeline(name: str) -> DevopsPipelineAsset:

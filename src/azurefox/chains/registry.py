@@ -40,8 +40,8 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
         ),
         allowed_claim=(
             "Can claim that the visible evidence suggests a likely credential path and name the "
-            "most plausible downstream service. Cannot claim the credential works or that the path "
-            "is confirmed without deeper source evidence."
+            "most plausible downstream service. Cannot claim the exact downstream target or that "
+            "the setting is confirmed to reach it."
         ),
         current_gap=(
             "The live family now joins backing evidence in one run, but it still needs periodic "
@@ -142,8 +142,8 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
         allowed_claim=(
             "Can claim that the visible evidence suggests a controllable or nearly controllable "
             "Azure change path and can name or narrow the likely downstream footprint when the "
-            "join is honest. Cannot claim successful execution or exact downstream change without "
-            "deeper source evidence."
+            "join is honest. Cannot claim successful execution or the exact downstream Azure "
+            "change from current visible evidence alone."
         ),
         current_gap=(
             "The live family still needs stronger source-side actionability proof and tighter "

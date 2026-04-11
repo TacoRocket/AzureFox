@@ -18,3 +18,4 @@
 
 - [ ] Focused, single-purpose change
 - [ ] No secrets introduced
+- [ ] Non-operator docs were kept out of the repo unless they are required for build, validation, release, install, or packaging
