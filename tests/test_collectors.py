@@ -3195,7 +3195,8 @@ def test_collect_managed_identities_sorts_and_blocks_visibility() -> None:
     )
 
 
-def test_collect_managed_identities_uses_identity_scope_and_propagates_optional_source_issues() -> None:
+def test_collect_managed_identities_uses_identity_scope_and_propagates_optional_source_issues(
+) -> None:
     class StubProvider:
         def metadata_context(self) -> dict[str, str | None]:
             return {"tenant_id": "tenant-1", "subscription_id": "sub-1"}
