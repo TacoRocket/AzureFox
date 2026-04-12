@@ -1966,6 +1966,7 @@ class AzureProvider(BaseProvider):
                     "starting_foothold": starting_foothold,
                     "impact_roles": impact_roles,
                     "severity": "high" if current_identity else "medium",
+                    "priority": "high" if current_identity else "medium",
                     "current_identity": current_identity,
                     "operator_signal": operator_signal,
                     "proven_path": proven_path,
@@ -2022,6 +2023,7 @@ class AzureProvider(BaseProvider):
                             "starting_foothold": starting_foothold,
                             "impact_roles": impact_roles,
                             "severity": "high",
+                            "priority": "medium",
                             "current_identity": False,
                             "operator_signal": operator_signal,
                             "proven_path": proven_path,
@@ -4401,13 +4403,14 @@ def _principal_has_high_impact_roles(role_names: list[object]) -> bool:
     )
 
 
-def _privesc_sort_key(item: dict) -> tuple[int, bool, int, str, str]:
+def _privesc_sort_key(item: dict) -> tuple[int, int, bool, int, str, str]:
     severity_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3}
     path_type_rank = {
         "public-identity-pivot": 0,
         "direct-role-abuse": 1,
     }
     return (
+        {"high": 0, "medium": 1, "low": 2}.get(str(item.get("priority") or "").lower(), 9),
         severity_rank.get(str(item.get("severity") or "").lower(), 9),
         not bool(item.get("current_identity")),
         path_type_rank.get(str(item.get("path_type") or ""), 9),

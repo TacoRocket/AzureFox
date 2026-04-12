@@ -1,7 +1,9 @@
 {
   "issues": [],
   "metadata": {
+    "auth_mode": null,
     "command": "privesc",
+    "devops_organization": null,
     "generated_at": "<generated_at>",
     "schema_version": "1.3.0",
     "subscription_id": "22222222-2222-2222-2222-222222222222",
@@ -20,6 +22,7 @@
       "next_review": "Check rbac for the exact assignment evidence and scope behind this current-identity escalation lead.",
       "operator_signal": "Current foothold already has direct control.",
       "path_type": "direct-role-abuse",
+      "priority": "high",
       "principal": "azurefox-lab-sp",
       "principal_id": "33333333-3333-3333-3333-333333333333",
       "principal_type": "ServicePrincipal",
@@ -42,6 +45,7 @@
       "next_review": "Check managed-identities for the workload-to-identity anchor behind this ingress-backed lead.",
       "operator_signal": "Visible ingress-backed lead; not yet rooted in current foothold.",
       "path_type": "public-identity-pivot",
+      "priority": "medium",
       "principal": "ua-app",
       "principal_id": "33333333-3333-3333-3333-333333333333",
       "principal_type": "ManagedIdentity",

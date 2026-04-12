@@ -586,6 +586,7 @@ def test_privesc_table_mode_surfaces_takeaway(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0
+    assert "priority" in result.stdout
     assert "Triage likely privilege-escalation and workload identity abuse paths." in result.stdout
     assert "starting foothold" in result.stdout
     assert "operator signal" in result.stdout
@@ -736,8 +737,10 @@ def test_managed_identities_table_mode_surfaces_next_review(tmp_path: Path) -> N
     assert "operator signal" in result.stdout
     assert "next review" in result.stdout
     assert "Public VM workload pivot" in result.stdout
+    assert "Public App Service workload pivot" in result.stdout
+    assert "Public Function App workload pivot" in result.stdout
     assert "Check permissions for direct control" in result.stdout
-    assert "Takeaway: 1 managed identities visible; 1 exposed workload pivots" in result.stdout
+    assert "Takeaway: 6 managed identities visible; 6 exposed workload pivots" in result.stdout
 
 
 def test_permissions_table_mode_surfaces_next_review(tmp_path: Path) -> None:
@@ -752,9 +755,12 @@ def test_permissions_table_mode_surfaces_next_review(tmp_path: Path) -> None:
         "Ranking principals by high-impact RBAC exposure and the next likely follow-on."
         in result.stdout
     )
+    normalized_output = " ".join(result.stdout.split())
+    assert "priority" in result.stdout
     assert "operator signal" in result.stdout
     assert "next review" in result.stdout
-    assert "Direct control visible; current foothold." in result.stdout
+    assert "Direct control visible; current" in normalized_output
+    assert "foothold." in normalized_output
     assert "Check privesc" in result.stdout
     assert "aa-hybrid-prod-mi" in result.stdout
     assert "Takeaway: 2 of 3 principals hold high-impact RBAC roles;" in result.stdout

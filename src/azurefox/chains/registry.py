@@ -376,72 +376,32 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
         ),
     ),
     ChainFamilySpec(
-        name="workload-identity-path",
-        state="planned",
+        name="compute-control",
+        state="implemented",
         meaning=(
-            "A workload identity, managed identity, service principal, or trusted application "
-            "relationship can already act in Azure or obtain stronger access."
+            "A token-capable compute foothold can already act as an attached identity and that "
+            "identity already maps to stronger Azure control."
         ),
         summary=(
-            "Follow workload-linked identities toward the permissions and trust relationships that "
-            "make the next Azure control step plausible."
+            "Follow token-capable compute footholds toward the identity-backed Azure control they "
+            "can reach next."
         ),
         allowed_claim=(
-            "Can claim that the visible evidence suggests a likely workload-identity control path. "
-            "Cannot claim token minting success or confirmed broader control without deeper source "
-            "evidence."
+            "Can claim a direct token opportunity only when AzureFox can show the compute-side "
+            "token path, the attached identity, and the stronger Azure control behind that "
+            "identity. Cannot claim token minting success or broaden the family to generic "
+            "credential, deployment, or trust stories without a clearer compute-side transform."
         ),
         current_gap=(
-            "The grouped runner still needs a shorter operator story that makes the next move feel "
-            "obvious instead of spread across identity, permissions, and trust commands."
+            "The live family is intentionally narrow in v1: direct token-opportunity rows only. "
+            "Broader trust expansion, secret-bearing config starts, and mixed-identity workloads "
+            "still need clearer admission rules or a different family boundary."
         ),
         best_current_examples=(
-            "managed-identities -> permissions -> role-trusts",
-            "functions -> managed-identities -> permissions",
-            "app-services -> managed-identities -> permissions",
+            "tokens-credentials -> managed-identities -> permissions",
+            "workloads -> tokens-credentials -> permissions",
         ),
         source_commands=(
-            ChainSourceSpec(
-                command="managed-identities",
-                minimum_fields=(
-                    "id",
-                    "name",
-                    "identity_type",
-                    "principal_id",
-                    "attached_to",
-                    "scope_ids",
-                ),
-                rationale=(
-                    "Provides the workload-linked identity anchor and where that identity is "
-                    "attached."
-                ),
-            ),
-            ChainSourceSpec(
-                command="permissions",
-                minimum_fields=(
-                    "principal_id",
-                    "high_impact_roles",
-                    "all_role_names",
-                    "scope_ids",
-                    "privileged",
-                ),
-                rationale=(
-                    "Provides the Azure control power behind the attached identity."
-                ),
-            ),
-            ChainSourceSpec(
-                command="role-trusts",
-                minimum_fields=(
-                    "trust_type",
-                    "source_object_id",
-                    "target_object_id",
-                    "confidence",
-                    "summary",
-                ),
-                rationale=(
-                    "Provides the trust-edge view that can widen the path beyond direct RBAC."
-                ),
-            ),
             ChainSourceSpec(
                 command="tokens-credentials",
                 minimum_fields=(
@@ -453,7 +413,7 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
                     "operator_signal",
                 ),
                 rationale=(
-                    "Provides the direct token-opportunity clue when the workload can already mint "
+                    "Provides the token-capable compute foothold when a workload can already mint "
                     "or request tokens."
                 ),
             ),
@@ -462,15 +422,41 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
                 minimum_fields=(
                     "asset_id",
                     "asset_name",
+                    "asset_kind",
                     "identity_ids",
-                    "ingress_paths",
-                    "exposure_families",
-                    "summary",
+                    "identity_principal_id",
+                    "endpoints",
                 ),
                 rationale=(
-                    "Provides the workload context that ties exposure and identity together before "
-                    "the operator pivots deeper."
+                    "Provides the compute-anchor context that explains why the foothold should "
+                    "interrupt broader collection."
                 ),
+            ),
+            ChainSourceSpec(
+                command="managed-identities",
+                minimum_fields=(
+                    "id",
+                    "name",
+                    "identity_type",
+                    "principal_id",
+                    "attached_to",
+                    "scope_ids",
+                ),
+                rationale=(
+                    "Provides the explicit attached-identity anchor when AzureFox can name it "
+                    "cleanly from current scope."
+                ),
+            ),
+            ChainSourceSpec(
+                command="permissions",
+                minimum_fields=(
+                    "principal_id",
+                    "high_impact_roles",
+                    "all_role_names",
+                    "scope_ids",
+                    "privileged",
+                ),
+                rationale=("Provides the stronger Azure control visible behind the attached identity."),
             ),
         ),
     ),

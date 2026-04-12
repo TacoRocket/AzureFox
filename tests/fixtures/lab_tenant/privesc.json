@@ -10,6 +10,7 @@
       "impact_roles": [
         "Owner"
       ],
+      "priority": "high",
       "severity": "high",
       "current_identity": true,
       "operator_signal": "Current foothold already has direct control.",
@@ -32,6 +33,7 @@
       "impact_roles": [
         "Owner"
       ],
+      "priority": "medium",
       "severity": "high",
       "current_identity": false,
       "operator_signal": "Visible ingress-backed lead; not yet rooted in current foothold.",

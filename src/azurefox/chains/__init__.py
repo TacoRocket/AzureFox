@@ -9,7 +9,11 @@ from azurefox.chains.registry import (
 )
 from azurefox.chains.runner import implemented_chain_families, run_chain_family
 from azurefox.chains.scaffold import build_chains_scaffold_output
-from azurefox.chains.semantics import evaluate_chain_semantics, semantic_priority_sort_value
+from azurefox.chains.semantics import (
+    evaluate_chain_semantics,
+    semantic_priority_sort_value,
+    semantic_urgency_sort_value,
+)
 
 __all__ = [
     "CHAIN_FAMILIES",
@@ -24,4 +28,5 @@ __all__ = [
     "is_implemented_chain_family",
     "run_chain_family",
     "semantic_priority_sort_value",
+    "semantic_urgency_sort_value",
 ]

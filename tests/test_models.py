@@ -232,7 +232,7 @@ def test_principal_summary_defaults() -> None:
 
 
 def test_permission_summary_defaults() -> None:
-    permission = PermissionSummary(principal_id="p-1", principal_type="User")
+    permission = PermissionSummary(principal_id="p-1", principal_type="User", priority="low")
     assert permission.high_impact_roles == []
     assert permission.scope_ids == []
     assert permission.privileged is False
@@ -248,6 +248,7 @@ def test_privesc_path_defaults() -> None:
         principal_type="ServicePrincipal",
         path_type="direct-role-abuse",
         severity="high",
+        priority="high",
         summary="test",
     )
     assert path.starting_foothold is None

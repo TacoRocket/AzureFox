@@ -18,7 +18,7 @@ def _options(tmp_path: Path) -> GlobalOptions:
     )
 
 
-def test_write_artifacts_loot_uses_small_metadata_and_drops_empty_top_level_sections(
+def test_write_artifacts_loot_uses_semantic_high_band_for_tokens_credentials(
     tmp_path: Path,
 ) -> None:
     surfaces = [
@@ -54,9 +54,196 @@ def test_write_artifacts_loot_uses_small_metadata_and_drops_empty_top_level_sect
     assert "tenant_id" not in loot_payload["metadata"]
     assert "findings" not in loot_payload
     assert "issues" not in loot_payload
-    assert loot_payload["surfaces"] == json_payload["surfaces"][:10]
+    assert loot_payload["surfaces"] == json_payload["surfaces"][:3]
+    assert {row["priority"] for row in loot_payload["surfaces"]} == {"high"}
+    assert loot_payload["loot_scope"] == {
+        "selection": "semantic-high-priority",
+        "priority_band": "high",
+        "source_count": 12,
+        "returned_count": 3,
+    }
+
+
+def test_write_artifacts_loot_falls_back_to_ranked_cutoff_without_high_band(tmp_path: Path) -> None:
+    surfaces = [
+        {
+            "asset_name": f"target-{index:02d}",
+            "priority": "medium" if index < 11 else "low",
+            "summary": f"ranked target {index:02d}",
+        }
+        for index in range(12)
+    ]
+    payload = {
+        "metadata": {
+            "schema_version": SCHEMA_VERSION,
+            "command": "tokens-credentials",
+            "generated_at": "2026-04-06T12:00:00Z",
+        },
+        "surfaces": surfaces,
+        "findings": [],
+        "issues": [],
+    }
+
+    artifact_paths = write_artifacts("tokens-credentials", payload, _options(tmp_path))
+    loot_payload = json.loads(artifact_paths["loot"].read_text(encoding="utf-8"))
+
+    assert loot_payload["surfaces"] == surfaces[:10]
     assert loot_payload["loot_scope"] == {
         "selection": "top-ranked-targets",
+        "source_count": 12,
+        "returned_count": 10,
+        "limit": 10,
+    }
+
+
+def test_write_artifacts_loot_uses_semantic_high_band_for_cross_tenant(tmp_path: Path) -> None:
+    paths = [
+        {
+            "name": "contoso-owner",
+            "priority": "high",
+            "summary": "outside tenant has owner access",
+        },
+        {
+            "name": "external-sp",
+            "priority": "high",
+            "summary": "outside tenant app has high-impact role",
+        },
+        {
+            "name": "fabrikam-rg",
+            "priority": "low",
+            "summary": "resource group support path",
+        },
+    ]
+    payload = {
+        "metadata": {
+            "schema_version": SCHEMA_VERSION,
+            "command": "cross-tenant",
+            "generated_at": "2026-04-06T12:00:00Z",
+        },
+        "cross_tenant_paths": paths,
+        "findings": [],
+        "issues": [],
+    }
+
+    artifact_paths = write_artifacts("cross-tenant", payload, _options(tmp_path))
+    loot_payload = json.loads(artifact_paths["loot"].read_text(encoding="utf-8"))
+
+    assert loot_payload["cross_tenant_paths"] == paths[:2]
+    assert {row["priority"] for row in loot_payload["cross_tenant_paths"]} == {"high"}
+    assert loot_payload["loot_scope"] == {
+        "selection": "semantic-high-priority",
+        "priority_band": "high",
+        "source_count": 3,
+        "returned_count": 2,
+    }
+
+
+def test_write_artifacts_loot_uses_semantic_high_band_for_permissions(tmp_path: Path) -> None:
+    permissions = [
+        {
+            "display_name": "current-sp",
+            "priority": "high",
+            "summary": "current foothold direct control",
+        },
+        {
+            "display_name": "workload-sp",
+            "priority": "high",
+            "summary": "workload-linked privileged identity",
+        },
+        {
+            "display_name": "trust-sp",
+            "priority": "medium",
+            "summary": "trust expansion follow-on",
+        },
+    ]
+    payload = {
+        "metadata": {
+            "schema_version": SCHEMA_VERSION,
+            "command": "permissions",
+            "generated_at": "2026-04-06T12:00:00Z",
+        },
+        "permissions": permissions,
+        "issues": [],
+    }
+
+    artifact_paths = write_artifacts("permissions", payload, _options(tmp_path))
+    loot_payload = json.loads(artifact_paths["loot"].read_text(encoding="utf-8"))
+
+    assert loot_payload["permissions"] == permissions[:2]
+    assert {row["priority"] for row in loot_payload["permissions"]} == {"high"}
+    assert loot_payload["loot_scope"] == {
+        "selection": "semantic-high-priority",
+        "priority_band": "high",
+        "source_count": 3,
+        "returned_count": 2,
+    }
+
+
+def test_write_artifacts_loot_uses_semantic_high_band_for_privesc(tmp_path: Path) -> None:
+    paths = [
+        {
+            "principal": "current-sp",
+            "priority": "high",
+            "severity": "high",
+            "summary": "direct role abuse",
+        },
+        {
+            "principal": "vm-pivot",
+            "priority": "medium",
+            "severity": "high",
+            "summary": "public identity pivot",
+        },
+    ]
+    payload = {
+        "metadata": {
+            "schema_version": SCHEMA_VERSION,
+            "command": "privesc",
+            "generated_at": "2026-04-06T12:00:00Z",
+        },
+        "paths": paths,
+        "issues": [],
+    }
+
+    artifact_paths = write_artifacts("privesc", payload, _options(tmp_path))
+    loot_payload = json.loads(artifact_paths["loot"].read_text(encoding="utf-8"))
+
+    assert loot_payload["paths"] == paths[:1]
+    assert {row["priority"] for row in loot_payload["paths"]} == {"high"}
+    assert loot_payload["loot_scope"] == {
+        "selection": "semantic-high-priority",
+        "priority_band": "high",
+        "source_count": 2,
+        "returned_count": 1,
+    }
+
+
+def test_write_artifacts_loot_caps_semantic_high_band_at_limit(tmp_path: Path) -> None:
+    surfaces = [
+        {
+            "asset_name": f"target-{index:02d}",
+            "priority": "high",
+            "summary": f"ranked target {index:02d}",
+        }
+        for index in range(12)
+    ]
+    payload = {
+        "metadata": {
+            "schema_version": SCHEMA_VERSION,
+            "command": "tokens-credentials",
+            "generated_at": "2026-04-06T12:00:00Z",
+        },
+        "surfaces": surfaces,
+        "findings": [],
+        "issues": [],
+    }
+
+    artifact_paths = write_artifacts("tokens-credentials", payload, _options(tmp_path))
+    loot_payload = json.loads(artifact_paths["loot"].read_text(encoding="utf-8"))
+
+    assert loot_payload["surfaces"] == surfaces[:10]
+    assert loot_payload["loot_scope"] == {
+        "selection": "semantic-high-priority",
+        "priority_band": "high",
         "source_count": 12,
         "returned_count": 10,
         "limit": 10,

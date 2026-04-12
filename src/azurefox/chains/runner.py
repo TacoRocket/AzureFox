@@ -4,6 +4,7 @@ import re
 from collections import defaultdict
 from dataclasses import replace
 
+from azurefox.chains.compute_control import collect_compute_control_records
 from azurefox.chains.credential_path import collect_credential_path_records
 from azurefox.chains.deployment_path import (
     DeploymentSourceAssessment,
@@ -139,6 +140,8 @@ def run_chain_family(
         return _build_deployment_path_output(options, family_name, loaded)
     if family_name == "escalation-path":
         return _build_escalation_path_output(options, family_name, loaded)
+    if family_name == "compute-control":
+        return _build_compute_control_output(options, family_name, loaded)
 
     raise ValueError(f"Unsupported chain family '{family_name}'")
 
@@ -474,6 +477,25 @@ def _build_escalation_path_output(
     issues: list[CollectionIssue] = []
     for source_name in ("privesc", "permissions", "role-trusts"):
         issues.extend(getattr(loaded[source_name], "issues", []))
+
+    return _build_chains_command_output(
+        options=options,
+        family=family,
+        family_name=family_name,
+        paths=paths,
+        issues=issues,
+    )
+
+
+def _build_compute_control_output(
+    options: GlobalOptions,
+    family_name: str,
+    loaded: dict[str, object],
+) -> ChainsCommandOutput:
+    family = get_chain_family_spec(family_name)
+    assert family is not None  # pragma: no cover - guarded above
+
+    paths, issues = collect_compute_control_records(family_name, loaded)
 
     return _build_chains_command_output(
         options=options,

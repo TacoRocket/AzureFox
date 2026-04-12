@@ -12,6 +12,13 @@ from azurefox.render.table import render_table
 
 LOOT_TARGET_LIMIT = 10
 
+SEMANTIC_LOOT_BAND_COMMANDS = {
+    "permissions",
+    "privesc",
+    "tokens-credentials",
+    "cross-tenant",
+}
+
 PRIMARY_COLLECTION_KEYS = {
     "automation": "automation_accounts",
     "app-services": "app_services",
@@ -111,28 +118,22 @@ def _write_loot(command: str, payload: dict, loot_dir: Path) -> None:
 def _build_loot_payload(command: str, payload: dict) -> dict:
     loot_payload: dict = {}
     primary_key = _primary_collection_key(command, payload)
-    truncated_source_count: int | None = None
+    loot_scope: dict | None = None
 
     for key, value in payload.items():
         if key == "metadata":
             loot_payload[key] = _build_loot_metadata(value)
             continue
         if key == primary_key and isinstance(value, list):
-            loot_payload[key] = value[:LOOT_TARGET_LIMIT]
-            if len(value) > LOOT_TARGET_LIMIT:
-                truncated_source_count = len(value)
+            selected_rows, loot_scope = _select_loot_rows(command, value)
+            loot_payload[key] = selected_rows
             continue
         if key in {"findings", "issues"} and not value:
             continue
         loot_payload[key] = value
 
-    if primary_key and truncated_source_count is not None:
-        loot_payload["loot_scope"] = {
-            "selection": "top-ranked-targets",
-            "source_count": truncated_source_count,
-            "returned_count": len(loot_payload[primary_key]),
-            "limit": LOOT_TARGET_LIMIT,
-        }
+    if primary_key and loot_scope is not None:
+        loot_payload["loot_scope"] = loot_scope
     return loot_payload
 
 
@@ -144,6 +145,36 @@ def _build_loot_metadata(metadata: object) -> object:
         for key in ("schema_version", "command")
         if metadata.get(key) is not None
     }
+
+
+def _select_loot_rows(command: str, rows: list[object]) -> tuple[list[object], dict | None]:
+    if command in SEMANTIC_LOOT_BAND_COMMANDS:
+        high_priority_rows = [
+            row
+            for row in rows
+            if isinstance(row, dict) and str(row.get("priority") or "").lower() == "high"
+        ]
+        if high_priority_rows:
+            selected_rows = high_priority_rows[:LOOT_TARGET_LIMIT]
+            loot_scope = {
+                "selection": "semantic-high-priority",
+                "priority_band": "high",
+                "source_count": len(rows),
+                "returned_count": len(selected_rows),
+            }
+            if len(high_priority_rows) > LOOT_TARGET_LIMIT:
+                loot_scope["limit"] = LOOT_TARGET_LIMIT
+            return selected_rows, loot_scope
+
+    selected_rows = rows[:LOOT_TARGET_LIMIT]
+    if len(rows) > LOOT_TARGET_LIMIT:
+        return selected_rows, {
+            "selection": "top-ranked-targets",
+            "source_count": len(rows),
+            "returned_count": len(selected_rows),
+            "limit": LOOT_TARGET_LIMIT,
+        }
+    return selected_rows, None
 
 
 def _write_json(command: str, payload: dict, outdir: Path) -> Path:

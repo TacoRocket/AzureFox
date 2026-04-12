@@ -18,6 +18,7 @@ from azurefox.chains.semantics import (
     ChainSemanticContext,
     evaluate_chain_semantics,
     semantic_priority_sort_value,
+    semantic_urgency_sort_value,
 )
 from azurefox.models.common import RoleTrustSummary
 
@@ -78,6 +79,23 @@ def test_chain_semantics_have_default_path_for_other_families() -> None:
     assert decision.priority == "high"
     assert decision.urgency == "review-soon"
     assert "deployment evidence" in decision.next_review
+
+
+def test_compute_control_semantics_promote_direct_token_opportunity() -> None:
+    decision = evaluate_chain_semantics(
+        ChainSemanticContext(
+            family="compute-control",
+            clue_type="managed-identity-token",
+            target_service="azure-control",
+            target_resolution="path-confirmed",
+            target_count=1,
+            path_concept="direct-token-opportunity",
+        )
+    )
+
+    assert decision.priority == "high"
+    assert decision.urgency == "pivot-now"
+    assert "compute foothold" in decision.next_review
 
 
 def test_deployment_path_semantics_promote_narrowed_devops_targets() -> None:
@@ -565,6 +583,11 @@ def test_deployment_why_care_definition_edit_does_not_claim_trusted_input_poison
 def test_semantic_priority_sort_value_orders_highest_first() -> None:
     assert semantic_priority_sort_value("high") < semantic_priority_sort_value("medium")
     assert semantic_priority_sort_value("medium") < semantic_priority_sort_value("low")
+
+
+def test_semantic_urgency_sort_value_orders_fastest_follow_up_first() -> None:
+    assert semantic_urgency_sort_value("pivot-now") < semantic_urgency_sort_value("review-soon")
+    assert semantic_urgency_sort_value("review-soon") < semantic_urgency_sort_value("bookmark")
 
 
 def test_blocked_candidate_record_does_not_leak_candidate_names_into_summary() -> None:

@@ -302,9 +302,13 @@ def test_help_command_chains_topic_sets_planned_runtime_expectations() -> None:
     assert result.exit_code == 0
     assert "AzureFox Help :: chains" in result.stdout
     assert "implemented command" in result.stdout
-    assert "credential-path, deployment-path, and escalation-path are exposed now" in result.stdout
+    assert (
+        "credential-path, deployment-path, escalation-path, and compute-control are exposed now"
+        in result.stdout
+    )
     assert "escalation-path" in result.stdout
-    assert "workload-identity-path remains planned" in result.stdout
+    assert "compute-control currently ships a narrow direct-token-opportunity v1" in result.stdout
+    assert "compute-control" in result.stdout
     assert "credential-path" in result.stdout
     assert "claim_boundary" in result.stdout
     assert "current_gap" in result.stdout
@@ -451,5 +455,5 @@ def test_normalize_argv_command_level_global_options() -> None:
         "whoami",
     ]
     assert _normalize_argv(
-        ["azurefox", "all-checks", "--section", "identity", "--output", "json"]
-    ) == ["azurefox", "all-checks", "--section", "identity", "--output", "json"]
+        ["azurefox", "custom-command", "--section", "identity", "--output", "json"]
+    ) == ["azurefox", "custom-command", "--section", "identity", "--output", "json"]
