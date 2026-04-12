@@ -520,11 +520,7 @@ def collect_managed_identities(
     identities = _merge_managed_identity_rows(
         data.get("identities", []),
         _system_assigned_identities_from_vmss(vmss_data.get("vmss_assets", [])),
-        *[
-            synthesized_identity
-            for source in workload_sources
-            for synthesized_identity in _managed_identity_workload_rows(source)
-        ],
+        *[_managed_identity_workload_rows(source) for source in workload_sources],
     )
     identities = _enrich_managed_identity_rows(
         identities,

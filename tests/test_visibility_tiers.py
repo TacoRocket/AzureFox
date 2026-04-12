@@ -616,7 +616,7 @@ def test_permissions_visibility_tiers_degrade_honestly(
             "current scope does not show the backing principal cleanly",
             "Check vms for the host context behind this workload pivot; current scope does not yet "
             "show direct control on this identity.",
-            None,
+            "permission_denied",
             id=f"medium-{TIER_ALIASES['medium']}",
         ),
         pytest.param(
