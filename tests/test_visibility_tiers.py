@@ -603,7 +603,7 @@ def test_permissions_visibility_tiers_degrade_honestly(
     [
         pytest.param(
             HighVisibilityProvider,
-            "Public VM workload pivot; direct control visible.",
+            "Public VM workload pivot; direct control visible; reused across 2 workloads.",
             "direct control through high-impact roles",
             "Check permissions for direct control on this identity, then vms for the host context "
             "behind the workload pivot.",
@@ -612,7 +612,7 @@ def test_permissions_visibility_tiers_degrade_honestly(
         ),
         pytest.param(
             MediumVisibilityProvider,
-            "Public VM workload pivot; visibility blocked.",
+            "Public VM workload pivot; visibility blocked; reused across 2 workloads.",
             "current scope does not show the backing principal cleanly",
             "Check vms for the host context behind this workload pivot; current scope does not yet "
             "show direct control on this identity.",

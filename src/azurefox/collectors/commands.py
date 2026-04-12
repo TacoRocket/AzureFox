@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from azurefox.collectors.provider import BaseProvider
 from azurefox.config import GlobalOptions
 from azurefox.correlation.findings import (
@@ -58,6 +60,7 @@ from azurefox.models.common import CommandMetadata
 from azurefox.permissions_hints import (
     permissions_next_review_hint,
     permissions_operator_signal,
+    permissions_priority,
     permissions_summary,
 )
 from azurefox.role_trust_hints import (
@@ -505,11 +508,30 @@ def collect_managed_identities(
     data = provider.managed_identities()
     vms_data = provider.vms()
     vmss_data = provider.vmss()
-    identities = _enrich_managed_identity_rows(
+    workload_sources = [
+        _load_managed_identity_workload_source(provider, spec)
+        for spec in _MANAGED_IDENTITY_WORKLOAD_SOURCES
+    ]
+    web_workloads = [
+        asset
+        for source in workload_sources
+        for asset in source.assets
+    ]
+    identities = _merge_managed_identity_rows(
         data.get("identities", []),
+        _system_assigned_identities_from_vmss(vmss_data.get("vmss_assets", [])),
+        *[
+            synthesized_identity
+            for source in workload_sources
+            for synthesized_identity in _managed_identity_workload_rows(source)
+        ],
+    )
+    identities = _enrich_managed_identity_rows(
+        identities,
         data.get("role_assignments", []),
         vms_data.get("vm_assets", []),
         vmss_data.get("vmss_assets", []),
+        web_workloads,
     )
     findings = build_identity_findings(
         identities,
@@ -525,6 +547,11 @@ def collect_managed_identities(
                 *data.get("issues", []),
                 *vms_data.get("issues", []),
                 *vmss_data.get("issues", []),
+                *[
+                    issue
+                    for source in workload_sources
+                    for issue in source.issues
+                ],
             ],
         }
     )
@@ -1239,6 +1266,13 @@ def _enrich_permission_rows(permissions: list[dict], principals: list[dict]) -> 
             workload_visibility_blocked=workload_visibility_blocked,
             trust_expansion_follow_on=trust_expansion_follow_on,
         )
+        item["priority"] = permissions_priority(
+            privileged=privileged,
+            is_current_identity=is_current_identity,
+            has_workload_pivot=has_workload_pivot,
+            workload_visibility_blocked=workload_visibility_blocked,
+            trust_expansion_follow_on=trust_expansion_follow_on,
+        )
         item["next_review"] = permissions_next_review_hint(
             privileged=privileged,
             is_current_identity=is_current_identity,
@@ -1353,8 +1387,9 @@ def _enrich_role_trust_rows(trusts: list[dict]) -> list[dict]:
     return enriched
 
 
-def _permission_row_sort_key(item: dict) -> tuple[bool, int, int, int, int, str, str]:
+def _permission_row_sort_key(item: dict) -> tuple[int, bool, int, int, int, int, str, str]:
     return (
+        _priority_rank(item.get("priority")),
         not bool(item.get("privileged")),
         _permission_follow_on_rank(item.get("next_review")),
         _int_or_zero(item.get("_workload_pivot_rank")),
@@ -1400,6 +1435,7 @@ def _enrich_managed_identity_rows(
     role_assignments: list[dict],
     vm_assets: list[dict],
     vmss_assets: list[dict],
+    web_workloads: list[dict],
 ) -> list[dict]:
     assignments_by_principal: dict[str, list[str]] = {}
     for assignment in role_assignments:
@@ -1411,6 +1447,7 @@ def _enrich_managed_identity_rows(
 
     vm_by_id = {item.get("id"): item for item in vm_assets if item.get("id")}
     vmss_by_id = {item.get("id"): item for item in vmss_assets if item.get("id")}
+    workload_by_id = {item.get("id"): item for item in web_workloads if item.get("id")}
 
     enriched: list[dict] = []
     for identity in identities:
@@ -1419,6 +1456,7 @@ def _enrich_managed_identity_rows(
             item.get("attached_to", []),
             vm_by_id,
             vmss_by_id,
+            workload_by_id,
         )
         privileged_roles = sorted(
             {
@@ -1455,17 +1493,31 @@ def _enrich_managed_identity_rows(
         )
         enriched.append(item)
 
-    return sorted(enriched, key=_managed_identity_sort_key)
+    return sorted(
+        enriched,
+        key=lambda item: _managed_identity_sort_key(
+            item,
+            vm_by_id,
+            vmss_by_id,
+            workload_by_id,
+        ),
+    )
 
 
 def _managed_identity_primary_attachment(
     attached_to: object,
     vm_by_id: dict[str, dict],
     vmss_by_id: dict[str, dict],
+    workload_by_id: dict[str, dict],
 ) -> dict[str, object]:
     attachment_ids = [str(value) for value in attached_to or [] if value]
     candidates = [
-        _managed_identity_attachment_context(value, vm_by_id, vmss_by_id)
+        _managed_identity_attachment_context(
+            value,
+            vm_by_id,
+            vmss_by_id,
+            workload_by_id,
+        )
         for value in attachment_ids
     ]
     candidates = [item for item in candidates if item]
@@ -1478,15 +1530,8 @@ def _managed_identity_attachment_context(
     resource_id: str,
     vm_by_id: dict[str, dict],
     vmss_by_id: dict[str, dict],
+    workload_by_id: dict[str, dict],
 ) -> dict[str, object]:
-    vm_asset = vm_by_id.get(resource_id)
-    if vm_asset:
-        return {
-            "kind": "VM",
-            "name": vm_asset.get("name") or _arm_name(resource_id),
-            "exposed": bool(vm_asset.get("public_ips")),
-        }
-
     vmss_asset = vmss_by_id.get(resource_id)
     if vmss_asset:
         return {
@@ -1496,6 +1541,24 @@ def _managed_identity_attachment_context(
                 _int_or_zero(vmss_asset.get(key)) > 0
                 for key in ("public_ip_configuration_count", "inbound_nat_pool_count")
             ),
+        }
+
+    vm_asset = vm_by_id.get(resource_id)
+    if vm_asset:
+        return {
+            "kind": "VM",
+            "name": vm_asset.get("name") or _arm_name(resource_id),
+            "exposed": bool(vm_asset.get("public_ips")),
+        }
+
+    workload_asset = workload_by_id.get(resource_id)
+    if workload_asset:
+        asset_kind = str(workload_asset.get("asset_kind") or "WebWorkload")
+        return {
+            "kind": asset_kind,
+            "name": workload_asset.get("name") or _arm_name(resource_id),
+            "exposed": bool(workload_asset.get("default_hostname"))
+            or str(workload_asset.get("public_network_access") or "").lower() == "enabled",
         }
 
     lowered = resource_id.lower()
@@ -1540,7 +1603,12 @@ def _managed_identity_attachment_sort_key(item: dict[str, object]) -> tuple[bool
     )
 
 
-def _managed_identity_sort_key(item: dict) -> tuple[bool, bool, bool, int, str, str]:
+def _managed_identity_sort_key(
+    item: dict,
+    vm_by_id: dict[str, dict],
+    vmss_by_id: dict[str, dict],
+    workload_by_id: dict[str, dict],
+) -> tuple[bool, bool, bool, int, str, str]:
     operator_signal = str(item.get("operator_signal") or "")
     exposed = "workload pivot" in operator_signal.lower() and (
         operator_signal.startswith("Public") or operator_signal.startswith("Exposed")
@@ -1555,10 +1623,11 @@ def _managed_identity_sort_key(item: dict) -> tuple[bool, bool, bool, int, str, 
         "WebWorkload": 4,
         None: 9,
     }
-    primary_kind = _managed_identity_attachment_context(
-        str((item.get("attached_to") or [""])[0]),
-        {},
-        {},
+    primary_kind = _managed_identity_primary_attachment(
+        item.get("attached_to", []),
+        vm_by_id,
+        vmss_by_id,
+        workload_by_id,
     ).get("kind")
     return (
         not exposed,
@@ -1572,6 +1641,224 @@ def _managed_identity_sort_key(item: dict) -> tuple[bool, bool, bool, int, str, 
 
 def _arm_name(resource_id: str) -> str:
     return resource_id.rstrip("/").split("/")[-1]
+
+
+def _optional_provider_data(
+    provider: object,
+    method_name: str,
+    collection_key: str,
+) -> dict[str, list[dict]]:
+    method = getattr(provider, method_name, None)
+    if not callable(method):
+        return {collection_key: [], "issues": []}
+    return method()
+
+
+@dataclass(frozen=True, slots=True)
+class _ManagedIdentityWorkloadSourceSpec:
+    method_name: str
+    collection_key: str
+    asset_kind: str
+
+
+@dataclass(frozen=True, slots=True)
+class _ManagedIdentityWorkloadSource:
+    assets: list[dict]
+    issues: list[dict]
+    spec: _ManagedIdentityWorkloadSourceSpec
+
+
+_MANAGED_IDENTITY_WORKLOAD_SOURCES = (
+    _ManagedIdentityWorkloadSourceSpec(
+        method_name="app_services",
+        collection_key="app_services",
+        asset_kind="AppService",
+    ),
+    _ManagedIdentityWorkloadSourceSpec(
+        method_name="functions",
+        collection_key="function_apps",
+        asset_kind="FunctionApp",
+    ),
+)
+
+
+def _load_managed_identity_workload_source(
+    provider: object,
+    spec: _ManagedIdentityWorkloadSourceSpec,
+) -> _ManagedIdentityWorkloadSource:
+    data = _optional_provider_data(provider, spec.method_name, spec.collection_key)
+    assets = [
+        {
+            **item,
+            "asset_kind": spec.asset_kind,
+        }
+        for item in data.get(spec.collection_key, [])
+    ]
+    return _ManagedIdentityWorkloadSource(
+        assets=assets,
+        issues=data.get("issues", []),
+        spec=spec,
+    )
+
+
+def _managed_identity_workload_rows(source: _ManagedIdentityWorkloadSource) -> list[dict]:
+    return [
+        *_system_assigned_identities_from_web_assets(
+            source.assets,
+            asset_kind=source.spec.asset_kind,
+        ),
+        *_user_assigned_identities_from_workload_assets(source.assets),
+    ]
+
+
+def _merge_managed_identity_rows(*groups: list[dict]) -> list[dict]:
+    merged_by_id: dict[str, dict] = {}
+    id_by_semantic_key: dict[tuple[str, str, str], str] = {}
+    for group in groups:
+        for item in group:
+            identity_id = str(item.get("id") or "").strip()
+            if not identity_id:
+                continue
+            semantic_key = _managed_identity_semantic_key(item)
+            existing_id = merged_by_id.get(identity_id, {}).get("id") or id_by_semantic_key.get(
+                semantic_key
+            )
+            existing = merged_by_id.get(existing_id or identity_id)
+            if existing is None:
+                merged_by_id[identity_id] = {
+                    **item,
+                    "attached_to": [str(value) for value in item.get("attached_to") or [] if value],
+                    "scope_ids": [str(value) for value in item.get("scope_ids") or [] if value],
+                }
+                id_by_semantic_key[semantic_key] = identity_id
+                continue
+
+            for field_name in ("name", "identity_type", "principal_id", "client_id"):
+                if not existing.get(field_name) and item.get(field_name):
+                    existing[field_name] = item.get(field_name)
+            existing["attached_to"] = _dedupe_strings(
+                [
+                    *existing.get("attached_to", []),
+                    *[str(value) for value in item.get("attached_to") or [] if value],
+                ]
+            )
+            existing["scope_ids"] = _dedupe_strings(
+                [
+                    *existing.get("scope_ids", []),
+                    *[str(value) for value in item.get("scope_ids") or [] if value],
+                ]
+            )
+    return list(merged_by_id.values())
+
+
+def _system_assigned_identities_from_vmss(vmss_assets: list[dict]) -> list[dict]:
+    identities: list[dict] = []
+    for item in vmss_assets:
+        principal_id = str(item.get("principal_id") or "").strip()
+        if not principal_id:
+            continue
+        identity_ids = [str(value) for value in item.get("identity_ids") or [] if value]
+        asset_id = str(item.get("id") or "").strip()
+        identity_id = next(
+            (value for value in identity_ids if value.endswith("/identities/system")),
+            f"{asset_id}/identities/system",
+        )
+        identities.append(
+            {
+                "id": identity_id,
+                "name": f"{item.get('name') or _arm_name(asset_id)}-system",
+                "identity_type": "systemAssigned",
+                "principal_id": principal_id,
+                "client_id": item.get("client_id"),
+                "attached_to": [asset_id] if asset_id else [],
+                "scope_ids": [_subscription_scope_from_arm_id(asset_id)] if asset_id else [],
+            }
+        )
+    return identities
+
+
+def _system_assigned_identities_from_web_assets(
+    assets: list[dict],
+    *,
+    asset_kind: str,
+) -> list[dict]:
+    identities: list[dict] = []
+    for item in assets:
+        identity_type = str(item.get("workload_identity_type") or "")
+        principal_id = str(item.get("workload_principal_id") or "").strip()
+        if "systemassigned" not in identity_type.lower() or not principal_id:
+            continue
+
+        asset_id = str(item.get("id") or "").strip()
+        if not asset_id:
+            continue
+        identities.append(
+            {
+                "id": f"{asset_id}/identities/system",
+                "name": f"{item.get('name') or _arm_name(asset_id)}-system",
+                "identity_type": "systemAssigned",
+                "principal_id": principal_id,
+                "client_id": item.get("workload_client_id"),
+                "attached_to": [asset_id],
+                "scope_ids": [_subscription_scope_from_arm_id(asset_id)],
+                "operator_signal": (
+                    f"{asset_kind} system identity anchor synthesized from workload data."
+                ),
+            }
+        )
+    return identities
+
+
+def _user_assigned_identities_from_workload_assets(assets: list[dict]) -> list[dict]:
+    identities: list[dict] = []
+    for item in assets:
+        asset_id = str(item.get("id") or "").strip()
+        if not asset_id:
+            continue
+        identity_ids = [str(value) for value in item.get("workload_identity_ids") or [] if value]
+        for identity_id in identity_ids:
+            scope_id = _subscription_scope_from_arm_id(identity_id)
+            identities.append(
+                {
+                    "id": identity_id,
+                    "name": _arm_name(identity_id),
+                    "identity_type": "userAssigned",
+                    "principal_id": None,
+                    "client_id": None,
+                    "attached_to": [asset_id],
+                    "scope_ids": [scope_id] if scope_id else [],
+                }
+            )
+    return identities
+
+
+def _subscription_scope_from_arm_id(resource_id: str) -> str:
+    parts = resource_id.split("/")
+    try:
+        subscription_id = parts[parts.index("subscriptions") + 1]
+    except (ValueError, IndexError):
+        return ""
+    return f"/subscriptions/{subscription_id}"
+
+
+def _managed_identity_semantic_key(item: dict) -> tuple[str, str, str]:
+    attachment_key = ",".join(
+        sorted(str(value) for value in item.get("attached_to") or [] if value)
+    )
+    return (
+        str(item.get("identity_type") or "").strip().lower(),
+        str(item.get("name") or "").strip().lower(),
+        attachment_key,
+    )
+
+
+def _dedupe_strings(values: list[object]) -> list[str]:
+    items: list[str] = []
+    for value in values:
+        text = str(value or "")
+        if text and text not in items:
+            items.append(text)
+    return items
 
 
 def _int_or_zero(value: object) -> int:

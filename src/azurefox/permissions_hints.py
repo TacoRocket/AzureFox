@@ -46,6 +46,21 @@ def permissions_next_review_hint(
     return "Check rbac for the exact assignment scope behind this direct-control row."
 
 
+def permissions_priority(
+    *,
+    privileged: bool,
+    is_current_identity: bool,
+    has_workload_pivot: bool,
+    workload_visibility_blocked: bool,
+    trust_expansion_follow_on: bool,
+) -> str:
+    if not privileged:
+        return "low"
+    if is_current_identity or has_workload_pivot:
+        return "high"
+    return "medium"
+
+
 def permissions_summary(
     *,
     principal_name: str,

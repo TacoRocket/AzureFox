@@ -85,6 +85,7 @@ class PermissionSummary(BaseModel):
     principal_id: str
     display_name: str | None = None
     principal_type: str
+    priority: str
     high_impact_roles: list[str] = Field(default_factory=list)
     all_role_names: list[str] = Field(default_factory=list)
     role_assignment_count: int = 0
@@ -106,6 +107,7 @@ class PrivescPathSummary(BaseModel):
     asset: str | None = None
     impact_roles: list[str] = Field(default_factory=list)
     severity: str
+    priority: str
     current_identity: bool = False
     operator_signal: str | None = None
     proven_path: str | None = None

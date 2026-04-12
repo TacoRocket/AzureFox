@@ -1,7 +1,9 @@
 {
   "issues": [],
   "metadata": {
+    "auth_mode": null,
     "command": "permissions",
+    "devops_organization": null,
     "generated_at": "<generated_at>",
     "schema_version": "1.3.0",
     "subscription_id": "22222222-2222-2222-2222-222222222222",
@@ -20,6 +22,7 @@
       "is_current_identity": true,
       "next_review": "Check privesc for the direct abuse or escalation path behind this current identity.",
       "operator_signal": "Direct control visible; current foothold.",
+      "priority": "high",
       "principal_id": "33333333-3333-3333-3333-333333333333",
       "principal_type": "ServicePrincipal",
       "privileged": true,
@@ -41,6 +44,7 @@
       "is_current_identity": false,
       "next_review": "Check role-trusts for trust expansion around who can influence this principal.",
       "operator_signal": "Direct control visible; trust expansion follow-on.",
+      "priority": "medium",
       "principal_id": "12121212-1212-1212-1212-121212121212",
       "principal_type": "ServicePrincipal",
       "privileged": true,
@@ -60,6 +64,7 @@
       "is_current_identity": false,
       "next_review": "Check rbac for the exact assignment evidence behind this lower-signal row.",
       "operator_signal": "Direct control not confirmed.",
+      "priority": "low",
       "principal_id": "44444444-4444-4444-4444-444444444444",
       "principal_type": "User",
       "privileged": false,

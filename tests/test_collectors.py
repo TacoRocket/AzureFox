@@ -3147,6 +3147,28 @@ def test_collect_managed_identities_sorts_and_blocks_visibility() -> None:
         def vmss(self) -> dict:
             return {"vmss_assets": [], "issues": []}
 
+        def app_services(self) -> dict:
+            return {
+                "app_services": [
+                    {
+                        "id": (
+                            "/subscriptions/test/resourceGroups/rg/providers/"
+                            "Microsoft.Web/sites/app-edge"
+                        ),
+                        "name": "app-edge",
+                        "default_hostname": "app-edge.azurewebsites.net",
+                        "public_network_access": "Enabled",
+                        "workload_identity_type": "SystemAssigned",
+                        "workload_principal_id": "principal-app-edge",
+                        "workload_client_id": "client-app-edge",
+                    }
+                ],
+                "issues": [],
+            }
+
+        def functions(self) -> dict:
+            return {"function_apps": [], "issues": []}
+
     options = GlobalOptions(
         tenant=None,
         subscription=None,
@@ -3162,12 +3184,73 @@ def test_collect_managed_identities_sorts_and_blocks_visibility() -> None:
     assert (
         output.identities[0].operator_signal == "Public VM workload pivot; direct control visible."
     )
-    assert output.identities[1].operator_signal == "Web workload pivot; visibility blocked."
+    assert (
+        output.identities[1].operator_signal
+        == "Public App Service workload pivot; direct control not confirmed."
+    )
     assert (
         output.identities[1].next_review
-        == "Check env-vars for the backing workload context; current scope does not yet show "
-        "direct control on this identity."
+        == "Check env-vars for secret-bearing config on this workload, then permissions to "
+        "confirm direct control."
     )
+
+
+def test_collect_managed_identities_uses_identity_scope_and_propagates_optional_source_issues() -> None:
+    class StubProvider:
+        def metadata_context(self) -> dict[str, str | None]:
+            return {"tenant_id": "tenant-1", "subscription_id": "sub-1"}
+
+        def managed_identities(self) -> dict:
+            return {"identities": [], "role_assignments": [], "issues": []}
+
+        def vms(self) -> dict:
+            return {"vm_assets": [], "issues": []}
+
+        def vmss(self) -> dict:
+            return {"vmss_assets": [], "issues": []}
+
+        def app_services(self) -> dict:
+            return {
+                "app_services": [
+                    {
+                        "id": (
+                            "/subscriptions/workload-sub/resourceGroups/rg/providers/"
+                            "Microsoft.Web/sites/app-edge"
+                        ),
+                        "name": "app-edge",
+                        "workload_identity_ids": [
+                            (
+                                "/subscriptions/identity-sub/resourceGroups/identities/providers/"
+                                "Microsoft.ManagedIdentity/userAssignedIdentities/ua-cross-sub"
+                            )
+                        ],
+                    }
+                ],
+                "issues": [{"kind": "partial_read", "message": "app-services partial read"}],
+            }
+
+        def functions(self) -> dict:
+            return {
+                "function_apps": [],
+                "issues": [{"kind": "forbidden", "message": "functions forbidden"}],
+            }
+
+    options = GlobalOptions(
+        tenant=None,
+        subscription=None,
+        output=OutputMode.JSON,
+        outdir=Path("/tmp"),
+        debug=False,
+        role_trusts_mode=RoleTrustsMode.FAST,
+    )
+
+    output = collect_managed_identities(StubProvider(), options)
+
+    assert output.identities[0].scope_ids == ["/subscriptions/identity-sub"]
+    assert output.issues[-2:] == [
+        {"kind": "partial_read", "message": "app-services partial read"},
+        {"kind": "forbidden", "message": "functions forbidden"},
+    ]
 
 
 def test_collect_inventory_metadata_falls_back_to_provider_context(
@@ -3305,6 +3388,7 @@ def test_principal_sort_key_prioritizes_high_impact_then_workload_attachment() -
 def test_collect_permissions(fixture_provider, options) -> None:
     output = collect_permissions(fixture_provider, options)
     assert len(output.permissions) == 3
+    assert output.permissions[0].priority == "high"
     assert output.permissions[0].privileged is True
     assert output.permissions[0].high_impact_roles == ["Owner"]
     assert output.permissions[0].operator_signal == "Direct control visible; current foothold."
@@ -3314,6 +3398,7 @@ def test_collect_permissions(fixture_provider, options) -> None:
     )
     assert "direct control visible" in (output.permissions[0].summary or "").lower()
     assert output.permissions[1].display_name == "aa-hybrid-prod-mi"
+    assert output.permissions[1].priority == "medium"
     assert output.permissions[1].high_impact_roles == ["Contributor"]
     assert output.permissions[1].next_review == (
         "Check role-trusts for trust expansion around who can influence this principal."
@@ -3454,6 +3539,7 @@ def test_collect_permissions_prefers_workload_pivot_then_trust_expansion() -> No
 
     output = collect_permissions(StubProvider(), options)
 
+    assert [item.priority for item in output.permissions] == ["high", "high", "high", "medium"]
     assert [item.principal_id for item in output.permissions] == [
         "current-sp",
         "workload-sp",
@@ -3487,6 +3573,8 @@ def test_collect_permissions_prefers_workload_pivot_then_trust_expansion() -> No
 def test_collect_privesc(fixture_provider, options) -> None:
     output = collect_privesc(fixture_provider, options)
     assert len(output.paths) == 2
+    assert [item.priority for item in output.paths] == ["high", "medium"]
+    assert [item.severity for item in output.paths] == ["high", "high"]
     assert output.paths[0].path_type == "direct-role-abuse"
     assert output.paths[0].starting_foothold == "azurefox-lab-sp (current foothold)"
     assert output.paths[0].operator_signal == "Current foothold already has direct control."
@@ -3509,10 +3597,11 @@ def test_collect_privesc(fixture_provider, options) -> None:
     )
 
 
-def test_privesc_sort_key_prioritizes_severity_then_current_identity_then_path_type() -> None:
+def test_privesc_sort_key_prioritizes_priority_then_current_identity_then_path_type() -> None:
     paths = [
         {
             "severity": "medium",
+            "priority": "medium",
             "current_identity": False,
             "path_type": "direct-role-abuse",
             "principal": "medium-row",
@@ -3520,6 +3609,7 @@ def test_privesc_sort_key_prioritizes_severity_then_current_identity_then_path_t
         },
         {
             "severity": "high",
+            "priority": "medium",
             "current_identity": False,
             "path_type": "public-identity-pivot",
             "principal": "public-pivot",
@@ -3527,6 +3617,7 @@ def test_privesc_sort_key_prioritizes_severity_then_current_identity_then_path_t
         },
         {
             "severity": "high",
+            "priority": "high",
             "current_identity": True,
             "path_type": "direct-role-abuse",
             "principal": "current-owner",
@@ -3755,8 +3846,16 @@ def test_collect_role_trusts_full_mode_surfaces_extra_application_edges(options)
 
 def test_collect_managed_identities(fixture_provider, options) -> None:
     output = collect_managed_identities(fixture_provider, options)
-    assert len(output.identities) == 1
+    assert len(output.identities) == 6
     assert len(output.findings) == 1
+    assert {item.name for item in output.identities} == {
+        "ua-app",
+        "ua-orders",
+        "app-empty-mi-system",
+        "app-public-api-system",
+        "func-orders-system",
+        "vmss-edge-01-system",
+    }
 
 
 def test_collect_keyvault(fixture_provider, options) -> None:

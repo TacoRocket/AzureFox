@@ -62,7 +62,7 @@ def test_chain_registry_keeps_first_family_order() -> None:
         "credential-path",
         "deployment-path",
         "escalation-path",
-        "workload-identity-path",
+        "compute-control",
     )
 
 
@@ -71,9 +71,10 @@ def test_chain_registry_implemented_state_drives_runnable_families() -> None:
         "credential-path",
         "deployment-path",
         "escalation-path",
+        "compute-control",
     )
     assert is_implemented_chain_family("credential-path") is True
-    assert is_implemented_chain_family("workload-identity-path") is False
+    assert is_implemented_chain_family("compute-control") is True
 
 
 def test_chain_registry_scaffold_fields_exist_on_backing_models() -> None:
@@ -103,11 +104,12 @@ def test_build_chains_scaffold_output_returns_selected_family_only() -> None:
 
 
 def test_build_chains_scaffold_output_marks_planned_family_state() -> None:
-    output = build_chains_scaffold_output("workload-identity-path")
+    output = build_chains_scaffold_output("compute-control")
 
     assert len(output.families) == 1
-    assert output.families[0].family == "workload-identity-path"
-    assert output.families[0].state == "planned"
+    assert output.families[0].family == "compute-control"
+    assert output.families[0].state == "implemented"
+    assert "intentionally narrow in v1" in output.families[0].current_gap
 
 
 def test_build_chains_scaffold_output_raises_for_unknown_family() -> None:

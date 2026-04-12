@@ -8,6 +8,12 @@ SEMANTIC_PRIORITY_ORDER = {
     "low": 2,
 }
 
+SEMANTIC_URGENCY_ORDER = {
+    "pivot-now": 0,
+    "review-soon": 1,
+    "bookmark": 2,
+}
+
 
 @dataclass(frozen=True, slots=True)
 class ChainSemanticContext:
@@ -36,6 +42,10 @@ def evaluate_chain_semantics(context: ChainSemanticContext) -> ChainSemanticDeci
 
 def semantic_priority_sort_value(priority: str) -> int:
     return SEMANTIC_PRIORITY_ORDER.get(priority, 9)
+
+
+def semantic_urgency_sort_value(urgency: str | None) -> int:
+    return SEMANTIC_URGENCY_ORDER.get(str(urgency or ""), 9)
 
 
 def _credential_path_semantics(context: ChainSemanticContext) -> ChainSemanticDecision:
@@ -299,9 +309,33 @@ def _escalation_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
     return _default_chain_semantics(context)
 
 
+def _compute_control_semantics(context: ChainSemanticContext) -> ChainSemanticDecision:
+    if context.path_concept == "direct-token-opportunity":
+        if context.target_resolution == "path-confirmed":
+            return ChainSemanticDecision(
+                priority="high",
+                urgency="pivot-now",
+                next_review=(
+                    "Validate the compute foothold and attached identity path before deeper "
+                    "Azure control follow-up."
+                ),
+            )
+        if context.target_resolution == "visibility blocked":
+            return ChainSemanticDecision(
+                priority="medium",
+                urgency="review-soon",
+                next_review=(
+                    "Restore workload or identity visibility before treating this compute path "
+                    "like a defended Azure-control pivot."
+                ),
+            )
+
+    return _default_chain_semantics(context)
+
+
 _FAMILY_EVALUATORS = {
     "credential-path": _credential_path_semantics,
     "deployment-path": _deployment_path_semantics,
     "escalation-path": _escalation_path_semantics,
-    "workload-identity-path": _default_chain_semantics,
+    "compute-control": _compute_control_semantics,
 }

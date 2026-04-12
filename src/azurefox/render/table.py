@@ -13,6 +13,14 @@ from azurefox.devops_hints import describe_trusted_input, devops_next_review_hin
 from azurefox.env_var_hints import env_var_next_review_hint
 from azurefox.tokens_credential_hints import tokens_credential_next_review_hint
 
+_CHAIN_PATH_FAMILIES = {"credential-path", "deployment-path", "escalation-path", "compute-control"}
+_CHAIN_FAMILY_LABELS = {
+    "credential-path": "credential paths",
+    "deployment-path": "deployment paths",
+    "escalation-path": "escalation paths",
+    "compute-control": "compute-control paths",
+}
+
 
 def render_table(command: str, payload: dict) -> str:
     sio = StringIO()
@@ -24,12 +32,14 @@ def render_table(command: str, payload: dict) -> str:
         _render_role_trusts_table(console, payload)
     elif command == "chains" and "families" in payload:
         _render_chains_overview_table(console, payload)
-    elif command == "chains" and str(payload.get("family") or "") == "deployment-path":
-        _render_deployment_path_table(console, payload)
-    elif command == "chains" and str(payload.get("family") or "") == "credential-path":
-        _render_credential_path_table(console, payload)
-    elif command == "chains" and str(payload.get("family") or "") == "escalation-path":
-        _render_escalation_path_table(console, payload)
+    elif command == "chains" and str(payload.get("family") or "") in _CHAIN_PATH_FAMILIES:
+        detail_key, detail_label = _chain_path_detail_config(str(payload.get("family") or ""))
+        _render_chains_path_table(
+            console,
+            payload,
+            detail_key=detail_key,
+            detail_label=detail_label,
+        )
     else:
         columns, records = _table_spec(command, payload)
         table = Table(title=f"azurefox {command}")
@@ -133,16 +143,10 @@ def _render_role_trusts_table(console: Console, payload: dict) -> None:
             console.print("")
 
 
-def _render_deployment_path_table(console: Console, payload: dict) -> None:
-    _render_chains_path_table(console, payload)
-
-
-def _render_credential_path_table(console: Console, payload: dict) -> None:
-    _render_chains_path_table(console, payload, detail_key=None, detail_label=None)
-
-
-def _render_escalation_path_table(console: Console, payload: dict) -> None:
-    _render_chains_path_table(console, payload)
+def _chain_path_detail_config(family: str) -> tuple[str | None, str | None]:
+    if family == "credential-path":
+        return None, None
+    return "why_care", "note"
 
 
 def _render_chains_path_table(
@@ -733,6 +737,36 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     for item in payload.get("paths", [])
                 ],
             )
+        if family == "compute-control":
+            return (
+                [
+                    ("priority", "priority"),
+                    ("urgency", "urgency"),
+                    ("asset_name", "compute"),
+                    ("path_concept", "path type"),
+                    ("insertion_point", "insertion point"),
+                    ("stronger_outcome", "visible azure control"),
+                    ("confidence_boundary", "confidence boundary"),
+                    ("next_review", "next review"),
+                    ("why_care", "note"),
+                ],
+                [
+                    {
+                        "priority": item.get("priority"),
+                        "urgency": item.get("urgency") or "-",
+                        "asset_name": item.get("asset_name"),
+                        "path_concept": _compute_control_path_type(item),
+                        "insertion_point": item.get("insertion_point"),
+                        "stronger_outcome": item.get("stronger_outcome")
+                        or item.get("likely_impact"),
+                        "confidence_boundary": item.get("confidence_boundary")
+                        or _chains_note(item, family=family),
+                        "next_review": item.get("next_review"),
+                        "why_care": item.get("why_care"),
+                    }
+                    for item in payload.get("paths", [])
+                ],
+            )
         return (
             [
                 ("priority", "priority"),
@@ -789,6 +823,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
     if command == "permissions":
         return (
             [
+                ("priority", "priority"),
                 ("principal", "principal"),
                 ("type", "type"),
                 ("high_impact_roles", "high-impact roles"),
@@ -798,6 +833,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
             [
                 {
+                    "priority": item.get("priority"),
                     "principal": item.get("display_name") or item.get("principal_id"),
                     "type": item.get("principal_type"),
                     "high_impact_roles": item.get("high_impact_roles", []),
@@ -812,7 +848,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
     if command == "privesc":
         return (
             [
-                ("severity", "severity"),
+                ("priority", "priority"),
                 ("starting_foothold", "starting foothold"),
                 ("path_type", "path"),
                 ("target", "target"),
@@ -822,7 +858,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             ],
             [
                 {
-                    "severity": item.get("severity"),
+                    "priority": item.get("priority"),
                     "starting_foothold": item.get("starting_foothold")
                     or "unknown current foothold",
                     "path_type": item.get("path_type"),
@@ -1200,8 +1236,11 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
 
     if command == "privesc":
         paths = payload.get("paths", [])
-        by_severity = Counter(item.get("severity") or "unknown" for item in paths)
-        counts = ", ".join(f"{count} {severity}" for severity, count in sorted(by_severity.items()))
+        by_priority = Counter(item.get("priority") or "unknown" for item in paths)
+        priority_order = ("high", "medium", "low", "unknown")
+        counts = ", ".join(
+            f"{by_priority[name]} {name}" for name in priority_order if by_priority.get(name)
+        )
         rooted = sum(bool(item.get("current_identity")) for item in paths)
         visible_only = len(paths) - rooted
         if not counts:
@@ -1772,13 +1811,7 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         priorities = Counter(item.get("priority") or "unknown" for item in paths)
         urgencies = Counter(item.get("urgency") or "unknown" for item in paths)
         family = str(payload.get("family") or "chain")
-        family_label = "credential paths"
-        if family == "deployment-path":
-            family_label = "deployment paths"
-        elif family == "escalation-path":
-            family_label = "escalation paths"
-        elif family == "workload-identity-path":
-            family_label = "workload-identity paths"
+        family_label = _CHAIN_FAMILY_LABELS.get(family, "credential paths")
         priority_order = ("high", "medium", "low", "unknown")
         priority_counts = ", ".join(
             f"{priorities[name]} {name}" for name in priority_order if priorities.get(name)
@@ -1812,6 +1845,19 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
                 f"{priority_counts or 'no ranked paths'}, "
                 f"{urgency_counts or 'no urgency signals'}, "
                 f"{concept_counts or 'no defended escalation stories'}."
+            )
+        if family == "compute-control":
+            concepts = Counter(item.get("path_concept") or "unknown" for item in paths)
+            concept_counts = ", ".join(
+                f"{count} {_compute_control_path_type({'path_concept': name})}"
+                for name, count in concepts.items()
+                if name != "unknown"
+            )
+            return (
+                f"{len(paths)} visible {family_label}; "
+                f"{priority_counts or 'no ranked paths'}, "
+                f"{urgency_counts or 'no urgency signals'}, "
+                f"{concept_counts or 'no defended compute pivots'}."
             )
         services = Counter(item.get("target_service") or "unknown" for item in paths)
         counts = ", ".join(f"{count} {name}" for name, count in sorted(services.items()))
@@ -2042,6 +2088,14 @@ def _escalation_path_type(item: dict) -> str:
     labels = {
         "current-foothold-direct-control": "current foothold direct control",
         "trust-expansion": "trust expansion",
+    }
+    return labels.get(concept, concept or "-")
+
+
+def _compute_control_path_type(item: dict) -> str:
+    concept = str(item.get("path_concept") or "")
+    labels = {
+        "direct-token-opportunity": "direct token opportunity",
     }
     return labels.get(concept, concept or "-")
 
@@ -3109,13 +3163,7 @@ def _empty_state_message(command: str, payload: dict) -> str:
 
     if command == "chains":
         family = str(payload.get("family") or "")
-        family_subjects = {
-            "credential-path": "credential paths",
-            "deployment-path": "deployment paths",
-            "escalation-path": "escalation paths",
-            "workload-identity-path": "workload-identity paths",
-        }
-        subject = family_subjects.get(family, "chain rows")
+        subject = _CHAIN_FAMILY_LABELS.get(family, "chain rows")
         return f"No visible {subject} were confirmed from current scope."
 
     subjects = {

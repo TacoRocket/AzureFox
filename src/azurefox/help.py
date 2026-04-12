@@ -1093,7 +1093,7 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         section="orchestration",
         summary=(
             "Grouped family runner for higher-value preset paths, with credential-path "
-            "deployment-path, and escalation-path available now."
+            "deployment-path, escalation-path, and compute-control available now."
         ),
         offensive_question=(
             "Which grouped Azure path should I run end to end when I want the value-added "
@@ -1101,12 +1101,11 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         cloudfox_frame=(
             "AzureFox orchestration layer for targeted grouped runs. Current state: "
-            "credential-path, deployment-path, and escalation-path are exposed now with "
+            "credential-path, deployment-path, escalation-path, and compute-control are exposed now with "
             "conservative extraction-first joins; escalation-path currently ships only rows "
             "where the transform from current foothold to stronger control is explicit. "
-            "workload-identity-path remains planned as a source-story-first family for direct "
-            "token opportunity, local identity leverage, trust expansion, and visibility-blocked "
-            "rows."
+            "compute-control currently ships a narrow direct-token-opportunity v1 where the "
+            "compute foothold and stronger Azure control are both already visible."
         ),
         output_highlights=(
             "family selectors",
