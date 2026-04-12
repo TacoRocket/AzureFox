@@ -51,6 +51,60 @@
       ],
       "privileged": true,
       "is_current_identity": false
+    },
+    {
+      "principal_id": "cccc2222-2222-2222-2222-222222222222",
+      "display_name": "func-orders-system",
+      "principal_type": "ServicePrincipal",
+      "high_impact_roles": [
+        "Contributor"
+      ],
+      "all_role_names": [
+        "Contributor"
+      ],
+      "role_assignment_count": 1,
+      "scope_count": 1,
+      "scope_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps"
+      ],
+      "privileged": true,
+      "is_current_identity": false
+    },
+    {
+      "principal_id": "eeee3333-3333-3333-3333-333333333333",
+      "display_name": "app-empty-mi-system",
+      "principal_type": "ServicePrincipal",
+      "high_impact_roles": [
+        "Contributor"
+      ],
+      "all_role_names": [
+        "Contributor"
+      ],
+      "role_assignment_count": 1,
+      "scope_count": 1,
+      "scope_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps"
+      ],
+      "privileged": true,
+      "is_current_identity": false
+    },
+    {
+      "principal_id": "77770000-0000-0000-0000-000000000001",
+      "display_name": "vmss-edge-01-system",
+      "principal_type": "ServicePrincipal",
+      "high_impact_roles": [
+        "Contributor"
+      ],
+      "all_role_names": [
+        "Contributor"
+      ],
+      "role_assignment_count": 1,
+      "scope_count": 1,
+      "scope_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload"
+      ],
+      "privileged": true,
+      "is_current_identity": false
     }
   ],
   "issues": []

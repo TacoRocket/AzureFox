@@ -22,6 +22,7 @@ def collect_compute_control_records(
     loaded: dict[str, object],
 ) -> tuple[list[ChainPathRecord], list[CollectionIssue]]:
     tokens_output = loaded["tokens-credentials"]
+    env_output = loaded.get("env-vars")
     managed_output = loaded["managed-identities"]
     permissions_output = loaded["permissions"]
     workloads_output = loaded["workloads"]
@@ -32,9 +33,7 @@ def collect_compute_control_records(
         if item.asset_id
     }
     managed_by_id = {
-        item.id: item.model_dump(mode="json")
-        for item in managed_output.identities
-        if item.id
+        item.id: item.model_dump(mode="json") for item in managed_output.identities if item.id
     }
     managed_by_principal: dict[str, list[dict]] = defaultdict(list)
     for item in managed_output.identities:
@@ -47,6 +46,11 @@ def collect_compute_control_records(
         for item in permissions_output.permissions
         if item.principal_id and item.privileged
     }
+    env_rows_by_asset: dict[str, list[dict]] = defaultdict(list)
+    if env_output is not None:
+        for item in env_output.env_vars:
+            if item.asset_id:
+                env_rows_by_asset[item.asset_id].append(item.model_dump(mode="json"))
     role_assignments_by_principal: dict[str, list[dict]] = defaultdict(list)
     for assignment in managed_output.role_assignments:
         row = assignment.model_dump(mode="json")
@@ -64,6 +68,53 @@ def collect_compute_control_records(
         if workload is None:
             continue
 
+        env_rows = env_rows_by_asset.get(str(row.get("asset_id") or ""), [])
+        if _is_mixed_identity_workload(workload):
+            identity_binding = _resolve_mixed_identity_binding(
+                surface_row=row,
+                workload_row=workload,
+                env_rows=env_rows,
+                managed_by_id=managed_by_id,
+                managed_by_principal=managed_by_principal,
+            )
+            if identity_binding is not None:
+                permission_row = permissions_by_principal.get(str(identity_binding["principal_id"]))
+                assignment_summary = _assignment_control_summary(
+                    str(identity_binding["principal_id"]),
+                    role_assignments_by_principal,
+                )
+                if permission_row is not None or assignment_summary is not None:
+                    paths.append(
+                        _build_compute_control_record(
+                            family_name=family_name,
+                            surface_row=row,
+                            workload_row=workload,
+                            identity_binding=identity_binding,
+                            permission_row=permission_row,
+                            assignment_summary=assignment_summary,
+                        )
+                    )
+                    continue
+
+            candidate_bindings = _mixed_identity_candidates(
+                surface_row=row,
+                workload_row=workload,
+                managed_by_id=managed_by_id,
+                managed_by_principal=managed_by_principal,
+                permissions_by_principal=permissions_by_principal,
+                role_assignments_by_principal=role_assignments_by_principal,
+            )
+            if candidate_bindings:
+                paths.append(
+                    _build_mixed_identity_candidate_record(
+                        family_name=family_name,
+                        surface_row=row,
+                        workload_row=workload,
+                        candidate_bindings=candidate_bindings,
+                    )
+                )
+            continue
+
         identity_binding = _resolve_identity_binding(
             surface_row=row,
             workload_row=workload,
@@ -73,9 +124,9 @@ def collect_compute_control_records(
         if identity_binding is None:
             continue
 
-        permission_row = permissions_by_principal.get(identity_binding["principal_id"])
+        permission_row = permissions_by_principal.get(str(identity_binding["principal_id"]))
         assignment_summary = _assignment_control_summary(
-            identity_binding["principal_id"],
+            str(identity_binding["principal_id"]),
             role_assignments_by_principal,
         )
         if permission_row is None and assignment_summary is None:
@@ -103,6 +154,7 @@ def collect_compute_control_records(
 
     issues = [
         *getattr(tokens_output, "issues", []),
+        *(getattr(env_output, "issues", []) if env_output is not None else []),
         *getattr(managed_output, "issues", []),
         *getattr(permissions_output, "issues", []),
         *getattr(workloads_output, "issues", []),
@@ -116,7 +168,7 @@ def _resolve_identity_binding(
     workload_row: dict,
     managed_by_id: dict[str, dict],
     managed_by_principal: dict[str, list[dict]],
-) -> dict[str, str] | None:
+) -> dict[str, object] | None:
     related_ids = [str(value) for value in surface_row.get("related_ids") or [] if value]
     workload_identity_ids = [
         str(value) for value in workload_row.get("identity_ids") or [] if value
@@ -129,52 +181,76 @@ def _resolve_identity_binding(
             seen_ids.add(value)
             managed_matches.append(managed_by_id[value])
 
-    # Mixed system-assigned and user-assigned identities stay out of the narrow v1
-    # until the actor is explicit enough to defend one default row.
-    if workload_row.get("identity_principal_id") and workload_identity_ids:
-        return None
-
     if len(managed_matches) == 1:
-        principal_id = str(managed_matches[0].get("principal_id") or "").strip()
-        if not principal_id:
-            return None
-        return {
-            "principal_id": principal_id,
-            "identity_name": str(managed_matches[0].get("name") or principal_id),
-            "identity_id": str(managed_matches[0].get("id") or ""),
-            "binding_source": "managed-identity",
-        }
+        return _binding_from_managed_identity_row(managed_matches[0])
 
     if len(managed_matches) > 1:
         return None
 
     principal_id = str(workload_row.get("identity_principal_id") or "").strip()
     if not principal_id:
-        principal_ids = {
-            value for value in related_ids if _UUID_RE.match(value)
-        }
+        principal_ids = {value for value in related_ids if _UUID_RE.match(value)}
         if len(principal_ids) == 1:
             principal_id = next(iter(principal_ids))
 
     if not principal_id:
         return None
 
+    attached_binding = _attached_identity_binding_for_principal(
+        principal_id=principal_id,
+        asset_id=str(surface_row.get("asset_id") or ""),
+        managed_by_principal=managed_by_principal,
+    )
+    if attached_binding is not None:
+        return attached_binding
+
+    return _workload_principal_binding(
+        principal_id=principal_id,
+        surface_row=surface_row,
+        workload_row=workload_row,
+    )
+
+
+def _is_mixed_identity_workload(workload_row: dict) -> bool:
+    return bool(workload_row.get("identity_principal_id")) and bool(
+        workload_row.get("identity_ids")
+    )
+
+
+def _binding_from_managed_identity_row(managed_row: dict) -> dict[str, object] | None:
+    principal_id = str(managed_row.get("principal_id") or "").strip()
+    if not principal_id:
+        return None
+    return {
+        "principal_id": principal_id,
+        "identity_name": str(managed_row.get("name") or principal_id),
+        "identity_id": str(managed_row.get("id") or principal_id),
+        "binding_source": "managed-identity",
+    }
+
+
+def _attached_identity_binding_for_principal(
+    *,
+    principal_id: str,
+    asset_id: str,
+    managed_by_principal: dict[str, list[dict]],
+) -> dict[str, object] | None:
     principal_matches = [
         item
         for item in managed_by_principal.get(principal_id, [])
-        if str(surface_row.get("asset_id") or "")
-        in {str(value) for value in item.get("attached_to") or []}
+        if asset_id in {str(value) for value in item.get("attached_to") or []}
     ]
-    if len(principal_matches) == 1:
-        return {
-            "principal_id": principal_id,
-            "identity_name": str(principal_matches[0].get("name") or principal_id),
-            "identity_id": str(principal_matches[0].get("id") or principal_id),
-            "binding_source": "managed-identity",
-        }
-    if len(principal_matches) > 1:
+    if len(principal_matches) != 1:
         return None
+    return _binding_from_managed_identity_row(principal_matches[0])
 
+
+def _workload_principal_binding(
+    *,
+    principal_id: str,
+    surface_row: dict,
+    workload_row: dict,
+) -> dict[str, object]:
     return {
         "principal_id": principal_id,
         "identity_name": (
@@ -183,6 +259,208 @@ def _resolve_identity_binding(
         "identity_id": principal_id,
         "binding_source": "workload-principal",
     }
+
+
+def _resolve_mixed_identity_binding(
+    *,
+    surface_row: dict,
+    workload_row: dict,
+    env_rows: list[dict],
+    managed_by_id: dict[str, dict],
+    managed_by_principal: dict[str, list[dict]],
+) -> dict[str, object] | None:
+    corroboration = _identity_choice_corroboration(workload_row, env_rows)
+    if corroboration is None:
+        return None
+
+    if corroboration["identity_choice"] == "systemAssigned":
+        principal_id = str(workload_row.get("identity_principal_id") or "").strip()
+        if not principal_id:
+            return None
+        binding = _attached_identity_binding_for_principal(
+            principal_id=principal_id,
+            asset_id=str(surface_row.get("asset_id") or ""),
+            managed_by_principal=managed_by_principal,
+        ) or _workload_principal_binding(
+            principal_id=principal_id,
+            surface_row=surface_row,
+            workload_row=workload_row,
+        )
+        binding["identity_choice_basis"] = corroboration["basis"]
+        binding["identity_choice_detail"] = corroboration["detail"]
+        return binding
+
+    if corroboration["identity_choice"] == "userAssigned":
+        identity_id = str(corroboration.get("identity_id") or "")
+        if identity_id and identity_id in managed_by_id:
+            binding = _binding_from_managed_identity_row(managed_by_id[identity_id])
+            if binding is None:
+                return None
+            binding["identity_choice_basis"] = corroboration["basis"]
+            binding["identity_choice_detail"] = corroboration["detail"]
+            return binding
+    return None
+
+
+def _identity_choice_corroboration(
+    workload_row: dict, env_rows: list[dict]
+) -> dict[str, str] | None:
+    identity_ids = [str(value) for value in workload_row.get("identity_ids") or [] if value]
+    identity_names: dict[str, set[str]] = defaultdict(set)
+    for identity_id in identity_ids:
+        normalized = _normalized_identity_selector(identity_id)
+        if normalized:
+            identity_names[normalized].add(identity_id)
+    identity_ids_set = set(identity_ids)
+    corroborations: dict[tuple[str, str], dict[str, str]] = {}
+    for row in env_rows:
+        explicit_identity = str(row.get("key_vault_reference_identity") or "").strip()
+        if not explicit_identity:
+            continue
+        basis = f"env-vars:{row.get('setting_name') or 'unknown-setting'}"
+        if explicit_identity.lower() == "systemassigned":
+            corroborations[("systemAssigned", "")] = {
+                "identity_choice": "systemAssigned",
+                "basis": basis,
+                "detail": (
+                    "current app configuration explicitly names SystemAssigned for a "
+                    "collected workload behavior."
+                ),
+            }
+            continue
+        if explicit_identity in identity_ids_set:
+            corroborations[("userAssigned", explicit_identity)] = {
+                "identity_choice": "userAssigned",
+                "identity_id": explicit_identity,
+                "basis": basis,
+                "detail": (
+                    "current app configuration explicitly names the attached "
+                    "user-assigned identity "
+                    f"'{_display_identity_selector(explicit_identity)}' for a "
+                    "collected workload behavior."
+                ),
+            }
+            continue
+        normalized_identity = _normalized_identity_selector(explicit_identity)
+        matched_ids = identity_names.get(normalized_identity or "", set())
+        if len(matched_ids) == 1:
+            matched_identity_id = next(iter(matched_ids))
+            corroborations[("userAssigned", matched_identity_id)] = {
+                "identity_choice": "userAssigned",
+                "identity_id": matched_identity_id,
+                "basis": basis,
+                "detail": (
+                    "current app configuration explicitly names the attached "
+                    "user-assigned identity "
+                    f"'{_display_identity_selector(explicit_identity)}' for a "
+                    "collected workload behavior."
+                ),
+            }
+
+    if len(corroborations) != 1:
+        return None
+    return next(iter(corroborations.values()))
+
+
+def _mixed_identity_candidates(
+    *,
+    surface_row: dict,
+    workload_row: dict,
+    managed_by_id: dict[str, dict],
+    managed_by_principal: dict[str, list[dict]],
+    permissions_by_principal: dict[str, dict],
+    role_assignments_by_principal: dict[str, list[dict]],
+) -> list[dict[str, str]]:
+    asset_id = str(surface_row.get("asset_id") or "")
+    candidates: list[dict[str, str]] = []
+    seen_keys: set[tuple[str, str]] = set()
+
+    system_principal_id = str(workload_row.get("identity_principal_id") or "").strip()
+    if system_principal_id:
+        system_match = _attached_identity_binding_for_principal(
+            principal_id=system_principal_id,
+            asset_id=asset_id,
+            managed_by_principal=managed_by_principal,
+        )
+        if system_match is not None:
+            candidates.append(system_match)
+        else:
+            candidates.append(
+                _workload_principal_binding(
+                    principal_id=system_principal_id,
+                    surface_row=surface_row,
+                    workload_row=workload_row,
+                )
+            )
+
+    for identity_id in [str(value) for value in workload_row.get("identity_ids") or [] if value]:
+        managed_row = managed_by_id.get(identity_id)
+        if managed_row is None:
+            candidates.append(
+                {
+                    "principal_id": "",
+                    "identity_name": _display_identity_selector(identity_id),
+                    "identity_id": identity_id,
+                }
+            )
+            continue
+        binding = _binding_from_managed_identity_row(managed_row)
+        if binding is not None:
+            candidates.append(binding)
+
+    visible_candidates: list[dict[str, str]] = []
+    for candidate in candidates:
+        dedupe_key = (
+            str(candidate.get("principal_id") or ""),
+            str(candidate.get("identity_id") or ""),
+        )
+        if dedupe_key in seen_keys:
+            continue
+        seen_keys.add(dedupe_key)
+        stronger_outcome, control_basis = _candidate_control_summary(
+            candidate=candidate,
+            permissions_by_principal=permissions_by_principal,
+            role_assignments_by_principal=role_assignments_by_principal,
+        )
+        if stronger_outcome:
+            candidate["stronger_outcome"] = stronger_outcome
+            candidate["control_basis"] = control_basis or ""
+        visible_candidates.append(candidate)
+
+    if not any(item.get("stronger_outcome") for item in visible_candidates):
+        return []
+    return visible_candidates
+
+
+def _candidate_control_summary(
+    *,
+    candidate: dict[str, str],
+    permissions_by_principal: dict[str, dict],
+    role_assignments_by_principal: dict[str, list[dict]],
+) -> tuple[str | None, str | None]:
+    principal_id = str(candidate.get("principal_id") or "").strip()
+    if not principal_id:
+        return None, None
+    permission_summary = _permission_control_summary(permissions_by_principal.get(principal_id))
+    if permission_summary:
+        return permission_summary, "permissions"
+    assignment_summary = _assignment_control_summary(
+        principal_id,
+        role_assignments_by_principal,
+    )
+    if assignment_summary:
+        return assignment_summary, "role-assignment"
+    return None, None
+
+
+def _normalized_identity_selector(value: str) -> str:
+    return value.rstrip("/").split("/")[-1].strip().lower()
+
+
+def _display_identity_selector(value: str) -> str:
+    if "/" not in value:
+        return value
+    return value.rstrip("/").split("/")[-1]
 
 
 def _assignment_control_summary(
@@ -211,13 +489,16 @@ def _build_compute_control_record(
     family_name: str,
     surface_row: dict,
     workload_row: dict,
-    identity_binding: dict[str, str],
+    identity_binding: dict[str, object],
     permission_row: dict | None,
     assignment_summary: str | None,
 ) -> ChainPathRecord:
     stronger_outcome = _permission_control_summary(permission_row) or assignment_summary or "-"
     public_foothold = _has_public_compute_signal(workload_row)
     binding_source = str(identity_binding.get("binding_source") or "managed-identity")
+    identity_choice_basis = str(identity_binding.get("identity_choice_basis") or "")
+    identity_choice_detail = str(identity_binding.get("identity_choice_detail") or "")
+    mixed_identity_corroborated = bool(identity_choice_basis)
 
     if public_foothold:
         priority = "high"
@@ -226,7 +507,23 @@ def _build_compute_control_record(
         priority = "medium"
         urgency = "review-soon"
 
-    if permission_row is not None and binding_source == "managed-identity":
+    if mixed_identity_corroborated and permission_row is not None:
+        confidence_boundary = (
+            "Due to mixed identities and the current foothold, AzureFox cannot directly verify "
+            "which attached identity the raw token path will choose on every request. Another "
+            "collected workload surface currently points to this identity as the best current "
+            f"lead, and the stronger Azure control behind it is visible. Specifically, "
+            f"{identity_choice_detail}"
+        )
+    elif mixed_identity_corroborated:
+        confidence_boundary = (
+            "Due to mixed identities and the current foothold, AzureFox cannot directly verify "
+            "which attached identity the raw token path will choose on every request. Another "
+            "collected workload surface currently points to this identity as the best current "
+            "lead. "
+            f"Specifically, {identity_choice_detail}"
+        )
+    elif permission_row is not None and binding_source == "managed-identity":
         confidence_boundary = (
             "AzureFox can name the token-capable compute foothold, the attached identity, and "
             "the stronger Azure control behind it from current scope."
@@ -251,15 +548,29 @@ def _build_compute_control_record(
             "anchor and fuller permission story still need confirmation."
         )
 
-    next_review = _compute_control_next_review(workload_row)
+    next_review = _compute_control_next_review(
+        workload_row,
+        identity_choice_basis=identity_choice_basis,
+    )
     identity_name = identity_binding["identity_name"]
     path_type = "direct-token-opportunity"
-    why_care = (
-        f"{workload_row.get('asset_kind')} '{workload_row.get('asset_name')}' can request tokens "
-        f"as {identity_name}; that identity already maps to {stronger_outcome}."
-    )
+    if mixed_identity_corroborated:
+        why_care = (
+            f"{workload_row.get('asset_kind')} '{workload_row.get('asset_name')}' carries mixed "
+            f"identities. Current collected workload behavior points to {identity_name} as the "
+            f"best current lead, and that identity already maps to {stronger_outcome}."
+        )
+    else:
+        why_care = (
+            f"{workload_row.get('asset_kind')} '{workload_row.get('asset_name')}' can request "
+            "tokens "
+            f"as {identity_name}; that identity already maps to {stronger_outcome}."
+        )
     evidence_commands = ["tokens-credentials", "workloads"]
     joined_surface_types = ["managed-identity-token", "workload"]
+    if mixed_identity_corroborated:
+        evidence_commands.append("env-vars")
+        joined_surface_types.append("identity-choice-corroboration")
     if binding_source == "managed-identity":
         evidence_commands.append("managed-identities")
         joined_surface_types.append("identity-anchor")
@@ -272,43 +583,186 @@ def _build_compute_control_record(
         joined_surface_types.append("role-assignment")
 
     return ChainPathRecord(
-        chain_id=(
-            f"{family_name}::{surface_row.get('asset_id')}::{identity_binding['principal_id']}"
-        ),
-        asset_id=str(surface_row.get("asset_id") or ""),
-        asset_name=str(surface_row.get("asset_name") or surface_row.get("asset_id") or ""),
-        asset_kind=str(surface_row.get("asset_kind") or workload_row.get("asset_kind") or ""),
-        location=surface_row.get("location") or workload_row.get("location"),
-        source_command="tokens-credentials",
-        source_context=str(surface_row.get("access_path") or ""),
-        clue_type=str(surface_row.get("surface_type") or ""),
-        confirmation_basis=(
-            "permission-join" if permission_row is not None else "role-assignment-join"
-        ),
-        priority=priority,
-        urgency=urgency,
-        visible_path=str(surface_row.get("summary") or ""),
-        insertion_point=_compute_control_insertion_point(surface_row, workload_row),
-        path_concept=path_type,
-        stronger_outcome=stronger_outcome,
-        why_care=why_care,
-        likely_impact=stronger_outcome,
-        confidence_boundary=confidence_boundary,
-        target_service="azure-control",
-        target_resolution="path-confirmed",
-        evidence_commands=evidence_commands,
-        joined_surface_types=joined_surface_types,
-        target_count=1,
-        target_ids=[identity_binding["identity_id"]],
-        target_names=[identity_name],
-        next_review=next_review,
-        summary=f"{confidence_boundary} {next_review}",
-        missing_confirmation="",
-        related_ids=_merge_related_ids(
-            [str(value) for value in surface_row.get("related_ids") or [] if value],
-            [str(value) for value in workload_row.get("related_ids") or [] if value],
-            [identity_binding["identity_id"]],
-        ),
+        **_base_compute_control_payload(
+            surface_row=surface_row,
+            workload_row=workload_row,
+            chain_id=f"{family_name}::{surface_row.get('asset_id')}::{identity_binding['principal_id']}",
+            path_type=path_type,
+            confirmation_basis=(
+                "mixed-identity-corroborated-permission-join"
+                if mixed_identity_corroborated and permission_row is not None
+                else "mixed-identity-corroborated-role-assignment-join"
+                if mixed_identity_corroborated
+                else "permission-join"
+                if permission_row is not None
+                else "role-assignment-join"
+            ),
+            priority=priority,
+            urgency=urgency,
+            stronger_outcome=stronger_outcome,
+            why_care=why_care,
+            likely_impact=stronger_outcome,
+            confidence_boundary=confidence_boundary,
+            target_resolution=(
+                "identity-choice-corroborated" if mixed_identity_corroborated else "path-confirmed"
+            ),
+            evidence_commands=evidence_commands,
+            joined_surface_types=joined_surface_types,
+            target_ids=[str(identity_binding["identity_id"])],
+            target_names=[str(identity_name)],
+            next_review=next_review,
+            missing_confirmation=(
+                "Current foothold does not directly verify which attached identity the raw "
+                "token path will choose on every request."
+                if mixed_identity_corroborated
+                else ""
+            ),
+            related_ids=_merge_related_ids(
+                [str(value) for value in surface_row.get("related_ids") or [] if value],
+                [str(value) for value in workload_row.get("related_ids") or [] if value],
+                [str(identity_binding["identity_id"])],
+            ),
+        )
+    )
+
+
+def _base_compute_control_payload(
+    *,
+    surface_row: dict,
+    workload_row: dict,
+    chain_id: str,
+    path_type: str,
+    confirmation_basis: str,
+    priority: str,
+    urgency: str,
+    stronger_outcome: str,
+    why_care: str,
+    likely_impact: str,
+    confidence_boundary: str,
+    target_resolution: str,
+    evidence_commands: list[str],
+    joined_surface_types: list[str],
+    target_ids: list[str],
+    target_names: list[str],
+    next_review: str,
+    missing_confirmation: str,
+    related_ids: list[str],
+) -> dict[str, object]:
+    return {
+        "chain_id": chain_id,
+        "asset_id": str(surface_row.get("asset_id") or ""),
+        "asset_name": str(surface_row.get("asset_name") or surface_row.get("asset_id") or ""),
+        "asset_kind": str(surface_row.get("asset_kind") or workload_row.get("asset_kind") or ""),
+        "location": surface_row.get("location") or workload_row.get("location"),
+        "source_command": "tokens-credentials",
+        "source_context": str(surface_row.get("access_path") or ""),
+        "clue_type": str(surface_row.get("surface_type") or ""),
+        "priority": priority,
+        "urgency": urgency,
+        "visible_path": str(surface_row.get("summary") or ""),
+        "insertion_point": _compute_control_insertion_point(surface_row, workload_row),
+        "path_concept": path_type,
+        "confirmation_basis": confirmation_basis,
+        "stronger_outcome": stronger_outcome,
+        "why_care": why_care,
+        "likely_impact": likely_impact,
+        "confidence_boundary": confidence_boundary,
+        "target_service": "azure-control",
+        "target_resolution": target_resolution,
+        "evidence_commands": evidence_commands,
+        "joined_surface_types": joined_surface_types,
+        "target_count": len(target_ids),
+        "target_ids": target_ids,
+        "target_names": target_names,
+        "next_review": next_review,
+        "summary": f"{confidence_boundary} {next_review}",
+        "missing_confirmation": missing_confirmation,
+        "related_ids": related_ids,
+    }
+
+
+def _build_mixed_identity_candidate_record(
+    *,
+    family_name: str,
+    surface_row: dict,
+    workload_row: dict,
+    candidate_bindings: list[dict[str, str]],
+) -> ChainPathRecord:
+    control_candidates = [
+        item for item in candidate_bindings if str(item.get("stronger_outcome") or "").strip()
+    ]
+    stronger_outcome = "; ".join(
+        f"{item['identity_name']}={item['stronger_outcome']}" for item in control_candidates
+    )
+    control_bases = {str(item.get("control_basis") or "") for item in control_candidates}
+    binding_sources = {str(item.get("binding_source") or "") for item in candidate_bindings}
+    confidence_boundary = (
+        "Based on the current evidence, this workload can request tokens through mixed attached "
+        "identities, but AzureFox cannot directly verify which attached identity the raw token "
+        "path will choose on every request. The attached identities currently in play are listed "
+        "here instead of a single chosen lead."
+    )
+    next_review = (
+        "The current foothold bounds this path to the attached identities shown here; exact "
+        "per-request identity choice remains unconfirmed."
+    )
+    why_care = (
+        f"{workload_row.get('asset_kind')} '{workload_row.get('asset_name')}' carries mixed "
+        "identities. AzureFox cannot yet defend one chosen identity, but visible Azure control "
+        f"currently maps to {stronger_outcome}."
+    )
+
+    evidence_commands = ["tokens-credentials", "workloads"]
+    joined_surface_types = ["managed-identity-token", "workload"]
+    if "managed-identity" in binding_sources:
+        evidence_commands.append("managed-identities")
+        joined_surface_types.append("identity-anchor")
+    if "workload-principal" in binding_sources:
+        joined_surface_types.append("workload-principal")
+    if "permissions" in control_bases:
+        evidence_commands.append("permissions")
+        joined_surface_types.append("permissions")
+    if "role-assignment" in control_bases:
+        joined_surface_types.append("role-assignment")
+
+    target_ids = [
+        str(item.get("identity_id") or "") for item in candidate_bindings if item.get("identity_id")
+    ]
+    target_names = [
+        str(item.get("identity_name") or "")
+        for item in candidate_bindings
+        if item.get("identity_name")
+    ]
+
+    return ChainPathRecord(
+        **_base_compute_control_payload(
+            surface_row=surface_row,
+            workload_row=workload_row,
+            chain_id=f"{family_name}::{surface_row.get('asset_id')}::mixed-identities",
+            path_type="direct-token-opportunity",
+            confirmation_basis="mixed-identity-attached-candidates",
+            priority="high" if _has_public_compute_signal(workload_row) else "medium",
+            urgency="pivot-now" if _has_public_compute_signal(workload_row) else "review-soon",
+            stronger_outcome=stronger_outcome,
+            why_care=why_care,
+            likely_impact=stronger_outcome,
+            confidence_boundary=confidence_boundary,
+            target_resolution="narrowed candidates",
+            evidence_commands=evidence_commands,
+            joined_surface_types=joined_surface_types,
+            target_ids=target_ids,
+            target_names=target_names,
+            next_review=next_review,
+            missing_confirmation=(
+                "Current foothold does not directly verify which attached identity the raw "
+                "token path will choose on every request."
+            ),
+            related_ids=_merge_related_ids(
+                [str(value) for value in surface_row.get("related_ids") or [] if value],
+                [str(value) for value in workload_row.get("related_ids") or [] if value],
+                target_ids,
+            ),
+        )
     )
 
 
@@ -325,7 +779,7 @@ def _compute_control_insertion_point(surface_row: dict, workload_row: dict) -> s
     return access_path or "token-capable compute path"
 
 
-def _compute_control_next_review(workload_row: dict) -> str:
+def _compute_control_next_review(workload_row: dict, *, identity_choice_basis: str = "") -> str:
     asset_kind = str(workload_row.get("asset_kind") or "")
     if asset_kind == "VM":
         return (
@@ -343,6 +797,12 @@ def _compute_control_next_review(workload_row: dict) -> str:
             "scope on the attached identity."
         )
     if asset_kind == "FunctionApp":
+        if identity_choice_basis:
+            return (
+                "Current collected workload configuration already narrows this path to the "
+                "identity shown here; exact per-request token choice remains bounded by the "
+                "current foothold."
+            )
         return (
             "Check functions for the running service foothold, then permissions for exact scope "
             "on the attached identity."

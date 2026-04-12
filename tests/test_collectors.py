@@ -3341,9 +3341,16 @@ def test_collect_rbac(fixture_provider, options) -> None:
 
 def test_collect_principals(fixture_provider, options) -> None:
     output = collect_principals(fixture_provider, options)
-    assert len(output.principals) == 2
+    assert len(output.principals) == 5
     assert output.principals[0].is_current_identity is True
     assert "ua-app" in output.principals[0].identity_names
+    assert {item.display_name for item in output.principals} == {
+        "azurefox-lab-sp",
+        "operator@lab.local",
+        "func-orders-system",
+        "app-empty-mi-system",
+        "vmss-edge-01-system",
+    }
 
 
 def test_principal_sort_key_prioritizes_high_impact_then_workload_attachment() -> None:
@@ -3388,7 +3395,7 @@ def test_principal_sort_key_prioritizes_high_impact_then_workload_attachment() -
 
 def test_collect_permissions(fixture_provider, options) -> None:
     output = collect_permissions(fixture_provider, options)
-    assert len(output.permissions) == 3
+    assert len(output.permissions) == 6
     assert output.permissions[0].priority == "high"
     assert output.permissions[0].privileged is True
     assert output.permissions[0].high_impact_roles == ["Owner"]
@@ -3398,11 +3405,26 @@ def test_collect_permissions(fixture_provider, options) -> None:
         == "Check privesc for the direct abuse or escalation path behind this current identity."
     )
     assert "direct control visible" in (output.permissions[0].summary or "").lower()
-    assert output.permissions[1].display_name == "aa-hybrid-prod-mi"
-    assert output.permissions[1].priority == "medium"
-    assert output.permissions[1].high_impact_roles == ["Contributor"]
-    assert output.permissions[1].next_review == (
+    by_name = {item.display_name: item for item in output.permissions}
+    assert by_name["aa-hybrid-prod-mi"].priority == "medium"
+    assert by_name["aa-hybrid-prod-mi"].high_impact_roles == ["Contributor"]
+    assert by_name["aa-hybrid-prod-mi"].next_review == (
         "Check role-trusts for trust expansion around who can influence this principal."
+    )
+    assert by_name["app-empty-mi-system"].operator_signal == (
+        "Direct control visible; workload pivot visible."
+    )
+    assert by_name["app-empty-mi-system"].next_review == (
+        "Check managed-identities for the workload pivot behind this direct control row."
+    )
+    assert by_name["func-orders-system"].operator_signal == (
+        "Direct control visible; workload pivot visible."
+    )
+    assert by_name["func-orders-system"].next_review == (
+        "Check managed-identities for the workload pivot behind this direct control row."
+    )
+    assert by_name["vmss-edge-01-system"].operator_signal == (
+        "Direct control visible; workload pivot visible."
     )
 
 

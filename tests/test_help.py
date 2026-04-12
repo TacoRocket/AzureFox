@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from typer.testing import CliRunner
 
 from azurefox.cli import _normalize_argv, app
@@ -52,248 +53,225 @@ def test_help_command_command_topic() -> None:
     assert "names the current gap explicitly" in result.stdout
 
 
-def test_help_command_arm_deployments_topic() -> None:
-    result = runner.invoke(app, ["help", "arm-deployments"])
+HELP_TOPICS_IDENTITY = (
+    ("cross-tenant", ("outside-tenant trust", "attack_path")),
+    ("rbac", ("Role-Based Access Control (RBAC)", "role_assignments")),
+    (
+        "role-trusts",
+        (
+            "Trusted Relationship",
+            "federated credentials",
+            "delegated or admin consent grants",
+            "Fast mode is the default",
+            "per-application owner and federated credential lookups",
+            "usable_identity_result",
+            "escalation_mechanism",
+            "operator_signal",
+            "next_review",
+        ),
+    ),
+    (
+        "auth-policies",
+        (
+            "Conditional Access",
+            "guest, consent, app-creation, or sign-in abuse paths",
+            "Unreadable policy surfaces stay explicit",
+            "issues",
+        ),
+    ),
+)
+
+HELP_TOPICS_INFRA = (
+    ("arm-deployments", ("linked templates", "outputs_count")),
+    (
+        "automation",
+        (
+            "Hybrid Worker",
+            "published_runbook_count",
+            "webhook_count",
+            "encrypted_variable_count",
+        ),
+    ),
+    (
+        "devops",
+        (
+            "build definitions",
+            "repository_host_type",
+            "source_visibility_state",
+            "execution_modes",
+            "trusted_input_types",
+            "trusted_input_refs",
+            "primary_injection_surface",
+            "injection_surface_types",
+            "current_operator_injection_surface_types",
+            "azure_service_connection_names",
+            "current_operator_can_contribute_source",
+            "missing_injection_point",
+            "consequence_types",
+            "--devops-organization",
+        ),
+    ),
+    ("endpoints", ("ingress triage view", "exposure_family", "ingress_path")),
+    (
+        "acr",
+        (
+            "Azure Container Registry (ACR)",
+            "login_server",
+            "admin_user_enabled",
+            "webhook_count",
+            "replication_count",
+            "network_rule_default_action",
+        ),
+    ),
+    (
+        "databases",
+        (
+            "engine",
+            "fully_qualified_domain_name",
+            "database_count",
+            "high_availability_mode",
+            "minimal_tls_version",
+        ),
+    ),
+    (
+        "dns",
+        (
+            "private VNet-linked namespace context",
+            "name_servers",
+            "registration_virtual_network_count",
+            "private_endpoint_reference_count",
+        ),
+    ),
+    (
+        "application-gateway",
+        (
+            "shared public front doors",
+            "listener_count",
+            "request_routing_rule_count",
+            "firewall_policy_id",
+        ),
+    ),
+    (
+        "storage",
+        (
+            "public_network_access",
+            "allow_shared_key_access",
+            "minimum_tls_version",
+            "https_traffic_only_enabled",
+        ),
+    ),
+    (
+        "lighthouse",
+        (
+            "Azure Lighthouse",
+            "managed_by_tenant_name",
+            "eligible_authorization_count",
+            "provisioning_state",
+        ),
+    ),
+    (
+        "snapshots-disks",
+        (
+            "highest-value offline-copy targets first",
+            "attachment_state",
+            "network_access_policy",
+            "disk_encryption_set_id",
+        ),
+    ),
+    ("network-effective", ("public-IP-backed assets", "not to prove full effective exposure")),
+    (
+        "network-ports",
+        ("NIC-backed public endpoints", "allow_source_summary", "exposure_confidence"),
+    ),
+    (
+        "nics",
+        (
+            "network interfaces (NICs)",
+            "attached_asset_name",
+            "public IP references",
+            "network_security_group_id",
+        ),
+    ),
+    ("keyvault", ("secret-management surface", "purge_protection_enabled")),
+    ("resource-trusts", ("public network paths", "resource_type")),
+)
+
+HELP_TOPICS_WORKLOADS = (
+    ("app-services", ("runtime stack", "workload_identity_type", "public_network_access")),
+    ("functions", ("Functions runtime", "azure_webjobs_storage_value_type", "run_from_package")),
+    (
+        "aks",
+        (
+            "Azure Kubernetes Service",
+            "private_cluster_enabled",
+            "cluster_identity_type",
+            "azure_rbac_enabled",
+            "network_plugin",
+            "oidc_issuer_enabled",
+        ),
+    ),
+    (
+        "api-mgmt",
+        (
+            "Application Programming Interface (API) Management",
+            "gateway_hostnames",
+            "virtual_network_type",
+            "active_subscription_count",
+            "named_value_secret_count",
+        ),
+    ),
+    (
+        "vmss",
+        (
+            "Virtual Machine Scale Sets",
+            "instance_count",
+            "orchestration_mode",
+            "public_ip_configuration_count",
+        ),
+    ),
+    ("vms", ("virtual machines (VMs)", "public_ips")),
+    (
+        "env-vars",
+        ("Key Vault references", "pivot to next", "workload_identity_type", "setting_name"),
+    ),
+    ("tokens-credentials", ("pivot to next", "mint tokens", "operator_signal")),
+    (
+        "privesc",
+        (
+            "Cloud Instance Metadata API",
+            "workload identity pivots",
+            "starting_foothold",
+            "operator_signal",
+            "proven_path",
+            "next_review",
+        ),
+    ),
+    ("workloads", ("joined workload census", "identity_type", "ingress_paths")),
+)
+
+
+def _assert_help_topic_surface(topic: str, snippets: tuple[str, ...]) -> None:
+    result = runner.invoke(app, ["help", topic])
 
     assert result.exit_code == 0
-    assert "AzureFox Help :: arm-deployments" in result.stdout
-    assert "linked templates" in result.stdout
-    assert "outputs_count" in result.stdout
+    assert f"AzureFox Help :: {topic}" in result.stdout
+    for snippet in snippets:
+        assert snippet in result.stdout
 
 
-def test_help_command_automation_topic() -> None:
-    result = runner.invoke(app, ["help", "automation"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: automation" in result.stdout
-    assert "Hybrid Worker" in result.stdout
-    assert "published_runbook_count" in result.stdout
-    assert "webhook_count" in result.stdout
-    assert "encrypted_variable_count" in result.stdout
+@pytest.mark.parametrize(("topic", "snippets"), HELP_TOPICS_IDENTITY)
+def test_help_command_topic_surface_identity(topic: str, snippets: tuple[str, ...]) -> None:
+    _assert_help_topic_surface(topic, snippets)
 
 
-def test_help_command_devops_topic() -> None:
-    result = runner.invoke(app, ["help", "devops"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: devops" in result.stdout
-    assert "build definitions" in result.stdout
-    assert "repository_host_type" in result.stdout
-    assert "source_visibility_state" in result.stdout
-    assert "execution_modes" in result.stdout
-    assert "trusted_input_types" in result.stdout
-    assert "trusted_input_refs" in result.stdout
-    assert "primary_injection_surface" in result.stdout
-    assert "injection_surface_types" in result.stdout
-    assert "current_operator_injection_surface_types" in result.stdout
-    assert "azure_service_connection_names" in result.stdout
-    assert "current_operator_can_contribute_source" in result.stdout
-    assert "missing_injection_point" in result.stdout
-    assert "consequence_types" in result.stdout
-    assert "--devops-organization" in result.stdout
+@pytest.mark.parametrize(("topic", "snippets"), HELP_TOPICS_INFRA)
+def test_help_command_topic_surface_infra(topic: str, snippets: tuple[str, ...]) -> None:
+    _assert_help_topic_surface(topic, snippets)
 
 
-def test_help_command_endpoints_topic() -> None:
-    result = runner.invoke(app, ["help", "endpoints"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: endpoints" in result.stdout
-    assert "ingress triage view" in result.stdout
-    assert "exposure_family" in result.stdout
-    assert "ingress_path" in result.stdout
-
-
-def test_help_command_cross_tenant_topic() -> None:
-    result = runner.invoke(app, ["help", "cross-tenant"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: cross-tenant" in result.stdout
-    assert "outside-tenant trust" in result.stdout
-    assert "attack_path" in result.stdout
-
-
-def test_help_command_app_services_topic() -> None:
-    result = runner.invoke(app, ["help", "app-services"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: app-services" in result.stdout
-    assert "runtime stack" in result.stdout
-    assert "workload_identity_type" in result.stdout
-    assert "public_network_access" in result.stdout
-
-
-def test_help_command_acr_topic() -> None:
-    result = runner.invoke(app, ["help", "acr"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: acr" in result.stdout
-    assert "Azure Container Registry (ACR)" in result.stdout
-    assert "login_server" in result.stdout
-    assert "admin_user_enabled" in result.stdout
-    assert "webhook_count" in result.stdout
-    assert "replication_count" in result.stdout
-    assert "network_rule_default_action" in result.stdout
-
-
-def test_help_command_databases_topic() -> None:
-    result = runner.invoke(app, ["help", "databases"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: databases" in result.stdout
-    assert "engine" in result.stdout
-    assert "fully_qualified_domain_name" in result.stdout
-    assert "database_count" in result.stdout
-    assert "high_availability_mode" in result.stdout
-    assert "minimal_tls_version" in result.stdout
-
-
-def test_help_command_dns_topic() -> None:
-    result = runner.invoke(app, ["help", "dns"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: dns" in result.stdout
-    assert "private VNet-linked namespace context" in result.stdout
-    assert "name_servers" in result.stdout
-    assert "registration_virtual_network_count" in result.stdout
-    assert "private_endpoint_reference_count" in result.stdout
-
-
-def test_help_command_application_gateway_topic() -> None:
-    result = runner.invoke(app, ["help", "application-gateway"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: application-gateway" in result.stdout
-    assert "shared public front doors" in result.stdout
-    assert "listener_count" in result.stdout
-    assert "request_routing_rule_count" in result.stdout
-    assert "firewall_policy_id" in result.stdout
-
-
-def test_help_command_storage_topic() -> None:
-    result = runner.invoke(app, ["help", "storage"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: storage" in result.stdout
-    assert "public_network_access" in result.stdout
-    assert "allow_shared_key_access" in result.stdout
-    assert "minimum_tls_version" in result.stdout
-    assert "https_traffic_only_enabled" in result.stdout
-
-
-def test_help_command_lighthouse_topic() -> None:
-    result = runner.invoke(app, ["help", "lighthouse"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: lighthouse" in result.stdout
-    assert "Azure Lighthouse" in result.stdout
-    assert "managed_by_tenant_name" in result.stdout
-    assert "eligible_authorization_count" in result.stdout
-    assert "provisioning_state" in result.stdout
-
-
-def test_help_command_snapshots_disks_topic() -> None:
-    result = runner.invoke(app, ["help", "snapshots-disks"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: snapshots-disks" in result.stdout
-    assert "highest-value offline-copy targets first" in result.stdout
-    assert "attachment_state" in result.stdout
-    assert "network_access_policy" in result.stdout
-    assert "disk_encryption_set_id" in result.stdout
-
-
-def test_help_command_network_effective_topic() -> None:
-    result = runner.invoke(app, ["help", "network-effective"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: network-effective" in result.stdout
-    assert "public-IP-backed assets" in result.stdout
-    assert "not to prove full effective exposure" in result.stdout
-
-
-def test_help_command_functions_topic() -> None:
-    result = runner.invoke(app, ["help", "functions"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: functions" in result.stdout
-    assert "Functions runtime" in result.stdout
-    assert "azure_webjobs_storage_value_type" in result.stdout
-    assert "run_from_package" in result.stdout
-
-
-def test_help_command_aks_topic() -> None:
-    result = runner.invoke(app, ["help", "aks"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: aks" in result.stdout
-    assert "Azure Kubernetes Service" in result.stdout
-    assert "private_cluster_enabled" in result.stdout
-    assert "cluster_identity_type" in result.stdout
-    assert "azure_rbac_enabled" in result.stdout
-    assert "network_plugin" in result.stdout
-    assert "oidc_issuer_enabled" in result.stdout
-
-
-def test_help_command_api_mgmt_topic() -> None:
-    result = runner.invoke(app, ["help", "api-mgmt"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: api-mgmt" in result.stdout
-    assert "Application Programming Interface (API) Management" in result.stdout
-    assert "gateway_hostnames" in result.stdout
-    assert "virtual_network_type" in result.stdout
-    assert "active_subscription_count" in result.stdout
-    assert "named_value_secret_count" in result.stdout
-
-
-def test_help_command_vmss_topic() -> None:
-    result = runner.invoke(app, ["help", "vmss"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: vmss" in result.stdout
-    assert "Virtual Machine Scale Sets" in result.stdout
-    assert "instance_count" in result.stdout
-    assert "orchestration_mode" in result.stdout
-    assert "public_ip_configuration_count" in result.stdout
-
-
-def test_help_command_network_ports_topic() -> None:
-    result = runner.invoke(app, ["help", "network-ports"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: network-ports" in result.stdout
-    assert "NIC-backed public endpoints" in result.stdout
-    assert "allow_source_summary" in result.stdout
-    assert "exposure_confidence" in result.stdout
-
-
-def test_help_command_rbac_topic() -> None:
-    result = runner.invoke(app, ["help", "rbac"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: rbac" in result.stdout
-    assert "Role-Based Access Control (RBAC)" in result.stdout
-    assert "role_assignments" in result.stdout
-
-
-def test_help_command_nics_topic() -> None:
-    result = runner.invoke(app, ["help", "nics"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: nics" in result.stdout
-    assert "network interfaces (NICs)" in result.stdout
-    assert "attached_asset_name" in result.stdout
-    assert "public IP references" in result.stdout
-    assert "network_security_group_id" in result.stdout
-
-
-def test_help_command_vms_topic() -> None:
-    result = runner.invoke(app, ["help", "vms"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: vms" in result.stdout
-    assert "virtual machines (VMs)" in result.stdout
-    assert "public_ips" in result.stdout
+@pytest.mark.parametrize(("topic", "snippets"), HELP_TOPICS_WORKLOADS)
+def test_help_command_topic_surface_workloads(topic: str, snippets: tuple[str, ...]) -> None:
+    _assert_help_topic_surface(topic, snippets)
 
 
 def test_help_command_chains_topic_sets_planned_runtime_expectations() -> None:
@@ -312,95 +290,6 @@ def test_help_command_chains_topic_sets_planned_runtime_expectations() -> None:
     assert "credential-path" in result.stdout
     assert "claim_boundary" in result.stdout
     assert "current_gap" in result.stdout
-
-
-def test_help_command_env_vars_topic() -> None:
-    result = runner.invoke(app, ["help", "env-vars"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: env-vars" in result.stdout
-    assert "Key Vault references" in result.stdout
-    assert "pivot to next" in result.stdout
-    assert "workload_identity_type" in result.stdout
-    assert "setting_name" in result.stdout
-
-
-def test_help_command_tokens_credentials_topic() -> None:
-    result = runner.invoke(app, ["help", "tokens-credentials"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: tokens-credentials" in result.stdout
-    assert "pivot to next" in result.stdout
-    assert "mint tokens" in result.stdout
-    assert "operator_signal" in result.stdout
-
-
-def test_help_command_privesc_topic() -> None:
-    result = runner.invoke(app, ["help", "privesc"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: privesc" in result.stdout
-    assert "Cloud Instance Metadata API" in result.stdout
-    assert "workload identity pivots" in result.stdout
-    assert "starting_foothold" in result.stdout
-    assert "operator_signal" in result.stdout
-    assert "proven_path" in result.stdout
-    assert "next_review" in result.stdout
-
-
-def test_help_command_role_trusts_topic() -> None:
-    result = runner.invoke(app, ["help", "role-trusts"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: role-trusts" in result.stdout
-    assert "Trusted Relationship" in result.stdout
-    assert "federated credentials" in result.stdout
-    assert "delegated or admin consent grants" in result.stdout
-    assert "Fast mode is the default" in result.stdout
-    assert "per-application owner and federated credential lookups" in result.stdout
-    assert "usable_identity_result" in result.stdout
-    assert "escalation_mechanism" in result.stdout
-    assert "operator_signal" in result.stdout
-    assert "next_review" in result.stdout
-
-
-def test_help_command_auth_policies_topic() -> None:
-    result = runner.invoke(app, ["help", "auth-policies"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: auth-policies" in result.stdout
-    assert "Conditional Access" in result.stdout
-    assert "guest, consent, app-creation, or sign-in abuse paths" in result.stdout
-    assert "Unreadable policy surfaces stay explicit" in result.stdout
-    assert "issues" in result.stdout
-
-
-def test_help_command_keyvault_topic() -> None:
-    result = runner.invoke(app, ["help", "keyvault"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: keyvault" in result.stdout
-    assert "secret-management surface" in result.stdout
-    assert "purge_protection_enabled" in result.stdout
-
-
-def test_help_command_resource_trusts_topic() -> None:
-    result = runner.invoke(app, ["help", "resource-trusts"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: resource-trusts" in result.stdout
-    assert "public network paths" in result.stdout
-    assert "resource_type" in result.stdout
-
-
-def test_help_command_workloads_topic() -> None:
-    result = runner.invoke(app, ["help", "workloads"])
-
-    assert result.exit_code == 0
-    assert "AzureFox Help :: workloads" in result.stdout
-    assert "joined workload census" in result.stdout
-    assert "identity_type" in result.stdout
-    assert "ingress_paths" in result.stdout
 
 
 def test_help_command_unknown_topic() -> None:

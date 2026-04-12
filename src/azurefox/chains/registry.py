@@ -394,12 +394,13 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
         ),
         current_gap=(
             "The live family is intentionally narrow in v1: direct token-opportunity rows only. "
-            "Broader trust expansion, secret-bearing config starts, and mixed-identity workloads "
-            "still need clearer admission rules or a different family boundary."
+            "Broader trust expansion and secret-bearing config starts still sit outside this "
+            "family, and mixed-identity workloads still need explicit corroboration before "
+            "default admission."
         ),
         best_current_examples=(
             "tokens-credentials -> managed-identities -> permissions",
-            "workloads -> tokens-credentials -> permissions",
+            "tokens-credentials -> env-vars -> managed-identities -> permissions",
         ),
         source_commands=(
             ChainSourceSpec(
@@ -415,6 +416,21 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
                 rationale=(
                     "Provides the token-capable compute foothold when a workload can already mint "
                     "or request tokens."
+                ),
+            ),
+            ChainSourceSpec(
+                command="env-vars",
+                minimum_fields=(
+                    "asset_id",
+                    "asset_name",
+                    "setting_name",
+                    "value_type",
+                    "key_vault_reference_identity",
+                    "workload_identity_ids",
+                ),
+                rationale=(
+                    "Provides workload configuration clues that can explicitly name which "
+                    "attached identity a mixed-identity web workload is using."
                 ),
             ),
             ChainSourceSpec(
