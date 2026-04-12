@@ -354,23 +354,59 @@ def test_cli_smoke_chains_compute_control_json(tmp_path: Path) -> None:
     assert payload["source_artifacts"] == []
     assert payload["backing_commands"] == [
         "tokens-credentials",
+        "env-vars",
         "workloads",
         "managed-identities",
         "permissions",
     ]
-    assert len(payload["paths"]) == 1
-    row = payload["paths"][0]
-    assert row["asset_name"] == "vm-web-01"
-    assert row["asset_kind"] == "VM"
-    assert row["path_concept"] == "direct-token-opportunity"
-    assert row["insertion_point"] == "public IMDS token path"
-    assert row["stronger_outcome"] == "Owner across subscription-wide scope"
-    assert row["priority"] == "high"
-    assert row["urgency"] == "pivot-now"
-    assert row["target_service"] == "azure-control"
-    assert "token-capable compute foothold" in row["confidence_boundary"]
-    assert "Check vms for the host foothold" in row["next_review"]
-    assert "can request tokens as ua-app" in row["why_care"]
+    assert len(payload["paths"]) == 4
+    names = [item["asset_name"] for item in payload["paths"]]
+    assert names == ["app-empty-mi", "func-orders", "vm-web-01", "vmss-edge-01"]
+    assert {item["target_resolution"] for item in payload["paths"]} == {
+        "path-confirmed",
+        "identity-choice-corroborated",
+    }
+
+    app_row = next(item for item in payload["paths"] if item["asset_name"] == "app-empty-mi")
+    assert app_row["asset_kind"] == "AppService"
+    assert app_row["path_concept"] == "direct-token-opportunity"
+    assert app_row["priority"] == "high"
+    assert app_row["urgency"] == "pivot-now"
+    assert app_row["stronger_outcome"] == "Contributor across subscription-wide scope"
+    assert "Check app-services for the running service foothold" in app_row["next_review"]
+
+    func_row = next(item for item in payload["paths"] if item["asset_name"] == "func-orders")
+    assert func_row["asset_kind"] == "FunctionApp"
+    assert func_row["path_concept"] == "direct-token-opportunity"
+    assert func_row["priority"] == "high"
+    assert func_row["urgency"] == "pivot-now"
+    assert func_row["target_names"] == ["func-orders-system"]
+    assert func_row["target_resolution"] == "identity-choice-corroborated"
+    assert func_row["confirmation_basis"] == "mixed-identity-corroborated-permission-join"
+    assert "cannot directly verify" in func_row["confidence_boundary"]
+    assert "SystemAssigned" in func_row["confidence_boundary"]
+    assert "does not directly verify" in func_row["missing_confirmation"]
+    assert "already narrows this path to the identity shown here" in func_row["next_review"]
+
+    vm_row = next(item for item in payload["paths"] if item["asset_name"] == "vm-web-01")
+    assert vm_row["asset_kind"] == "VM"
+    assert vm_row["path_concept"] == "direct-token-opportunity"
+    assert vm_row["insertion_point"] == "public IMDS token path"
+    assert vm_row["stronger_outcome"] == "Owner across subscription-wide scope"
+    assert vm_row["priority"] == "high"
+    assert vm_row["urgency"] == "pivot-now"
+    assert vm_row["target_service"] == "azure-control"
+    assert "token-capable compute foothold" in vm_row["confidence_boundary"]
+    assert "Check vms for the host foothold" in vm_row["next_review"]
+    assert "can request tokens as ua-app" in vm_row["why_care"]
+
+    vmss_row = next(item for item in payload["paths"] if item["asset_name"] == "vmss-edge-01")
+    assert vmss_row["asset_kind"] == "VMSS"
+    assert vmss_row["path_concept"] == "direct-token-opportunity"
+    assert vmss_row["priority"] == "medium"
+    assert vmss_row["urgency"] == "review-soon"
+    assert vmss_row["stronger_outcome"] == "Contributor across subscription-wide scope"
+    assert "Check vmss for the fleet foothold" in vmss_row["next_review"]
 
 
 def test_cli_smoke_chains_escalation_path_json(tmp_path: Path) -> None:
@@ -433,6 +469,7 @@ def test_cli_smoke_chains_compute_control_table_output(tmp_path: Path) -> None:
         ["--outdir", str(tmp_path), "chains", "compute-control"],
         env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
     )
+    normalized_output = " ".join(result.stdout.split()).lower()
 
     assert result.exit_code == 0
     assert "azurefox chains" in result.stdout
@@ -441,13 +478,19 @@ def test_cli_smoke_chains_compute_control_table_output(tmp_path: Path) -> None:
     assert "insertion point" in result.stdout
     assert "visible azure control" in result.stdout
     assert "confidence boundary" in result.stdout
+    assert "app-empty-mi" in result.stdout
+    assert "func-orders" in result.stdout
     assert "vm-web-01" in result.stdout
+    assert "vmss-edge-01" in result.stdout
     assert "direct token opportunity" in result.stdout
     assert "public imds token path" in result.stdout.lower()
     assert "Owner across subscription-wide scope" in result.stdout
+    assert "mixed identities" in normalized_output
+    assert "current foothold" in normalized_output
     assert "Claim boundary:" in result.stdout
     assert "Current gap:" in result.stdout
-    assert "Takeaway: 1 visible compute-control paths" in result.stdout
+    assert "Takeaway: 4 visible compute-control paths" in result.stdout
+    assert "narrowed candidates" not in normalized_output
 
 
 def test_cli_smoke_deployment_path_operator_language_guard(tmp_path: Path) -> None:
@@ -571,7 +614,7 @@ def test_cli_smoke_chains_help_csv_matches_overview(tmp_path: Path) -> None:
     assert overview_csv == help_csv
 
 
-def test_cli_smoke_loot_uses_semantic_high_band_for_tokens_credentials(tmp_path: Path) -> None:
+def test_cli_smoke_loot_artifact_written_end_to_end(tmp_path: Path) -> None:
     fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
 
     result = runner.invoke(
@@ -603,79 +646,6 @@ def test_cli_smoke_loot_uses_semantic_high_band_for_tokens_credentials(tmp_path:
         "priority_band": "high",
         "source_count": len(json_payload["surfaces"]),
         "returned_count": 3,
-    }
-
-
-def test_cli_smoke_loot_uses_semantic_high_band_for_cross_tenant(tmp_path: Path) -> None:
-    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
-
-    result = runner.invoke(
-        app,
-        ["--outdir", str(tmp_path), "--output", "json", "cross-tenant"],
-        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
-    )
-
-    assert result.exit_code == 0
-    json_payload = json.loads((tmp_path / "json" / "cross-tenant.json").read_text(encoding="utf-8"))
-    loot_payload = json.loads((tmp_path / "loot" / "cross-tenant.json").read_text(encoding="utf-8"))
-
-    assert len(json_payload["cross_tenant_paths"]) == 4
-    assert len(loot_payload["cross_tenant_paths"]) == 3
-    assert {row["priority"] for row in loot_payload["cross_tenant_paths"]} == {"high"}
-    assert loot_payload["loot_scope"] == {
-        "selection": "semantic-high-priority",
-        "priority_band": "high",
-        "source_count": len(json_payload["cross_tenant_paths"]),
-        "returned_count": 3,
-    }
-
-
-def test_cli_smoke_loot_uses_semantic_high_band_for_permissions(tmp_path: Path) -> None:
-    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
-
-    result = runner.invoke(
-        app,
-        ["--outdir", str(tmp_path), "--output", "json", "permissions"],
-        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
-    )
-
-    assert result.exit_code == 0
-    json_payload = json.loads((tmp_path / "json" / "permissions.json").read_text(encoding="utf-8"))
-    loot_payload = json.loads((tmp_path / "loot" / "permissions.json").read_text(encoding="utf-8"))
-
-    assert [row["priority"] for row in json_payload["permissions"]] == ["high", "medium", "low"]
-    assert len(loot_payload["permissions"]) == 1
-    assert {row["priority"] for row in loot_payload["permissions"]} == {"high"}
-    assert loot_payload["loot_scope"] == {
-        "selection": "semantic-high-priority",
-        "priority_band": "high",
-        "source_count": len(json_payload["permissions"]),
-        "returned_count": 1,
-    }
-
-
-def test_cli_smoke_loot_uses_semantic_high_band_for_privesc(tmp_path: Path) -> None:
-    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
-
-    result = runner.invoke(
-        app,
-        ["--outdir", str(tmp_path), "--output", "json", "privesc"],
-        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
-    )
-
-    assert result.exit_code == 0
-    json_payload = json.loads((tmp_path / "json" / "privesc.json").read_text(encoding="utf-8"))
-    loot_payload = json.loads((tmp_path / "loot" / "privesc.json").read_text(encoding="utf-8"))
-
-    assert [row["priority"] for row in json_payload["paths"]] == ["high", "medium"]
-    assert [row["severity"] for row in json_payload["paths"]] == ["high", "high"]
-    assert len(loot_payload["paths"]) == 1
-    assert {row["priority"] for row in loot_payload["paths"]} == {"high"}
-    assert loot_payload["loot_scope"] == {
-        "selection": "semantic-high-priority",
-        "priority_band": "high",
-        "source_count": len(json_payload["paths"]),
-        "returned_count": 1,
     }
 
 

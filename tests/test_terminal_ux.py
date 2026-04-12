@@ -609,7 +609,7 @@ def test_principals_table_mode_uses_curated_columns(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "identity context" in result.stdout
     assert "current" in result.stdout
-    assert "Takeaway: 2 principals visible" in result.stdout
+    assert "Takeaway: 5 principals visible" in result.stdout
 
 
 def test_arm_deployments_table_mode_surfaces_scope_and_linked_refs(tmp_path: Path) -> None:
@@ -763,7 +763,7 @@ def test_permissions_table_mode_surfaces_next_review(tmp_path: Path) -> None:
     assert "foothold." in normalized_output
     assert "Check privesc" in result.stdout
     assert "aa-hybrid-prod-mi" in result.stdout
-    assert "Takeaway: 2 of 3 principals hold high-impact RBAC roles;" in result.stdout
+    assert "Takeaway: 5 of 6 principals hold high-impact RBAC roles;" in result.stdout
 
 
 def test_chains_table_mode_surfaces_priority_and_next_review(tmp_path: Path) -> None:
