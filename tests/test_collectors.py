@@ -3248,9 +3248,9 @@ def test_collect_managed_identities_uses_identity_scope_and_propagates_optional_
     output = collect_managed_identities(StubProvider(), options)
 
     assert output.identities[0].scope_ids == ["/subscriptions/identity-sub"]
-    assert output.issues[-2:] == [
-        {"kind": "partial_read", "message": "app-services partial read"},
-        {"kind": "forbidden", "message": "functions forbidden"},
+    assert [(issue.kind, issue.message) for issue in output.issues[-2:]] == [
+        ("partial_read", "app-services partial read"),
+        ("forbidden", "functions forbidden"),
     ]
 
 
