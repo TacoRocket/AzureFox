@@ -1101,7 +1101,8 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         cloudfox_frame=(
             "AzureFox orchestration layer for targeted grouped runs. Current state: "
-            "credential-path, deployment-path, escalation-path, and compute-control are exposed now with "
+            "credential-path, deployment-path, escalation-path, and compute-control are exposed "
+            "now with "
             "conservative extraction-first joins; escalation-path currently ships only rows "
             "where the transform from current foothold to stronger control is explicit. "
             "compute-control currently ships a narrow direct-token-opportunity v1 where the "

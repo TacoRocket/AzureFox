@@ -456,7 +456,9 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
                     "scope_ids",
                     "privileged",
                 ),
-                rationale=("Provides the stronger Azure control visible behind the attached identity."),
+                rationale=(
+                    "Provides the stronger Azure control visible behind the attached identity."
+                ),
             ),
         ),
     ),
