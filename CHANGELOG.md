@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.4.0] - 2026-04-12
+
+### Added
+- Shipped the new `compute-control` chain family so AzureFox can join compute footholds to
+  defended Azure-control follow-on paths in one operator-facing view.
+- Added first-class `container-apps` and `container-instances` flat commands so those runtime
+  surfaces are visible directly instead of only through shared compute follow-on logic.
+
+### Changed
+- Tightened `compute-control` admission, mixed-identity handling, terminal wording, and fixture
+  coverage so live output stays truthful while still surfacing the strongest defended control path.
+- Refreshed help text, README chain guidance, fixtures, and golden outputs to match the shipped
+  chain and container-runtime surface.
+- Bumped the published package and output schema version to `1.4.0` for the completed minor
+  release boundary.
+
 ## [1.3.0] - 2026-04-08
 
 ### Added
