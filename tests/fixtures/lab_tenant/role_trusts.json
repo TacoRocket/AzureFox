@@ -3,6 +3,38 @@
   "trusts": [
     {
       "trust_type": "app-owner",
+      "source_object_id": "33333333-3333-3333-3333-333333333333",
+      "source_name": "azurefox-lab-sp",
+      "source_type": "ServicePrincipal",
+      "target_object_id": "55555555-5555-5555-5555-555555555555",
+      "target_name": "build-app",
+      "target_type": "Application",
+      "evidence_type": "graph-owner",
+      "confidence": "confirmed",
+      "summary": "Owner 'azurefox-lab-sp' can modify application 'build-app'.",
+      "related_ids": [
+        "33333333-3333-3333-3333-333333333333",
+        "55555555-5555-5555-5555-555555555555"
+      ]
+    },
+    {
+      "trust_type": "service-principal-owner",
+      "source_object_id": "33333333-3333-3333-3333-333333333333",
+      "source_name": "azurefox-lab-sp",
+      "source_type": "ServicePrincipal",
+      "target_object_id": "66666666-6666-6666-6666-666666666666",
+      "target_name": "build-sp",
+      "target_type": "ServicePrincipal",
+      "evidence_type": "graph-owner",
+      "confidence": "confirmed",
+      "summary": "Owner 'azurefox-lab-sp' can modify service principal 'build-sp'.",
+      "related_ids": [
+        "33333333-3333-3333-3333-333333333333",
+        "66666666-6666-6666-6666-666666666666"
+      ]
+    },
+    {
+      "trust_type": "app-owner",
       "source_object_id": "77777777-7777-7777-7777-777777777777",
       "source_name": "ci-admin@lab.local",
       "source_type": "User",

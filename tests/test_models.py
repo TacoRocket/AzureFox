@@ -247,7 +247,6 @@ def test_privesc_path_defaults() -> None:
         principal_id="p-1",
         principal_type="ServicePrincipal",
         path_type="direct-role-abuse",
-        severity="high",
         priority="high",
         summary="test",
     )

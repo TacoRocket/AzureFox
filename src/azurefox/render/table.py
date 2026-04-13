@@ -9,6 +9,15 @@ from rich.console import Console
 from rich.table import Table
 
 from azurefox.auth.modes import auth_mode_label
+from azurefox.chains.presentation import (
+    compute_control_identity_label,
+    compute_control_proof_status_label,
+    compute_control_reach_from_here_label,
+    compute_control_token_path_label,
+    compute_control_when_label,
+    escalation_path_type_label,
+    normalize_chain_payload_for_output,
+)
 from azurefox.devops_hints import describe_trusted_input, devops_next_review_hint
 from azurefox.env_var_hints import env_var_next_review_hint
 from azurefox.tokens_credential_hints import tokens_credential_next_review_hint
@@ -23,6 +32,7 @@ _CHAIN_FAMILY_LABELS = {
 
 
 def render_table(command: str, payload: dict) -> str:
+    payload = normalize_chain_payload_for_output(command, payload)
     sio = StringIO()
     console = Console(file=sio, force_terminal=False, color_system=None, width=160)
 
@@ -740,22 +750,18 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     ("asset_name", "starting foothold"),
                     ("path_concept", "path type"),
                     ("stronger_outcome", "stronger outcome"),
-                    ("confidence_boundary", "confidence boundary"),
-                    ("next_review", "next review"),
-                    ("why_care", "why care"),
+                    ("why_care", "note"),
                 ],
                 [
                     {
                         "priority": item.get("priority"),
                         "urgency": item.get("urgency") or "-",
-                        "asset_name": item.get("asset_name"),
-                        "path_concept": _escalation_path_type(item),
+                        "asset_name": item.get("starting_foothold") or item.get("asset_name"),
+                        "path_concept": item.get("path_type")
+                        or escalation_path_type_label(str(item.get("path_concept") or "")),
                         "stronger_outcome": item.get("stronger_outcome")
                         or item.get("likely_impact"),
-                        "confidence_boundary": item.get("confidence_boundary")
-                        or _chains_note(item, family=family),
-                        "next_review": item.get("next_review"),
-                        "why_care": item.get("why_care"),
+                        "why_care": item.get("note") or item.get("why_care"),
                     }
                     for item in payload.get("paths", [])
                 ],
@@ -805,15 +811,25 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                 [
                     {
                         "priority": item.get("priority"),
-                        "when": _compute_control_when(item),
-                        "workload_reach": _compute_control_workload_reach(item),
-                        "asset_name": item.get("asset_name"),
-                        "insertion_point": _compute_control_token_path(item),
-                        "identity": _compute_control_identity(item),
-                        "stronger_outcome": item.get("stronger_outcome")
+                        "when": item.get("when")
+                        or compute_control_when_label(str(item.get("urgency") or "")),
+                        "workload_reach": item.get("reach_from_here")
+                        or compute_control_reach_from_here_label(
+                            str(item.get("insertion_point") or "")
+                        ),
+                        "asset_name": item.get("compute_foothold") or item.get("asset_name"),
+                        "insertion_point": item.get("token_path")
+                        or compute_control_token_path_label(str(item.get("insertion_point") or "")),
+                        "identity": item.get("identity")
+                        or compute_control_identity_label(item.get("target_names") or []),
+                        "stronger_outcome": item.get("azure_access")
+                        or item.get("stronger_outcome")
                         or item.get("likely_impact"),
-                        "proof_status": _compute_control_proof_status(item),
-                        "why_care": item.get("why_care"),
+                        "proof_status": item.get("proof_status")
+                        or compute_control_proof_status_label(
+                            str(item.get("target_resolution") or "")
+                        ),
+                        "why_care": item.get("note") or item.get("why_care"),
                     }
                     for item in payload.get("paths", [])
                 ],
@@ -1913,7 +1929,7 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         if family == "escalation-path":
             concepts = Counter(item.get("path_concept") or "unknown" for item in paths)
             concept_counts = ", ".join(
-                f"{count} {_escalation_path_type({'path_concept': name})}"
+                f"{count} {escalation_path_type_label(str(name))}"
                 for name, count in concepts.items()
                 if name != "unknown"
             )
@@ -2160,71 +2176,12 @@ def _stack_chain_insertion_point(value: object) -> str:
     return text
 
 
-def _escalation_path_type(item: dict) -> str:
-    concept = str(item.get("path_concept") or "")
-    labels = {
-        "current-foothold-direct-control": "current foothold direct control",
-        "trust-expansion": "trust expansion",
-    }
-    return labels.get(concept, concept or "-")
-
-
 def _compute_control_path_type(item: dict) -> str:
     concept = str(item.get("path_concept") or "")
     labels = {
         "direct-token-opportunity": "direct token opportunity",
     }
     return labels.get(concept, concept or "-")
-
-
-def _compute_control_when(item: dict) -> str:
-    urgency = str(item.get("urgency") or "")
-    labels = {
-        "pivot-now": "act now",
-        "review-soon": "review soon",
-        "bookmark": "keep in view",
-    }
-    return labels.get(urgency, urgency or "-")
-
-
-def _compute_control_token_path(item: dict) -> str:
-    insertion_point = str(item.get("insertion_point") or "")
-    labels = {
-        "reachable service token request path": "service token request",
-        "public IMDS token path": "public VM metadata token",
-        "IMDS token path": "VM metadata token",
-    }
-    return labels.get(insertion_point, insertion_point or "-")
-
-
-def _compute_control_workload_reach(item: dict) -> str:
-    insertion_point = str(item.get("insertion_point") or "")
-    if insertion_point in {"reachable service token request path", "public IMDS token path"}:
-        return "public exposure visible; exploitation not proved"
-    return "current access does not show the start"
-
-
-def _compute_control_identity(item: dict) -> str:
-    names = [str(value) for value in item.get("target_names") or [] if str(value).strip()]
-    if not names:
-        return "not visible"
-    if len(names) == 1:
-        return names[0]
-    return "multiple possible: " + ", ".join(names)
-
-
-def _compute_control_proof_status(item: dict) -> str:
-    resolution = str(item.get("target_resolution") or "")
-    labels = {
-        "path-confirmed": "confirmed",
-        "identity-choice-corroborated": "best current match",
-        "narrowed candidates": "multiple identities possible",
-        "visibility blocked": "limited visibility",
-        "tenant-wide candidates": "broad match only",
-        "service hint only": "early signal only",
-        "named target not visible": "named identity not visible",
-    }
-    return labels.get(resolution, "bounded")
 
 
 def _chains_note(item: dict, *, family: str = "") -> str:

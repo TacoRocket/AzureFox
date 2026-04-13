@@ -35,6 +35,25 @@
       "is_current_identity": false
     },
     {
+      "principal_id": "66666666-6666-6666-6666-666666666666",
+      "display_name": "build-sp",
+      "principal_type": "ServicePrincipal",
+      "high_impact_roles": [
+        "Owner"
+      ],
+      "all_role_names": [
+        "Owner"
+      ],
+      "role_assignment_count": 2,
+      "scope_count": 2,
+      "scope_ids": [
+        "/subscriptions/99999999-9999-9999-9999-999999999999/resourceGroups/rg-build-dr",
+        "/subscriptions/99999999-9999-9999-9999-999999999999/resourceGroups/rg-identity"
+      ],
+      "privileged": true,
+      "is_current_identity": false
+    },
+    {
       "principal_id": "12121212-1212-1212-1212-121212121212",
       "display_name": "aa-hybrid-prod-mi",
       "principal_type": "ServicePrincipal",
@@ -84,6 +103,42 @@
       "scope_count": 1,
       "scope_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-apps"
+      ],
+      "privileged": true,
+      "is_current_identity": false
+    },
+    {
+      "principal_id": "abab1111-1111-1111-1111-111111111111",
+      "display_name": "aca-orders-system",
+      "principal_type": "ServicePrincipal",
+      "high_impact_roles": [
+        "Contributor"
+      ],
+      "all_role_names": [
+        "Contributor"
+      ],
+      "role_assignment_count": 1,
+      "scope_count": 1,
+      "scope_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers"
+      ],
+      "privileged": true,
+      "is_current_identity": false
+    },
+    {
+      "principal_id": "acac1111-1111-1111-1111-111111111111",
+      "display_name": "aci-public-api-system",
+      "principal_type": "ServicePrincipal",
+      "high_impact_roles": [
+        "Contributor"
+      ],
+      "all_role_names": [
+        "Contributor"
+      ],
+      "role_assignment_count": 1,
+      "scope_count": 1,
+      "scope_ids": [
+        "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-apps"
       ],
       "privileged": true,
       "is_current_identity": false

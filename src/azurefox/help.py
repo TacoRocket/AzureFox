@@ -779,8 +779,8 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="role-trusts",
         section="identity",
         summary=(
-            "Triage Azure app and service-principal trust edges worth abuse review before exact "
-            "identity-control transforms are proven."
+            "Triage Azure app and service-principal trust edges, including the clearest visible "
+            "identity-control transforms, before treating them as direct Azure control."
         ),
         offensive_question=(
             "Which Azure app, service-principal, ownership, and federated relationships deserve "
@@ -791,9 +791,9 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "principals, federated credentials, ownership, and app-role assignments rather "
             "than delegated or admin consent grants. Fast mode is the default; full mode is "
             "the explicit slower tenant-wide application sweep that performs per-application "
-            "owner and federated credential lookups. This command is still relationship-first "
-            "triage; chain families should only promote rows once the identity-control "
-            "mechanism is explicit."
+            "owner and federated credential lookups. This command is still trust-edge triage; "
+            "chain families should only promote rows once the identity-control mechanism and "
+            "downstream Azure control are both explicit."
         ),
         output_highlights=(
             "trust_type",

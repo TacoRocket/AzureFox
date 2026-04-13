@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
+from types import SimpleNamespace
+
 from azurefox.chains.credential_path import _build_candidate_record
 from azurefox.chains.deployment_path import DeploymentSourceAssessment
 from azurefox.chains.runner import (
+    _build_escalation_path_output,
     _build_escalation_trust_record,
     _deployment_confidence_boundary,
     _deployment_current_operator_suffix,
@@ -20,7 +24,8 @@ from azurefox.chains.semantics import (
     semantic_priority_sort_value,
     semantic_urgency_sort_value,
 )
-from azurefox.models.common import RoleTrustSummary
+from azurefox.config import GlobalOptions
+from azurefox.models.common import OutputMode, PermissionSummary, RoleTrustSummary
 
 
 def test_credential_path_semantics_promote_named_match() -> None:
@@ -338,7 +343,7 @@ def test_escalation_path_semantics_promote_current_foothold_direct_control() -> 
             target_service="azure-control",
             target_resolution="path-confirmed",
             target_count=1,
-            source_command="privesc",
+            source_command="permissions",
             path_concept="current-foothold-direct-control",
         )
     )
@@ -400,8 +405,8 @@ def test_escalation_path_trust_rows_require_explicit_transform_and_target_contro
         controlled_object_type="ServicePrincipal",
         controlled_object_name="build-sp",
         escalation_mechanism=(
-            "Owner-level control over service principal 'build-sp' is visible, but the exact "
-            "authentication-control transform is not yet explicit."
+            "Owner-level control over service principal 'build-sp' could add or replace "
+            "authentication material Azure accepts for service principal 'build-sp'."
         ),
         usable_identity_result=None,
         defender_cut_point="Remove the owner-level control path over service principal 'build-sp'.",
@@ -421,9 +426,176 @@ def test_escalation_path_trust_rows_require_explicit_transform_and_target_contro
             }
         },
         current_foothold_id="sp-1",
+        current_foothold_permission=None,
     )
 
     assert record is None
+
+
+def test_escalation_path_ignores_visible_privileged_principal_that_is_not_current() -> None:
+    options = GlobalOptions(
+        tenant="tenant-id",
+        subscription="sub-id",
+        output=OutputMode.TABLE,
+        outdir=Path("/tmp/azurefox-escalation-path-negative"),
+        debug=False,
+    )
+
+    loaded = {
+        "permissions": SimpleNamespace(
+            permissions=[
+                PermissionSummary(
+                    principal_id="user-1",
+                    display_name="operator@lab.local",
+                    principal_type="User",
+                    priority="low",
+                    high_impact_roles=[],
+                    all_role_names=["Reader"],
+                    scope_count=1,
+                    scope_ids=["/subscriptions/sub-id"],
+                    privileged=False,
+                    is_current_identity=True,
+                ),
+                PermissionSummary(
+                    principal_id="sp-1",
+                    display_name="nearby-owner-sp",
+                    principal_type="ServicePrincipal",
+                    priority="medium",
+                    high_impact_roles=["Owner"],
+                    all_role_names=["Owner"],
+                    scope_count=1,
+                    scope_ids=["/subscriptions/other-sub"],
+                    privileged=True,
+                    is_current_identity=False,
+                ),
+            ],
+            issues=[],
+        ),
+        "role-trusts": SimpleNamespace(trusts=[], issues=[]),
+    }
+
+    output = _build_escalation_path_output(options, "escalation-path", loaded)
+
+    assert output.backing_commands == ["permissions", "role-trusts"]
+    assert output.paths == []
+
+
+def test_escalation_path_keeps_multiple_current_footholds_instead_of_picking_one() -> None:
+    options = GlobalOptions(
+        tenant="tenant-id",
+        subscription="sub-id",
+        output=OutputMode.TABLE,
+        outdir=Path("/tmp/azurefox-escalation-path-multi-current"),
+        debug=False,
+    )
+
+    loaded = {
+        "permissions": SimpleNamespace(
+            permissions=[
+                PermissionSummary(
+                    principal_id="sp-1",
+                    display_name="current-owner-a",
+                    principal_type="ServicePrincipal",
+                    priority="high",
+                    high_impact_roles=["Owner"],
+                    all_role_names=["Owner"],
+                    scope_count=1,
+                    scope_ids=["/subscriptions/sub-a"],
+                    privileged=True,
+                    is_current_identity=True,
+                ),
+                PermissionSummary(
+                    principal_id="sp-2",
+                    display_name="current-owner-b",
+                    principal_type="ServicePrincipal",
+                    priority="high",
+                    high_impact_roles=["Contributor"],
+                    all_role_names=["Contributor"],
+                    scope_count=1,
+                    scope_ids=["/subscriptions/sub-b/resourceGroups/rg-apps"],
+                    privileged=True,
+                    is_current_identity=True,
+                ),
+            ],
+            issues=[],
+        ),
+        "role-trusts": SimpleNamespace(trusts=[], issues=[]),
+    }
+
+    output = _build_escalation_path_output(options, "escalation-path", loaded)
+
+    direct_rows = [
+        row for row in output.paths if row.path_concept == "current-foothold-direct-control"
+    ]
+    assert [row.asset_name for row in direct_rows] == [
+        "current-owner-a (current foothold)",
+        "current-owner-b (current foothold)",
+    ]
+
+
+def test_escalation_path_service_principal_takeover_rows_use_explicit_transform_fields() -> None:
+    privesc_row = {
+        "starting_foothold": "azurefox-lab-sp (current foothold)",
+        "principal": "azurefox-lab-sp",
+        "principal_type": "ServicePrincipal",
+    }
+    transform_ready = RoleTrustSummary(
+        trust_type="service-principal-owner",
+        source_object_id="sp-current",
+        source_name="azurefox-lab-sp",
+        source_type="ServicePrincipal",
+        target_object_id="sp-1",
+        target_name="build-sp",
+        target_type="ServicePrincipal",
+        evidence_type="graph-owner",
+        confidence="confirmed",
+        control_primitive="owner-control",
+        controlled_object_type="ServicePrincipal",
+        controlled_object_name="build-sp",
+        escalation_mechanism=(
+            "Owner-level control over service principal 'build-sp' could add or replace "
+            "authentication material Azure accepts for service principal 'build-sp'."
+        ),
+        usable_identity_result="That could make service principal 'build-sp' usable.",
+        defender_cut_point="Remove the owner-level control path over service principal 'build-sp'.",
+        next_review="Check permissions for Azure control on service principal 'build-sp'.",
+        summary="test",
+    )
+
+    record = _build_escalation_trust_record(
+        "escalation-path",
+        privesc_row,
+        [transform_ready],
+        {
+            "sp-1": {
+                "principal_id": "sp-1",
+                "high_impact_roles": ["Owner"],
+                "scope_ids": [
+                    "/subscriptions/other/resourceGroups/rg-build",
+                    "/subscriptions/other/resourceGroups/rg-shared",
+                ],
+                "scope_count": 2,
+            }
+        },
+        current_foothold_id="sp-current",
+        current_foothold_permission={
+            "principal_id": "sp-current",
+            "high_impact_roles": ["Owner"],
+            "scope_ids": ["/subscriptions/sub/resourceGroups/rg-apps"],
+            "scope_count": 1,
+        },
+    )
+
+    assert record is not None
+    assert record.clue_type == "service-principal-owner"
+    assert record.visible_path == (
+        "Current foothold -> service principal takeover -> higher-value identity"
+    )
+    assert "could make service principal 'build-sp' usable" in record.confidence_boundary
+    assert "can take over service principal 'build-sp'" in (record.why_care or "")
+    assert "Owner-level Azure control, including role assignment" in (record.why_care or "")
+    assert "resource groups 'rg-build' and 'rg-shared'" in (record.why_care or "")
+    assert "Remove the owner-level control path" in (record.why_care or "")
 
 
 def test_escalation_path_trust_rows_use_hidden_role_trust_transform_fields() -> None:
@@ -445,6 +617,8 @@ def test_escalation_path_trust_rows_use_hidden_role_trust_transform_fields() -> 
         control_primitive="change-auth-material",
         controlled_object_type="Application",
         controlled_object_name="build-app",
+        backing_service_principal_id="sp-1",
+        backing_service_principal_name="build-sp",
         escalation_mechanism=(
             "Control of application 'build-app' could change authentication material that makes "
             "service principal 'build-sp' usable."
@@ -467,21 +641,411 @@ def test_escalation_path_trust_rows_use_hidden_role_trust_transform_fields() -> 
         privesc_row,
         [transform_ready],
         {
-            "app-1": {
-                "principal_id": "app-1",
+            "sp-1": {
+                "principal_id": "sp-1",
                 "high_impact_roles": ["Owner"],
-                "scope_ids": ["/subscriptions/sub"],
-                "scope_count": 1,
+                "scope_ids": [
+                    "/subscriptions/sub/resourceGroups/rg-build",
+                    "/subscriptions/sub/resourceGroups/rg-shared",
+                ],
+                "scope_count": 2,
             }
         },
         current_foothold_id="user-1",
+        current_foothold_permission={
+            "principal_id": "user-1",
+            "high_impact_roles": ["Contributor"],
+            "scope_ids": ["/subscriptions/sub/resourceGroups/rg-apps"],
+            "scope_count": 1,
+        },
     )
 
     assert record is not None
     assert record.insertion_point == transform_ready.escalation_mechanism
+    assert record.target_ids == ["sp-1"]
+    assert record.target_names == ["build-sp"]
     assert "could make service principal 'build-sp' usable" in record.confidence_boundary
+    assert "backs service principal 'build-sp'" in (record.why_care or "")
+    assert "Owner-level Azure control, including role assignment" in (record.why_care or "")
+    assert "resource groups 'rg-build' and 'rg-shared'" in (record.why_care or "")
     assert "Remove the ownership path" in (record.why_care or "")
     assert record.target_resolution == "path-confirmed"
+
+
+def test_escalation_path_prefers_visible_federated_takeover_when_app_control_exists() -> None:
+    privesc_row = {
+        "starting_foothold": "ci-admin@lab.local (current foothold)",
+        "principal": "ci-admin@lab.local",
+        "principal_type": "User",
+    }
+    app_owner = RoleTrustSummary(
+        trust_type="app-owner",
+        source_object_id="user-1",
+        source_name="ci-admin@lab.local",
+        source_type="User",
+        target_object_id="app-1",
+        target_name="build-app",
+        target_type="Application",
+        evidence_type="graph-owner",
+        confidence="confirmed",
+        control_primitive="change-auth-material",
+        controlled_object_type="Application",
+        controlled_object_name="build-app",
+        backing_service_principal_id="sp-1",
+        backing_service_principal_name="build-sp",
+        escalation_mechanism=(
+            "Control of application 'build-app' could change authentication material that makes "
+            "service principal 'build-sp' usable."
+        ),
+        usable_identity_result=(
+            "Control of application 'build-app' could make service principal 'build-sp' usable."
+        ),
+        defender_cut_point=(
+            "Remove the ownership path that lets the source control application 'build-app'."
+        ),
+        next_review="app-owner review",
+        summary="test",
+    )
+    federated = RoleTrustSummary(
+        trust_type="federated-credential",
+        source_object_id="app-1",
+        source_name="build-app",
+        source_type="Application",
+        target_object_id="sp-1",
+        target_name="build-sp",
+        target_type="ServicePrincipal",
+        evidence_type="graph-federated-credential",
+        confidence="confirmed",
+        control_primitive="existing-federated-credential",
+        controlled_object_type="Application",
+        controlled_object_name="build-app",
+        escalation_mechanism=(
+            "Application 'build-app' already has federated trust that can yield service principal "
+            "'build-sp' access."
+        ),
+        usable_identity_result="Federated sign-in can yield service principal 'build-sp' access.",
+        next_review="Check permissions for Azure control on service principal 'build-sp'.",
+        summary="test",
+        related_ids=["app-1", "fic-1", "sp-1"],
+    )
+
+    record = _build_escalation_trust_record(
+        "escalation-path",
+        privesc_row,
+        [app_owner, federated],
+        {
+            "sp-1": {
+                "principal_id": "sp-1",
+                "high_impact_roles": ["Owner"],
+                "scope_ids": [
+                    "/subscriptions/sub/resourceGroups/rg-build",
+                    "/subscriptions/sub/resourceGroups/rg-shared",
+                ],
+                "scope_count": 2,
+            }
+        },
+        current_foothold_id="user-1",
+        current_foothold_permission={
+            "principal_id": "user-1",
+            "high_impact_roles": ["Contributor"],
+            "scope_ids": ["/subscriptions/sub/resourceGroups/rg-apps"],
+            "scope_count": 1,
+        },
+    )
+
+    assert record is not None
+    assert record.clue_type == "federated-credential"
+    assert record.insertion_point == (
+        "Application 'build-app' already has federated trust that can yield service principal "
+        "'build-sp' access."
+    )
+    assert (
+        "already has federated trust into service principal 'build-sp'"
+        in (record.why_care or "")
+    )
+    assert "Owner-level Azure control, including role assignment" in (record.why_care or "")
+    assert "visible federated subject" in (record.why_care or "")
+    assert (
+        record.next_review
+        == "Check permissions for Azure control on service principal 'build-sp'."
+    )
+
+
+def test_escalation_path_prefers_service_principal_takeover_over_app_control_routes() -> None:
+    privesc_row = {
+        "starting_foothold": "azurefox-lab-sp (current foothold)",
+        "principal": "azurefox-lab-sp",
+        "principal_type": "ServicePrincipal",
+    }
+    app_owner = RoleTrustSummary(
+        trust_type="app-owner",
+        source_object_id="sp-current",
+        source_name="azurefox-lab-sp",
+        source_type="ServicePrincipal",
+        target_object_id="app-1",
+        target_name="build-app",
+        target_type="Application",
+        evidence_type="graph-owner",
+        confidence="confirmed",
+        control_primitive="change-auth-material",
+        controlled_object_type="Application",
+        controlled_object_name="build-app",
+        backing_service_principal_id="sp-1",
+        backing_service_principal_name="build-sp",
+        escalation_mechanism=(
+            "Control of application 'build-app' could change authentication material that makes "
+            "service principal 'build-sp' usable."
+        ),
+        usable_identity_result=(
+            "Control of application 'build-app' could make service principal 'build-sp' usable."
+        ),
+        defender_cut_point=(
+            "Remove the ownership path that lets the source control application 'build-app'."
+        ),
+        next_review="app-owner review",
+        summary="test",
+    )
+    direct_service_owner = RoleTrustSummary(
+        trust_type="service-principal-owner",
+        source_object_id="sp-current",
+        source_name="azurefox-lab-sp",
+        source_type="ServicePrincipal",
+        target_object_id="sp-1",
+        target_name="build-sp",
+        target_type="ServicePrincipal",
+        evidence_type="graph-owner",
+        confidence="confirmed",
+        control_primitive="owner-control",
+        controlled_object_type="ServicePrincipal",
+        controlled_object_name="build-sp",
+        escalation_mechanism=(
+            "Owner-level control over service principal 'build-sp' could add or replace "
+            "authentication material Azure accepts for service principal 'build-sp'."
+        ),
+        usable_identity_result="That could make service principal 'build-sp' usable.",
+        next_review="Check permissions for Azure control on service principal 'build-sp'.",
+        summary="test",
+        related_ids=["sp-current", "sp-1"],
+    )
+    federated = RoleTrustSummary(
+        trust_type="federated-credential",
+        source_object_id="app-1",
+        source_name="build-app",
+        source_type="Application",
+        target_object_id="sp-1",
+        target_name="build-sp",
+        target_type="ServicePrincipal",
+        evidence_type="graph-federated-credential",
+        confidence="confirmed",
+        control_primitive="existing-federated-credential",
+        controlled_object_type="Application",
+        controlled_object_name="build-app",
+        escalation_mechanism=(
+            "Application 'build-app' already has federated trust that can yield service principal "
+            "'build-sp' access."
+        ),
+        usable_identity_result="Federated sign-in can yield service principal 'build-sp' access.",
+        next_review="Check permissions for Azure control on service principal 'build-sp'.",
+        summary="test",
+        related_ids=["app-1", "fic-1", "sp-1"],
+    )
+
+    record = _build_escalation_trust_record(
+        "escalation-path",
+        privesc_row,
+        [app_owner, direct_service_owner, federated],
+        {
+            "sp-1": {
+                "principal_id": "sp-1",
+                "high_impact_roles": ["Owner"],
+                "scope_ids": [
+                    "/subscriptions/other/resourceGroups/rg-build",
+                    "/subscriptions/other/resourceGroups/rg-shared",
+                ],
+                "scope_count": 2,
+            }
+        },
+        current_foothold_id="sp-current",
+        current_foothold_permission={
+            "principal_id": "sp-current",
+            "high_impact_roles": ["Owner"],
+            "scope_ids": ["/subscriptions/sub/resourceGroups/rg-apps"],
+            "scope_count": 1,
+        },
+    )
+
+    assert record is not None
+    assert record.clue_type == "service-principal-owner"
+    assert "can take over service principal 'build-sp'" in (record.why_care or "")
+    assert "visible federated subject" not in (record.why_care or "")
+
+
+def test_escalation_path_prefers_higher_value_federated_path_over_lower_value_direct_takeover(
+) -> None:
+    privesc_row = {
+        "starting_foothold": "azurefox-lab-sp (current foothold)",
+        "principal": "azurefox-lab-sp",
+        "principal_type": "ServicePrincipal",
+    }
+    app_owner = RoleTrustSummary(
+        trust_type="app-owner",
+        source_object_id="sp-current",
+        source_name="azurefox-lab-sp",
+        source_type="ServicePrincipal",
+        target_object_id="app-1",
+        target_name="build-app",
+        target_type="Application",
+        evidence_type="graph-owner",
+        confidence="confirmed",
+        control_primitive="change-auth-material",
+        controlled_object_type="Application",
+        controlled_object_name="build-app",
+        backing_service_principal_id="sp-owner",
+        backing_service_principal_name="owner-sp",
+        escalation_mechanism=(
+            "Control of application 'build-app' could change authentication material that makes "
+            "service principal 'owner-sp' usable."
+        ),
+        usable_identity_result=(
+            "Control of application 'build-app' could make service principal 'owner-sp' usable."
+        ),
+        next_review="Check permissions for Azure control on service principal 'owner-sp'.",
+        summary="test",
+    )
+    federated = RoleTrustSummary(
+        trust_type="federated-credential",
+        source_object_id="app-1",
+        source_name="build-app",
+        source_type="Application",
+        target_object_id="sp-owner",
+        target_name="owner-sp",
+        target_type="ServicePrincipal",
+        evidence_type="graph-federated-credential",
+        confidence="confirmed",
+        control_primitive="existing-federated-credential",
+        controlled_object_type="Application",
+        controlled_object_name="build-app",
+        escalation_mechanism=(
+            "Application 'build-app' already has federated trust that can yield service principal "
+            "'owner-sp' access."
+        ),
+        usable_identity_result="Federated sign-in can yield service principal 'owner-sp' access.",
+        next_review="Check permissions for Azure control on service principal 'owner-sp'.",
+        summary="test",
+    )
+    lower_value_service_owner = RoleTrustSummary(
+        trust_type="service-principal-owner",
+        source_object_id="sp-current",
+        source_name="azurefox-lab-sp",
+        source_type="ServicePrincipal",
+        target_object_id="sp-low",
+        target_name="low-sp",
+        target_type="ServicePrincipal",
+        evidence_type="graph-owner",
+        confidence="confirmed",
+        control_primitive="owner-control",
+        controlled_object_type="ServicePrincipal",
+        controlled_object_name="low-sp",
+        escalation_mechanism=(
+            "Owner-level control over service principal 'low-sp' could add or replace "
+            "authentication material Azure accepts for service principal 'low-sp'."
+        ),
+        usable_identity_result="That could make service principal 'low-sp' usable.",
+        next_review="Check permissions for Azure control on service principal 'low-sp'.",
+        summary="test",
+    )
+
+    record = _build_escalation_trust_record(
+        "escalation-path",
+        privesc_row,
+        [app_owner, federated, lower_value_service_owner],
+        {
+            "sp-owner": {
+                "principal_id": "sp-owner",
+                "high_impact_roles": ["Owner"],
+                "scope_ids": [
+                    "/subscriptions/other/resourceGroups/rg-owner-a",
+                    "/subscriptions/other/resourceGroups/rg-owner-b",
+                ],
+                "scope_count": 2,
+            },
+            "sp-low": {
+                "principal_id": "sp-low",
+                "high_impact_roles": ["Contributor"],
+                "scope_ids": ["/subscriptions/other/resourceGroups/rg-low"],
+                "scope_count": 1,
+            },
+        },
+        current_foothold_id="sp-current",
+        current_foothold_permission={
+            "principal_id": "sp-current",
+            "high_impact_roles": ["Contributor"],
+            "scope_ids": ["/subscriptions/sub/resourceGroups/rg-apps"],
+            "scope_count": 1,
+        },
+    )
+
+    assert record is not None
+    assert record.clue_type == "federated-credential"
+    assert record.target_names == ["owner-sp"]
+
+
+def test_escalation_path_trust_row_suppresses_when_no_net_gain() -> None:
+    privesc_row = {
+        "starting_foothold": "azurefox-lab-sp (current foothold)",
+        "principal": "azurefox-lab-sp",
+        "principal_type": "ServicePrincipal",
+    }
+    transform_ready = RoleTrustSummary(
+        trust_type="app-owner",
+        source_object_id="sp-current",
+        source_name="azurefox-lab-sp",
+        source_type="ServicePrincipal",
+        target_object_id="app-1",
+        target_name="build-app",
+        target_type="Application",
+        evidence_type="graph-owner",
+        confidence="confirmed",
+        control_primitive="change-auth-material",
+        controlled_object_type="Application",
+        controlled_object_name="build-app",
+        backing_service_principal_id="sp-1",
+        backing_service_principal_name="build-sp",
+        escalation_mechanism=(
+            "Control of application 'build-app' could change authentication material that makes "
+            "service principal 'build-sp' usable."
+        ),
+        usable_identity_result=(
+            "Control of application 'build-app' could make service principal 'build-sp' usable."
+        ),
+        summary="test",
+    )
+
+    record = _build_escalation_trust_record(
+        "escalation-path",
+        privesc_row,
+        [transform_ready],
+        {
+            "sp-1": {
+                "principal_id": "sp-1",
+                "high_impact_roles": ["Owner"],
+                "scope_ids": [
+                    "/subscriptions/sub/resourceGroups/rg-build",
+                    "/subscriptions/sub/resourceGroups/rg-shared",
+                ],
+                "scope_count": 2,
+            }
+        },
+        current_foothold_id="sp-current",
+        current_foothold_permission={
+            "principal_id": "sp-current",
+            "high_impact_roles": ["Owner"],
+            "scope_ids": ["/subscriptions/sub"],
+            "scope_count": 1,
+        },
+    )
+
+    assert record is None
 
 
 def test_devops_joined_permission_ignores_service_connection_id_matches() -> None:

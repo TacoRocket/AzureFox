@@ -11,7 +11,6 @@
         "Owner"
       ],
       "priority": "high",
-      "severity": "high",
       "current_identity": true,
       "operator_signal": "Current foothold already has direct control.",
       "proven_path": "Current foothold 'azurefox-lab-sp' already holds high-impact RBAC (Owner) on visible scope.",
@@ -34,7 +33,6 @@
         "Owner"
       ],
       "priority": "medium",
-      "severity": "high",
       "current_identity": false,
       "operator_signal": "Visible ingress-backed lead; not yet rooted in current foothold.",
       "proven_path": "Public workload 'vm-web-01' carries identity 'ua-app' with high-impact RBAC (Owner).",
