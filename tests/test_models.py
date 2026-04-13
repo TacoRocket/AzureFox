@@ -246,7 +246,7 @@ def test_privesc_path_defaults() -> None:
         principal="svc-app",
         principal_id="p-1",
         principal_type="ServicePrincipal",
-        path_type="direct-role-abuse",
+        path_type="visible-privileged-lead",
         priority="high",
         summary="test",
     )

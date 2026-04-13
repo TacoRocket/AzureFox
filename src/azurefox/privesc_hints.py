@@ -6,6 +6,40 @@ from azurefox.escalation_hints import (
     current_foothold_proven_path,
 )
 
+CURRENT_FOOTHOLD_DIRECT_CONTROL = "current-foothold-direct-control"
+VISIBLE_PRIVILEGED_LEAD = "visible-privileged-lead"
+INGRESS_BACKED_WORKLOAD_IDENTITY = "ingress-backed-workload-identity"
+
+PRIVESC_PATH_TYPE_LABELS = {
+    CURRENT_FOOTHOLD_DIRECT_CONTROL: "current foothold direct control",
+    VISIBLE_PRIVILEGED_LEAD: "visible privileged lead",
+    INGRESS_BACKED_WORKLOAD_IDENTITY: "ingress-backed workload identity",
+}
+
+PRIVESC_PATH_TYPE_SORT_ORDER = {
+    INGRESS_BACKED_WORKLOAD_IDENTITY: 0,
+    VISIBLE_PRIVILEGED_LEAD: 1,
+    CURRENT_FOOTHOLD_DIRECT_CONTROL: 2,
+}
+
+
+def privesc_path_type(*, path_type: str, current_identity: bool) -> str:
+    if path_type == "public-identity-pivot":
+        return INGRESS_BACKED_WORKLOAD_IDENTITY
+    if current_identity:
+        return CURRENT_FOOTHOLD_DIRECT_CONTROL
+    return VISIBLE_PRIVILEGED_LEAD
+
+
+def privesc_path_label(path_type: str) -> str:
+    normalized = str(path_type or "").strip()
+    return PRIVESC_PATH_TYPE_LABELS.get(normalized, normalized or "-")
+
+
+def privesc_path_sort_rank(path_type: str) -> int:
+    normalized = str(path_type or "").strip()
+    return PRIVESC_PATH_TYPE_SORT_ORDER.get(normalized, 9)
+
 
 def privesc_operator_signal(*, path_type: str, current_identity: bool) -> str:
     if path_type == "public-identity-pivot":
@@ -43,7 +77,7 @@ def privesc_proven_path(
         )
 
     return (
-        f"Principal '{principal_name}' already holds high-impact RBAC "
+        f"Visible principal '{principal_name}' already holds high-impact RBAC "
         f"({role_text}) on visible scope."
     )
 

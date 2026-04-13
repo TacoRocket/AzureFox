@@ -53,15 +53,7 @@ pipx install azurefox
 
 Start with the identity you have, then work outward toward movement and consequence:
 
-```bash
-azurefox whoami
-azurefox permissions
-azurefox privesc
-azurefox role-trusts
-azurefox cross-tenant
-azurefox tokens-credentials
-azurefox chains
-```
+![AzureFox operator workflow demo](docs/media/demo.gif)
 
 Typical flow:
 - `whoami`: confirm the current foothold, token context, and subscription scope

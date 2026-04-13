@@ -1174,7 +1174,10 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "credential-path, deployment-path, escalation-path, and compute-control are exposed "
             "now with "
             "conservative extraction-first joins; escalation-path currently ships only rows "
-            "where the transform from current foothold to stronger control is explicit. "
+            "where the transform from current foothold to stronger control is explicit, "
+            "including current-foothold direct control, trust takeover, federated trust, and "
+            "app-permission reach. Within admitted escalation rows, AzureFox ranks bigger "
+            "control gain first and uses path ease as a follow-on tiebreaker. "
             "compute-control currently ships a narrow direct-token-opportunity v1 where the "
             "compute foothold and stronger Azure control are both already visible."
         ),

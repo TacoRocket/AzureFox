@@ -319,9 +319,10 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
             "success or multi-hop control without deeper evidence."
         ),
         current_gap=(
-            "The grouped runner still needs exact trust-to-control transformation data so "
-            "trust-backed rows can explain how the current foothold could actually become or "
-            "control the stronger identity instead of re-listing relationship-only leads."
+            "The live family now joins current-foothold control, trust takeover, federated "
+            "trust, and app-permission reach when the transform and stronger Azure control are "
+            "explicit. Broader secret-bearing or support-only starts still sit outside this "
+            "family, and ranking is still heuristic within the admitted current-foothold paths."
         ),
         best_current_examples=(
             "permissions",
