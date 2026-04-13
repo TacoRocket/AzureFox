@@ -106,7 +106,6 @@ class PrivescPathSummary(BaseModel):
     path_type: str
     asset: str | None = None
     impact_roles: list[str] = Field(default_factory=list)
-    severity: str
     priority: str
     current_identity: bool = False
     operator_signal: str | None = None
@@ -130,6 +129,8 @@ class RoleTrustSummary(BaseModel):
     control_primitive: str | None = None
     controlled_object_type: str | None = None
     controlled_object_name: str | None = None
+    backing_service_principal_id: str | None = None
+    backing_service_principal_name: str | None = None
     escalation_mechanism: str | None = None
     usable_identity_result: str | None = None
     defender_cut_point: str | None = None

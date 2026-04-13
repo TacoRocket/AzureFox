@@ -281,7 +281,11 @@ def test_compute_control_admits_container_app_via_workload_principal() -> None:
         "workload-principal",
         "permissions",
     ]
-    assert "server-side execution in this public-facing service" in (row.why_care or "")
+    assert (
+        "a way to make this public-facing service ask Azure for its own token"
+        in (row.why_care or "")
+    )
+    assert "public reachability alone does not prove that path" in (row.why_care or "")
 
 
 def test_compute_control_admits_container_instance_via_workload_principal() -> None:
@@ -320,7 +324,11 @@ def test_compute_control_admits_container_instance_via_workload_principal() -> N
         "workload-principal",
         "permissions",
     ]
-    assert "server-side execution in this public-facing container group" in (row.why_care or "")
+    assert (
+        "a way to make this public-facing container group ask Azure for its own token"
+        in (row.why_care or "")
+    )
+    assert "public reachability alone does not prove that path" in (row.why_care or "")
 
 
 def test_compute_control_prefers_explicit_system_identity_anchor_when_present() -> None:

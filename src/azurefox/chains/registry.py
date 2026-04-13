@@ -324,39 +324,25 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
             "control the stronger identity instead of re-listing relationship-only leads."
         ),
         best_current_examples=(
-            "privesc -> permissions",
-            "privesc -> role-trusts -> permissions",
+            "permissions",
+            "permissions -> role-trusts",
         ),
         source_commands=(
-            ChainSourceSpec(
-                command="privesc",
-                minimum_fields=(
-                    "starting_foothold",
-                    "principal_id",
-                    "path_type",
-                    "current_identity",
-                    "proven_path",
-                    "missing_proof",
-                    "next_review",
-                ),
-                rationale=(
-                    "Provides the current-foothold escalation triage rows that the chain family "
-                    "can harden into a defended path story."
-                ),
-            ),
             ChainSourceSpec(
                 command="permissions",
                 minimum_fields=(
                     "principal_id",
                     "display_name",
+                    "priority",
                     "high_impact_roles",
                     "scope_count",
                     "scope_ids",
                     "privileged",
+                    "is_current_identity",
                 ),
                 rationale=(
-                    "Provides the visible Azure control power behind the current foothold or "
-                    "linked identity."
+                    "Provides the direct current-identity and visible Azure-control evidence that "
+                    "anchors the chain family's starting foothold."
                 ),
             ),
             ChainSourceSpec(

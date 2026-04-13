@@ -841,6 +841,11 @@ def _compute_control_required_foothold(surface_row: dict, workload_row: dict) ->
         if asset_kind == "ContainerInstance"
         else "this public-facing service"
     )
+    public_token_request_label = (
+        "make this public-facing container group ask Azure for its own token"
+        if asset_kind == "ContainerInstance"
+        else "make this public-facing service ask Azure for its own token"
+    )
     internal_compute_label = (
         "this container group" if asset_kind == "ContainerInstance" else "this workload"
     )
@@ -849,8 +854,9 @@ def _compute_control_required_foothold(surface_row: dict, workload_row: dict) ->
         if public_signal:
             return (
                 "To turn this into downstream Azure access, an operator would need "
-                f"server-side execution in {public_compute_label}. AzureFox is a recon tool "
-                "and does not verify exploitation activity beyond what is explicitly stated here."
+                f"a way to {public_token_request_label}. AzureFox shows that "
+                f"{public_compute_label} is public and token-capable, but public reachability "
+                "alone does not prove that path."
             )
         return (
             "To turn this into downstream Azure access, an operator would need a service-side "
@@ -863,9 +869,9 @@ def _compute_control_required_foothold(surface_row: dict, workload_row: dict) ->
         if public_signal:
             return (
                 "To turn this into downstream Azure access, an operator would need a "
-                "server-side request path from this public-facing workload to the Azure VM "
-                "metadata service. AzureFox is a recon tool and does not verify exploitation "
-                "activity beyond what is explicitly stated here."
+                "way to make this public-facing workload reach the Azure VM metadata service. "
+                "AzureFox shows that the workload is public and IMDS-backed, but public "
+                "reachability alone does not prove that path."
             )
         return (
             f"To turn this into downstream Azure access, an operator would need host-level "

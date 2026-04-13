@@ -361,20 +361,74 @@ def test_cli_smoke_chains_compute_control_json(tmp_path: Path) -> None:
         "managed-identities",
         "permissions",
     ]
-    assert len(payload["paths"]) == 4
+    assert len(payload["paths"]) == 6
     names = [item["asset_name"] for item in payload["paths"]]
-    assert names == ["app-empty-mi", "func-orders", "vm-web-01", "vmss-edge-01"]
+    assert names == [
+        "aca-orders",
+        "aci-public-api",
+        "app-empty-mi",
+        "func-orders",
+        "vm-web-01",
+        "vmss-edge-01",
+    ]
     assert {item["target_resolution"] for item in payload["paths"]} == {
         "path-confirmed",
         "identity-choice-corroborated",
     }
+
+    aca_row = next(item for item in payload["paths"] if item["asset_name"] == "aca-orders")
+    assert aca_row["asset_kind"] == "ContainerApp"
+    assert aca_row["path_concept"] == "direct-token-opportunity"
+    assert aca_row["priority"] == "high"
+    assert aca_row["urgency"] == "pivot-now"
+    assert aca_row["when"] == "act now"
+    assert aca_row["reach_from_here"] == "public exposure visible; exploitation not proved"
+    assert aca_row["compute_foothold"] == "aca-orders"
+    assert aca_row["token_path"] == "service token request"
+    assert aca_row["identity"] == "aca-orders system identity"
+    assert aca_row["azure_access"] == "Contributor across subscription-wide scope"
+    assert aca_row["proof_status"] == "confirmed"
+    assert aca_row["stronger_outcome"] == "Contributor across subscription-wide scope"
+    assert "ContainerApp 'aca-orders' can request tokens as aca-orders system identity" in aca_row[
+        "note"
+    ]
+    assert "public-facing service" in aca_row["note"]
+    assert "Check workloads for the compute foothold" in aca_row["next_review"]
+
+    aci_row = next(item for item in payload["paths"] if item["asset_name"] == "aci-public-api")
+    assert aci_row["asset_kind"] == "ContainerInstance"
+    assert aci_row["path_concept"] == "direct-token-opportunity"
+    assert aci_row["priority"] == "high"
+    assert aci_row["urgency"] == "pivot-now"
+    assert aci_row["when"] == "act now"
+    assert aci_row["reach_from_here"] == "public exposure visible; exploitation not proved"
+    assert aci_row["compute_foothold"] == "aci-public-api"
+    assert aci_row["token_path"] == "service token request"
+    assert aci_row["identity"] == "aci-public-api system identity"
+    assert aci_row["azure_access"] == "Contributor across subscription-wide scope"
+    assert aci_row["proof_status"] == "confirmed"
+    assert aci_row["stronger_outcome"] == "Contributor across subscription-wide scope"
+    assert (
+        "ContainerInstance 'aci-public-api' can request tokens as aci-public-api system identity"
+        in aci_row["note"]
+    )
+    assert "public-facing container group" in aci_row["note"]
+    assert "Check workloads for the compute foothold" in aci_row["next_review"]
 
     app_row = next(item for item in payload["paths"] if item["asset_name"] == "app-empty-mi")
     assert app_row["asset_kind"] == "AppService"
     assert app_row["path_concept"] == "direct-token-opportunity"
     assert app_row["priority"] == "high"
     assert app_row["urgency"] == "pivot-now"
+    assert app_row["when"] == "act now"
+    assert app_row["reach_from_here"] == "public exposure visible; exploitation not proved"
+    assert app_row["compute_foothold"] == "app-empty-mi"
+    assert app_row["token_path"] == "service token request"
+    assert app_row["identity"] == "app-empty-mi-system"
+    assert app_row["azure_access"] == "Contributor across subscription-wide scope"
+    assert app_row["proof_status"] == "confirmed"
     assert app_row["stronger_outcome"] == "Contributor across subscription-wide scope"
+    assert "can request tokens as app-empty-mi-system" in app_row["note"]
     assert "Check app-services for the running service foothold" in app_row["next_review"]
 
     func_row = next(item for item in payload["paths"] if item["asset_name"] == "func-orders")
@@ -382,18 +436,33 @@ def test_cli_smoke_chains_compute_control_json(tmp_path: Path) -> None:
     assert func_row["path_concept"] == "direct-token-opportunity"
     assert func_row["priority"] == "high"
     assert func_row["urgency"] == "pivot-now"
+    assert func_row["when"] == "act now"
+    assert func_row["reach_from_here"] == "public exposure visible; exploitation not proved"
+    assert func_row["compute_foothold"] == "func-orders"
+    assert func_row["token_path"] == "service token request"
+    assert func_row["identity"] == "func-orders-system"
+    assert func_row["azure_access"] == "Contributor across subscription-wide scope"
+    assert func_row["proof_status"] == "best current match"
     assert func_row["target_names"] == ["func-orders-system"]
     assert func_row["target_resolution"] == "identity-choice-corroborated"
     assert func_row["confirmation_basis"] == "mixed-identity-corroborated-permission-join"
     assert "cannot directly verify" in func_row["confidence_boundary"]
     assert "SystemAssigned" in func_row["confidence_boundary"]
     assert "does not directly verify" in func_row["missing_confirmation"]
+    assert "best current lead" in func_row["note"]
     assert "already narrows this path to the identity shown here" in func_row["next_review"]
 
     vm_row = next(item for item in payload["paths"] if item["asset_name"] == "vm-web-01")
     assert vm_row["asset_kind"] == "VM"
     assert vm_row["path_concept"] == "direct-token-opportunity"
     assert vm_row["insertion_point"] == "public IMDS token path"
+    assert vm_row["when"] == "act now"
+    assert vm_row["reach_from_here"] == "public exposure visible; exploitation not proved"
+    assert vm_row["compute_foothold"] == "vm-web-01"
+    assert vm_row["token_path"] == "public VM metadata token"
+    assert vm_row["identity"] == "ua-app"
+    assert vm_row["azure_access"] == "Owner across subscription-wide scope"
+    assert vm_row["proof_status"] == "confirmed"
     assert vm_row["stronger_outcome"] == "Owner across subscription-wide scope"
     assert vm_row["priority"] == "high"
     assert vm_row["urgency"] == "pivot-now"
@@ -401,13 +470,22 @@ def test_cli_smoke_chains_compute_control_json(tmp_path: Path) -> None:
     assert "token-capable compute foothold" in vm_row["confidence_boundary"]
     assert "Check vms for the host foothold" in vm_row["next_review"]
     assert "can request tokens as ua-app" in vm_row["why_care"]
+    assert "can request tokens as ua-app" in vm_row["note"]
 
     vmss_row = next(item for item in payload["paths"] if item["asset_name"] == "vmss-edge-01")
     assert vmss_row["asset_kind"] == "VMSS"
     assert vmss_row["path_concept"] == "direct-token-opportunity"
     assert vmss_row["priority"] == "medium"
     assert vmss_row["urgency"] == "review-soon"
+    assert vmss_row["when"] == "review soon"
+    assert vmss_row["reach_from_here"] == "current access does not show the start"
+    assert vmss_row["compute_foothold"] == "vmss-edge-01"
+    assert vmss_row["token_path"] == "VM metadata token"
+    assert vmss_row["identity"] == "vmss-edge-01-system"
+    assert vmss_row["azure_access"] == "Contributor across subscription-wide scope"
+    assert vmss_row["proof_status"] == "confirmed"
     assert vmss_row["stronger_outcome"] == "Contributor across subscription-wide scope"
+    assert "host-level execution or admin access" in vmss_row["note"]
     assert "Check vmss for the fleet foothold" in vmss_row["next_review"]
 
 
@@ -428,21 +506,50 @@ def test_cli_smoke_chains_escalation_path_json(tmp_path: Path) -> None:
     assert payload["artifact_preference_order"] == []
     assert payload["source_artifacts"] == []
     assert payload["backing_commands"] == [
-        "privesc",
         "permissions",
         "role-trusts",
     ]
-    assert len(payload["paths"]) == 1
-    row = payload["paths"][0]
-    assert row["asset_name"] == "azurefox-lab-sp (current foothold)"
-    assert row["path_concept"] == "current-foothold-direct-control"
-    assert row["priority"] == "high"
-    assert row["urgency"] == "pivot-now"
-    assert row["stronger_outcome"] == "Owner across subscription-wide scope"
-    assert row["target_resolution"] == "path-confirmed"
-    assert row["evidence_commands"] == ["privesc", "permissions"]
-    assert "not a speculative lead" in row["why_care"]
-    assert "already holds high-impact RBAC" in row["confidence_boundary"]
+    assert len(payload["paths"]) == 2
+
+    direct_row = next(
+        item
+        for item in payload["paths"]
+        if item["path_concept"] == "current-foothold-direct-control"
+    )
+    trust_row = next(
+        item for item in payload["paths"] if item["path_concept"] == "trust-expansion"
+    )
+
+    assert direct_row["asset_name"] == "azurefox-lab-sp (current foothold)"
+    assert direct_row["starting_foothold"] == "azurefox-lab-sp (current foothold)"
+    assert direct_row["path_type"] == "current foothold direct control"
+    assert direct_row["priority"] == "high"
+    assert direct_row["urgency"] == "pivot-now"
+    assert direct_row["stronger_outcome"] == "Owner across subscription-wide scope"
+    assert direct_row["target_resolution"] == "path-confirmed"
+    assert direct_row["evidence_commands"] == ["permissions"]
+    assert "direct Azure control" in direct_row["why_care"]
+    assert direct_row["note"] == direct_row["why_care"]
+    assert "already holds high-impact RBAC" in direct_row["confidence_boundary"]
+
+    assert trust_row["asset_name"] == "azurefox-lab-sp (current foothold)"
+    assert trust_row["starting_foothold"] == "azurefox-lab-sp (current foothold)"
+    assert trust_row["path_type"] == "trust expansion"
+    assert trust_row["clue_type"] == "service-principal-owner"
+    assert trust_row["stronger_outcome"] == "Owner across 2 visible scopes"
+    assert trust_row["target_resolution"] == "path-confirmed"
+    assert trust_row["evidence_commands"] == ["role-trusts", "permissions"]
+    assert trust_row["target_names"] == ["build-sp"]
+    assert "build-sp" in trust_row["note"]
+    assert "can take over service principal 'build-sp'" in trust_row["note"]
+    assert "Owner-level Azure control, including role assignment" in trust_row["note"]
+    assert "resource groups 'rg-build-dr' and 'rg-identity'" in trust_row["note"]
+    assert "added or used authentication material" in trust_row["note"]
+    assert (
+        "could add or replace authentication material Azure accepts for service principal "
+        "'build-sp'"
+        in trust_row["confidence_boundary"]
+    )
 
 
 def test_cli_smoke_chains_escalation_path_table_output(tmp_path: Path) -> None:
@@ -455,12 +562,22 @@ def test_cli_smoke_chains_escalation_path_table_output(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0
+    normalized_output = " ".join(result.stdout.split())
     assert "azurefox chains" in result.stdout
     assert "starting foothold" in result.stdout
     assert "path type" in result.stdout
     assert "stronger outcome" in result.stdout
-    assert "confidence boundary" in result.stdout
     assert "note" in result.stdout
+    assert "confidence boundary" not in result.stdout
+    assert "next review" not in result.stdout
+    assert "direct Azure control" in result.stdout
+    assert "AzureFox is not" in result.stdout
+    assert "narrowing one exact downstream action" in result.stdout
+    assert "trust expansion" in result.stdout
+    assert "build-sp" in result.stdout
+    assert "take over service principal" in result.stdout
+    assert "resource groups" in normalized_output
+    assert "'rg-build-dr' and 'rg-identity'" in normalized_output
 
 
 def test_cli_smoke_chains_compute_control_table_output(tmp_path: Path) -> None:
@@ -482,6 +599,8 @@ def test_cli_smoke_chains_compute_control_table_output(tmp_path: Path) -> None:
     assert "azure access" in result.stdout.lower()
     assert "proof status" in result.stdout
     assert "app-empty-mi" in result.stdout
+    assert "aca-orders" in result.stdout
+    assert "aci-public-api" in result.stdout
     assert "func-orders" in result.stdout
     assert "vm-web-01" in result.stdout
     assert "vmss-edge-01" in result.stdout
@@ -489,13 +608,9 @@ def test_cli_smoke_chains_compute_control_table_output(tmp_path: Path) -> None:
     assert "public vm metadata token" in result.stdout.lower()
     assert "public exposure visible" in normalized_output
     assert "exploitation not proved" in normalized_output
-    assert "azurefox is a recon tool" in normalized_output
-    assert (
-        "does not verify exploitation activity beyond what is explicitly stated here"
-        in normalized_output
-    )
+    assert "public reachability alone does not prove that path" in normalized_output
     assert "does not yet show that start from the current foothold" in normalized_output
-    assert "server-side execution" in normalized_output
+    assert "ask azure for its own token" in normalized_output
     assert "metadata service" in normalized_output
     assert "host-level execution or admin access" in normalized_output
     assert "Owner across subscription-wide scope" in result.stdout

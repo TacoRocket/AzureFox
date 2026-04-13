@@ -1351,7 +1351,7 @@ def _enrich_permission_rows(permissions: list[dict], principals: list[dict]) -> 
 
 def _enrich_role_trust_rows(trusts: list[dict]) -> list[dict]:
     enriched: list[dict] = []
-    backing_service_principal_by_application_id: dict[str, str] = {}
+    backing_service_principal_by_application_id: dict[str, tuple[str, str]] = {}
 
     for trust in trusts:
         if (
@@ -1359,10 +1359,12 @@ def _enrich_role_trust_rows(trusts: list[dict]) -> list[dict]:
             and str(trust.get("source_type") or "") == "Application"
             and str(trust.get("target_type") or "") == "ServicePrincipal"
             and trust.get("source_object_id")
+            and trust.get("target_object_id")
             and trust.get("target_name")
         ):
-            backing_service_principal_by_application_id[str(trust["source_object_id"])] = str(
-                trust["target_name"]
+            backing_service_principal_by_application_id[str(trust["source_object_id"])] = (
+                str(trust["target_object_id"]),
+                str(trust["target_name"]),
             )
 
     for trust in trusts:
@@ -1373,8 +1375,14 @@ def _enrich_role_trust_rows(trusts: list[dict]) -> list[dict]:
         summary = str(item.get("summary") or "")
         target_type = str(item.get("target_type") or "identity")
         source_type = str(item.get("source_type") or "identity")
-        backing_service_principal_name = backing_service_principal_by_application_id.get(
+        backing_service_principal = backing_service_principal_by_application_id.get(
             str(item.get("target_object_id") or "")
+        )
+        backing_service_principal_id = (
+            backing_service_principal[0] if backing_service_principal else None
+        )
+        backing_service_principal_name = (
+            backing_service_principal[1] if backing_service_principal else None
         )
 
         controlled_object_type, controlled_object_name = role_trust_controlled_object(
@@ -1390,6 +1398,8 @@ def _enrich_role_trust_rows(trusts: list[dict]) -> list[dict]:
         )
         item["controlled_object_type"] = controlled_object_type
         item["controlled_object_name"] = controlled_object_name
+        item["backing_service_principal_id"] = backing_service_principal_id
+        item["backing_service_principal_name"] = backing_service_principal_name
         item["escalation_mechanism"] = role_trust_escalation_mechanism(
             trust_type=trust_type,
             source_name=source_name,

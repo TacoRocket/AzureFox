@@ -6,6 +6,7 @@ from pathlib import Path
 
 import typer
 
+from azurefox.chains.presentation import normalize_chain_payload_for_output
 from azurefox.config import GlobalOptions
 from azurefox.models.common import OutputMode
 from azurefox.render.table import render_table
@@ -56,6 +57,9 @@ PRIMARY_COLLECTION_KEYS = {
     "vmss": "vmss_assets",
 }
 
+def _normalize_payload_for_output(command: str, payload: dict) -> dict:
+    return normalize_chain_payload_for_output(command, payload)
+
 
 def emit_output(
     command: str,
@@ -64,7 +68,7 @@ def emit_output(
     *,
     emit_stdout: bool = True,
 ) -> dict[str, Path]:
-    payload = model.model_dump(mode="json")
+    payload = _normalize_payload_for_output(command, model.model_dump(mode="json"))
     artifact_paths = write_artifacts(command, payload, options)
 
     if not emit_stdout:
@@ -86,6 +90,7 @@ def emit_output(
 
 
 def write_artifacts(command: str, payload: dict, options: GlobalOptions) -> dict[str, Path]:
+    payload = _normalize_payload_for_output(command, payload)
     options.json_dir.mkdir(parents=True, exist_ok=True)
     options.table_dir.mkdir(parents=True, exist_ok=True)
     options.csv_dir.mkdir(parents=True, exist_ok=True)

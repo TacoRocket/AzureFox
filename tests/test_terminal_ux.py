@@ -35,9 +35,9 @@ def test_role_trusts_table_mode_includes_narration_and_takeaway(tmp_path: Path) 
     assert "confirmation next." in result.stdout
     assert "Federated sign-in can yield" in normalized_output
     assert "service principal 'build-sp' access." in normalized_output
-    assert "authentication-control transform is not yet explicit." in normalized_output
+    assert "That could make service principal 'build-sp' usable." in normalized_output
     assert "Check permissions for Azure control" in result.stdout
-    assert "Takeaway: 5 trust edges surfaced in fast mode" in result.stdout
+    assert "Takeaway: 7 trust edges surfaced in fast mode" in result.stdout
     assert "privilege-confirmation follow-ons" in result.stdout
     assert "Delegated and admin" in result.stdout
     assert "out of scope for this" in result.stdout
@@ -765,7 +765,7 @@ def test_permissions_table_mode_surfaces_next_review(tmp_path: Path) -> None:
     assert "foothold." in normalized_output
     assert "Check privesc" in result.stdout
     assert "aa-hybrid-prod-mi" in result.stdout
-    assert "Takeaway: 5 of 6 principals hold high-impact RBAC roles;" in result.stdout
+    assert "Takeaway: 8 of 9 principals hold high-impact RBAC roles;" in result.stdout
 
 
 def test_chains_table_mode_surfaces_priority_and_next_review(tmp_path: Path) -> None:
@@ -872,6 +872,8 @@ def test_escalation_chains_table_mode_renders_defended_current_foothold_story(
     assert "path type" in result.stdout
     assert "stronger outcome" in result.stdout
     assert "note" in result.stdout
+    assert "confidence boundary" not in result.stdout
+    assert "next review" not in result.stdout
     assert "azurefox-lab-sp" in normalized_output
     assert "(current" in normalized_output
     assert "foothold)" in normalized_output
@@ -879,9 +881,20 @@ def test_escalation_chains_table_mode_renders_defended_current_foothold_story(
     assert "Owner across" in normalized_output
     assert "subscription-wide scope" in normalized_output
     assert (
-        "The current foothold already sits on subscription-wide scope high-impact Azure control"
+        "The current foothold already has Owner across subscription-wide scope"
         in normalized_output
     )
+    assert "direct Azure control" in normalized_output
+    assert "AzureFox is not" in normalized_output
+    assert "narrowing one exact downstream action" in normalized_output
+    assert "trust expansion" in normalized_output
+    assert "build-sp" in normalized_output
+    assert "take over service principal 'build-sp'" in normalized_output
+    assert "Owner-level Azure control" in normalized_output
+    assert "including role" in normalized_output
+    assert "assignment on resource groups" in normalized_output
+    assert "rg-build-dr" in normalized_output
+    assert "rg-identity" in normalized_output
     assert "Takeaway:" not in result.stdout
 
 
@@ -1032,6 +1045,114 @@ def test_chains_named_keyvault_not_visible_prefers_inventory_boundary() -> None:
     assert "Verify that the named" in normalized
     assert "target is visible in" in normalized
     assert "current inventory." in normalized
+
+
+def test_compute_control_table_prefers_analyst_facing_json_fields() -> None:
+    payload = {
+        "metadata": {"command": "chains"},
+        "family": "compute-control",
+        "summary": (
+            "Follow token-capable compute footholds toward the identity-backed Azure control they "
+            "can reach next."
+        ),
+        "claim_boundary": (
+            "Can claim a direct token opportunity only when AzureFox can show the compute-side "
+            "token path, the attached identity, and the stronger Azure control behind that "
+            "identity."
+        ),
+        "current_gap": (
+            "The live family is intentionally narrow in v1: direct token-opportunity rows only."
+        ),
+        "paths": [
+            {
+                "priority": "high",
+                "when": "act now",
+                "reach_from_here": "public exposure visible; exploitation not proved",
+                "compute_foothold": "app-empty-mi",
+                "token_path": "service token request",
+                "identity": "app-empty-mi-system",
+                "azure_access": "Contributor across subscription-wide scope",
+                "proof_status": "confirmed",
+                "note": (
+                    "AppService 'app-empty-mi' can request tokens as app-empty-mi-system; "
+                    "that identity already maps to Contributor across subscription-wide scope."
+                ),
+                "next_review": "Check app-services for the running service foothold.",
+            }
+        ],
+        "issues": [],
+    }
+
+    rendered = render_table("chains", payload)
+    normalized = " ".join(rendered.split())
+
+    assert "reach from here" in rendered
+    assert "compute foothold" in rendered
+    assert "token path" in rendered
+    assert "identity" in rendered
+    assert "Azure access" in rendered
+    assert "proof status" in rendered
+    assert "public exposure visible;" in normalized
+    assert "exploitation not proved" in normalized
+    assert "service token request" in normalized
+    assert "app-empty-mi-system" in normalized
+
+
+def test_escalation_path_table_prefers_analyst_facing_json_fields() -> None:
+    payload = {
+        "metadata": {"command": "chains"},
+        "family": "escalation-path",
+        "summary": (
+            "Follow the strongest current-foothold escalation stories toward the next defended "
+            "identity or control step."
+        ),
+        "claim_boundary": (
+            "Can claim that visible evidence suggests a current-foothold escalation story."
+        ),
+        "current_gap": (
+            "Trust-backed rows still need deeper transformation data before every row reads like "
+            "a defended control path."
+        ),
+        "paths": [
+            {
+                "priority": "high",
+                "urgency": "pivot-now",
+                "starting_foothold": "azurefox-lab-sp (current foothold)",
+                "path_type": "current foothold direct control",
+                "stronger_outcome": "Owner across subscription-wide scope",
+                "confidence_boundary": (
+                    "Current foothold already holds high-impact RBAC on visible scope."
+                ),
+                "next_review": "Check rbac for exact assignment evidence and scope.",
+                "note": (
+                    "The current foothold already has Owner across subscription-wide scope, so "
+                    "this row is direct Azure control, not a separate pivot hunt. AzureFox is "
+                    "not narrowing one exact downstream action beyond the control already shown "
+                    "here."
+                ),
+            }
+        ],
+        "issues": [],
+    }
+
+    rendered = render_table("chains", payload)
+    normalized = " ".join(rendered.split())
+
+    assert "starting foothold" in rendered
+    assert "path type" in rendered
+    assert "stronger outcome" in rendered
+    assert "confidence boundary" not in rendered
+    assert "next review" not in rendered
+    assert "azurefox-lab-sp" in normalized
+    assert "(current" in normalized
+    assert "foothold)" in normalized
+    assert "current foothold direct" in normalized
+    assert "control" in normalized
+    assert "Owner across" in normalized
+    assert "subscription-wide scope" in normalized
+    assert "direct Azure control" in normalized
+    assert "AzureFox is not" in normalized
+    assert "narrowing one exact downstream action" in normalized
 
 
 def test_app_services_partial_read_surfaces_collection_issue() -> None:

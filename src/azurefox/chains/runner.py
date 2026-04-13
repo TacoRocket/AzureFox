@@ -27,6 +27,11 @@ from azurefox.chains.semantics import (
 from azurefox.collectors.provider import BaseProvider
 from azurefox.config import GlobalOptions
 from azurefox.devops_hints import describe_trusted_input
+from azurefox.escalation_hints import (
+    current_foothold_missing_proof,
+    current_foothold_next_review_hint,
+    current_foothold_proven_path,
+)
 from azurefox.models.chains import (
     ChainPathRecord,
     ChainsOutput,
@@ -423,7 +428,6 @@ def _build_escalation_path_output(
     family = get_chain_family_spec(family_name)
     assert family is not None  # pragma: no cover - guarded above
 
-    privesc_output = loaded["privesc"]
     permissions_output = loaded["permissions"]
     role_trusts_output = loaded["role-trusts"]
 
@@ -432,22 +436,13 @@ def _build_escalation_path_output(
         for item in permissions_output.permissions
         if item.principal_id
     }
-    current_foothold_row = next(
-        (
-            item.model_dump(mode="json")
-            for item in privesc_output.paths
-            if item.current_identity and item.principal_id
-        ),
-        None,
-    )
-    current_foothold_id = (
-        str(current_foothold_row.get("principal_id")) if current_foothold_row else None
-    )
-
     paths: list[ChainPathRecord] = []
-    if current_foothold_row:
+    for current_foothold_row in _current_foothold_contexts_from_permissions(
+        permissions_output.permissions
+    ):
+        current_foothold_id = str(current_foothold_row.get("principal_id") or "")
         permission = permissions_by_principal.get(current_foothold_id or "")
-        if current_foothold_row.get("path_type") == "direct-role-abuse" and permission:
+        if permission and bool(permission.get("privileged")):
             paths.append(
                 _build_escalation_direct_control_record(
                     family_name,
@@ -461,6 +456,7 @@ def _build_escalation_path_output(
             role_trusts_output.trusts,
             permissions_by_principal,
             current_foothold_id=current_foothold_id,
+            current_foothold_permission=permission,
         )
         if trust_row is not None:
             paths.append(trust_row)
@@ -475,7 +471,7 @@ def _build_escalation_path_output(
     )
 
     issues: list[CollectionIssue] = []
-    for source_name in ("privesc", "permissions", "role-trusts"):
+    for source_name in ("permissions", "role-trusts"):
         issues.extend(getattr(loaded[source_name], "issues", []))
 
     return _build_chains_command_output(
@@ -485,6 +481,43 @@ def _build_escalation_path_output(
         paths=paths,
         issues=issues,
     )
+
+
+def _current_foothold_contexts_from_permissions(permissions: list[object]) -> list[dict]:
+    candidates = [
+        item.model_dump(mode="json")
+        for item in permissions
+        if getattr(item, "is_current_identity", False) and getattr(item, "principal_id", None)
+    ]
+    if not candidates:
+        return []
+
+    candidates.sort(
+        key=lambda item: (
+            not bool(item.get("privileged")),
+            semantic_priority_sort_value(str(item.get("priority") or "low")),
+            -(int(item.get("scope_count") or len(item.get("scope_ids") or []) or 0)),
+            str(item.get("display_name") or item.get("principal_id") or ""),
+        )
+    )
+    contexts: list[dict] = []
+    for current in candidates:
+        principal_name = str(
+            current.get("display_name") or current.get("principal_id") or "unknown"
+        )
+        contexts.append(
+            {
+                "principal_id": str(current.get("principal_id") or ""),
+                "principal": principal_name,
+                "principal_type": str(current.get("principal_type") or "Principal"),
+                "starting_foothold": f"{principal_name} (current foothold)",
+                "related_ids": [
+                    str(current.get("principal_id") or ""),
+                    *[str(value) for value in current.get("scope_ids") or [] if value],
+                ],
+            }
+        )
+    return contexts
 
 
 def _build_compute_control_output(
@@ -3055,44 +3088,50 @@ def _target_visibility_issue(issues: list[CollectionIssue]) -> str | None:
 
 def _build_escalation_direct_control_record(
     family_name: str,
-    privesc_row: dict,
+    current_foothold: dict,
     permission_row: dict,
 ) -> ChainPathRecord:
     scope_text = _permission_scope_text(permission_row)
     stronger_outcome = _permission_control_summary(permission_row)
+    impact_roles = [str(role) for role in permission_row.get("high_impact_roles") or [] if role]
     semantic = evaluate_chain_semantics(
         ChainSemanticContext(
             family=family_name,
-            clue_type=str(privesc_row.get("path_type") or "direct-role-abuse"),
+            clue_type="direct-role-abuse",
             target_service="azure-control",
             target_resolution="path-confirmed",
             target_count=max(1, len(permission_row.get("scope_ids") or [])),
-            source_command="privesc",
+            source_command="permissions",
             path_concept="current-foothold-direct-control",
         )
     )
+    proven_path = current_foothold_proven_path(
+        principal_name=str(current_foothold.get("principal") or "unknown current foothold"),
+        impact_roles=impact_roles,
+    )
+    missing_proof = current_foothold_missing_proof()
     confidence_boundary = " ".join(
         part
         for part in (
-            str(privesc_row.get("proven_path") or "").strip(),
-            str(privesc_row.get("missing_proof") or "").strip(),
+            proven_path,
+            missing_proof,
         )
         if part
     )
-    next_review = str(privesc_row.get("next_review") or semantic.next_review)
+    next_review = current_foothold_next_review_hint()
 
     return ChainPathRecord(
-        chain_id=f"escalation-path::{privesc_row.get('principal_id')}::current-foothold-direct-control",
-        asset_id=str(privesc_row.get("principal_id") or "unknown"),
+        chain_id=f"escalation-path::{current_foothold.get('principal_id')}::current-foothold-direct-control",
+        asset_id=str(current_foothold.get("principal_id") or "unknown"),
         asset_name=str(
-            privesc_row.get("starting_foothold")
-            or privesc_row.get("principal")
+            current_foothold.get("starting_foothold")
+            or current_foothold.get("principal")
             or "unknown current foothold"
         ),
-        asset_kind=str(privesc_row.get("principal_type") or "Principal"),
-        source_command="privesc",
-        source_context=str(privesc_row.get("principal") or ""),
-        clue_type=str(privesc_row.get("path_type") or "direct-role-abuse"),
+        asset_kind=str(current_foothold.get("principal_type") or "Principal"),
+        source_command="permissions",
+        source_context=str(current_foothold.get("principal") or ""),
+        clue_type="direct-role-abuse",
         confirmation_basis="current-identity-rooted",
         priority=semantic.priority,
         urgency=semantic.urgency,
@@ -3101,122 +3140,430 @@ def _build_escalation_direct_control_record(
         path_concept="current-foothold-direct-control",
         stronger_outcome=stronger_outcome,
         why_care=(
-            f"The current foothold already sits on {scope_text} high-impact Azure control, so this "
-            "is not a speculative lead or a separate pivot hunt. The next move is to confirm the "
-            "exact assignment boundary and pick the strongest direct abuse route from that control."
+            f"The current foothold already has {stronger_outcome}. This row is already direct "
+            "Azure control, not a separate pivot hunt. AzureFox is not narrowing one exact "
+            "downstream action beyond the control already shown here."
         ),
         likely_impact=stronger_outcome,
         confidence_boundary=confidence_boundary,
         target_service="azure-control",
         target_resolution="path-confirmed",
-        evidence_commands=["privesc", "permissions"],
+        evidence_commands=["permissions"],
         joined_surface_types=["current-foothold", "permission-summary"],
         target_count=max(1, len(permission_row.get("scope_ids") or [])),
         target_ids=[str(value) for value in permission_row.get("scope_ids") or [] if value],
         target_names=[scope_text],
         next_review=next_review,
         summary=f"{confidence_boundary} {next_review}".strip(),
-        missing_confirmation=str(privesc_row.get("missing_proof") or ""),
-        related_ids=[str(value) for value in privesc_row.get("related_ids") or [] if value],
+        missing_confirmation=missing_proof,
+        related_ids=[str(value) for value in current_foothold.get("related_ids") or [] if value],
     )
 
 
 def _build_escalation_trust_record(
     family_name: str,
-    privesc_row: dict,
+    current_foothold: dict,
     trusts: list,
     permissions_by_principal: dict[str, dict],
     *,
     current_foothold_id: str | None,
+    current_foothold_permission: dict | None,
 ) -> ChainPathRecord | None:
     if not current_foothold_id:
         return None
+
+    candidates: list[tuple[tuple[int, int, int, str], ChainPathRecord]] = []
+    federated_trusts_by_application_id: dict[str, list[dict]] = defaultdict(list)
+    for trust in trusts:
+        trust_row = trust.model_dump(mode="json")
+        if str(trust_row.get("trust_type") or "") != "federated-credential":
+            continue
+        application_id = str(trust_row.get("source_object_id") or "").strip()
+        if application_id:
+            federated_trusts_by_application_id[application_id].append(trust_row)
 
     for trust in trusts:
         trust_row = trust.model_dump(mode="json")
         if trust_row.get("source_object_id") != current_foothold_id:
             continue
 
-        target_permission = permissions_by_principal.get(
-            str(trust_row.get("target_object_id") or "")
+        if str(trust_row.get("trust_type") or "") == "app-owner":
+            application_id = str(trust_row.get("target_object_id") or "").strip()
+            for federated_trust in federated_trusts_by_application_id.get(application_id, []):
+                federated_record = _build_escalation_federated_takeover_record(
+                    family_name=family_name,
+                    current_foothold=current_foothold,
+                    current_trust_row=trust_row,
+                    federated_trust_row=federated_trust,
+                    permissions_by_principal=permissions_by_principal,
+                    current_foothold_id=current_foothold_id,
+                    current_foothold_permission=current_foothold_permission,
+                )
+                if federated_record is not None:
+                    candidates.append(
+                        (
+                            _escalation_trust_candidate_sort_key(
+                                clue_type="federated-credential",
+                                record=federated_record,
+                                current_foothold_permission=current_foothold_permission,
+                                target_permission=permissions_by_principal.get(
+                                    str(federated_trust.get("target_object_id") or "")
+                                ),
+                            ),
+                            federated_record,
+                        )
+                    )
+
+        trust_record = _build_escalation_single_trust_record(
+            family_name=family_name,
+            current_foothold=current_foothold,
+            trust_row=trust_row,
+            permissions_by_principal=permissions_by_principal,
+            current_foothold_id=current_foothold_id,
+            current_foothold_permission=current_foothold_permission,
         )
-        escalation_mechanism = str(trust_row.get("escalation_mechanism") or "").strip()
-        usable_identity_result = str(trust_row.get("usable_identity_result") or "").strip()
-        defender_cut_point = str(trust_row.get("defender_cut_point") or "").strip()
-
-        if not target_permission or not escalation_mechanism or not usable_identity_result:
-            continue
-
-        target_resolution = "path-confirmed"
-        stronger_outcome = _permission_control_summary(target_permission)
-        semantic = evaluate_chain_semantics(
-            ChainSemanticContext(
-                family=family_name,
-                clue_type=str(trust_row.get("trust_type") or "trust-expansion"),
-                target_service="identity-trust",
-                target_resolution=target_resolution,
-                target_count=1,
-                source_command="role-trusts",
-                path_concept="trust-expansion",
+        if trust_record is not None:
+            candidates.append(
+                (
+                    _escalation_trust_candidate_sort_key(
+                        clue_type=str(trust_row.get("trust_type") or ""),
+                        record=trust_record,
+                        current_foothold_permission=current_foothold_permission,
+                        target_permission=_escalation_target_permission_for_sort(
+                            trust_row=trust_row,
+                            permissions_by_principal=permissions_by_principal,
+                        ),
+                    ),
+                    trust_record,
+                )
             )
-        )
-        confidence_boundary = (
-            f"{escalation_mechanism} {usable_identity_result} "
-            "AzureFox can also confirm the stronger target's Azure control. "
-            "AzureFox does not prove successful conversion of that control path into usable "
-            "downstream identity access from this row alone."
-        ).strip()
-        next_review = str(trust_row.get("next_review") or semantic.next_review)
-        why_care = (
-            "This row names a real control transform from the current foothold into a stronger "
-            "identity path, not just a nearby trust relationship."
-        )
-        if defender_cut_point:
-            why_care = f"{why_care} {defender_cut_point}"
 
-        return ChainPathRecord(
-            chain_id=f"escalation-path::{current_foothold_id}::trust-expansion::{trust_row.get('target_object_id')}",
-            asset_id=str(current_foothold_id),
-            asset_name=str(
-                privesc_row.get("starting_foothold")
-                or privesc_row.get("principal")
-                or "unknown current foothold"
-            ),
-            asset_kind=str(privesc_row.get("principal_type") or "Principal"),
-            source_command="role-trusts",
-            source_context=str(
-                trust_row.get("source_name") or trust_row.get("source_object_id") or ""
-            ),
-            clue_type=str(trust_row.get("trust_type") or "trust-expansion"),
-            confirmation_basis=str(trust_row.get("confidence") or "confirmed"),
-            priority=semantic.priority,
-            urgency=semantic.urgency,
-            visible_path="Current foothold -> trust edge -> higher-value identity",
-            insertion_point=escalation_mechanism,
-            path_concept="trust-expansion",
-            stronger_outcome=stronger_outcome,
-            why_care=why_care,
-            likely_impact=stronger_outcome,
-            confidence_boundary=confidence_boundary,
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda item: item[0])
+    return candidates[0][1]
+
+
+def _build_escalation_single_trust_record(
+    *,
+    family_name: str,
+    current_foothold: dict,
+    trust_row: dict,
+    permissions_by_principal: dict[str, dict],
+    current_foothold_id: str,
+    current_foothold_permission: dict | None,
+) -> ChainPathRecord | None:
+    target_permission_id = str(trust_row.get("target_object_id") or "").strip()
+    target_permission_name = str(
+        trust_row.get("target_name") or trust_row.get("target_object_id") or "unknown target"
+    ).strip()
+    target_permission = permissions_by_principal.get(target_permission_id)
+    backing_service_principal_id = str(trust_row.get("backing_service_principal_id") or "").strip()
+    backing_service_principal_name = str(
+        trust_row.get("backing_service_principal_name") or ""
+    ).strip()
+    if not target_permission and backing_service_principal_id:
+        target_permission_id = backing_service_principal_id
+        target_permission_name = backing_service_principal_name or target_permission_id
+        target_permission = permissions_by_principal.get(target_permission_id)
+    escalation_mechanism = str(trust_row.get("escalation_mechanism") or "").strip()
+    usable_identity_result = str(trust_row.get("usable_identity_result") or "").strip()
+    defender_cut_point = str(trust_row.get("defender_cut_point") or "").strip()
+    trust_type = str(trust_row.get("trust_type") or "trust-expansion")
+
+    if not target_permission or not escalation_mechanism or not usable_identity_result:
+        return None
+    if not _permission_adds_net_value(current_foothold_permission, target_permission):
+        return None
+
+    target_resolution = "path-confirmed"
+    stronger_outcome = _permission_control_summary(target_permission)
+    semantic = evaluate_chain_semantics(
+        ChainSemanticContext(
+            family=family_name,
+            clue_type=trust_type,
             target_service="identity-trust",
             target_resolution=target_resolution,
-            evidence_commands=["privesc", "role-trusts", "permissions"],
-            joined_surface_types=["current-foothold", "trust-edge"],
             target_count=1,
-            target_ids=[str(trust_row.get("target_object_id") or "")],
-            target_names=[
-                str(trust_row.get("target_name") or trust_row.get("target_object_id") or "")
-            ],
-            next_review=next_review,
-            summary=f"{confidence_boundary} {next_review}".strip(),
-            missing_confirmation=(
-                "AzureFox does not prove successful conversion of the visible trust-control path "
-                "into usable downstream identity access."
-            ),
-            related_ids=[str(value) for value in trust_row.get("related_ids") or [] if value],
+            source_command="role-trusts",
+            path_concept="trust-expansion",
+        )
+    )
+    confidence_boundary = (
+        f"{escalation_mechanism} {usable_identity_result} "
+        "AzureFox can also confirm the stronger target's Azure control. "
+        "AzureFox does not prove successful conversion of that control path into usable "
+        "downstream identity access from this row alone."
+    ).strip()
+    next_review = str(trust_row.get("next_review") or semantic.next_review)
+    why_care = _escalation_trust_note(
+        trust_row=trust_row,
+        current_foothold_permission=current_foothold_permission,
+        target_permission=target_permission,
+        target_permission_name=target_permission_name,
+    )
+    if defender_cut_point:
+        why_care = f"{why_care} {defender_cut_point}"
+
+    return ChainPathRecord(
+        chain_id=f"escalation-path::{current_foothold_id}::trust-expansion::{target_permission_id}",
+        asset_id=str(current_foothold_id),
+        asset_name=str(
+            current_foothold.get("starting_foothold")
+            or current_foothold.get("principal")
+            or "unknown current foothold"
+        ),
+        asset_kind=str(current_foothold.get("principal_type") or "Principal"),
+        source_command="role-trusts",
+        source_context=str(trust_row.get("source_name") or trust_row.get("source_object_id") or ""),
+        clue_type=trust_type,
+        confirmation_basis=str(trust_row.get("confidence") or "confirmed"),
+        priority=semantic.priority,
+        urgency=semantic.urgency,
+        visible_path=_escalation_visible_path(trust_type),
+        insertion_point=escalation_mechanism,
+        path_concept="trust-expansion",
+        stronger_outcome=stronger_outcome,
+        why_care=why_care,
+        likely_impact=stronger_outcome,
+        confidence_boundary=confidence_boundary,
+        target_service="identity-trust",
+        target_resolution=target_resolution,
+        evidence_commands=["role-trusts", "permissions"],
+        joined_surface_types=["current-foothold", "trust-edge"],
+        target_count=1,
+        target_ids=[target_permission_id],
+        target_names=[target_permission_name],
+        next_review=next_review,
+        summary=f"{confidence_boundary} {next_review}".strip(),
+        missing_confirmation=(
+            "AzureFox does not prove successful conversion of the visible trust-control path "
+            "into usable downstream identity access."
+        ),
+        related_ids=_merge_related_ids(
+            [str(value) for value in trust_row.get("related_ids") or [] if value],
+            [target_permission_id],
+        ),
+    )
+
+
+def _escalation_trust_candidate_sort_key(
+    *,
+    clue_type: str,
+    record: ChainPathRecord,
+    current_foothold_permission: dict | None,
+    target_permission: dict | None,
+) -> tuple[int, int, int, int, int, str]:
+    path_preference_rank = {
+        "service-principal-owner": 0,
+        "federated-credential": 1,
+        "app-owner": 2,
+        "app-to-service-principal": 3,
+    }.get(clue_type, 9)
+    return (
+        semantic_priority_sort_value(record.priority),
+        _JOIN_QUALITY_ORDER.get(record.target_resolution, 9),
+        -len(_permission_new_scope_ids(current_foothold_permission, target_permission)),
+        -_permission_role_strength(target_permission),
+        path_preference_rank,
+        record.chain_id,
+    )
+
+
+def _escalation_target_permission_for_sort(
+    *,
+    trust_row: dict,
+    permissions_by_principal: dict[str, dict],
+) -> dict | None:
+    target_permission_id = str(trust_row.get("target_object_id") or "").strip()
+    target_permission = permissions_by_principal.get(target_permission_id)
+    if target_permission:
+        return target_permission
+    backing_service_principal_id = str(trust_row.get("backing_service_principal_id") or "").strip()
+    if backing_service_principal_id:
+        return permissions_by_principal.get(backing_service_principal_id)
+    return None
+
+
+def _escalation_visible_path(trust_type: str) -> str:
+    if trust_type == "service-principal-owner":
+        return "Current foothold -> service principal takeover -> higher-value identity"
+    if trust_type == "app-owner":
+        return "Current foothold -> app control -> higher-value identity"
+    if trust_type == "app-to-service-principal":
+        return "Current foothold -> app permission -> higher-value identity"
+    return "Current foothold -> trust edge -> higher-value identity"
+
+
+def _build_escalation_federated_takeover_record(
+    *,
+    family_name: str,
+    current_foothold: dict,
+    current_trust_row: dict,
+    federated_trust_row: dict,
+    permissions_by_principal: dict[str, dict],
+    current_foothold_id: str,
+    current_foothold_permission: dict | None,
+) -> ChainPathRecord | None:
+    target_permission_id = str(federated_trust_row.get("target_object_id") or "").strip()
+    target_permission_name = str(
+        federated_trust_row.get("target_name")
+        or federated_trust_row.get("target_object_id")
+        or "unknown target"
+    ).strip()
+    target_permission = permissions_by_principal.get(target_permission_id)
+    if not target_permission or not _permission_adds_net_value(
+        current_foothold_permission, target_permission
+    ):
+        return None
+
+    app_name = str(
+        current_trust_row.get("target_name")
+        or current_trust_row.get("target_object_id")
+        or "unknown application"
+    ).strip()
+    usable_identity_result = str(
+        federated_trust_row.get("usable_identity_result") or ""
+    ).strip()
+    if not usable_identity_result:
+        return None
+
+    target_resolution = "path-confirmed"
+    stronger_outcome = _permission_control_summary(target_permission)
+    semantic = evaluate_chain_semantics(
+        ChainSemanticContext(
+            family=family_name,
+            clue_type="federated-credential",
+            target_service="identity-trust",
+            target_resolution=target_resolution,
+            target_count=1,
+            source_command="role-trusts",
+            path_concept="trust-expansion",
+        )
+    )
+    confidence_boundary = (
+        f"The current foothold can control application '{app_name}'. "
+        f"Application '{app_name}' already has federated trust that can yield service principal "
+        f"'{target_permission_name}' access. {usable_identity_result} AzureFox can also confirm "
+        "the stronger target's Azure control. AzureFox does not prove that the current foothold "
+        "already controls the visible federated subject or has already changed this federated "
+        "trust from this row alone."
+    ).strip()
+    defender_cut_point = str(current_trust_row.get("defender_cut_point") or "").strip()
+    why_care = _escalation_federated_note(
+        app_name=app_name,
+        target_permission_name=target_permission_name,
+        current_foothold_permission=current_foothold_permission,
+        target_permission=target_permission,
+    )
+    if defender_cut_point:
+        why_care = f"{why_care} {defender_cut_point}"
+
+    return ChainPathRecord(
+        chain_id=f"escalation-path::{current_foothold_id}::trust-expansion::{target_permission_id}::federated",
+        asset_id=str(current_foothold_id),
+        asset_name=str(
+            current_foothold.get("starting_foothold")
+            or current_foothold.get("principal")
+            or "unknown current foothold"
+        ),
+        asset_kind=str(current_foothold.get("principal_type") or "Principal"),
+        source_command="role-trusts",
+        source_context=str(
+            current_trust_row.get("source_name") or current_trust_row.get("source_object_id") or ""
+        ),
+        clue_type="federated-credential",
+        confirmation_basis=str(federated_trust_row.get("confidence") or "confirmed"),
+        priority=semantic.priority,
+        urgency=semantic.urgency,
+        visible_path=(
+            "Current foothold -> app control -> existing federated trust -> higher-value "
+            "identity"
+        ),
+        insertion_point=(
+            f"Application '{app_name}' already has federated trust that can yield "
+            f"service principal '{target_permission_name}' access."
+        ),
+        path_concept="trust-expansion",
+        stronger_outcome=stronger_outcome,
+        why_care=why_care,
+        likely_impact=stronger_outcome,
+        confidence_boundary=confidence_boundary,
+        target_service="identity-trust",
+        target_resolution=target_resolution,
+        evidence_commands=["role-trusts", "permissions"],
+        joined_surface_types=["current-foothold", "trust-edge", "federated-trust"],
+        target_count=1,
+        target_ids=[target_permission_id],
+        target_names=[target_permission_name],
+        next_review=str(federated_trust_row.get("next_review") or semantic.next_review),
+        summary=confidence_boundary,
+        missing_confirmation=(
+            "AzureFox does not prove that the current foothold already controls the visible "
+            "federated subject or has already changed the federated trust."
+        ),
+        related_ids=_merge_related_ids(
+            [str(value) for value in current_trust_row.get("related_ids") or [] if value],
+            [str(value) for value in federated_trust_row.get("related_ids") or [] if value],
+            [target_permission_id],
+        ),
+    )
+
+
+def _escalation_trust_note(
+    *,
+    trust_row: dict,
+    current_foothold_permission: dict | None,
+    target_permission: dict,
+    target_permission_name: str,
+) -> str:
+    trust_type = str(trust_row.get("trust_type") or "").strip()
+    target_name = str(
+        trust_row.get("target_name") or trust_row.get("target_object_id") or ""
+    ).strip()
+    backing_service_principal_name = str(
+        trust_row.get("backing_service_principal_name") or ""
+    ).strip()
+    gain_text = _permission_gain_text(current_foothold_permission, target_permission)
+
+    if trust_type == "app-owner" and target_name and backing_service_principal_name:
+        return (
+            f"The current foothold can control application '{target_name}', which backs "
+            f"service principal '{backing_service_principal_name}'. {gain_text} AzureFox is not "
+            f"proving that the current foothold has already turned application control into "
+            f"usable '{backing_service_principal_name}' access."
         )
 
-    return None
+    if trust_type == "service-principal-owner" and target_name:
+        return (
+            f"The current foothold can take over service principal '{target_name}'. "
+            f"{gain_text} AzureFox is not proving that the current foothold has already added "
+            f"or used authentication material for service principal '{target_name}'."
+        )
+
+    return (
+        f"The current foothold can reach '{target_permission_name}'. {gain_text} AzureFox is "
+        "not proving that the current foothold has already turned this trust edge into usable "
+        "downstream identity access."
+    )
+
+
+def _escalation_federated_note(
+    *,
+    app_name: str,
+    target_permission_name: str,
+    current_foothold_permission: dict | None,
+    target_permission: dict,
+) -> str:
+    gain_text = _permission_gain_text(current_foothold_permission, target_permission)
+    return (
+        f"The current foothold can control application '{app_name}', and that application "
+        f"already has federated trust into service principal '{target_permission_name}'. "
+        f"{gain_text} AzureFox is not proving that the current foothold already controls the "
+        "visible federated subject or has already changed that federated trust to make "
+        f"'{target_permission_name}' usable."
+    )
 
 
 def _merge_related_ids(*groups: list[str]) -> list[str]:
@@ -3248,5 +3595,133 @@ def _permission_control_summary(permission_row: dict | None) -> str:
     role_text = ", ".join(roles) or "high-impact roles"
     scope_text = _permission_scope_text(permission_row)
     return f"{role_text} across {scope_text}"
+
+
+def _permission_adds_net_value(
+    current_permission: dict | None,
+    target_permission: dict | None,
+) -> bool:
+    if not target_permission:
+        return False
+    if not current_permission:
+        return True
+    if _permission_new_scope_ids(current_permission, target_permission):
+        return True
+    return _permission_role_strength(target_permission) > _permission_role_strength(
+        current_permission
+    )
+
+
+def _permission_new_scope_ids(
+    current_permission: dict | None,
+    target_permission: dict | None,
+) -> list[str]:
+    target_scope_ids = [
+        str(value)
+        for value in (target_permission or {}).get("scope_ids") or []
+        if value
+    ]
+    if not current_permission:
+        return target_scope_ids
+    return [
+        scope_id
+        for scope_id in target_scope_ids
+        if not any(
+            _scope_applies_to_resource(str(current_scope_id), scope_id)
+            for current_scope_id in current_permission.get("scope_ids") or []
+            if current_scope_id
+        )
+    ]
+
+
+def _permission_role_strength(permission_row: dict | None) -> int:
+    ranks = {
+        "contributor": 1,
+        "user access administrator": 2,
+        "owner": 3,
+    }
+    roles = (permission_row or {}).get("high_impact_roles") or []
+    return max(
+        (ranks.get(_normalize_role_name(role), 0) for role in roles),
+        default=0,
+    )
+
+
+def _permission_capability_text(permission_row: dict | None) -> str:
+    roles = {
+        _normalize_role_name(role)
+        for role in (permission_row or {}).get("high_impact_roles") or []
+    }
+    if "owner" in roles:
+        return "Owner-level Azure control, including role assignment"
+    if "user access administrator" in roles:
+        return "role-assignment control"
+    if "contributor" in roles:
+        return "write/change control"
+    return "meaningful Azure control"
+
+
+def _permission_gain_text(
+    current_permission: dict | None,
+    target_permission: dict | None,
+) -> str:
+    target_scope_ids = [
+        str(value)
+        for value in (target_permission or {}).get("scope_ids") or []
+        if value
+    ]
+    new_scope_ids = _permission_new_scope_ids(current_permission, target_permission)
+    target_capability = _permission_capability_text(target_permission)
+
+    if new_scope_ids:
+        return f"That would add {target_capability} on {_scope_list_text(new_scope_ids)}."
+
+    current_capability = _permission_capability_text(current_permission)
+    if _permission_role_strength(target_permission) > _permission_role_strength(current_permission):
+        return (
+            f"That would upgrade the current foothold from {current_capability} to "
+            f"{target_capability} on {_scope_list_text(target_scope_ids)}."
+        )
+
+    return f"That would reach {target_capability} on {_scope_list_text(target_scope_ids)}."
+
+
+def _scope_list_text(scope_ids: list[str]) -> str:
+    cleaned = [scope_id for scope_id in scope_ids if scope_id]
+    if not cleaned:
+        return "the visible scope"
+    if len(cleaned) > 3:
+        return f"{len(cleaned)} visible scopes"
+
+    resource_groups = [
+        _arm_scope_name(scope_id)
+        for scope_id in cleaned
+        if _arm_scope_kind(scope_id) == "resource_group"
+    ]
+    if len(resource_groups) == len(cleaned) and all(resource_groups):
+        quoted = [f"'{name}'" for name in resource_groups if name]
+        if len(quoted) == 1:
+            return f"resource group {quoted[0]}"
+        return "resource groups " + ", ".join(quoted[:-1]) + f" and {quoted[-1]}"
+
+    labels = [_scope_label(scope_id) for scope_id in cleaned]
+    if len(labels) == 1:
+        return labels[0]
+    return ", ".join(labels[:-1]) + f" and {labels[-1]}"
+
+
+def _scope_label(scope_id: str) -> str:
+    kind = _arm_scope_kind(scope_id)
+    if kind == "resource_group":
+        name = _arm_scope_name(scope_id) or "unknown"
+        return f"resource group '{name}'"
+    if kind == "subscription":
+        return "subscription scope"
+    if kind == "resource":
+        name = _arm_scope_name(scope_id) or "unknown resource"
+        return f"resource '{name}'"
+    return "visible scope"
+
+
 def _source_chain_id(family_name: str, asset_id: str, target_service: str) -> str:
     return f"{family_name}::{asset_id}::{target_service}"

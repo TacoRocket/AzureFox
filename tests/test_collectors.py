@@ -3700,7 +3700,7 @@ def test_principal_sort_key_prioritizes_high_impact_then_workload_attachment() -
 
 def test_collect_permissions(fixture_provider, options) -> None:
     output = collect_permissions(fixture_provider, options)
-    assert len(output.permissions) == 6
+    assert len(output.permissions) == 9
     assert output.permissions[0].priority == "high"
     assert output.permissions[0].privileged is True
     assert output.permissions[0].high_impact_roles == ["Owner"]
@@ -3714,6 +3714,20 @@ def test_collect_permissions(fixture_provider, options) -> None:
     assert by_name["aa-hybrid-prod-mi"].priority == "medium"
     assert by_name["aa-hybrid-prod-mi"].high_impact_roles == ["Contributor"]
     assert by_name["aa-hybrid-prod-mi"].next_review == (
+        "Check role-trusts for trust expansion around who can influence this principal."
+    )
+    assert by_name["aca-orders-system"].priority == "medium"
+    assert by_name["aca-orders-system"].operator_signal == (
+        "Direct control visible; trust expansion follow-on."
+    )
+    assert by_name["aca-orders-system"].next_review == (
+        "Check role-trusts for trust expansion around who can influence this principal."
+    )
+    assert by_name["aci-public-api-system"].priority == "medium"
+    assert by_name["aci-public-api-system"].operator_signal == (
+        "Direct control visible; trust expansion follow-on."
+    )
+    assert by_name["aci-public-api-system"].next_review == (
         "Check role-trusts for trust expansion around who can influence this principal."
     )
     assert by_name["app-empty-mi-system"].operator_signal == (
@@ -3902,7 +3916,6 @@ def test_collect_privesc(fixture_provider, options) -> None:
     output = collect_privesc(fixture_provider, options)
     assert len(output.paths) == 2
     assert [item.priority for item in output.paths] == ["high", "medium"]
-    assert [item.severity for item in output.paths] == ["high", "high"]
     assert output.paths[0].path_type == "direct-role-abuse"
     assert output.paths[0].starting_foothold == "azurefox-lab-sp (current foothold)"
     assert output.paths[0].operator_signal == "Current foothold already has direct control."
@@ -3928,7 +3941,6 @@ def test_collect_privesc(fixture_provider, options) -> None:
 def test_privesc_sort_key_prioritizes_priority_then_current_identity_then_path_type() -> None:
     paths = [
         {
-            "severity": "medium",
             "priority": "medium",
             "current_identity": False,
             "path_type": "direct-role-abuse",
@@ -3936,7 +3948,6 @@ def test_privesc_sort_key_prioritizes_priority_then_current_identity_then_path_t
             "asset": None,
         },
         {
-            "severity": "high",
             "priority": "medium",
             "current_identity": False,
             "path_type": "public-identity-pivot",
@@ -3944,7 +3955,6 @@ def test_privesc_sort_key_prioritizes_priority_then_current_identity_then_path_t
             "asset": "vm-edge-01",
         },
         {
-            "severity": "high",
             "priority": "high",
             "current_identity": True,
             "path_type": "direct-role-abuse",
@@ -3965,57 +3975,95 @@ def test_privesc_sort_key_prioritizes_priority_then_current_identity_then_path_t
 def test_collect_role_trusts(fixture_provider, options) -> None:
     output = collect_role_trusts(fixture_provider, options)
     assert output.mode == "fast"
-    assert len(output.trusts) == 5
-    assert output.trusts[0].trust_type == "federated-credential"
-    assert output.trusts[1].trust_type == "service-principal-owner"
-    assert output.trusts[1].source_name == "aa-hybrid-prod"
-    assert output.trusts[2].trust_type == "service-principal-owner"
-    assert output.trusts[2].source_name == "automation-runner"
-    assert output.trusts[3].trust_type == "app-owner"
+    assert len(output.trusts) == 7
+
+    trust_by_source = {
+        (trust.trust_type, trust.source_name): trust for trust in output.trusts
+    }
+
+    federated = trust_by_source[("federated-credential", "build-app")]
+    current_service_owner = trust_by_source[("service-principal-owner", "azurefox-lab-sp")]
+    service_owner_ops = trust_by_source[("service-principal-owner", "aa-hybrid-prod")]
+    service_owner_build = trust_by_source[("service-principal-owner", "automation-runner")]
+    current_app_owner = trust_by_source[("app-owner", "azurefox-lab-sp")]
+    user_app_owner = trust_by_source[("app-owner", "ci-admin@lab.local")]
+
+    assert federated.operator_signal == "Trust expansion visible; privilege confirmation next."
     assert (
-        output.trusts[0].operator_signal == "Trust expansion visible; privilege confirmation next."
-    )
-    assert (
-        output.trusts[0].next_review
+        federated.next_review
         == "Check permissions for Azure control on service principal 'build-sp'."
     )
-    assert output.trusts[1].operator_signal == "Indirect control visible; ownership review next."
-    assert output.trusts[1].next_review == (
-        "Review ownership around service principal 'ops-deploy-sp', then confirm "
-        "Azure control in permissions."
+    assert (
+        current_service_owner.operator_signal
+        == "Trust expansion visible; privilege confirmation next."
     )
-    assert output.trusts[2].operator_signal == "Indirect control visible; ownership review next."
-    assert output.trusts[2].next_review == (
-        "Review ownership around service principal 'build-sp', then confirm "
-        "Azure control in permissions."
+    assert current_service_owner.next_review == (
+        "Check permissions for Azure control on service principal 'build-sp'."
     )
-    assert output.trusts[0].control_primitive == "existing-federated-credential"
-    assert output.trusts[0].controlled_object_type == "Application"
-    assert output.trusts[0].controlled_object_name == "build-app"
-    assert output.trusts[0].usable_identity_result == (
+    assert (
+        service_owner_ops.operator_signal
+        == "Trust expansion visible; privilege confirmation next."
+    )
+    assert service_owner_ops.next_review == (
+        "Check permissions for Azure control on service principal 'ops-deploy-sp'."
+    )
+    assert (
+        service_owner_build.operator_signal
+        == "Trust expansion visible; privilege confirmation next."
+    )
+    assert service_owner_build.next_review == (
+        "Check permissions for Azure control on service principal 'build-sp'."
+    )
+    assert federated.control_primitive == "existing-federated-credential"
+    assert federated.controlled_object_type == "Application"
+    assert federated.controlled_object_name == "build-app"
+    assert federated.usable_identity_result == (
         "Federated sign-in can yield service principal 'build-sp' access."
     )
-    assert output.trusts[0].defender_cut_point == (
+    assert federated.defender_cut_point == (
         "Remove or tighten the federated credential on application 'build-app'."
     )
-    assert output.trusts[1].control_primitive == "owner-control"
-    assert output.trusts[1].controlled_object_type == "ServicePrincipal"
-    assert output.trusts[1].controlled_object_name == "ops-deploy-sp"
-    assert output.trusts[1].usable_identity_result is None
-    assert "authentication-control transform is not yet explicit" in (
-        output.trusts[1].escalation_mechanism or ""
+    assert current_service_owner.control_primitive == "owner-control"
+    assert current_service_owner.controlled_object_type == "ServicePrincipal"
+    assert current_service_owner.controlled_object_name == "build-sp"
+    assert current_service_owner.usable_identity_result == (
+        "That could make service principal 'build-sp' usable."
     )
-    assert output.trusts[2].control_primitive == "owner-control"
-    assert output.trusts[2].controlled_object_type == "ServicePrincipal"
-    assert output.trusts[2].controlled_object_name == "build-sp"
-    assert output.trusts[2].usable_identity_result is None
-    assert output.trusts[3].control_primitive == "change-auth-material"
-    assert output.trusts[3].controlled_object_type == "Application"
-    assert output.trusts[3].controlled_object_name == "build-app"
-    assert output.trusts[3].usable_identity_result == (
+    assert "could add or replace authentication material" in (
+        current_service_owner.escalation_mechanism or ""
+    )
+    assert service_owner_ops.control_primitive == "owner-control"
+    assert service_owner_ops.controlled_object_type == "ServicePrincipal"
+    assert service_owner_ops.controlled_object_name == "ops-deploy-sp"
+    assert service_owner_ops.usable_identity_result == (
+        "That could make service principal 'ops-deploy-sp' usable."
+    )
+    assert "could add or replace authentication material" in (
+        service_owner_ops.escalation_mechanism or ""
+    )
+    assert service_owner_build.control_primitive == "owner-control"
+    assert service_owner_build.controlled_object_type == "ServicePrincipal"
+    assert service_owner_build.controlled_object_name == "build-sp"
+    assert service_owner_build.usable_identity_result == (
+        "That could make service principal 'build-sp' usable."
+    )
+    assert current_app_owner.control_primitive == "change-auth-material"
+    assert current_app_owner.controlled_object_type == "Application"
+    assert current_app_owner.controlled_object_name == "build-app"
+    assert current_app_owner.backing_service_principal_id == "66666666-6666-6666-6666-666666666666"
+    assert current_app_owner.backing_service_principal_name == "build-sp"
+    assert current_app_owner.usable_identity_result == (
         "Control of application 'build-app' could make service principal 'build-sp' usable."
     )
-    assert output.trusts[3].defender_cut_point == (
+    assert user_app_owner.control_primitive == "change-auth-material"
+    assert user_app_owner.controlled_object_type == "Application"
+    assert user_app_owner.controlled_object_name == "build-app"
+    assert user_app_owner.backing_service_principal_id == "66666666-6666-6666-6666-666666666666"
+    assert user_app_owner.backing_service_principal_name == "build-sp"
+    assert user_app_owner.usable_identity_result == (
+        "Control of application 'build-app' could make service principal 'build-sp' usable."
+    )
+    assert user_app_owner.defender_cut_point == (
         "Remove the ownership path that lets the source control application 'build-app'."
     )
 
