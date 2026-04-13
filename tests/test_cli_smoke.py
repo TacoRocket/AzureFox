@@ -490,7 +490,10 @@ def test_cli_smoke_chains_compute_control_table_output(tmp_path: Path) -> None:
     assert "public exposure visible" in normalized_output
     assert "exploitation not proved" in normalized_output
     assert "azurefox is a recon tool" in normalized_output
-    assert "does not verify exploitation activity beyond what is explicitly stated here" in normalized_output
+    assert (
+        "does not verify exploitation activity beyond what is explicitly stated here"
+        in normalized_output
+    )
     assert "does not yet show that start from the current foothold" in normalized_output
     assert "server-side execution" in normalized_output
     assert "metadata service" in normalized_output

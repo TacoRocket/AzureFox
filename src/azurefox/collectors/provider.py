@@ -3795,7 +3795,9 @@ def _collect_resource_type_summaries(
                 try:
                     hydrated = resources_client.get_by_id(resource_id, api_version)
                 except Exception as exc:
-                    issues.append(_issue_from_exception(f"{hydrate_issue_scope}[{resource_id}]", exc))
+                    issues.append(
+                        _issue_from_exception(f"{hydrate_issue_scope}[{resource_id}]", exc)
+                    )
                     hydrated = resource
             rows.append(summary_fn(hydrated))
     except Exception as exc:

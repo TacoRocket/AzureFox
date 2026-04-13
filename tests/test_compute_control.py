@@ -112,7 +112,10 @@ def _base_loaded_app_service(
     identities: list[ManagedIdentity] | None = None,
     managed_identity_issues: list[CollectionIssue] | None = None,
 ) -> dict[str, object]:
-    asset_id = f"/subscriptions/sub/resourceGroups/rg-apps/providers/Microsoft.Web/sites/{asset_name}"
+    asset_id = (
+        "/subscriptions/sub/resourceGroups/rg-apps/providers/"
+        f"Microsoft.Web/sites/{asset_name}"
+    )
     return _base_loaded_workload(
         asset_name=asset_name,
         asset_kind="AppService",

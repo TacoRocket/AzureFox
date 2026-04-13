@@ -13,9 +13,9 @@ from azurefox.collectors.commands import (
     collect_application_gateway,
     collect_arm_deployments,
     collect_auth_policies,
+    collect_automation,
     collect_container_apps,
     collect_container_instances,
-    collect_automation,
     collect_cross_tenant,
     collect_databases,
     collect_devops,
@@ -511,7 +511,10 @@ class DriftOrderingFixtureProvider(MetadataFixtureProvider):
                     "ingress_transport": "http",
                     "revision_mode": "Single",
                     "latest_ready_revision_name": "zzz-internal-id--001",
-                    "environment_id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.App/managedEnvironments/env-internal",
+                    "environment_id": (
+                        "/subscriptions/sub/resourceGroups/rg/providers/"
+                        "Microsoft.App/managedEnvironments/env-internal"
+                    ),
                     "workload_identity_type": "SystemAssigned",
                     "summary": "internal identity-backed container app",
                 },
@@ -524,7 +527,10 @@ class DriftOrderingFixtureProvider(MetadataFixtureProvider):
                     "ingress_transport": "auto",
                     "revision_mode": "Single",
                     "latest_ready_revision_name": "mmm-public-id--001",
-                    "environment_id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.App/managedEnvironments/env-public",
+                    "environment_id": (
+                        "/subscriptions/sub/resourceGroups/rg/providers/"
+                        "Microsoft.App/managedEnvironments/env-public"
+                    ),
                     "workload_identity_type": "SystemAssigned",
                     "summary": "public identity-backed container app",
                 },
@@ -537,7 +543,10 @@ class DriftOrderingFixtureProvider(MetadataFixtureProvider):
                     "ingress_transport": "http",
                     "revision_mode": "Multiple",
                     "latest_ready_revision_name": "aaa-public-no-id--002",
-                    "environment_id": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.App/managedEnvironments/env-public",
+                    "environment_id": (
+                        "/subscriptions/sub/resourceGroups/rg/providers/"
+                        "Microsoft.App/managedEnvironments/env-public"
+                    ),
                     "workload_identity_type": None,
                     "summary": "public non-identity container app",
                 },
@@ -554,7 +563,10 @@ class DriftOrderingFixtureProvider(MetadataFixtureProvider):
                     "public_ip_address": None,
                     "fqdn": None,
                     "exposed_ports": [],
-                    "subnet_ids": ["/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet/subnets/apps"],
+                    "subnet_ids": [
+                        "/subscriptions/sub/resourceGroups/rg/providers/"
+                        "Microsoft.Network/virtualNetworks/vnet/subnets/apps"
+                    ],
                     "container_count": 1,
                     "container_images": ["ghcr.io/example/jobs:latest"],
                     "restart_policy": "OnFailure",
@@ -571,7 +583,10 @@ class DriftOrderingFixtureProvider(MetadataFixtureProvider):
                     "exposed_ports": [80, 443],
                     "subnet_ids": [],
                     "container_count": 2,
-                    "container_images": ["mcr.microsoft.com/app/main:1.0", "mcr.microsoft.com/app/sidecar:1.0"],
+                    "container_images": [
+                        "mcr.microsoft.com/app/main:1.0",
+                        "mcr.microsoft.com/app/sidecar:1.0",
+                    ],
                     "restart_policy": "Always",
                     "os_type": "Linux",
                     "provisioning_state": "Succeeded",
@@ -2313,7 +2328,10 @@ def test_collect_endpoints(fixture_provider, options) -> None:
         for item in output.endpoints
     )
     assert any(item.endpoint == "52.160.10.30" for item in output.endpoints)
-    assert any(item.endpoint == "aci-public-api.eastus.azurecontainer.io" for item in output.endpoints)
+    assert any(
+        item.endpoint == "aci-public-api.eastus.azurecontainer.io"
+        for item in output.endpoints
+    )
 
 
 def test_collect_env_vars(fixture_provider, options) -> None:
