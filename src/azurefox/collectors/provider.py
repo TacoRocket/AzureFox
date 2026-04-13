@@ -33,11 +33,11 @@ from azurefox.models.common import (
     is_private_network_prefix,
 )
 from azurefox.privesc_hints import (
-    privesc_path_sort_rank,
-    privesc_path_type,
     privesc_missing_proof,
     privesc_next_review_hint,
     privesc_operator_signal,
+    privesc_path_sort_rank,
+    privesc_path_type,
     privesc_proven_path,
     privesc_summary,
 )

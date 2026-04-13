@@ -690,7 +690,9 @@ def test_cli_smoke_rbac_contributor_view_json(tmp_path: Path) -> None:
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     current_assignment = next(
-        item for item in payload["role_assignments"] if item["principal_id"] == "33333333-3333-3333-3333-333333333333"
+        item
+        for item in payload["role_assignments"]
+        if item["principal_id"] == "33333333-3333-3333-3333-333333333333"
     )
     assert current_assignment["role_name"] == "Contributor"
 
@@ -727,7 +729,10 @@ def test_cli_smoke_chains_escalation_path_contributor_view_json(tmp_path: Path) 
     assert app_permission_row["clue_type"] == "app-to-service-principal"
     assert app_permission_row["stronger_outcome"] == "Owner across 2 visible scopes"
     assert app_permission_row["evidence_commands"] == ["role-trusts", "permissions"]
-    assert "application-permission reach into service principal 'build-sp'" in app_permission_row["note"]
+    assert (
+        "application-permission reach into service principal 'build-sp'"
+        in app_permission_row["note"]
+    )
     assert "That would add Owner-level Azure control" in app_permission_row["note"]
     assert trust_row["clue_type"] == "federated-credential"
     assert trust_row["stronger_outcome"] == "Owner across 2 visible scopes"
