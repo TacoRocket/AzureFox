@@ -3916,7 +3916,7 @@ def test_collect_privesc(fixture_provider, options) -> None:
     output = collect_privesc(fixture_provider, options)
     assert len(output.paths) == 2
     assert [item.priority for item in output.paths] == ["high", "medium"]
-    assert output.paths[0].path_type == "direct-role-abuse"
+    assert output.paths[0].path_type == "current-foothold-direct-control"
     assert output.paths[0].starting_foothold == "azurefox-lab-sp (current foothold)"
     assert output.paths[0].operator_signal == "Current foothold already has direct control."
     assert (
@@ -3928,6 +3928,7 @@ def test_collect_privesc(fixture_provider, options) -> None:
     )
     assert output.paths[1].asset == "vm-web-01"
     assert output.paths[1].starting_foothold == "azurefox-lab-sp (current foothold)"
+    assert output.paths[1].path_type == "ingress-backed-workload-identity"
     assert (
         output.paths[1].operator_signal
         == "Visible ingress-backed lead; not yet rooted in current foothold."
@@ -3943,21 +3944,21 @@ def test_privesc_sort_key_prioritizes_priority_then_current_identity_then_path_t
         {
             "priority": "medium",
             "current_identity": False,
-            "path_type": "direct-role-abuse",
+            "path_type": "visible-privileged-lead",
             "principal": "medium-row",
             "asset": None,
         },
         {
             "priority": "medium",
             "current_identity": False,
-            "path_type": "public-identity-pivot",
+            "path_type": "ingress-backed-workload-identity",
             "principal": "public-pivot",
             "asset": "vm-edge-01",
         },
         {
             "priority": "high",
             "current_identity": True,
-            "path_type": "direct-role-abuse",
+            "path_type": "current-foothold-direct-control",
             "principal": "current-owner",
             "asset": None,
         },

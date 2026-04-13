@@ -293,6 +293,25 @@ def _escalation_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
             next_review="Check rbac for the exact assignment evidence behind the current foothold.",
         )
 
+    if context.path_concept == "app-permission-reach":
+        if context.target_resolution == "path-confirmed":
+            return ChainSemanticDecision(
+                priority="medium",
+                urgency="review-soon",
+                next_review=(
+                    "Review the exact application-permission grant and the stronger target "
+                    "behind this path."
+                ),
+            )
+        return ChainSemanticDecision(
+            priority="low",
+            urgency="bookmark",
+            next_review=(
+                "Confirm whether this application-permission target adds meaningful Azure "
+                "control beyond the current foothold."
+            ),
+        )
+
     if context.path_concept == "trust-expansion":
         if context.target_resolution == "path-confirmed":
             return ChainSemanticDecision(

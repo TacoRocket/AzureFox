@@ -5,7 +5,7 @@
       "principal": "azurefox-lab-sp",
       "principal_id": "33333333-3333-3333-3333-333333333333",
       "principal_type": "ServicePrincipal",
-      "path_type": "direct-role-abuse",
+      "path_type": "current-foothold-direct-control",
       "asset": null,
       "impact_roles": [
         "Owner"
@@ -27,7 +27,7 @@
       "principal": "ua-app",
       "principal_id": "33333333-3333-3333-3333-333333333333",
       "principal_type": "ManagedIdentity",
-      "path_type": "public-identity-pivot",
+      "path_type": "ingress-backed-workload-identity",
       "asset": "vm-web-01",
       "impact_roles": [
         "Owner"

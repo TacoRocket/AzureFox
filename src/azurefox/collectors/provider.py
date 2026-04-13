@@ -36,6 +36,8 @@ from azurefox.privesc_hints import (
     privesc_missing_proof,
     privesc_next_review_hint,
     privesc_operator_signal,
+    privesc_path_sort_rank,
+    privesc_path_type,
     privesc_proven_path,
     privesc_summary,
 )
@@ -2018,6 +2020,10 @@ class AzureProvider(BaseProvider):
             principal_id = permission.get("principal_id", "unknown")
             related_ids = [principal_id, *permission.get("scope_ids", [])]
             current_identity = permission.get("is_current_identity", False)
+            path_type = privesc_path_type(
+                path_type="direct-role-abuse",
+                current_identity=current_identity,
+            )
             starting_foothold = _privesc_starting_foothold(
                 current_identity=current_identity,
                 principal_name=principal_name,
@@ -2048,7 +2054,7 @@ class AzureProvider(BaseProvider):
                     "principal": principal_name,
                     "principal_id": principal_id,
                     "principal_type": permission.get("principal_type", "unknown"),
-                    "path_type": "direct-role-abuse",
+                    "path_type": path_type,
                     "asset": None,
                     "starting_foothold": starting_foothold,
                     "impact_roles": impact_roles,
@@ -2074,6 +2080,10 @@ class AzureProvider(BaseProvider):
                         continue
 
                     identity_name = identity.get("name") or principal_name
+                    path_type = privesc_path_type(
+                        path_type="public-identity-pivot",
+                        current_identity=False,
+                    )
                     starting_foothold = _privesc_starting_foothold(
                         current_identity=False,
                         principal_name=identity_name,
@@ -2104,7 +2114,7 @@ class AzureProvider(BaseProvider):
                             "principal": identity_name,
                             "principal_id": principal_id,
                             "principal_type": "ManagedIdentity",
-                            "path_type": "public-identity-pivot",
+                            "path_type": path_type,
                             "asset": vm_asset.get("name") or attached_id,
                             "starting_foothold": starting_foothold,
                             "impact_roles": impact_roles,
@@ -4521,14 +4531,10 @@ def _principal_has_high_impact_roles(role_names: list[object]) -> bool:
 
 
 def _privesc_sort_key(item: dict) -> tuple[int, bool, int, str, str]:
-    path_type_rank = {
-        "public-identity-pivot": 0,
-        "direct-role-abuse": 1,
-    }
     return (
         {"high": 0, "medium": 1, "low": 2}.get(str(item.get("priority") or "").lower(), 9),
         not bool(item.get("current_identity")),
-        path_type_rank.get(str(item.get("path_type") or ""), 9),
+        privesc_path_sort_rank(str(item.get("path_type") or "")),
         str(item.get("principal") or ""),
         str(item.get("asset") or ""),
     )

@@ -50,6 +50,7 @@ def compute_control_proof_status_label(target_resolution: str) -> str:
 def escalation_path_type_label(path_concept: str) -> str:
     labels = {
         "current-foothold-direct-control": "current foothold direct control",
+        "app-permission-reach": "app-permission reach",
         "trust-expansion": "trust expansion",
     }
     return labels.get(path_concept, path_concept or "-")

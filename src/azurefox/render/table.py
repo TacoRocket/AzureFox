@@ -20,6 +20,7 @@ from azurefox.chains.presentation import (
 )
 from azurefox.devops_hints import describe_trusted_input, devops_next_review_hint
 from azurefox.env_var_hints import env_var_next_review_hint
+from azurefox.privesc_hints import privesc_path_label
 from azurefox.tokens_credential_hints import tokens_credential_next_review_hint
 
 _CHAIN_PATH_FAMILIES = {"credential-path", "deployment-path", "escalation-path", "compute-control"}
@@ -52,7 +53,7 @@ def render_table(command: str, payload: dict) -> str:
         )
     else:
         columns, records = _table_spec(command, payload)
-        table = Table(title=f"azurefox {command}")
+        table = Table(title=f"azurefox {command}", show_lines=(command == "privesc"))
 
         if not records:
             table.add_column("info")
@@ -917,10 +918,10 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             [
                 ("priority", "priority"),
                 ("starting_foothold", "starting foothold"),
-                ("path_type", "path"),
+                ("path_type", "path type"),
                 ("target", "target"),
                 ("operator_signal", "operator signal"),
-                ("proof_boundary", "proof boundary"),
+                ("proof_boundary", "note"),
                 ("next_review", "next review"),
             ],
             [
@@ -928,7 +929,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     "priority": item.get("priority"),
                     "starting_foothold": item.get("starting_foothold")
                     or "unknown current foothold",
-                    "path_type": item.get("path_type"),
+                    "path_type": _privesc_path_type(item),
                     "target": _privesc_target(item),
                     "operator_signal": item.get("operator_signal"),
                     "proof_boundary": _privesc_proof_boundary(item),
@@ -1312,9 +1313,10 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
         visible_only = len(paths) - rooted
         if not counts:
             counts = "no meaningful paths"
+        visible_label = "visible-only lead" if visible_only == 1 else "visible-only leads"
         return (
             f"{len(paths)} privilege-escalation paths surfaced; {rooted} current-identity-rooted, "
-            f"{visible_only} visible-only leads, {counts}."
+            f"{visible_only} {visible_label}, {counts}."
         )
 
     if command == "role-trusts":
@@ -2090,7 +2092,7 @@ def _privesc_proof_boundary(item: dict) -> str:
     proven = str(item.get("proven_path") or "").strip()
     missing = str(item.get("missing_proof") or "").strip()
     if proven and missing:
-        return f"{proven} {missing}"
+        return f"{proven}\n\n{missing}"
     return proven or missing
 
 
@@ -2106,6 +2108,10 @@ def _privesc_target(item: dict) -> str:
     if asset:
         return asset
     return "-"
+
+
+def _privesc_path_type(item: dict) -> str:
+    return privesc_path_label(str(item.get("path_type") or ""))
 
 
 def _tokens_credential_next_review(item: dict) -> str:

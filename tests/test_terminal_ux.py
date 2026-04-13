@@ -589,14 +589,17 @@ def test_privesc_table_mode_surfaces_takeaway(tmp_path: Path) -> None:
     assert "priority" in result.stdout
     assert "Triage likely privilege-escalation and workload identity abuse paths." in result.stdout
     assert "starting foothold" in result.stdout
+    assert "path type" in result.stdout
     assert "operator signal" in result.stdout
-    assert "proof boundary" in result.stdout
+    assert "note" in result.stdout
     assert "next review" in result.stdout
     assert "(current foothold)" in result.stdout
     assert (
         "Takeaway: 2 privilege-escalation paths surfaced; 1 current-identity-rooted"
         in result.stdout
     )
+    assert "direct control" in result.stdout
+    assert "workload identity" in result.stdout
 
 
 def test_principals_table_mode_uses_curated_columns(tmp_path: Path) -> None:
@@ -889,7 +892,8 @@ def test_escalation_chains_table_mode_renders_defended_current_foothold_story(
     assert "narrowing one exact downstream action" in normalized_output
     assert "trust expansion" in normalized_output
     assert "build-sp" in normalized_output
-    assert "take over service principal 'build-sp'" in normalized_output
+    assert "control application 'build-app'" in normalized_output
+    assert "already has federated trust into service principal 'build-sp'" in normalized_output
     assert "Owner-level Azure control" in normalized_output
     assert "including role" in normalized_output
     assert "assignment on resource groups" in normalized_output

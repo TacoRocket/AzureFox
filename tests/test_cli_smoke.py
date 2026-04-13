@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import shutil
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -15,6 +16,104 @@ def _strip_artifact_lines(output: str) -> str:
     return "\n".join(
         line for line in output.splitlines() if not line.startswith("[chains] ")
     ).strip()
+
+
+def _read_fixture_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _write_fixture_json(path: Path, payload: dict) -> None:
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def _contributor_app_permission_trust() -> dict:
+    return {
+        "trust_type": "app-to-service-principal",
+        "source_object_id": "33333333-3333-3333-3333-333333333333",
+        "source_name": "azurefox-lab-sp",
+        "source_type": "ServicePrincipal",
+        "target_object_id": "66666666-6666-6666-6666-666666666666",
+        "target_name": "build-sp",
+        "target_type": "ServicePrincipal",
+        "evidence_type": "graph-app-role-assignment",
+        "confidence": "confirmed",
+        "control_primitive": "existing-app-role-assignment",
+        "controlled_object_type": "ServicePrincipal",
+        "controlled_object_name": "build-sp",
+        "backing_service_principal_id": None,
+        "backing_service_principal_name": None,
+        "escalation_mechanism": (
+            "Service principal 'azurefox-lab-sp' already holds an application-permission "
+            "path into service principal 'build-sp'."
+        ),
+        "usable_identity_result": (
+            "Service principal 'azurefox-lab-sp' already has application-permission reach "
+            "to 'build-sp'."
+        ),
+        "defender_cut_point": (
+            "Remove the app-role assignment path from service principal "
+            "'azurefox-lab-sp' to 'build-sp'."
+        ),
+        "operator_signal": "Trust expansion visible; privilege confirmation next.",
+        "next_review": (
+            "Review the exact application-permission grant and the stronger target behind "
+            "this path."
+        ),
+        "summary": (
+            "Service principal 'azurefox-lab-sp' holds an application permission or app-role "
+            "assignment to 'build-sp'. This row is a trust-edge and application-permission cue; "
+            "confirm whether the same identity also holds Azure control. Review the exact "
+            "application-permission grant and the stronger target behind this path."
+        ),
+        "related_ids": [
+            "33333333-3333-3333-3333-333333333333",
+            "app-role-build-1",
+            "66666666-6666-6666-6666-666666666666",
+        ],
+    }
+
+
+def _contributor_view_fixture_dir(tmp_path: Path) -> Path:
+    source_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+    fixture_dir = tmp_path / "contributor-view-fixture"
+    shutil.copytree(source_dir, fixture_dir)
+
+    permissions_path = fixture_dir / "permissions.json"
+    permissions_payload = _read_fixture_json(permissions_path)
+    current_permission = permissions_payload["permissions"][0]
+    current_permission["high_impact_roles"] = ["Contributor"]
+    current_permission["all_role_names"] = ["Contributor"]
+    current_permission["role_assignment_count"] = 1
+    _write_fixture_json(permissions_path, permissions_payload)
+
+    rbac_path = fixture_dir / "rbac.json"
+    rbac_payload = _read_fixture_json(rbac_path)
+    rbac_payload["role_assignments"] = [
+        {
+            "id": "ra-contrib-1",
+            "scope_id": "/subscriptions/22222222-2222-2222-2222-222222222222",
+            "principal_id": "33333333-3333-3333-3333-333333333333",
+            "principal_type": "ServicePrincipal",
+            "role_definition_id": "rd-contributor",
+            "role_name": "Contributor",
+        },
+        {
+            "id": "ra-2",
+            "scope_id": "/subscriptions/22222222-2222-2222-2222-222222222222",
+            "principal_id": "44444444-4444-4444-4444-444444444444",
+            "principal_type": "User",
+            "role_definition_id": "rd-reader",
+            "role_name": "Reader",
+        },
+    ]
+    _write_fixture_json(rbac_path, rbac_payload)
+
+    role_trusts_path = fixture_dir / "role_trusts.json"
+    role_trusts_payload = _read_fixture_json(role_trusts_path)
+    role_trusts_payload["trusts"].append(_contributor_app_permission_trust())
+    _write_fixture_json(role_trusts_path, role_trusts_payload)
+
+    return fixture_dir
 
 
 def test_cli_smoke_all_commands(tmp_path: Path) -> None:
@@ -535,19 +634,18 @@ def test_cli_smoke_chains_escalation_path_json(tmp_path: Path) -> None:
     assert trust_row["asset_name"] == "azurefox-lab-sp (current foothold)"
     assert trust_row["starting_foothold"] == "azurefox-lab-sp (current foothold)"
     assert trust_row["path_type"] == "trust expansion"
-    assert trust_row["clue_type"] == "service-principal-owner"
+    assert trust_row["clue_type"] == "federated-credential"
     assert trust_row["stronger_outcome"] == "Owner across 2 visible scopes"
     assert trust_row["target_resolution"] == "path-confirmed"
     assert trust_row["evidence_commands"] == ["role-trusts", "permissions"]
     assert trust_row["target_names"] == ["build-sp"]
     assert "build-sp" in trust_row["note"]
-    assert "can take over service principal 'build-sp'" in trust_row["note"]
+    assert "already has federated trust into service principal 'build-sp'" in trust_row["note"]
     assert "Owner-level Azure control, including role assignment" in trust_row["note"]
     assert "resource groups 'rg-build-dr' and 'rg-identity'" in trust_row["note"]
-    assert "added or used authentication material" in trust_row["note"]
+    assert "visible federated subject" in trust_row["note"]
     assert (
-        "could add or replace authentication material Azure accepts for service principal "
-        "'build-sp'"
+        "already has federated trust that can yield service principal 'build-sp' access"
         in trust_row["confidence_boundary"]
     )
 
@@ -575,9 +673,91 @@ def test_cli_smoke_chains_escalation_path_table_output(tmp_path: Path) -> None:
     assert "narrowing one exact downstream action" in result.stdout
     assert "trust expansion" in result.stdout
     assert "build-sp" in result.stdout
-    assert "take over service principal" in result.stdout
+    assert "federated trust" in result.stdout
     assert "resource groups" in normalized_output
     assert "'rg-build-dr' and 'rg-identity'" in normalized_output
+
+
+def test_cli_smoke_rbac_contributor_view_json(tmp_path: Path) -> None:
+    fixture_dir = _contributor_view_fixture_dir(tmp_path / "fixture-src")
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path / "out"), "--output", "json", "rbac"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    current_assignment = next(
+        item
+        for item in payload["role_assignments"]
+        if item["principal_id"] == "33333333-3333-3333-3333-333333333333"
+    )
+    assert current_assignment["role_name"] == "Contributor"
+
+
+def test_cli_smoke_chains_escalation_path_contributor_view_json(tmp_path: Path) -> None:
+    fixture_dir = _contributor_view_fixture_dir(tmp_path / "fixture-src")
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path / "out"), "--output", "json", "chains", "escalation-path"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["backing_commands"] == ["permissions", "role-trusts"]
+    assert len(payload["paths"]) == 3
+
+    direct_row = next(
+        item
+        for item in payload["paths"]
+        if item["path_concept"] == "current-foothold-direct-control"
+    )
+    app_permission_row = next(
+        item for item in payload["paths"] if item["path_concept"] == "app-permission-reach"
+    )
+    trust_row = next(
+        item for item in payload["paths"] if item["path_concept"] == "trust-expansion"
+    )
+
+    assert direct_row["stronger_outcome"] == "Contributor across subscription-wide scope"
+    assert direct_row["evidence_commands"] == ["permissions"]
+    assert "direct Azure control" in direct_row["note"]
+    assert app_permission_row["clue_type"] == "app-to-service-principal"
+    assert app_permission_row["stronger_outcome"] == "Owner across 2 visible scopes"
+    assert app_permission_row["evidence_commands"] == ["role-trusts", "permissions"]
+    assert (
+        "application-permission reach into service principal 'build-sp'"
+        in app_permission_row["note"]
+    )
+    assert "That would add Owner-level Azure control" in app_permission_row["note"]
+    assert trust_row["clue_type"] == "federated-credential"
+    assert trust_row["stronger_outcome"] == "Owner across 2 visible scopes"
+    assert trust_row["evidence_commands"] == ["role-trusts", "permissions"]
+    assert "build-sp" in trust_row["note"]
+    assert "already has federated trust into service principal 'build-sp'" in trust_row["note"]
+
+
+def test_cli_smoke_chains_escalation_path_contributor_view_table_output(tmp_path: Path) -> None:
+    fixture_dir = _contributor_view_fixture_dir(tmp_path / "fixture-src")
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path / "out"), "chains", "escalation-path"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    normalized_output = " ".join(result.stdout.split())
+    assert "current foothold direct control" in normalized_output
+    assert "Contributor across subscription-wide scope" in normalized_output
+    assert "app-permission reach" in normalized_output
+    assert "trust expansion" in normalized_output
+    assert "build-sp" in normalized_output
+    assert "That would add Owner-level Azure control" in normalized_output
 
 
 def test_cli_smoke_chains_compute_control_table_output(tmp_path: Path) -> None:

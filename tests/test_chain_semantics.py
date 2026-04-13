@@ -7,7 +7,6 @@ from azurefox.chains.credential_path import _build_candidate_record
 from azurefox.chains.deployment_path import DeploymentSourceAssessment
 from azurefox.chains.runner import (
     _build_escalation_path_output,
-    _build_escalation_trust_record,
     _deployment_confidence_boundary,
     _deployment_current_operator_suffix,
     _deployment_devops_insertion_point,
@@ -16,6 +15,7 @@ from azurefox.chains.runner import (
     _devops_execution_identity_name,
     _devops_joined_permission,
     _devops_joined_role_trusts,
+    _select_escalation_trust_record,
     _source_current_operator_can_inject,
 )
 from azurefox.chains.semantics import (
@@ -385,6 +385,38 @@ def test_escalation_path_semantics_keep_trust_expansion_below_direct_control() -
     assert "meaningful Azure control" in visible_only.next_review
 
 
+def test_escalation_path_semantics_rank_app_permission_reach_as_follow_on() -> None:
+    confirmed = evaluate_chain_semantics(
+        ChainSemanticContext(
+            family="escalation-path",
+            clue_type="app-to-service-principal",
+            target_service="identity-trust",
+            target_resolution="path-confirmed",
+            target_count=1,
+            source_command="role-trusts",
+            path_concept="app-permission-reach",
+        )
+    )
+    visible_only = evaluate_chain_semantics(
+        ChainSemanticContext(
+            family="escalation-path",
+            clue_type="app-to-service-principal",
+            target_service="identity-trust",
+            target_resolution="target-confirmed",
+            target_count=1,
+            source_command="role-trusts",
+            path_concept="app-permission-reach",
+        )
+    )
+
+    assert confirmed.priority == "medium"
+    assert confirmed.urgency == "review-soon"
+    assert "application-permission grant" in confirmed.next_review
+    assert visible_only.priority == "low"
+    assert visible_only.urgency == "bookmark"
+    assert "meaningful Azure control" in visible_only.next_review
+
+
 def test_escalation_path_trust_rows_require_explicit_transform_and_target_control() -> None:
     privesc_row = {
         "starting_foothold": "automation-runner (current foothold)",
@@ -413,7 +445,7 @@ def test_escalation_path_trust_rows_require_explicit_transform_and_target_contro
         summary="test",
     )
 
-    record = _build_escalation_trust_record(
+    record = _select_escalation_trust_record(
         "escalation-path",
         privesc_row,
         [relationship_only],
@@ -531,8 +563,6 @@ def test_escalation_path_keeps_multiple_current_footholds_instead_of_picking_one
         "current-owner-a (current foothold)",
         "current-owner-b (current foothold)",
     ]
-
-
 def test_escalation_path_service_principal_takeover_rows_use_explicit_transform_fields() -> None:
     privesc_row = {
         "starting_foothold": "azurefox-lab-sp (current foothold)",
@@ -562,7 +592,7 @@ def test_escalation_path_service_principal_takeover_rows_use_explicit_transform_
         summary="test",
     )
 
-    record = _build_escalation_trust_record(
+    record = _select_escalation_trust_record(
         "escalation-path",
         privesc_row,
         [transform_ready],
@@ -636,7 +666,7 @@ def test_escalation_path_trust_rows_use_hidden_role_trust_transform_fields() -> 
         summary="test",
     )
 
-    record = _build_escalation_trust_record(
+    record = _select_escalation_trust_record(
         "escalation-path",
         privesc_row,
         [transform_ready],
@@ -729,7 +759,7 @@ def test_escalation_path_prefers_visible_federated_takeover_when_app_control_exi
         related_ids=["app-1", "fic-1", "sp-1"],
     )
 
-    record = _build_escalation_trust_record(
+    record = _select_escalation_trust_record(
         "escalation-path",
         privesc_row,
         [app_owner, federated],
@@ -771,7 +801,7 @@ def test_escalation_path_prefers_visible_federated_takeover_when_app_control_exi
     )
 
 
-def test_escalation_path_prefers_service_principal_takeover_over_app_control_routes() -> None:
+def test_escalation_path_prefers_easier_federated_path_when_control_gain_matches() -> None:
     privesc_row = {
         "starting_foothold": "azurefox-lab-sp (current foothold)",
         "principal": "azurefox-lab-sp",
@@ -850,7 +880,7 @@ def test_escalation_path_prefers_service_principal_takeover_over_app_control_rou
         related_ids=["app-1", "fic-1", "sp-1"],
     )
 
-    record = _build_escalation_trust_record(
+    record = _select_escalation_trust_record(
         "escalation-path",
         privesc_row,
         [app_owner, direct_service_owner, federated],
@@ -875,9 +905,11 @@ def test_escalation_path_prefers_service_principal_takeover_over_app_control_rou
     )
 
     assert record is not None
-    assert record.clue_type == "service-principal-owner"
-    assert "can take over service principal 'build-sp'" in (record.why_care or "")
-    assert "visible federated subject" not in (record.why_care or "")
+    assert record.clue_type == "federated-credential"
+    assert "already has federated trust into service principal 'build-sp'" in (
+        record.why_care or ""
+    )
+    assert "visible federated subject" in (record.why_care or "")
 
 
 def test_escalation_path_prefers_higher_value_federated_path_over_lower_value_direct_takeover(
@@ -955,7 +987,7 @@ def test_escalation_path_prefers_higher_value_federated_path_over_lower_value_di
         summary="test",
     )
 
-    record = _build_escalation_trust_record(
+    record = _select_escalation_trust_record(
         "escalation-path",
         privesc_row,
         [app_owner, federated, lower_value_service_owner],
@@ -1021,7 +1053,7 @@ def test_escalation_path_trust_row_suppresses_when_no_net_gain() -> None:
         summary="test",
     )
 
-    record = _build_escalation_trust_record(
+    record = _select_escalation_trust_record(
         "escalation-path",
         privesc_row,
         [transform_ready],
@@ -1046,6 +1078,387 @@ def test_escalation_path_trust_row_suppresses_when_no_net_gain() -> None:
     )
 
     assert record is None
+
+
+def test_escalation_path_output_keeps_app_permission_reach_beside_best_trust_expansion() -> None:
+    options = GlobalOptions(
+        tenant=None,
+        subscription=None,
+        output=OutputMode.JSON,
+        outdir=Path("/tmp/azurefox-escalation-app-permission"),
+        debug=False,
+    )
+
+    loaded = {
+        "permissions": SimpleNamespace(
+            permissions=[
+                PermissionSummary(
+                    principal_id="sp-current",
+                    display_name="azurefox-lab-sp",
+                    principal_type="ServicePrincipal",
+                    priority="medium",
+                    high_impact_roles=["Contributor"],
+                    all_role_names=["Contributor"],
+                    role_assignment_count=1,
+                    scope_count=1,
+                    scope_ids=["/subscriptions/sub"],
+                    privileged=True,
+                    is_current_identity=True,
+                ),
+                PermissionSummary(
+                    principal_id="sp-build",
+                    display_name="build-sp",
+                    principal_type="ServicePrincipal",
+                    priority="high",
+                    high_impact_roles=["Owner"],
+                    all_role_names=["Owner"],
+                    role_assignment_count=2,
+                    scope_count=2,
+                    scope_ids=[
+                        "/subscriptions/other/resourceGroups/rg-build",
+                        "/subscriptions/other/resourceGroups/rg-shared",
+                    ],
+                    privileged=True,
+                    is_current_identity=False,
+                ),
+            ],
+            issues=[],
+        ),
+        "role-trusts": SimpleNamespace(
+            trusts=[
+                RoleTrustSummary(
+                    trust_type="service-principal-owner",
+                    source_object_id="sp-current",
+                    source_name="azurefox-lab-sp",
+                    source_type="ServicePrincipal",
+                    target_object_id="sp-build",
+                    target_name="build-sp",
+                    target_type="ServicePrincipal",
+                    evidence_type="graph-owner",
+                    confidence="confirmed",
+                    control_primitive="owner-control",
+                    controlled_object_type="ServicePrincipal",
+                    controlled_object_name="build-sp",
+                    escalation_mechanism=(
+                        "Owner-level control over service principal 'build-sp' could add or "
+                        "replace authentication material Azure accepts for service principal "
+                        "'build-sp'."
+                    ),
+                    usable_identity_result=(
+                        "That could make service principal 'build-sp' usable."
+                    ),
+                    next_review=(
+                        "Check permissions for Azure control on service principal 'build-sp'."
+                    ),
+                    summary="test",
+                    related_ids=["sp-current", "sp-build"],
+                ),
+                RoleTrustSummary(
+                    trust_type="app-to-service-principal",
+                    source_object_id="sp-current",
+                    source_name="azurefox-lab-sp",
+                    source_type="ServicePrincipal",
+                    target_object_id="sp-build",
+                    target_name="build-sp",
+                    target_type="ServicePrincipal",
+                    evidence_type="graph-app-role-assignment",
+                    confidence="confirmed",
+                    control_primitive="existing-app-role-assignment",
+                    controlled_object_type="ServicePrincipal",
+                    controlled_object_name="build-sp",
+                    escalation_mechanism=(
+                        "Service principal 'azurefox-lab-sp' already holds an application-"
+                        "permission path into service principal 'build-sp'."
+                    ),
+                    usable_identity_result=(
+                        "Service principal 'azurefox-lab-sp' already has application-permission "
+                        "reach to 'build-sp'."
+                    ),
+                    next_review=(
+                        "Review the exact application-permission grant and the stronger target "
+                        "behind this path."
+                    ),
+                    summary="test",
+                    related_ids=["sp-current", "app-role-build-1", "sp-build"],
+                ),
+            ],
+            issues=[],
+        ),
+    }
+
+    output = _build_escalation_path_output(options, "escalation-path", loaded)
+
+    assert [row.path_concept for row in output.paths] == [
+        "current-foothold-direct-control",
+        "app-permission-reach",
+        "trust-expansion",
+    ]
+    app_permission_row = next(
+        row for row in output.paths if row.path_concept == "app-permission-reach"
+    )
+    trust_row = next(row for row in output.paths if row.path_concept == "trust-expansion")
+    assert app_permission_row.clue_type == "app-to-service-principal"
+    assert app_permission_row.visible_path == (
+        "Current foothold -> app permission -> higher-value identity"
+    )
+    assert "application-permission reach into service principal 'build-sp'" in (
+        app_permission_row.why_care or ""
+    )
+    assert trust_row.clue_type == "service-principal-owner"
+
+
+def test_escalation_path_prefers_bigger_control_upgrade_before_easier_path() -> None:
+    options = GlobalOptions(
+        tenant=None,
+        subscription=None,
+        output=OutputMode.JSON,
+        outdir=Path("/tmp/azurefox-escalation-upgrade-order"),
+        debug=False,
+    )
+
+    loaded = {
+        "permissions": SimpleNamespace(
+            permissions=[
+                PermissionSummary(
+                    principal_id="sp-current",
+                    display_name="azurefox-lab-sp",
+                    principal_type="ServicePrincipal",
+                    priority="medium",
+                    high_impact_roles=["Contributor"],
+                    all_role_names=["Contributor"],
+                    role_assignment_count=1,
+                    scope_count=1,
+                    scope_ids=["/subscriptions/sub"],
+                    privileged=True,
+                    is_current_identity=True,
+                ),
+                PermissionSummary(
+                    principal_id="sp-owner",
+                    display_name="owner-sp",
+                    principal_type="ServicePrincipal",
+                    priority="high",
+                    high_impact_roles=["Owner"],
+                    all_role_names=["Owner"],
+                    role_assignment_count=1,
+                    scope_count=1,
+                    scope_ids=["/subscriptions/other/resourceGroups/rg-owner"],
+                    privileged=True,
+                    is_current_identity=False,
+                ),
+                PermissionSummary(
+                    principal_id="sp-contrib",
+                    display_name="contrib-sp",
+                    principal_type="ServicePrincipal",
+                    priority="medium",
+                    high_impact_roles=["Contributor"],
+                    all_role_names=["Contributor"],
+                    role_assignment_count=1,
+                    scope_count=1,
+                    scope_ids=["/subscriptions/other/resourceGroups/rg-contrib"],
+                    privileged=True,
+                    is_current_identity=False,
+                ),
+            ],
+            issues=[],
+        ),
+        "role-trusts": SimpleNamespace(
+            trusts=[
+                RoleTrustSummary(
+                    trust_type="service-principal-owner",
+                    source_object_id="sp-current",
+                    source_name="azurefox-lab-sp",
+                    source_type="ServicePrincipal",
+                    target_object_id="sp-owner",
+                    target_name="owner-sp",
+                    target_type="ServicePrincipal",
+                    evidence_type="graph-owner",
+                    confidence="confirmed",
+                    control_primitive="owner-control",
+                    controlled_object_type="ServicePrincipal",
+                    controlled_object_name="owner-sp",
+                    escalation_mechanism=(
+                        "Owner-level control over service principal 'owner-sp' could add or "
+                        "replace authentication material Azure accepts for service principal "
+                        "'owner-sp'."
+                    ),
+                    usable_identity_result=(
+                        "That could make service principal 'owner-sp' usable."
+                    ),
+                    next_review=(
+                        "Check permissions for Azure control on service principal 'owner-sp'."
+                    ),
+                    summary="test",
+                    related_ids=["sp-current", "sp-owner"],
+                ),
+                RoleTrustSummary(
+                    trust_type="app-to-service-principal",
+                    source_object_id="sp-current",
+                    source_name="azurefox-lab-sp",
+                    source_type="ServicePrincipal",
+                    target_object_id="sp-contrib",
+                    target_name="contrib-sp",
+                    target_type="ServicePrincipal",
+                    evidence_type="graph-app-role-assignment",
+                    confidence="confirmed",
+                    control_primitive="existing-app-role-assignment",
+                    controlled_object_type="ServicePrincipal",
+                    controlled_object_name="contrib-sp",
+                    escalation_mechanism=(
+                        "Service principal 'azurefox-lab-sp' already holds an application-"
+                        "permission path into service principal 'contrib-sp'."
+                    ),
+                    usable_identity_result=(
+                        "Service principal 'azurefox-lab-sp' already has application-permission "
+                        "reach to 'contrib-sp'."
+                    ),
+                    next_review=(
+                        "Review the exact application-permission grant and the stronger target "
+                        "behind this path."
+                    ),
+                    summary="test",
+                    related_ids=["sp-current", "app-role-contrib-1", "sp-contrib"],
+                ),
+            ],
+            issues=[],
+        ),
+    }
+
+    output = _build_escalation_path_output(options, "escalation-path", loaded)
+
+    assert [row.path_concept for row in output.paths] == [
+        "current-foothold-direct-control",
+        "trust-expansion",
+        "app-permission-reach",
+    ]
+    assert output.paths[1].clue_type == "service-principal-owner"
+    assert output.paths[2].clue_type == "app-to-service-principal"
+
+
+def test_escalation_path_keeps_distinct_app_permission_targets() -> None:
+    options = GlobalOptions(
+        tenant=None,
+        subscription=None,
+        output=OutputMode.JSON,
+        outdir=Path("/tmp/azurefox-escalation-multi-app-permission"),
+        debug=False,
+    )
+
+    loaded = {
+        "permissions": SimpleNamespace(
+            permissions=[
+                PermissionSummary(
+                    principal_id="sp-current",
+                    display_name="azurefox-lab-sp",
+                    principal_type="ServicePrincipal",
+                    priority="medium",
+                    high_impact_roles=["Contributor"],
+                    all_role_names=["Contributor"],
+                    role_assignment_count=1,
+                    scope_count=1,
+                    scope_ids=["/subscriptions/sub"],
+                    privileged=True,
+                    is_current_identity=True,
+                ),
+                PermissionSummary(
+                    principal_id="sp-build",
+                    display_name="build-sp",
+                    principal_type="ServicePrincipal",
+                    priority="high",
+                    high_impact_roles=["Owner"],
+                    all_role_names=["Owner"],
+                    role_assignment_count=1,
+                    scope_count=1,
+                    scope_ids=["/subscriptions/other/resourceGroups/rg-build"],
+                    privileged=True,
+                    is_current_identity=False,
+                ),
+                PermissionSummary(
+                    principal_id="sp-ops",
+                    display_name="ops-sp",
+                    principal_type="ServicePrincipal",
+                    priority="medium",
+                    high_impact_roles=["Contributor"],
+                    all_role_names=["Contributor"],
+                    role_assignment_count=1,
+                    scope_count=1,
+                    scope_ids=["/subscriptions/other/resourceGroups/rg-ops"],
+                    privileged=True,
+                    is_current_identity=False,
+                ),
+            ],
+            issues=[],
+        ),
+        "role-trusts": SimpleNamespace(
+            trusts=[
+                RoleTrustSummary(
+                    trust_type="app-to-service-principal",
+                    source_object_id="sp-current",
+                    source_name="azurefox-lab-sp",
+                    source_type="ServicePrincipal",
+                    target_object_id="sp-build",
+                    target_name="build-sp",
+                    target_type="ServicePrincipal",
+                    evidence_type="graph-app-role-assignment",
+                    confidence="confirmed",
+                    control_primitive="existing-app-role-assignment",
+                    controlled_object_type="ServicePrincipal",
+                    controlled_object_name="build-sp",
+                    escalation_mechanism=(
+                        "Service principal 'azurefox-lab-sp' already holds an application-"
+                        "permission path into service principal 'build-sp'."
+                    ),
+                    usable_identity_result=(
+                        "Service principal 'azurefox-lab-sp' already has application-permission "
+                        "reach to 'build-sp'."
+                    ),
+                    next_review=(
+                        "Review the exact application-permission grant and the stronger target "
+                        "behind this path."
+                    ),
+                    summary="test",
+                    related_ids=["sp-current", "app-role-build-1", "sp-build"],
+                ),
+                RoleTrustSummary(
+                    trust_type="app-to-service-principal",
+                    source_object_id="sp-current",
+                    source_name="azurefox-lab-sp",
+                    source_type="ServicePrincipal",
+                    target_object_id="sp-ops",
+                    target_name="ops-sp",
+                    target_type="ServicePrincipal",
+                    evidence_type="graph-app-role-assignment",
+                    confidence="confirmed",
+                    control_primitive="existing-app-role-assignment",
+                    controlled_object_type="ServicePrincipal",
+                    controlled_object_name="ops-sp",
+                    escalation_mechanism=(
+                        "Service principal 'azurefox-lab-sp' already holds an application-"
+                        "permission path into service principal 'ops-sp'."
+                    ),
+                    usable_identity_result=(
+                        "Service principal 'azurefox-lab-sp' already has application-permission "
+                        "reach to 'ops-sp'."
+                    ),
+                    next_review=(
+                        "Review the exact application-permission grant and the stronger target "
+                        "behind this path."
+                    ),
+                    summary="test",
+                    related_ids=["sp-current", "app-role-ops-1", "sp-ops"],
+                ),
+            ],
+            issues=[],
+        ),
+    }
+
+    output = _build_escalation_path_output(options, "escalation-path", loaded)
+
+    app_permission_rows = [
+        row for row in output.paths if row.path_concept == "app-permission-reach"
+    ]
+
+    assert len(app_permission_rows) == 2
+    assert {row.target_names[0] for row in app_permission_rows} == {"build-sp", "ops-sp"}
 
 
 def test_devops_joined_permission_ignores_service_connection_id_matches() -> None:
