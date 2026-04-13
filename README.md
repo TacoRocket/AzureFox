@@ -1,7 +1,7 @@
 # AzureFox
 
 <p align="center">
-  <img src="docs/branding/azurefox-logo.png" alt="AzureFox logo" width="180" />
+  <img src="docs/branding/azurefox-logo.png" alt="AzureFox logo" height="240" />
 </p>
 
 Find attack paths, pivot opportunities, and movement across Azure before you drown in inventory.
@@ -106,8 +106,8 @@ azurefox permissions
 | `resource` | [`automation`](https://github.com/TacoRocket/AzureFox/wiki/Automation), [`devops`](https://github.com/TacoRocket/AzureFox/wiki/Devops), [`acr`](https://github.com/TacoRocket/AzureFox/wiki/ACR), [`api-mgmt`](https://github.com/TacoRocket/AzureFox/wiki/API-Mgmt), [`databases`](https://github.com/TacoRocket/AzureFox/wiki/Databases), [`resource-trusts`](https://github.com/TacoRocket/AzureFox/wiki/Resource-Trusts) |
 | `storage` | [`storage`](https://github.com/TacoRocket/AzureFox/wiki/Storage) |
 | `network` | [`nics`](https://github.com/TacoRocket/AzureFox/wiki/Nics), [`dns`](https://github.com/TacoRocket/AzureFox/wiki/DNS), [`endpoints`](https://github.com/TacoRocket/AzureFox/wiki/Endpoints), [`network-effective`](https://github.com/TacoRocket/AzureFox/wiki/Network-Effective), [`network-ports`](https://github.com/TacoRocket/AzureFox/wiki/Network-Ports) |
-| `compute` | [`workloads`](https://github.com/TacoRocket/AzureFox/wiki/Workloads), [`app-services`](https://github.com/TacoRocket/AzureFox/wiki/App-Services), [`functions`](https://github.com/TacoRocket/AzureFox/wiki/Functions), [`aks`](https://github.com/TacoRocket/AzureFox/wiki/AKS), [`vms`](https://github.com/TacoRocket/AzureFox/wiki/VMs), [`vmss`](https://github.com/TacoRocket/AzureFox/wiki/VMSS), [`snapshots-disks`](https://github.com/TacoRocket/AzureFox/wiki/Snapshots-Disks) |
-| orchestration | [`chains`](https://github.com/TacoRocket/AzureFox/wiki/Chains) |
+| `compute` | [`workloads`](https://github.com/TacoRocket/AzureFox/wiki/Workloads), [`app-services`](https://github.com/TacoRocket/AzureFox/wiki/App-Services), [`functions`](https://github.com/TacoRocket/AzureFox/wiki/Functions), `container-apps`, `container-instances`, [`aks`](https://github.com/TacoRocket/AzureFox/wiki/AKS), [`vms`](https://github.com/TacoRocket/AzureFox/wiki/VMs), [`vmss`](https://github.com/TacoRocket/AzureFox/wiki/VMSS), [`snapshots-disks`](https://github.com/TacoRocket/AzureFox/wiki/Snapshots-Disks) |
+| orchestration | [`chains`](https://github.com/TacoRocket/AzureFox/wiki/Chains), `credential-path`, `deployment-path`, `escalation-path`, `compute-control` |
 
 ## Need A Test Lab?
 

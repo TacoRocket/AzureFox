@@ -505,6 +505,49 @@ class FunctionAppAsset(BaseModel):
     related_ids: list[str] = Field(default_factory=list)
 
 
+class ContainerAppAsset(BaseModel):
+    id: str
+    name: str
+    resource_group: str | None = None
+    location: str | None = None
+    environment_id: str | None = None
+    default_hostname: str | None = None
+    external_ingress_enabled: bool | None = None
+    ingress_target_port: int | None = None
+    ingress_transport: str | None = None
+    revision_mode: str | None = None
+    latest_revision_name: str | None = None
+    latest_ready_revision_name: str | None = None
+    workload_identity_type: str | None = None
+    workload_principal_id: str | None = None
+    workload_client_id: str | None = None
+    workload_identity_ids: list[str] = Field(default_factory=list)
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
+class ContainerInstanceAsset(BaseModel):
+    id: str
+    name: str
+    resource_group: str | None = None
+    location: str | None = None
+    os_type: str | None = None
+    restart_policy: str | None = None
+    provisioning_state: str | None = None
+    public_ip_address: str | None = None
+    fqdn: str | None = None
+    exposed_ports: list[int] = Field(default_factory=list)
+    subnet_ids: list[str] = Field(default_factory=list)
+    container_count: int | None = None
+    container_images: list[str] = Field(default_factory=list)
+    workload_identity_type: str | None = None
+    workload_principal_id: str | None = None
+    workload_client_id: str | None = None
+    workload_identity_ids: list[str] = Field(default_factory=list)
+    summary: str
+    related_ids: list[str] = Field(default_factory=list)
+
+
 class AksClusterAsset(BaseModel):
     id: str
     name: str

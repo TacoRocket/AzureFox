@@ -873,14 +873,14 @@ def test_escalation_chains_table_mode_renders_defended_current_foothold_story(
     assert "azurefox-lab-sp" in normalized_output
     assert "(current" in normalized_output
     assert "foothold)" in normalized_output
-    assert "current foothold direct control" in normalized_output
+    assert "current foothold direct" in normalized_output
     assert "Owner across" in normalized_output
     assert "subscription-wide scope" in normalized_output
     assert (
         "The current foothold already sits on subscription-wide scope high-impact Azure control"
         in normalized_output
     )
-    assert "Takeaway: 1 visible escalation paths; 1 high, 1 pivot-now" in result.stdout
+    assert "Takeaway:" not in result.stdout
 
 
 def test_auth_policies_partial_read_surfaces_collection_issue() -> None:

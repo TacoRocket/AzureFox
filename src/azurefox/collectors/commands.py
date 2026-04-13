@@ -28,6 +28,8 @@ from azurefox.models.commands import (
     ArmDeploymentsOutput,
     AuthPoliciesOutput,
     AutomationOutput,
+    ContainerAppsOutput,
+    ContainerInstancesOutput,
     CrossTenantOutput,
     DatabasesOutput,
     DevopsOutput,
@@ -275,6 +277,41 @@ def collect_functions(provider: BaseProvider, options: GlobalOptions) -> Functio
             "findings": [],
             **data,
             "function_apps": function_apps,
+        }
+    )
+
+
+def collect_container_apps(
+    provider: BaseProvider,
+    options: GlobalOptions,
+) -> ContainerAppsOutput:
+    data = provider.container_apps()
+    container_apps = sorted(data.get("container_apps", []), key=_container_app_sort_key)
+    return ContainerAppsOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "container-apps", options),
+            "findings": [],
+            **data,
+            "container_apps": container_apps,
+        }
+    )
+
+
+def collect_container_instances(
+    provider: BaseProvider,
+    options: GlobalOptions,
+) -> ContainerInstancesOutput:
+    data = provider.container_instances()
+    container_instances = sorted(
+        data.get("container_instances", []),
+        key=_container_instance_sort_key,
+    )
+    return ContainerInstancesOutput.model_validate(
+        {
+            "metadata": _metadata(provider, "container-instances", options),
+            "findings": [],
+            **data,
+            "container_instances": container_instances,
         }
     )
 
@@ -1044,6 +1081,24 @@ def _function_app_sort_key(item: dict) -> tuple[bool, bool, bool, tuple[int, int
         not _has_workload_identity(item),
         item.get("azure_webjobs_storage_value_type") != "plain-text",
         _function_deployment_signal_rank(item),
+        item.get("name") or "",
+    )
+
+
+def _container_app_sort_key(item: dict) -> tuple[bool, bool, bool, str]:
+    return (
+        not bool(item.get("external_ingress_enabled")),
+        not _has_workload_identity(item),
+        not bool(item.get("default_hostname")),
+        item.get("name") or "",
+    )
+
+
+def _container_instance_sort_key(item: dict) -> tuple[bool, bool, bool, str]:
+    return (
+        not bool(item.get("public_ip_address") or item.get("fqdn")),
+        not _has_workload_identity(item),
+        not bool(item.get("fqdn")),
         item.get("name") or "",
     )
 

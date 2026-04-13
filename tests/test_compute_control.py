@@ -30,10 +30,17 @@ def _metadata(command: str) -> CommandMetadata:
     return CommandMetadata(command=command)
 
 
-def _base_loaded_app_service(
+def _base_loaded_workload(
     *,
     asset_name: str,
+    asset_kind: str,
+    asset_id: str,
     principal_id: str,
+    token_summary: str,
+    workload_summary: str,
+    endpoints: list[str],
+    ingress_paths: list[str],
+    exposure_families: list[str],
     permission: PermissionSummary | None,
     identities: list[ManagedIdentity] | None = None,
     managed_identity_issues: list[CollectionIssue] | None = None,
@@ -43,20 +50,17 @@ def _base_loaded_app_service(
             metadata=_metadata("tokens-credentials"),
             surfaces=[
                 TokenCredentialSurfaceSummary(
-                    asset_id=f"/subscriptions/sub/resourceGroups/rg-apps/providers/Microsoft.Web/sites/{asset_name}",
+                    asset_id=asset_id,
                     asset_name=asset_name,
-                    asset_kind="AppService",
+                    asset_kind=asset_kind,
                     resource_group="rg-apps",
                     location="eastus",
                     surface_type="managed-identity-token",
                     access_path="workload-identity",
                     priority="medium",
                     operator_signal="SystemAssigned",
-                    summary="App Service can request tokens through its attached identity.",
-                    related_ids=[
-                        f"/subscriptions/sub/resourceGroups/rg-apps/providers/Microsoft.Web/sites/{asset_name}",
-                        principal_id,
-                    ],
+                    summary=token_summary,
+                    related_ids=[asset_id, principal_id],
                 )
             ],
             issues=[],
@@ -65,23 +69,18 @@ def _base_loaded_app_service(
             metadata=_metadata("workloads"),
             workloads=[
                 WorkloadSummary(
-                    asset_id=f"/subscriptions/sub/resourceGroups/rg-apps/providers/Microsoft.Web/sites/{asset_name}",
+                    asset_id=asset_id,
                     asset_name=asset_name,
-                    asset_kind="AppService",
+                    asset_kind=asset_kind,
                     resource_group="rg-apps",
                     location="eastus",
                     identity_type="SystemAssigned",
                     identity_principal_id=principal_id,
-                    endpoints=[f"{asset_name}.azurewebsites.net"],
-                    ingress_paths=["azurewebsites-default-hostname"],
-                    exposure_families=["managed-web-hostname"],
-                    summary=(
-                        "App Service exposes a reachable hostname and carries a system identity."
-                    ),
-                    related_ids=[
-                        f"/subscriptions/sub/resourceGroups/rg-apps/providers/Microsoft.Web/sites/{asset_name}",
-                        principal_id,
-                    ],
+                    endpoints=endpoints,
+                    ingress_paths=ingress_paths,
+                    exposure_families=exposure_families,
+                    summary=workload_summary,
+                    related_ids=[asset_id, principal_id],
                 )
             ],
             issues=[],
@@ -103,6 +102,108 @@ def _base_loaded_app_service(
             issues=[],
         ),
     }
+
+
+def _base_loaded_app_service(
+    *,
+    asset_name: str,
+    principal_id: str,
+    permission: PermissionSummary | None,
+    identities: list[ManagedIdentity] | None = None,
+    managed_identity_issues: list[CollectionIssue] | None = None,
+) -> dict[str, object]:
+    asset_id = f"/subscriptions/sub/resourceGroups/rg-apps/providers/Microsoft.Web/sites/{asset_name}"
+    return _base_loaded_workload(
+        asset_name=asset_name,
+        asset_kind="AppService",
+        asset_id=asset_id,
+        principal_id=principal_id,
+        token_summary="App Service can request tokens through its attached identity.",
+        workload_summary="App Service exposes a reachable hostname and carries a system identity.",
+        endpoints=[f"{asset_name}.azurewebsites.net"],
+        ingress_paths=["azurewebsites-default-hostname"],
+        exposure_families=["managed-web-hostname"],
+        permission=permission,
+        identities=identities,
+        managed_identity_issues=managed_identity_issues,
+    )
+
+
+def _base_loaded_container_app(
+    *,
+    asset_name: str,
+    principal_id: str,
+    permission: PermissionSummary | None,
+    external: bool,
+    identities: list[ManagedIdentity] | None = None,
+    managed_identity_issues: list[CollectionIssue] | None = None,
+) -> dict[str, object]:
+    asset_id = (
+        "/subscriptions/sub/resourceGroups/rg-apps/providers/"
+        f"Microsoft.App/containerApps/{asset_name}"
+    )
+    hostname = f"{asset_name}.eastus.azurecontainerapps.io"
+    return _base_loaded_workload(
+        asset_name=asset_name,
+        asset_kind="ContainerApp",
+        asset_id=asset_id,
+        principal_id=principal_id,
+        token_summary="Container App can request tokens through its attached identity.",
+        workload_summary=(
+            "Container App exposes ingress and carries a system identity."
+            if external
+            else "Container App is internal-only and carries a system identity."
+        ),
+        endpoints=[hostname] if external else [],
+        ingress_paths=["azure-container-apps-default-hostname"] if external else [],
+        exposure_families=["managed-web-hostname"] if external else [],
+        permission=permission,
+        identities=identities,
+        managed_identity_issues=managed_identity_issues,
+    )
+
+
+def _base_loaded_container_instance(
+    *,
+    asset_name: str,
+    principal_id: str,
+    permission: PermissionSummary | None,
+    public: bool,
+    identities: list[ManagedIdentity] | None = None,
+    managed_identity_issues: list[CollectionIssue] | None = None,
+) -> dict[str, object]:
+    asset_id = (
+        "/subscriptions/sub/resourceGroups/rg-apps/providers/"
+        f"Microsoft.ContainerInstance/containerGroups/{asset_name}"
+    )
+    endpoints = []
+    exposure_families = []
+    ingress_paths = []
+    if public:
+        endpoints = [f"{asset_name}.eastus.azurecontainer.io", "52.160.10.30"]
+        exposure_families = ["managed-container-fqdn", "public-ip"]
+        ingress_paths = [
+            "azure-container-instances-fqdn",
+            "azure-container-instances-public-ip",
+        ]
+    return _base_loaded_workload(
+        asset_name=asset_name,
+        asset_kind="ContainerInstance",
+        asset_id=asset_id,
+        principal_id=principal_id,
+        token_summary="Container group can request tokens through its attached identity.",
+        workload_summary=(
+            "Container group exposes a public endpoint and carries a system identity."
+            if public
+            else "Container group is internal-only and carries a system identity."
+        ),
+        endpoints=endpoints,
+        ingress_paths=ingress_paths,
+        exposure_families=exposure_families,
+        permission=permission,
+        identities=identities,
+        managed_identity_issues=managed_identity_issues,
+    )
 
 
 def test_compute_control_admits_system_assigned_workload_via_workload_principal() -> None:
@@ -139,6 +240,84 @@ def test_compute_control_admits_system_assigned_workload_via_workload_principal(
         "permissions",
     ]
     assert "inferred from workload metadata" in (row.confidence_boundary or "")
+
+
+def test_compute_control_admits_container_app_via_workload_principal() -> None:
+    loaded = _base_loaded_container_app(
+        asset_name="aca-orders",
+        principal_id="abab1111-1111-1111-1111-111111111111",
+        permission=PermissionSummary(
+            principal_id="abab1111-1111-1111-1111-111111111111",
+            display_name="aca-orders-system",
+            principal_type="ServicePrincipal",
+            priority="high",
+            high_impact_roles=["Contributor"],
+            all_role_names=["Contributor"],
+            role_assignment_count=1,
+            scope_count=1,
+            scope_ids=["/subscriptions/sub/resourceGroups/rg-apps"],
+            privileged=True,
+        ),
+        external=True,
+    )
+
+    paths, issues = collect_compute_control_records("compute-control", loaded)
+
+    assert not issues
+    assert_rows_include(paths, field="asset_name", expected=["aca-orders"])
+    row = row_by_field(paths, field="asset_name", expected="aca-orders")
+    assert row.asset_kind == "ContainerApp"
+    assert row.insertion_point == "reachable service token request path"
+    assert row.priority == "high"
+    assert row.urgency == "pivot-now"
+    assert row.target_names == ["aca-orders system identity"]
+    assert row.evidence_commands == ["tokens-credentials", "workloads", "permissions"]
+    assert row.joined_surface_types == [
+        "managed-identity-token",
+        "workload",
+        "workload-principal",
+        "permissions",
+    ]
+    assert "server-side execution in this public-facing service" in (row.why_care or "")
+
+
+def test_compute_control_admits_container_instance_via_workload_principal() -> None:
+    loaded = _base_loaded_container_instance(
+        asset_name="aci-public-api",
+        principal_id="acac1111-1111-1111-1111-111111111111",
+        permission=PermissionSummary(
+            principal_id="acac1111-1111-1111-1111-111111111111",
+            display_name="aci-public-api-system",
+            principal_type="ServicePrincipal",
+            priority="high",
+            high_impact_roles=["Contributor"],
+            all_role_names=["Contributor"],
+            role_assignment_count=1,
+            scope_count=1,
+            scope_ids=["/subscriptions/sub/resourceGroups/rg-apps"],
+            privileged=True,
+        ),
+        public=True,
+    )
+
+    paths, issues = collect_compute_control_records("compute-control", loaded)
+
+    assert not issues
+    assert_rows_include(paths, field="asset_name", expected=["aci-public-api"])
+    row = row_by_field(paths, field="asset_name", expected="aci-public-api")
+    assert row.asset_kind == "ContainerInstance"
+    assert row.insertion_point == "reachable service token request path"
+    assert row.priority == "high"
+    assert row.urgency == "pivot-now"
+    assert row.target_names == ["aci-public-api system identity"]
+    assert row.evidence_commands == ["tokens-credentials", "workloads", "permissions"]
+    assert row.joined_surface_types == [
+        "managed-identity-token",
+        "workload",
+        "workload-principal",
+        "permissions",
+    ]
+    assert "server-side execution in this public-facing container group" in (row.why_care or "")
 
 
 def test_compute_control_prefers_explicit_system_identity_anchor_when_present() -> None:
@@ -1260,6 +1439,34 @@ def test_compute_control_suppresses_system_assigned_workload_without_stronger_co
 
     assert not issues
     assert_rows_exclude(paths, field="asset_name", expected=["app-empty-mi"])
+
+
+def test_compute_control_suppresses_container_app_without_stronger_control() -> None:
+    loaded = _base_loaded_container_app(
+        asset_name="aca-internal-jobs",
+        principal_id="abab2222-2222-2222-2222-222222222222",
+        permission=None,
+        external=False,
+    )
+
+    paths, issues = collect_compute_control_records("compute-control", loaded)
+
+    assert not issues
+    assert_rows_exclude(paths, field="asset_name", expected=["aca-internal-jobs"])
+
+
+def test_compute_control_suppresses_container_instance_without_stronger_control() -> None:
+    loaded = _base_loaded_container_instance(
+        asset_name="aci-internal-worker",
+        principal_id="acac2222-2222-2222-2222-222222222222",
+        permission=None,
+        public=False,
+    )
+
+    paths, issues = collect_compute_control_records("compute-control", loaded)
+
+    assert not issues
+    assert_rows_exclude(paths, field="asset_name", expected=["aci-internal-worker"])
 
 
 def test_compute_control_preserves_partial_visibility_issues_when_row_still_admits() -> None:

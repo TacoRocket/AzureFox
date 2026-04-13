@@ -102,6 +102,12 @@ class BaseProvider(ABC):
     def functions(self) -> dict:
         return {"function_apps": [], "issues": []}
 
+    def container_apps(self) -> dict:
+        return {"container_apps": [], "issues": []}
+
+    def container_instances(self) -> dict:
+        return {"container_instances": [], "issues": []}
+
     @abstractmethod
     def env_vars(self) -> dict:
         raise NotImplementedError
@@ -111,12 +117,16 @@ class BaseProvider(ABC):
 
     def tokens_credentials(self) -> dict:
         workload_data = self.web_workloads()
+        container_instance_data = self.container_instances()
         env_var_data = self.env_vars()
         arm_data = self.arm_deployments()
         vm_data = self.vms()
 
         surfaces = [
             *_token_credential_surfaces_from_web_workloads(workload_data.get("workloads", [])),
+            *_token_credential_surfaces_from_container_instances(
+                container_instance_data.get("container_instances", [])
+            ),
             *_tokens_credentials_surfaces_from_env_vars(env_var_data.get("env_vars", [])),
             *_token_credential_surfaces_from_arm_deployments(arm_data.get("deployments", [])),
             *_token_credential_surfaces_from_vms(vm_data.get("vm_assets", [])),
@@ -127,6 +137,7 @@ class BaseProvider(ABC):
             "surfaces": surfaces,
             "issues": [
                 *workload_data.get("issues", []),
+                *container_instance_data.get("issues", []),
                 *env_var_data.get("issues", []),
                 *arm_data.get("issues", []),
                 *vm_data.get("issues", []),
@@ -135,11 +146,15 @@ class BaseProvider(ABC):
 
     def endpoints(self) -> dict:
         workload_data = self.web_workloads()
+        container_instance_data = self.container_instances()
         vm_data = self.vms()
 
         endpoints = [
             *_endpoints_from_vms(vm_data.get("vm_assets", [])),
             *_endpoints_from_web_workloads(workload_data.get("workloads", [])),
+            *_endpoints_from_container_instances(
+                container_instance_data.get("container_instances", [])
+            ),
         ]
         endpoints.sort(
             key=lambda item: (
@@ -151,15 +166,23 @@ class BaseProvider(ABC):
 
         return {
             "endpoints": endpoints,
-            "issues": [*workload_data.get("issues", []), *vm_data.get("issues", [])],
+            "issues": [
+                *workload_data.get("issues", []),
+                *container_instance_data.get("issues", []),
+                *vm_data.get("issues", []),
+            ],
         }
 
     def workloads(self) -> dict:
         workload_data = self.web_workloads()
+        container_instance_data = self.container_instances()
         vm_data = self.vms()
         endpoints = [
             *_endpoints_from_vms(vm_data.get("vm_assets", [])),
             *_endpoints_from_web_workloads(workload_data.get("workloads", [])),
+            *_endpoints_from_container_instances(
+                container_instance_data.get("container_instances", [])
+            ),
         ]
         endpoints_by_asset = _endpoints_by_asset(endpoints)
         workloads = [
@@ -168,11 +191,19 @@ class BaseProvider(ABC):
                 workload_data.get("workloads", []),
                 endpoints_by_asset,
             ),
+            *_workload_rows_from_container_instances(
+                container_instance_data.get("container_instances", []),
+                endpoints_by_asset,
+            ),
         ]
         workloads.sort(key=_workload_sort_key)
         return {
             "workloads": workloads,
-            "issues": [*workload_data.get("issues", []), *vm_data.get("issues", [])],
+            "issues": [
+                *workload_data.get("issues", []),
+                *container_instance_data.get("issues", []),
+                *vm_data.get("issues", []),
+            ],
         }
 
     def network_effective(self) -> dict:
@@ -274,6 +305,12 @@ class FixtureProvider(BaseProvider):
         path = self.fixture_dir / f"{name}.json"
         if not path.exists():
             raise AzureFoxError(ErrorKind.UNKNOWN, f"Fixture file not found: {path}")
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def _read_optional(self, name: str, *, empty_key: str) -> dict:
+        path = self.fixture_dir / f"{name}.json"
+        if not path.exists():
+            return {empty_key: [], "issues": []}
         return json.loads(path.read_text(encoding="utf-8"))
 
     def whoami(self) -> dict:
@@ -396,8 +433,29 @@ class FixtureProvider(BaseProvider):
     def env_vars(self) -> dict:
         return self._read("env_vars")
 
+    def container_apps(self) -> dict:
+        return self._read_optional("container_apps", empty_key="container_apps")
+
+    def container_instances(self) -> dict:
+        return self._read_optional("container_instances", empty_key="container_instances")
+
     def web_workloads(self) -> dict:
-        return self._read("web_workloads")
+        data = self._read("web_workloads")
+        container_app_data = self.container_apps()
+        workloads = [
+            *data.get("workloads", []),
+            *[
+                _container_app_workload_summary(item)
+                for item in container_app_data.get("container_apps", [])
+            ],
+        ]
+        workloads.sort(
+            key=lambda item: ((item.get("asset_name") or ""), item.get("asset_id") or "")
+        )
+        return {
+            "workloads": workloads,
+            "issues": [*data.get("issues", []), *container_app_data.get("issues", [])],
+        }
 
     def storage(self) -> dict:
         return self._read("storage")
@@ -1689,6 +1747,28 @@ class AzureProvider(BaseProvider):
         )
         return {"function_apps": function_apps, "issues": issues}
 
+    def container_apps(self) -> dict:
+        container_apps, issues = _collect_resource_type_summaries(
+            resources_client=self.clients.resource.resources,
+            resource_type="Microsoft.App/containerApps",
+            api_version="2024-03-01",
+            summary_fn=_container_app_summary,
+            list_issue_scope="container_apps.resources",
+            hydrate_issue_scope="container_apps.hydrate",
+        )
+        return {"container_apps": container_apps, "issues": issues}
+
+    def container_instances(self) -> dict:
+        container_instances, issues = _collect_resource_type_summaries(
+            resources_client=self.clients.resource.resources,
+            resource_type="Microsoft.ContainerInstance/containerGroups",
+            api_version="2023-05-01",
+            summary_fn=_container_instance_summary,
+            list_issue_scope="container_instances.resources",
+            hydrate_issue_scope="container_instances.hydrate",
+        )
+        return {"container_instances": container_instances, "issues": issues}
+
     def web_workloads(self) -> dict:
         issues: list[dict] = []
         workloads: list[dict] = []
@@ -1702,6 +1782,13 @@ class AzureProvider(BaseProvider):
                 workloads.append(_web_workload_summary(app, asset_kind=asset_kind))
         except Exception as exc:
             issues.append(_issue_from_exception("web_workloads.web_apps", exc))
+
+        container_app_data = self.container_apps()
+        workloads.extend(
+            _container_app_workload_summary(item)
+            for item in container_app_data.get("container_apps", [])
+        )
+        issues.extend(container_app_data.get("issues", []))
 
         workloads.sort(
             key=lambda item: ((item.get("asset_name") or ""), item.get("asset_id") or "")
@@ -3687,6 +3774,36 @@ def _issue_from_exception(area: str, exc: Exception) -> dict:
     }
 
 
+def _collect_resource_type_summaries(
+    *,
+    resources_client: object,
+    resource_type: str,
+    api_version: str,
+    summary_fn,
+    list_issue_scope: str,
+    hydrate_issue_scope: str,
+) -> tuple[list[dict], list[dict]]:
+    rows: list[dict] = []
+    issues: list[dict] = []
+
+    try:
+        resources = resources_client.list(filter=f"resourceType eq '{resource_type}'")
+        for resource in resources:
+            resource_id = _string_value(getattr(resource, "id", None))
+            hydrated = resource
+            if resource_id:
+                try:
+                    hydrated = resources_client.get_by_id(resource_id, api_version)
+                except Exception as exc:
+                    issues.append(_issue_from_exception(f"{hydrate_issue_scope}[{resource_id}]", exc))
+                    hydrated = resource
+            rows.append(summary_fn(hydrated))
+    except Exception as exc:
+        issues.append(_issue_from_exception(list_issue_scope, exc))
+
+    return rows, issues
+
+
 def _call_automation_operation(
     client: object,
     attrs: tuple[str, ...],
@@ -5525,6 +5642,240 @@ def _function_app_summary(
     }
 
 
+def _container_app_summary(resource: object) -> dict:
+    resource_id = _string_value(getattr(resource, "id", None)) or ""
+    name = _string_value(getattr(resource, "name", None)) or "unknown"
+    identity = getattr(resource, "identity", None)
+    properties = getattr(resource, "properties", None)
+    configuration = _property_value(properties, "configuration")
+    ingress = _property_value(configuration, "ingress")
+
+    workload_identity_ids = sorted(
+        str(identity_id)
+        for identity_id in (
+            _property_value(identity, "userAssignedIdentities", "user_assigned_identities") or {}
+        ).keys()
+    )
+    workload_identity_type = _string_value(_property_value(identity, "type"))
+    workload_principal_id = _string_value(_property_value(identity, "principalId", "principal_id"))
+    workload_client_id = _string_value(_property_value(identity, "clientId", "client_id"))
+    default_hostname = _string_value(_property_value(ingress, "fqdn"))
+    external_ingress_enabled = _bool_or_none(_property_value(ingress, "external"))
+    ingress_target_port = _int_value(_property_value(ingress, "targetPort", "target_port"))
+    ingress_transport = _string_value(_property_value(ingress, "transport"))
+    revision_mode = _string_value(
+        _property_value(configuration, "activeRevisionsMode", "active_revisions_mode")
+    )
+    latest_revision_name = _string_value(
+        _property_value(properties, "latestRevisionName", "latest_revision_name")
+    )
+    latest_ready_revision_name = _string_value(
+        _property_value(properties, "latestReadyRevisionName", "latest_ready_revision_name")
+    )
+    environment_id = _string_value(
+        _property_value(properties, "managedEnvironmentId", "managed_environment_id")
+    )
+
+    ingress_parts: list[str] = []
+    if external_ingress_enabled is True:
+        ingress_parts.append("external ingress enabled")
+    elif external_ingress_enabled is False:
+        ingress_parts.append("internal ingress only")
+    if ingress_target_port is not None:
+        ingress_parts.append(f"target port {ingress_target_port}")
+    if ingress_transport:
+        ingress_parts.append(f"transport {ingress_transport}")
+
+    revision_parts: list[str] = []
+    if revision_mode:
+        revision_parts.append(f"revision mode {revision_mode}")
+    if latest_ready_revision_name:
+        revision_parts.append(f"latest ready revision {latest_ready_revision_name}")
+    elif latest_revision_name:
+        revision_parts.append(f"latest revision {latest_revision_name}")
+
+    endpoint_phrase = (
+        f"publishes hostname '{default_hostname}'"
+        if default_hostname
+        else "has no visible hostname from the current read path"
+    )
+    identity_phrase = (
+        f"uses managed identity ({workload_identity_type})"
+        if workload_identity_type
+        else "has no managed identity visible from the current read path"
+    )
+    posture_parts = ingress_parts + revision_parts
+    posture_phrase = (
+        f" Visible posture: {', '.join(posture_parts)}."
+        if posture_parts
+        else ""
+    )
+
+    return {
+        "id": resource_id or f"/unknown/{name}",
+        "name": name,
+        "resource_group": _resource_group_from_id(resource_id),
+        "location": _string_value(getattr(resource, "location", None)),
+        "environment_id": environment_id,
+        "default_hostname": default_hostname,
+        "external_ingress_enabled": external_ingress_enabled,
+        "ingress_target_port": ingress_target_port,
+        "ingress_transport": ingress_transport,
+        "revision_mode": revision_mode,
+        "latest_revision_name": latest_revision_name,
+        "latest_ready_revision_name": latest_ready_revision_name,
+        "workload_identity_type": workload_identity_type,
+        "workload_principal_id": workload_principal_id,
+        "workload_client_id": workload_client_id,
+        "workload_identity_ids": workload_identity_ids,
+        "summary": (
+            f"Container App '{name}' {endpoint_phrase} and {identity_phrase}.{posture_phrase}"
+        ),
+        "related_ids": _dedupe_strings(
+            [
+                resource_id,
+                environment_id,
+                workload_principal_id,
+                *workload_identity_ids,
+            ]
+        ),
+    }
+
+
+def _container_app_workload_summary(item: dict) -> dict:
+    return {
+        "asset_id": item.get("id") or f"/unknown/{item.get('name') or 'container-app'}",
+        "asset_name": item.get("name") or "unknown",
+        "asset_kind": "ContainerApp",
+        "resource_group": item.get("resource_group"),
+        "location": item.get("location"),
+        "default_hostname": item.get("default_hostname"),
+        "external_ingress_enabled": item.get("external_ingress_enabled"),
+        "workload_identity_type": item.get("workload_identity_type"),
+        "workload_principal_id": item.get("workload_principal_id"),
+        "workload_client_id": item.get("workload_client_id"),
+        "workload_identity_ids": list(item.get("workload_identity_ids") or []),
+    }
+
+
+def _container_instance_summary(resource: object) -> dict:
+    resource_id = _string_value(getattr(resource, "id", None)) or ""
+    name = _string_value(getattr(resource, "name", None)) or "unknown"
+    identity = getattr(resource, "identity", None)
+    properties = getattr(resource, "properties", None)
+    ip_address = _property_value(properties, "ipAddress", "ip_address")
+    containers = _property_value(properties, "containers") or []
+
+    workload_identity_ids = sorted(
+        str(identity_id)
+        for identity_id in (
+            _property_value(identity, "userAssignedIdentities", "user_assigned_identities") or {}
+        ).keys()
+    )
+    workload_identity_type = _string_value(_property_value(identity, "type"))
+    workload_principal_id = _string_value(_property_value(identity, "principalId", "principal_id"))
+    workload_client_id = _string_value(_property_value(identity, "clientId", "client_id"))
+
+    fqdn = _string_value(_property_value(ip_address, "fqdn"))
+    public_ip_address = _string_value(_property_value(ip_address, "ip"))
+    exposed_ports = sorted(
+        {
+            port
+            for port in (
+                _int_value(_property_value(item, "port"))
+                for item in (_property_value(ip_address, "ports") or [])
+            )
+            if port is not None
+        }
+    )
+    subnet_ids = _dedupe_strings(
+        [
+            _string_value(_property_value(item, "id"))
+            for item in (_property_value(properties, "subnetIds", "subnet_ids") or [])
+        ]
+    )
+    container_images = _dedupe_strings(
+        [
+            _string_value(_property_value(_property_value(item, "properties"), "image"))
+            for item in containers
+        ]
+    )
+    restart_policy = _string_value(
+        _property_value(properties, "restartPolicy", "restart_policy")
+    )
+    os_type = _string_value(_property_value(properties, "osType", "os_type"))
+    provisioning_state = _string_value(
+        _property_value(properties, "provisioningState", "provisioning_state")
+    )
+
+    endpoint_parts: list[str] = []
+    if fqdn:
+        endpoint_parts.append(f"publishes FQDN '{fqdn}'")
+    if public_ip_address:
+        endpoint_parts.append(f"uses public IP {public_ip_address}")
+    if not endpoint_parts:
+        endpoint_parts.append("has no public endpoint visible from the current read path")
+
+    posture_parts: list[str] = []
+    if os_type:
+        posture_parts.append(f"os {os_type}")
+    if restart_policy:
+        posture_parts.append(f"restart {restart_policy}")
+    if exposed_ports:
+        posture_parts.append(
+            "ports " + ", ".join(str(port) for port in exposed_ports[:5])
+            + ("..." if len(exposed_ports) > 5 else "")
+        )
+    if subnet_ids:
+        posture_parts.append(f"subnets {len(subnet_ids)}")
+    if containers:
+        posture_parts.append(f"containers {len(containers)}")
+
+    identity_phrase = (
+        f"uses managed identity ({workload_identity_type})"
+        if workload_identity_type
+        else "has no managed identity visible from the current read path"
+    )
+    posture_phrase = (
+        f" Visible posture: {', '.join(posture_parts)}."
+        if posture_parts
+        else ""
+    )
+
+    return {
+        "id": resource_id or f"/unknown/{name}",
+        "name": name,
+        "resource_group": _resource_group_from_id(resource_id),
+        "location": _string_value(getattr(resource, "location", None)),
+        "os_type": os_type,
+        "restart_policy": restart_policy,
+        "provisioning_state": provisioning_state,
+        "public_ip_address": public_ip_address,
+        "fqdn": fqdn,
+        "exposed_ports": exposed_ports,
+        "subnet_ids": subnet_ids,
+        "container_count": len(containers),
+        "container_images": container_images,
+        "workload_identity_type": workload_identity_type,
+        "workload_principal_id": workload_principal_id,
+        "workload_client_id": workload_client_id,
+        "workload_identity_ids": workload_identity_ids,
+        "summary": (
+            f"Container group '{name}' {' and '.join(endpoint_parts)} and {identity_phrase}."
+            f"{posture_phrase}"
+        ),
+        "related_ids": _dedupe_strings(
+            [
+                resource_id,
+                public_ip_address,
+                workload_principal_id,
+                *workload_identity_ids,
+                *subnet_ids,
+            ]
+        ),
+    }
+
+
 def _env_var_summary(
     app: object,
     *,
@@ -7025,6 +7376,57 @@ def _token_credential_surfaces_from_web_workloads(workloads: list[dict]) -> list
     return surfaces
 
 
+def _token_credential_surfaces_from_container_instances(
+    container_instances: list[dict],
+) -> list[dict]:
+    surfaces: list[dict] = []
+
+    for item in container_instances:
+        asset_id = item.get("id")
+        asset_name = item.get("name") or asset_id or "unknown"
+        related_ids = [
+            *([asset_id] if asset_id else []),
+            *[str(identity_id) for identity_id in item.get("workload_identity_ids", [])],
+        ]
+        if item.get("workload_principal_id"):
+            related_ids.append(str(item.get("workload_principal_id")))
+
+        if not item.get("workload_identity_type"):
+            continue
+
+        identity_signal = str(item.get("workload_identity_type"))
+        user_assigned_count = len(item.get("workload_identity_ids", []))
+        if user_assigned_count:
+            identity_signal = f"{identity_signal}; user-assigned={user_assigned_count}"
+
+        next_review_hint = tokens_credential_next_review_hint(
+            surface_type="managed-identity-token",
+            access_path="workload-identity",
+            operator_signal=identity_signal,
+        )
+        surfaces.append(
+            {
+                "asset_id": asset_id or f"/unknown/{asset_name}",
+                "asset_name": asset_name,
+                "asset_kind": "ContainerInstance",
+                "resource_group": item.get("resource_group"),
+                "location": item.get("location"),
+                "surface_type": "managed-identity-token",
+                "access_path": "workload-identity",
+                "priority": "medium",
+                "operator_signal": identity_signal,
+                "summary": (
+                    f"ContainerInstance '{asset_name}' can request tokens through attached "
+                    f"managed identity ({item.get('workload_identity_type')}). "
+                    f"{next_review_hint}"
+                ),
+                "related_ids": _dedupe_strings(related_ids),
+            }
+        )
+
+    return surfaces
+
+
 def _endpoints_from_vms(vm_assets: list[dict]) -> list[dict]:
     endpoints: list[dict] = []
 
@@ -7060,17 +7462,23 @@ def _endpoints_from_web_workloads(workloads: list[dict]) -> list[dict]:
     endpoints: list[dict] = []
 
     for item in workloads:
+        asset_kind = item.get("asset_kind") or "WebWorkload"
+        if asset_kind == "ContainerApp" and item.get("external_ingress_enabled") is not True:
+            continue
         default_hostname = str(item.get("default_hostname") or "")
         if not default_hostname:
             continue
 
         asset_id = item.get("asset_id")
         asset_name = item.get("asset_name") or asset_id or "unknown"
-        asset_kind = item.get("asset_kind") or "WebWorkload"
         ingress_path = (
             "azure-functions-default-hostname"
             if asset_kind == "FunctionApp"
-            else "azurewebsites-default-hostname"
+            else (
+                "azure-container-apps-default-hostname"
+                if asset_kind == "ContainerApp"
+                else "azurewebsites-default-hostname"
+            )
         )
 
         endpoints.append(
@@ -7096,6 +7504,62 @@ def _endpoints_from_web_workloads(workloads: list[dict]) -> list[dict]:
                 ),
             }
         )
+
+    return endpoints
+
+
+def _endpoints_from_container_instances(container_instances: list[dict]) -> list[dict]:
+    endpoints: list[dict] = []
+
+    for item in container_instances:
+        asset_id = item.get("id")
+        asset_name = item.get("name") or asset_id or "unknown"
+        related_ids = _dedupe_strings(
+            [
+                asset_id,
+                item.get("workload_principal_id"),
+                *item.get("workload_identity_ids", []),
+                *item.get("subnet_ids", []),
+            ]
+        )
+
+        if item.get("public_ip_address"):
+            endpoints.append(
+                {
+                    "endpoint": str(item.get("public_ip_address")),
+                    "endpoint_type": "ip",
+                    "source_asset_id": asset_id or f"/unknown/{asset_name}",
+                    "source_asset_name": asset_name,
+                    "source_asset_kind": "ContainerInstance",
+                    "exposure_family": "public-ip",
+                    "ingress_path": "azure-container-instances-public-ip",
+                    "summary": (
+                        f"ContainerInstance '{asset_name}' exposes public IP "
+                        f"{item.get('public_ip_address')}. Review the visible ingress path, "
+                        "ports, and runtime posture together."
+                    ),
+                    "related_ids": related_ids,
+                }
+            )
+
+        if item.get("fqdn"):
+            endpoints.append(
+                {
+                    "endpoint": str(item.get("fqdn")),
+                    "endpoint_type": "hostname",
+                    "source_asset_id": asset_id or f"/unknown/{asset_name}",
+                    "source_asset_name": asset_name,
+                    "source_asset_kind": "ContainerInstance",
+                    "exposure_family": "managed-container-fqdn",
+                    "ingress_path": "azure-container-instances-fqdn",
+                    "summary": (
+                        f"ContainerInstance '{asset_name}' publishes hostname "
+                        f"'{item.get('fqdn')}'. Validate whether that ingress path is intended "
+                        "and how it is constrained."
+                    ),
+                    "related_ids": related_ids,
+                }
+            )
 
     return endpoints
 
@@ -7199,6 +7663,10 @@ def _workload_rows_from_web_workloads(
         network_signals: list[str] = []
         if item.get("default_hostname"):
             network_signals.append("default-hostname")
+        if item.get("external_ingress_enabled") is True:
+            network_signals.append("external-ingress")
+        elif item.get("external_ingress_enabled") is False:
+            network_signals.append("internal-only")
         if identity_ids:
             network_signals.append(f"user-assigned={len(identity_ids)}")
 
@@ -7229,6 +7697,80 @@ def _workload_rows_from_web_workloads(
                         asset_id,
                         item.get("workload_principal_id"),
                         *identity_ids,
+                    ]
+                ),
+            }
+        )
+
+    return workloads
+
+
+def _workload_rows_from_container_instances(
+    container_instances: list[dict],
+    endpoints_by_asset: dict[str, list[dict]],
+) -> list[dict]:
+    workloads: list[dict] = []
+
+    for item in container_instances:
+        asset_id = item.get("id")
+        asset_name = item.get("name") or asset_id or "unknown"
+        normalized_asset_id = str(asset_id or f"/unknown/{asset_name}")
+        identity_ids = _dedupe_strings(item.get("workload_identity_ids", []))
+        identity_type = item.get("workload_identity_type")
+        asset_endpoints = endpoints_by_asset.get(
+            _arm_id_join_key(asset_id or f"/unknown/{asset_name}") or "",
+            [],
+        )
+        endpoints = _dedupe_strings([endpoint.get("endpoint") for endpoint in asset_endpoints])
+        ingress_paths = _dedupe_strings(
+            [endpoint.get("ingress_path") for endpoint in asset_endpoints]
+        )
+        exposure_families = _dedupe_strings(
+            [endpoint.get("exposure_family") for endpoint in asset_endpoints]
+        )
+
+        network_signals: list[str] = []
+        if item.get("public_ip_address"):
+            network_signals.append("public-ip")
+        if item.get("fqdn"):
+            network_signals.append("fqdn")
+        if item.get("subnet_ids"):
+            network_signals.append(f"subnets={len(item.get('subnet_ids', []))}")
+        if item.get("exposed_ports"):
+            network_signals.append(f"ports={len(item.get('exposed_ports', []))}")
+        if item.get("container_count") is not None:
+            network_signals.append(f"containers={item.get('container_count')}")
+        if identity_ids:
+            network_signals.append(f"user-assigned={len(identity_ids)}")
+
+        workloads.append(
+            {
+                "asset_id": normalized_asset_id,
+                "asset_name": asset_name,
+                "asset_kind": "ContainerInstance",
+                "resource_group": item.get("resource_group"),
+                "location": item.get("location"),
+                "identity_type": identity_type,
+                "identity_principal_id": item.get("workload_principal_id"),
+                "identity_client_id": item.get("workload_client_id"),
+                "identity_ids": identity_ids,
+                "endpoints": endpoints,
+                "ingress_paths": ingress_paths,
+                "exposure_families": exposure_families,
+                "summary": _workload_summary_text(
+                    asset_kind="ContainerInstance",
+                    asset_name=asset_name,
+                    endpoints=endpoints,
+                    exposure_families=exposure_families,
+                    identity_type=identity_type,
+                    network_signals=network_signals,
+                ),
+                "related_ids": _dedupe_strings(
+                    [
+                        asset_id,
+                        item.get("workload_principal_id"),
+                        *identity_ids,
+                        *item.get("subnet_ids", []),
                     ]
                 ),
             }
@@ -7295,7 +7837,14 @@ def _workload_summary_text(
 
 
 def _workload_sort_key(item: dict) -> tuple[bool, bool, int, str]:
-    kind_order = {"VM": 0, "AppService": 1, "FunctionApp": 2, "VMSS": 3}
+    kind_order = {
+        "VM": 0,
+        "AppService": 1,
+        "FunctionApp": 2,
+        "ContainerApp": 3,
+        "ContainerInstance": 4,
+        "VMSS": 5,
+    }
     return (
         not bool(item.get("endpoints")),
         not bool(item.get("identity_type")),
