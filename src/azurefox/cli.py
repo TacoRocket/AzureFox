@@ -132,6 +132,16 @@ def functions(ctx: typer.Context) -> None:
     _run_single(ctx, "functions")
 
 
+@app.command("container-apps")
+def container_apps(ctx: typer.Context) -> None:
+    _run_single(ctx, "container-apps")
+
+
+@app.command("container-instances")
+def container_instances(ctx: typer.Context) -> None:
+    _run_single(ctx, "container-instances")
+
+
 @app.command("aks")
 def aks(ctx: typer.Context) -> None:
     _run_single(ctx, "aks")

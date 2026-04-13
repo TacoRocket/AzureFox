@@ -16,6 +16,8 @@ from azurefox.models.common import (
     AutomationAccountAsset,
     CollectionIssue,
     CommandMetadata,
+    ContainerAppAsset,
+    ContainerInstanceAsset,
     CrossTenantPathSummary,
     DatabaseServerAsset,
     DevopsPipelineAsset,
@@ -133,6 +135,20 @@ class ApplicationGatewayOutput(BaseModel):
 class FunctionsOutput(BaseModel):
     metadata: CommandMetadata
     function_apps: list[FunctionAppAsset] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class ContainerAppsOutput(BaseModel):
+    metadata: CommandMetadata
+    container_apps: list[ContainerAppAsset] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+    issues: list[CollectionIssue] = Field(default_factory=list)
+
+
+class ContainerInstancesOutput(BaseModel):
+    metadata: CommandMetadata
+    container_instances: list[ContainerInstanceAsset] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)
 

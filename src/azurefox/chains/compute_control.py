@@ -566,6 +566,11 @@ def _build_compute_control_record(
             "tokens "
             f"as {identity_name}; that identity already maps to {stronger_outcome}."
         )
+    why_care = _compute_control_why_care(
+        why_care,
+        surface_row=surface_row,
+        workload_row=workload_row,
+    )
     evidence_commands = ["tokens-credentials", "workloads"]
     joined_surface_types = ["managed-identity-token", "workload"]
     if mixed_identity_corroborated:
@@ -711,6 +716,11 @@ def _build_mixed_identity_candidate_record(
         "identities. AzureFox cannot yet defend one chosen identity, but visible Azure control "
         f"currently maps to {stronger_outcome}."
     )
+    why_care = _compute_control_why_care(
+        why_care,
+        surface_row=surface_row,
+        workload_row=workload_row,
+    )
 
     evidence_commands = ["tokens-credentials", "workloads"]
     joined_surface_types = ["managed-identity-token", "workload"]
@@ -810,6 +820,63 @@ def _compute_control_next_review(workload_row: dict, *, identity_choice_basis: s
     return (
         "Check workloads for the compute foothold, then permissions for exact scope on the "
         "attached identity."
+    )
+
+
+def _compute_control_why_care(
+    base_text: str,
+    *,
+    surface_row: dict,
+    workload_row: dict,
+) -> str:
+    return f"{base_text} {_compute_control_required_foothold(surface_row, workload_row)}"
+
+
+def _compute_control_required_foothold(surface_row: dict, workload_row: dict) -> str:
+    access_path = str(surface_row.get("access_path") or "")
+    asset_kind = str(workload_row.get("asset_kind") or "workload")
+    public_signal = _has_public_compute_signal(workload_row)
+    public_compute_label = (
+        "this public-facing container group"
+        if asset_kind == "ContainerInstance"
+        else "this public-facing service"
+    )
+    internal_compute_label = (
+        "this container group" if asset_kind == "ContainerInstance" else "this workload"
+    )
+
+    if access_path == "workload-identity":
+        if public_signal:
+            return (
+                "To turn this into downstream Azure access, an operator would need "
+                f"server-side execution in {public_compute_label}. AzureFox is a recon tool "
+                "and does not verify exploitation activity beyond what is explicitly stated here."
+            )
+        return (
+            "To turn this into downstream Azure access, an operator would need a service-side "
+            f"foothold that can run inside {internal_compute_label} and invoke its token request "
+            "path. "
+            "AzureFox does not yet show that start from the current foothold."
+        )
+
+    if access_path == "imds":
+        if public_signal:
+            return (
+                "To turn this into downstream Azure access, an operator would need a "
+                "server-side request path from this public-facing workload to the Azure VM "
+                "metadata service. AzureFox is a recon tool and does not verify exploitation "
+                "activity beyond what is explicitly stated here."
+            )
+        return (
+            f"To turn this into downstream Azure access, an operator would need host-level "
+            f"execution or admin access on this {asset_kind} so the Azure VM metadata token "
+            "path is reachable. AzureFox does not yet show that start from the current foothold."
+        )
+
+    return (
+        "To turn this into downstream Azure access, an operator would need a foothold that "
+        "can reach the workload-side token path. AzureFox does not yet show that start from "
+        "the current foothold."
     )
 
 

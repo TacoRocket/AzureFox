@@ -80,7 +80,9 @@ def render_table(command: str, payload: dict) -> str:
 
     _render_scope_boundary_notes(console, command, payload)
 
-    takeaway = _takeaway_for_command(command, payload)
+    takeaway = ""
+    if command != "chains":
+        takeaway = _takeaway_for_command(command, payload)
     if takeaway:
         console.print("")
         console.print(f"Takeaway: {takeaway}")
@@ -317,7 +319,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     "name": item.get("name"),
                     "default_hostname": item.get("default_hostname"),
                     "runtime_stack": item.get("runtime_stack") or "-",
-                    "identity": _app_service_identity_context(item),
+                    "identity": _resource_identity_context(item),
                     "exposure": _app_service_exposure_context(item),
                     "posture": _app_service_posture_context(item),
                     "why_it_matters": item.get("summary"),
@@ -342,7 +344,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                 {
                     "name": item.get("name"),
                     "login_server": item.get("login_server"),
-                    "identity": _app_service_identity_context(item),
+                    "identity": _resource_identity_context(item),
                     "auth": _acr_auth_context(item),
                     "exposure": _acr_exposure_context(item),
                     "depth": _acr_depth_context(item),
@@ -370,7 +372,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     "name": item.get("name"),
                     "engine": item.get("engine"),
                     "endpoint": item.get("fully_qualified_domain_name"),
-                    "identity": _app_service_identity_context(item),
+                    "identity": _resource_identity_context(item),
                     "inventory": _database_inventory_context(item),
                     "exposure": _database_exposure_context(item),
                     "posture": _database_posture_context(item),
@@ -464,7 +466,7 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                 {
                     "name": item.get("name"),
                     "gateway": item.get("gateway_hostnames", []),
-                    "identity": _app_service_identity_context(item),
+                    "identity": _resource_identity_context(item),
                     "inventory": _api_mgmt_inventory_context(item),
                     "exposure": _api_mgmt_exposure_context(item),
                     "posture": _api_mgmt_posture_context(item),
@@ -490,12 +492,62 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
                     "name": item.get("name"),
                     "default_hostname": item.get("default_hostname"),
                     "runtime": _function_runtime_context(item),
-                    "identity": _app_service_identity_context(item),
+                    "identity": _resource_identity_context(item),
                     "deployment": _function_deployment_context(item),
                     "posture": _function_posture_context(item),
                     "why_it_matters": item.get("summary"),
                 }
                 for item in payload.get("function_apps", [])
+            ],
+        )
+
+    if command == "container-apps":
+        return (
+            [
+                ("name", "container app"),
+                ("environment", "environment"),
+                ("hostname", "hostname"),
+                ("ingress", "ingress"),
+                ("identity", "identity"),
+                ("revisions", "revisions"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "name": item.get("name"),
+                    "environment": _container_app_environment_context(item),
+                    "hostname": item.get("default_hostname") or "-",
+                    "ingress": _container_app_ingress_context(item),
+                    "identity": _resource_identity_context(item),
+                    "revisions": _container_app_revision_context(item),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("container_apps", [])
+            ],
+        )
+
+    if command == "container-instances":
+        return (
+            [
+                ("name", "container group"),
+                ("endpoint", "endpoint"),
+                ("network", "network"),
+                ("identity", "identity"),
+                ("runtime", "runtime"),
+                ("images", "images"),
+                ("why_it_matters", "why it matters"),
+            ],
+            [
+                {
+                    "name": item.get("name"),
+                    "endpoint": _container_instance_endpoint_context(item),
+                    "network": _container_instance_network_context(item),
+                    "identity": _resource_identity_context(item),
+                    "runtime": _container_instance_runtime_context(item),
+                    "images": _container_instance_images_context(item),
+                    "why_it_matters": item.get("summary"),
+                }
+                for item in payload.get("container_instances", [])
             ],
         )
 
@@ -741,27 +793,26 @@ def _table_spec(command: str, payload: dict) -> tuple[list[tuple[str, str]], lis
             return (
                 [
                     ("priority", "priority"),
-                    ("urgency", "urgency"),
-                    ("asset_name", "compute"),
-                    ("path_concept", "path type"),
-                    ("insertion_point", "insertion point"),
-                    ("stronger_outcome", "visible azure control"),
-                    ("confidence_boundary", "confidence boundary"),
-                    ("next_review", "next review"),
+                    ("when", "when"),
+                    ("workload_reach", "reach from here"),
+                    ("asset_name", "compute foothold"),
+                    ("insertion_point", "token path"),
+                    ("identity", "identity"),
+                    ("stronger_outcome", "Azure access"),
+                    ("proof_status", "proof status"),
                     ("why_care", "note"),
                 ],
                 [
                     {
                         "priority": item.get("priority"),
-                        "urgency": item.get("urgency") or "-",
+                        "when": _compute_control_when(item),
+                        "workload_reach": _compute_control_workload_reach(item),
                         "asset_name": item.get("asset_name"),
-                        "path_concept": _compute_control_path_type(item),
-                        "insertion_point": item.get("insertion_point"),
+                        "insertion_point": _compute_control_token_path(item),
+                        "identity": _compute_control_identity(item),
                         "stronger_outcome": item.get("stronger_outcome")
                         or item.get("likely_impact"),
-                        "confidence_boundary": item.get("confidence_boundary")
-                        or _chains_note(item, family=family),
-                        "next_review": item.get("next_review"),
+                        "proof_status": _compute_control_proof_status(item),
                         "why_care": item.get("why_care"),
                     }
                     for item in payload.get("paths", [])
@@ -1735,6 +1786,32 @@ def _takeaway_for_command(command: str, payload: dict) -> str:
             f"{keyvault_backed} include Key Vault-backed settings."
         )
 
+    if command == "container-apps":
+        container_apps = payload.get("container_apps", [])
+        external = sum(item.get("external_ingress_enabled") is True for item in container_apps)
+        identities = sum(bool(item.get("workload_identity_type")) for item in container_apps)
+        hostnames = sum(bool(item.get("default_hostname")) for item in container_apps)
+        return (
+            f"{len(container_apps)} Container Apps visible; {external} expose external ingress, "
+            f"{hostnames} publish visible hostnames, and {identities} carry managed identity "
+            "context."
+        )
+    if command == "container-instances":
+        container_instances = payload.get("container_instances", [])
+        public_endpoints = sum(
+            bool(item.get("public_ip_address") or item.get("fqdn"))
+            for item in container_instances
+        )
+        identities = sum(
+            bool(item.get("workload_identity_type")) for item in container_instances
+        )
+        subnets = sum(bool(item.get("subnet_ids")) for item in container_instances)
+        return (
+            f"{len(container_instances)} Container Instances visible; {public_endpoints} publish "
+            f"public endpoint cues, {identities} carry managed identity context, and {subnets} "
+            "show subnet placement."
+        )
+
     if command == "arm-deployments":
         deployments = payload.get("deployments", [])
         findings = payload.get("findings", [])
@@ -2100,6 +2177,56 @@ def _compute_control_path_type(item: dict) -> str:
     return labels.get(concept, concept or "-")
 
 
+def _compute_control_when(item: dict) -> str:
+    urgency = str(item.get("urgency") or "")
+    labels = {
+        "pivot-now": "act now",
+        "review-soon": "review soon",
+        "bookmark": "keep in view",
+    }
+    return labels.get(urgency, urgency or "-")
+
+
+def _compute_control_token_path(item: dict) -> str:
+    insertion_point = str(item.get("insertion_point") or "")
+    labels = {
+        "reachable service token request path": "service token request",
+        "public IMDS token path": "public VM metadata token",
+        "IMDS token path": "VM metadata token",
+    }
+    return labels.get(insertion_point, insertion_point or "-")
+
+
+def _compute_control_workload_reach(item: dict) -> str:
+    insertion_point = str(item.get("insertion_point") or "")
+    if insertion_point in {"reachable service token request path", "public IMDS token path"}:
+        return "public exposure visible; exploitation not proved"
+    return "current access does not show the start"
+
+
+def _compute_control_identity(item: dict) -> str:
+    names = [str(value) for value in item.get("target_names") or [] if str(value).strip()]
+    if not names:
+        return "not visible"
+    if len(names) == 1:
+        return names[0]
+    return "multiple possible: " + ", ".join(names)
+
+
+def _compute_control_proof_status(item: dict) -> str:
+    resolution = str(item.get("target_resolution") or "")
+    labels = {
+        "path-confirmed": "confirmed",
+        "identity-choice-corroborated": "best current match",
+        "narrowed candidates": "multiple identities possible",
+        "visibility blocked": "limited visibility",
+        "tenant-wide candidates": "broad match only",
+        "service hint only": "early signal only",
+        "named target not visible": "named identity not visible",
+    }
+    return labels.get(resolution, "bounded")
+
+
 def _chains_note(item: dict, *, family: str = "") -> str:
     resolution = str(item.get("target_resolution") or "")
     target_service = str(item.get("target_service") or "target")
@@ -2140,7 +2267,7 @@ def _chains_note(item: dict, *, family: str = "") -> str:
     return item.get("summary") or "-"
 
 
-def _app_service_identity_context(item: dict) -> str:
+def _resource_identity_context(item: dict) -> str:
     parts: list[str] = []
     if item.get("workload_identity_type"):
         parts.append(str(item.get("workload_identity_type")))
@@ -2666,6 +2793,89 @@ def _function_posture_context(item: dict) -> str:
     elif item.get("always_on") is False:
         parts.append("always-on=no")
     return "; ".join(parts)
+
+
+def _container_app_environment_context(item: dict) -> str:
+    environment_id = str(item.get("environment_id") or "")
+    if not environment_id:
+        return "-"
+    return environment_id.rstrip("/").split("/")[-1]
+
+
+def _container_app_ingress_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("external_ingress_enabled") is True:
+        parts.append("external")
+    elif item.get("external_ingress_enabled") is False:
+        parts.append("internal")
+    if item.get("ingress_target_port") is not None:
+        parts.append(f"port {item.get('ingress_target_port')}")
+    if item.get("ingress_transport"):
+        parts.append(str(item.get("ingress_transport")))
+    if not parts:
+        return "not visible"
+    return "; ".join(parts)
+
+
+def _container_app_revision_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("revision_mode"):
+        parts.append(str(item.get("revision_mode")))
+    if item.get("latest_ready_revision_name"):
+        parts.append(f"ready {item.get('latest_ready_revision_name')}")
+    elif item.get("latest_revision_name"):
+        parts.append(f"latest {item.get('latest_revision_name')}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _container_instance_endpoint_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("fqdn"):
+        parts.append(str(item.get("fqdn")))
+    if item.get("public_ip_address"):
+        parts.append(str(item.get("public_ip_address")))
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _container_instance_network_context(item: dict) -> str:
+    parts: list[str] = []
+    ports = [str(port) for port in item.get("exposed_ports", []) if port is not None]
+    if ports:
+        ports_text = ", ".join(ports[:5]) + ("..." if len(ports) > 5 else "")
+        parts.append(f"ports {ports_text}")
+    if item.get("subnet_ids"):
+        parts.append(f"subnets={len(item.get('subnet_ids', []))}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _container_instance_runtime_context(item: dict) -> str:
+    parts: list[str] = []
+    if item.get("os_type"):
+        parts.append(f"os={item.get('os_type')}")
+    if item.get("restart_policy"):
+        parts.append(f"restart={item.get('restart_policy')}")
+    if item.get("container_count") is not None:
+        parts.append(f"containers={item.get('container_count')}")
+    if item.get("provisioning_state"):
+        parts.append(f"state={item.get('provisioning_state')}")
+    if not parts:
+        return "-"
+    return "; ".join(parts)
+
+
+def _container_instance_images_context(item: dict) -> str:
+    images = [str(value) for value in item.get("container_images", []) if value]
+    if not images:
+        return "-"
+    if len(images) == 1:
+        return images[0]
+    return f"{images[0]} (+{len(images) - 1} more)"
 
 
 def _api_mgmt_inventory_context(item: dict) -> str:

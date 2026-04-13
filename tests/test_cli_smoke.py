@@ -34,6 +34,8 @@ def test_cli_smoke_all_commands(tmp_path: Path) -> None:
         "aks",
         "api-mgmt",
         "functions",
+        "container-apps",
+        "container-instances",
         "arm-deployments",
         "endpoints",
         "network-effective",
@@ -167,7 +169,7 @@ def test_cli_smoke_chains_credential_path_table_output(tmp_path: Path) -> None:
     assert "confirmed to reach it." in normalized_output
     assert "Claim boundary:" not in result.stdout
     assert "Current gap:" not in result.stdout
-    assert "Takeaway: 3 visible credential paths" in result.stdout
+    assert "Takeaway:" not in result.stdout
 
 
 def test_cli_smoke_chains_deployment_path_table_output(tmp_path: Path) -> None:
@@ -195,7 +197,7 @@ def test_cli_smoke_chains_deployment_path_table_output(tmp_path: Path) -> None:
     assert "support-only" in result.stdout
     assert "Redeploy-App" in result.stdout
     assert "Lab-Maintenance" in result.stdout
-    assert "Takeaway: 6 visible deployment paths" in result.stdout
+    assert "Takeaway:" not in result.stdout
 
 
 def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
@@ -473,23 +475,37 @@ def test_cli_smoke_chains_compute_control_table_output(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "azurefox chains" in result.stdout
-    assert "compute" in result.stdout
-    assert "path type" in result.stdout
-    assert "insertion point" in result.stdout
-    assert "visible azure control" in result.stdout
-    assert "confidence boundary" in result.stdout
+    assert "reach from here" in result.stdout
+    assert "compute foothold" in result.stdout
+    assert "token path" in result.stdout
+    assert "identity" in result.stdout
+    assert "azure access" in result.stdout.lower()
+    assert "proof status" in result.stdout
     assert "app-empty-mi" in result.stdout
     assert "func-orders" in result.stdout
     assert "vm-web-01" in result.stdout
     assert "vmss-edge-01" in result.stdout
-    assert "direct token opportunity" in result.stdout
-    assert "public imds token path" in result.stdout.lower()
+    assert "service token request" in result.stdout.lower()
+    assert "public vm metadata token" in result.stdout.lower()
+    assert "public exposure visible" in normalized_output
+    assert "exploitation not proved" in normalized_output
+    assert "azurefox is a recon tool" in normalized_output
+    assert (
+        "does not verify exploitation activity beyond what is explicitly stated here"
+        in normalized_output
+    )
+    assert "does not yet show that start from the current foothold" in normalized_output
+    assert "server-side execution" in normalized_output
+    assert "metadata service" in normalized_output
+    assert "host-level execution or admin access" in normalized_output
     assert "Owner across subscription-wide scope" in result.stdout
     assert "mixed identities" in normalized_output
-    assert "current foothold" in normalized_output
+    assert "best current match" in normalized_output
+    assert "act now" in normalized_output
+    assert "review soon" in normalized_output
     assert "Claim boundary:" in result.stdout
     assert "Current gap:" in result.stdout
-    assert "Takeaway: 4 visible compute-control paths" in result.stdout
+    assert "Takeaway:" not in result.stdout
     assert "narrowed candidates" not in normalized_output
 
 
@@ -542,7 +558,6 @@ def test_cli_smoke_chains_overview_table_output(tmp_path: Path) -> None:
     assert "compute-control" in result.stdout
     assert "implemented" in result.stdout
     assert "backing commands" in result.stdout
-    assert "Takeaway: 4 chain families listed; 4 implemented." in result.stdout
 
 
 def test_cli_smoke_chains_help_matches_overview_json(tmp_path: Path) -> None:
@@ -679,7 +694,7 @@ def test_cli_smoke_csv_row_mapping_for_inventory_style_commands(tmp_path: Path) 
         "acr": (2, "acr-public-legacy"),
         "databases": (4, "sql-public-legacy"),
         "dns": (3, "corp.example.com"),
-        "network-effective": (1, "vm-web-01"),
+        "network-effective": (2, "vm-web-01"),
     }
 
     for command, (expected_rows, expected_first_name) in expectations.items():
@@ -723,3 +738,39 @@ def test_cli_smoke_rejects_removed_all_checks_command(tmp_path: Path) -> None:
 
     assert result.exit_code == 2
     assert "No such command 'all-checks'" in result.stderr
+
+
+def test_cli_smoke_container_apps_table_output(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "container-apps"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    assert "azurefox container-apps" in result.stdout
+    assert "aca-orders" in result.stdout
+    assert "aca-internal-jobs" in result.stdout
+    assert "environment" in result.stdout.lower()
+    assert "ingress" in result.stdout.lower()
+    assert "identity" in result.stdout.lower()
+
+
+def test_cli_smoke_container_instances_table_output(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "container-instances"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    assert "azurefox container-instances" in result.stdout
+    assert "aci-public-api" in result.stdout
+    assert "aci-internal-worker" in result.stdout
+    assert "network" in result.stdout.lower()
+    assert "runtime" in result.stdout.lower()
+    assert "images" in result.stdout.lower()

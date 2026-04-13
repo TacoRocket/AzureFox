@@ -1,0 +1,65 @@
+{
+  "container_instances": [
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-apps/providers/Microsoft.ContainerInstance/containerGroups/aci-public-api",
+      "name": "aci-public-api",
+      "resource_group": "rg-apps",
+      "location": "eastus",
+      "os_type": "Linux",
+      "restart_policy": "Always",
+      "provisioning_state": "Succeeded",
+      "public_ip_address": "52.160.10.30",
+      "fqdn": "aci-public-api.eastus.azurecontainer.io",
+      "exposed_ports": [80, 443],
+      "subnet_ids": [],
+      "container_count": 2,
+      "container_images": [
+        "mcr.microsoft.com/azuredocs/aci-helloworld:latest",
+        "ghcr.io/harrierops/metrics-sidecar:1.0"
+      ],
+      "workload_identity_type": "SystemAssigned",
+      "workload_principal_id": "acac1111-1111-1111-1111-111111111111",
+      "workload_client_id": "acacaaaa-1111-1111-1111-111111111111",
+      "workload_identity_ids": [],
+      "summary": "Container group 'aci-public-api' publishes FQDN 'aci-public-api.eastus.azurecontainer.io' and uses public IP 52.160.10.30 and uses managed identity (SystemAssigned). Visible posture: os Linux, restart Always, ports 80, 443, containers 2.",
+      "related_ids": [
+        "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-apps/providers/Microsoft.ContainerInstance/containerGroups/aci-public-api",
+        "52.160.10.30",
+        "acac1111-1111-1111-1111-111111111111"
+      ]
+    },
+    {
+      "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-jobs/providers/Microsoft.ContainerInstance/containerGroups/aci-internal-worker",
+      "name": "aci-internal-worker",
+      "resource_group": "rg-jobs",
+      "location": "eastus",
+      "os_type": "Linux",
+      "restart_policy": "OnFailure",
+      "provisioning_state": "Succeeded",
+      "public_ip_address": null,
+      "fqdn": null,
+      "exposed_ports": [],
+      "subnet_ids": [
+        "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-net/providers/Microsoft.Network/virtualNetworks/vnet-shared/subnets/jobs"
+      ],
+      "container_count": 1,
+      "container_images": [
+        "ghcr.io/harrierops/internal-worker:2.0"
+      ],
+      "workload_identity_type": "SystemAssigned, UserAssigned",
+      "workload_principal_id": "acac2222-2222-2222-2222-222222222222",
+      "workload_client_id": "acacbbbb-2222-2222-2222-222222222222",
+      "workload_identity_ids": [
+        "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-aci-jobs"
+      ],
+      "summary": "Container group 'aci-internal-worker' has no public endpoint visible from the current read path and uses managed identity (SystemAssigned, UserAssigned). Visible posture: os Linux, restart OnFailure, subnets 1, containers 1.",
+      "related_ids": [
+        "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-jobs/providers/Microsoft.ContainerInstance/containerGroups/aci-internal-worker",
+        "acac2222-2222-2222-2222-222222222222",
+        "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-aci-jobs",
+        "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-net/providers/Microsoft.Network/virtualNetworks/vnet-shared/subnets/jobs"
+      ]
+    }
+  ],
+  "issues": []
+}

@@ -353,6 +353,76 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         ),
         example="azurefox functions --output table",
     ),
+    "container-apps": CommandHelpTopic(
+        name="container-apps",
+        section="compute",
+        summary=(
+            "Review Azure Container Apps for exposure, revision, environment, and managed "
+            "identity context."
+        ),
+        offensive_question=(
+            "Which Container Apps are externally reachable, and which of them carry the identity "
+            "context worth deeper operator follow-up?"
+        ),
+        cloudfox_frame=(
+            "Azure-native Container Apps review that stays at management-plane posture: ingress, "
+            "hostname, revision mode, environment anchor, and managed identity context before "
+            "deeper workload or exploitation analysis."
+        ),
+        output_highlights=(
+            "default_hostname",
+            "external_ingress_enabled",
+            "ingress_target_port",
+            "revision_mode",
+            "environment_id",
+            "workload_identity_type",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Discovery", "Network Service Discovery"),
+            AttackLead("Initial Access", "Exploit Public-Facing Application"),
+            AttackLead(
+                "Credential Access",
+                "Use Alternate Authentication Material: Application Access Token",
+            ),
+        ),
+        example="azurefox container-apps --output table",
+    ),
+    "container-instances": CommandHelpTopic(
+        name="container-instances",
+        section="compute",
+        summary=(
+            "Review Azure Container Instances for public endpoint, runtime, restart, and managed "
+            "identity context."
+        ),
+        offensive_question=(
+            "Which container groups are publicly reachable, and which of them carry the identity "
+            "or runtime posture worth deeper operator follow-up?"
+        ),
+        cloudfox_frame=(
+            "Azure-native Container Instances review that stays at management-plane posture: "
+            "public IP or FQDN, exposed ports, restart and OS context, container count, and "
+            "managed identity context before deeper runtime or exploitation analysis."
+        ),
+        output_highlights=(
+            "public_ip_address",
+            "fqdn",
+            "exposed_ports",
+            "restart_policy",
+            "os_type",
+            "workload_identity_type",
+        ),
+        attack_leads=(
+            AttackLead("Discovery", "Cloud Service Discovery"),
+            AttackLead("Discovery", "Network Service Discovery"),
+            AttackLead("Initial Access", "Exploit Public-Facing Application"),
+            AttackLead(
+                "Credential Access",
+                "Use Alternate Authentication Material: Application Access Token",
+            ),
+        ),
+        example="azurefox container-instances --output table",
+    ),
     "aks": CommandHelpTopic(
         name="aks",
         section="compute",

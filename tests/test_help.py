@@ -200,6 +200,14 @@ HELP_TOPICS_WORKLOADS = (
     ("app-services", ("runtime stack", "workload_identity_type", "public_network_access")),
     ("functions", ("Functions runtime", "azure_webjobs_storage_value_type", "run_from_package")),
     (
+        "container-apps",
+        ("external_ingress_enabled", "revision_mode", "workload_identity_type"),
+    ),
+    (
+        "container-instances",
+        ("public_ip_address", "restart_policy", "workload_identity_type"),
+    ),
+    (
         "aks",
         (
             "Azure Kubernetes Service",

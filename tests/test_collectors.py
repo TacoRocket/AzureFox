@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -13,6 +14,8 @@ from azurefox.collectors.commands import (
     collect_arm_deployments,
     collect_auth_policies,
     collect_automation,
+    collect_container_apps,
+    collect_container_instances,
     collect_cross_tenant,
     collect_databases,
     collect_devops,
@@ -491,6 +494,119 @@ class DriftOrderingFixtureProvider(MetadataFixtureProvider):
                     "key_vault_reference_count": 0,
                     "summary": "identity-backed function with plain storage",
                     "related_ids": [],
+                },
+            ],
+            "issues": [],
+        }
+
+    def container_apps(self) -> dict:
+        return {
+            "container_apps": [
+                {
+                    "id": "ca-1",
+                    "name": "zzz-internal-id",
+                    "default_hostname": None,
+                    "external_ingress_enabled": False,
+                    "ingress_target_port": 8080,
+                    "ingress_transport": "http",
+                    "revision_mode": "Single",
+                    "latest_ready_revision_name": "zzz-internal-id--001",
+                    "environment_id": (
+                        "/subscriptions/sub/resourceGroups/rg/providers/"
+                        "Microsoft.App/managedEnvironments/env-internal"
+                    ),
+                    "workload_identity_type": "SystemAssigned",
+                    "summary": "internal identity-backed container app",
+                },
+                {
+                    "id": "ca-2",
+                    "name": "mmm-public-id",
+                    "default_hostname": "mmm-public-id.example",
+                    "external_ingress_enabled": True,
+                    "ingress_target_port": 443,
+                    "ingress_transport": "auto",
+                    "revision_mode": "Single",
+                    "latest_ready_revision_name": "mmm-public-id--001",
+                    "environment_id": (
+                        "/subscriptions/sub/resourceGroups/rg/providers/"
+                        "Microsoft.App/managedEnvironments/env-public"
+                    ),
+                    "workload_identity_type": "SystemAssigned",
+                    "summary": "public identity-backed container app",
+                },
+                {
+                    "id": "ca-3",
+                    "name": "aaa-public-no-id",
+                    "default_hostname": "aaa-public-no-id.example",
+                    "external_ingress_enabled": True,
+                    "ingress_target_port": 80,
+                    "ingress_transport": "http",
+                    "revision_mode": "Multiple",
+                    "latest_ready_revision_name": "aaa-public-no-id--002",
+                    "environment_id": (
+                        "/subscriptions/sub/resourceGroups/rg/providers/"
+                        "Microsoft.App/managedEnvironments/env-public"
+                    ),
+                    "workload_identity_type": None,
+                    "summary": "public non-identity container app",
+                },
+            ],
+            "issues": [],
+        }
+
+    def container_instances(self) -> dict:
+        return {
+            "container_instances": [
+                {
+                    "id": "ci-1",
+                    "name": "zzz-private-id",
+                    "public_ip_address": None,
+                    "fqdn": None,
+                    "exposed_ports": [],
+                    "subnet_ids": [
+                        "/subscriptions/sub/resourceGroups/rg/providers/"
+                        "Microsoft.Network/virtualNetworks/vnet/subnets/apps"
+                    ],
+                    "container_count": 1,
+                    "container_images": ["ghcr.io/example/jobs:latest"],
+                    "restart_policy": "OnFailure",
+                    "os_type": "Linux",
+                    "provisioning_state": "Succeeded",
+                    "workload_identity_type": "SystemAssigned",
+                    "summary": "private identity-backed container group",
+                },
+                {
+                    "id": "ci-2",
+                    "name": "mmm-public-id",
+                    "public_ip_address": "52.160.10.40",
+                    "fqdn": "mmm-public-id.eastus.azurecontainer.io",
+                    "exposed_ports": [80, 443],
+                    "subnet_ids": [],
+                    "container_count": 2,
+                    "container_images": [
+                        "mcr.microsoft.com/app/main:1.0",
+                        "mcr.microsoft.com/app/sidecar:1.0",
+                    ],
+                    "restart_policy": "Always",
+                    "os_type": "Linux",
+                    "provisioning_state": "Succeeded",
+                    "workload_identity_type": "SystemAssigned",
+                    "summary": "public identity-backed container group",
+                },
+                {
+                    "id": "ci-3",
+                    "name": "aaa-public-no-id",
+                    "public_ip_address": "52.160.10.41",
+                    "fqdn": None,
+                    "exposed_ports": [8080],
+                    "subnet_ids": [],
+                    "container_count": 1,
+                    "container_images": ["mcr.microsoft.com/app/public:2.0"],
+                    "restart_policy": "Never",
+                    "os_type": "Linux",
+                    "provisioning_state": "Succeeded",
+                    "workload_identity_type": None,
+                    "summary": "public non-identity container group",
                 },
             ],
             "issues": [],
@@ -1485,12 +1601,14 @@ def test_collect_application_gateway_keeps_command_level_issue_explicit(
 
 def test_collect_network_effective(fixture_provider, options) -> None:
     output = collect_network_effective(fixture_provider, options)
-    assert len(output.effective_exposures) == 1
+    assert len(output.effective_exposures) == 2
     assert len(output.findings) == 0
     assert output.effective_exposures[0].asset_name == "vm-web-01"
     assert output.effective_exposures[0].effective_exposure == "high"
     assert output.effective_exposures[0].internet_exposed_ports == ["TCP/22"]
     assert output.effective_exposures[0].constrained_ports == ["TCP/443", "TCP/8080"]
+    assert output.effective_exposures[1].asset_name == "aci-public-api"
+    assert output.effective_exposures[1].effective_exposure == "low"
 
 
 def test_collect_network_effective_reuses_one_endpoint_snapshot_and_keeps_issues(
@@ -2007,6 +2125,178 @@ def test_collect_functions_keeps_partial_visibility_explicit(fixture_dir: Path, 
     assert output.issues[0].context["collector"] == "functions[rg-apps/func-orders].app_settings"
 
 
+def test_collect_container_apps(fixture_provider, options) -> None:
+    output = collect_container_apps(fixture_provider, options)
+    assert len(output.container_apps) == 2
+    assert len(output.findings) == 0
+    assert output.container_apps[0].name == "aca-orders"
+    assert output.container_apps[0].external_ingress_enabled is True
+    assert output.container_apps[0].workload_identity_type == "SystemAssigned"
+    assert output.container_apps[1].name == "aca-internal-jobs"
+    assert output.container_apps[1].external_ingress_enabled is False
+
+
+def test_collect_container_apps_sorts_external_then_identity_then_hostname(options) -> None:
+    output = collect_container_apps(DriftOrderingFixtureProvider(Path(".")), options)
+
+    assert [item.name for item in output.container_apps] == [
+        "mmm-public-id",
+        "aaa-public-no-id",
+        "zzz-internal-id",
+    ]
+
+
+def test_collect_container_instances(fixture_provider, options) -> None:
+    output = collect_container_instances(fixture_provider, options)
+    assert len(output.container_instances) == 2
+    assert len(output.findings) == 0
+    assert output.container_instances[0].name == "aci-public-api"
+    assert output.container_instances[0].public_ip_address == "52.160.10.30"
+    assert output.container_instances[0].workload_identity_type == "SystemAssigned"
+    assert output.container_instances[1].name == "aci-internal-worker"
+    assert output.container_instances[1].public_ip_address is None
+
+
+def test_collect_container_instances_sorts_public_then_identity_then_fqdn(options) -> None:
+    output = collect_container_instances(DriftOrderingFixtureProvider(Path(".")), options)
+
+    assert [item.name for item in output.container_instances] == [
+        "mmm-public-id",
+        "aaa-public-no-id",
+        "zzz-private-id",
+    ]
+
+
+def test_fixture_provider_workload_commands_tolerate_missing_optional_container_files(
+    tmp_path: Path,
+    options,
+) -> None:
+    for name, payload in {
+        "web_workloads": {"workloads": [], "issues": []},
+        "vms": {"vm_assets": [], "issues": []},
+        "env_vars": {"env_vars": [], "issues": []},
+        "arm_deployments": {"deployments": [], "issues": []},
+    }.items():
+        (tmp_path / f"{name}.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    provider = FixtureProvider(tmp_path)
+
+    workloads_output = collect_workloads(provider, options)
+    tokens_output = collect_tokens_credentials(provider, options)
+
+    assert workloads_output.workloads == []
+    assert workloads_output.issues == []
+    assert tokens_output.surfaces == []
+    assert tokens_output.issues == []
+
+
+def test_collect_container_apps_reports_hydration_failures_as_issues(options) -> None:
+    class FakeResourcesClient:
+        def list(self, *, filter: str):
+            assert filter == "resourceType eq 'Microsoft.App/containerApps'"
+            return [
+                SimpleNamespace(
+                    id=(
+                        "/subscriptions/sub/resourceGroups/rg-apps/providers/"
+                        "Microsoft.App/containerApps/aca-orders"
+                    ),
+                    name="aca-orders",
+                    location="eastus",
+                    identity=SimpleNamespace(type="SystemAssigned", principal_id="principal-aca"),
+                    properties=SimpleNamespace(
+                        managed_environment_id=(
+                            "/subscriptions/sub/resourceGroups/rg-apps/providers/"
+                            "Microsoft.App/managedEnvironments/aca-env"
+                        ),
+                        configuration=SimpleNamespace(
+                            ingress=SimpleNamespace(
+                                external=True,
+                                fqdn="aca-orders.eastus.azurecontainerapps.io",
+                                target_port=443,
+                            ),
+                            active_revisions_mode="Single",
+                        ),
+                        latest_ready_revision_name="aca-orders--rev1",
+                    ),
+                )
+            ]
+
+        def get_by_id(self, resource_id: str, api_version: str):
+            assert resource_id.endswith("/aca-orders")
+            assert api_version == "2024-03-01"
+            raise RuntimeError("hydrate failed")
+
+    provider = AzureProvider.__new__(AzureProvider)
+    provider.session = SimpleNamespace(
+        tenant_id="tenant-id",
+        token_source="fixture",
+        auth_mode="fixture",
+    )
+    provider.clients = SimpleNamespace(
+        subscription_id="subscription-id",
+        resource=SimpleNamespace(resources=FakeResourcesClient()),
+    )
+
+    output = collect_container_apps(provider, options)
+
+    assert [item.name for item in output.container_apps] == ["aca-orders"]
+    assert output.issues[0].context["collector"].startswith("container_apps.hydrate[")
+    assert "hydrate failed" in output.issues[0].message
+
+
+def test_collect_container_instances_reports_hydration_failures_as_issues(options) -> None:
+    class FakeResourcesClient:
+        def list(self, *, filter: str):
+            assert filter == "resourceType eq 'Microsoft.ContainerInstance/containerGroups'"
+            return [
+                SimpleNamespace(
+                    id=(
+                        "/subscriptions/sub/resourceGroups/rg-apps/providers/"
+                        "Microsoft.ContainerInstance/containerGroups/aci-public-api"
+                    ),
+                    name="aci-public-api",
+                    location="eastus",
+                    identity=SimpleNamespace(type="SystemAssigned", principal_id="principal-aci"),
+                    properties=SimpleNamespace(
+                        ip_address=SimpleNamespace(
+                            fqdn="aci-public-api.eastus.azurecontainer.io",
+                            ip="52.160.10.30",
+                            ports=[SimpleNamespace(port=80)],
+                        ),
+                        containers=[
+                            SimpleNamespace(
+                                properties=SimpleNamespace(image="mcr.microsoft.com/app:1.0")
+                            )
+                        ],
+                        os_type="Linux",
+                        restart_policy="Always",
+                    ),
+                )
+            ]
+
+        def get_by_id(self, resource_id: str, api_version: str):
+            assert resource_id.endswith("/aci-public-api")
+            assert api_version == "2023-05-01"
+            raise RuntimeError("hydrate failed")
+
+    provider = AzureProvider.__new__(AzureProvider)
+    provider.session = SimpleNamespace(
+        tenant_id="tenant-id",
+        token_source="fixture",
+        auth_mode="fixture",
+    )
+    provider.clients = SimpleNamespace(
+        subscription_id="subscription-id",
+        resource=SimpleNamespace(resources=FakeResourcesClient()),
+    )
+
+    output = collect_container_instances(provider, options)
+
+    assert [item.name for item in output.container_instances] == ["aci-public-api"]
+    assert output.issues[0].context["collector"].startswith("container_instances.hydrate[")
+    assert "hydrate failed" in output.issues[0].message
+
+
 def test_collect_arm_deployments(fixture_provider, options) -> None:
     output = collect_arm_deployments(fixture_provider, options)
     assert len(output.deployments) == 3
@@ -2028,11 +2318,22 @@ def test_collect_arm_deployments_sorts_failures_and_linked_rows_first(options) -
 
 def test_collect_endpoints(fixture_provider, options) -> None:
     output = collect_endpoints(fixture_provider, options)
-    assert len(output.endpoints) == 4
+    assert len(output.endpoints) == 7
     assert len(output.findings) == 0
-    assert output.endpoints[0].endpoint == "52.160.10.20"
-    assert output.endpoints[0].ingress_path == "direct-vm-ip"
+    assert any(
+        item.endpoint == "52.160.10.20" and item.ingress_path == "direct-vm-ip"
+        for item in output.endpoints
+    )
     assert any(item.endpoint == "app-public-api.azurewebsites.net" for item in output.endpoints)
+    assert any(
+        item.endpoint == "aca-orders.wittyfield.eastus.azurecontainerapps.io"
+        for item in output.endpoints
+    )
+    assert any(item.endpoint == "52.160.10.30" for item in output.endpoints)
+    assert any(
+        item.endpoint == "aci-public-api.eastus.azurecontainer.io"
+        for item in output.endpoints
+    )
 
 
 def test_collect_env_vars(fixture_provider, options) -> None:
@@ -2048,13 +2349,17 @@ def test_collect_env_vars(fixture_provider, options) -> None:
 
 def test_collect_tokens_credentials(fixture_provider, options) -> None:
     output = collect_tokens_credentials(fixture_provider, options)
-    assert len(output.surfaces) == 12
-    assert len(output.findings) == 12
+    assert len(output.surfaces) == 16
+    assert len(output.findings) == 16
     assert len({finding.id for finding in output.findings}) == len(output.findings)
     assert output.surfaces[0].surface_type == "plain-text-secret"
     assert output.surfaces[1].operator_signal == "setting=AzureWebJobsStorage"
     assert "Check env-vars" in output.surfaces[0].summary
     assert any(item.asset_name == "app-empty-mi" for item in output.surfaces)
+    assert any(item.asset_name == "aca-orders" for item in output.surfaces)
+    assert any(item.asset_name == "aca-internal-jobs" for item in output.surfaces)
+    assert any(item.asset_name == "aci-public-api" for item in output.surfaces)
+    assert any(item.asset_name == "aci-internal-worker" for item in output.surfaces)
     assert any(item.asset_name == "vmss-edge-01" for item in output.surfaces)
     assert any(
         item.surface_type == "managed-identity-token" and item.access_path == "imds"
@@ -4387,11 +4692,36 @@ def test_vmss_summary_emits_partial_issue_when_nic_configs_are_missing() -> None
 
 def test_collect_workloads(fixture_provider, options) -> None:
     output = collect_workloads(fixture_provider, options)
-    assert len(output.workloads) == 6
+    assert len(output.workloads) == 10
     assert len(output.findings) == 0
     assert output.workloads[0].asset_name == "vm-web-01"
     assert output.workloads[0].identity_type == "UserAssigned"
     assert output.workloads[0].endpoints == ["52.160.10.20"]
+    assert any(
+        item.asset_name == "aca-orders"
+        and item.asset_kind == "ContainerApp"
+        and item.endpoints == ["aca-orders.wittyfield.eastus.azurecontainerapps.io"]
+        for item in output.workloads
+    )
+    assert any(
+        item.asset_name == "aca-internal-jobs"
+        and item.asset_kind == "ContainerApp"
+        and item.endpoints == []
+        for item in output.workloads
+    )
+    assert any(
+        item.asset_name == "aci-public-api"
+        and item.asset_kind == "ContainerInstance"
+        and "52.160.10.30" in item.endpoints
+        and "aci-public-api.eastus.azurecontainer.io" in item.endpoints
+        for item in output.workloads
+    )
+    assert any(
+        item.asset_name == "aci-internal-worker"
+        and item.asset_kind == "ContainerInstance"
+        and item.endpoints == []
+        for item in output.workloads
+    )
     assert output.workloads[-2].asset_name == "vmss-edge-01"
     assert output.workloads[-1].asset_name == "vmss-batch-01"
     assert output.workloads[-1].endpoints == []
