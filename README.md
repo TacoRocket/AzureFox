@@ -101,7 +101,7 @@ azurefox permissions
 
 | Grouped Command | Live Families |
 | --- | --- |
-| [`chains`](https://github.com/TacoRocket/AzureFox/wiki/Chains) | [`credential-path`](https://github.com/TacoRocket/AzureFox/wiki/Chains-Credential-Path), [`deployment-path`](https://github.com/TacoRocket/AzureFox/wiki/Chains-Deployment-Path), [`escalation-path`](https://github.com/TacoRocket/AzureFox/wiki/Chains-Escalation-Path), [`compute-control`](https://github.com/TacoRocket/AzureFox/wiki/Chains-Compute-Control) |
+| [`chains`](https://github.com/TacoRocket/AzureFox/wiki/Chains)<br>Grouped path views that pull the strongest Azure pivot stories to the top. | [`credential-path`](https://github.com/TacoRocket/AzureFox/wiki/Chains-Credential-Path)<br>Turns exposed secret and token clues into the downstream target most likely to widen access.<br><br>[`deployment-path`](https://github.com/TacoRocket/AzureFox/wiki/Chains-Deployment-Path)<br>Surfaces the build, pipeline, and automation paths most likely to let an attacker change Azure next.<br><br>[`escalation-path`](https://github.com/TacoRocket/AzureFox/wiki/Chains-Escalation-Path)<br>Highlights the clearest visible route from the current foothold to stronger Azure control.<br><br>[`compute-control`](https://github.com/TacoRocket/AzureFox/wiki/Chains-Compute-Control)<br>Finds workloads that can already mint identity-backed access and pivot into broader control. |
 
 ### Flat Commands
 
