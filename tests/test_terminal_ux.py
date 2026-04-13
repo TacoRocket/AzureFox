@@ -892,7 +892,8 @@ def test_escalation_chains_table_mode_renders_defended_current_foothold_story(
     assert "narrowing one exact downstream action" in normalized_output
     assert "trust expansion" in normalized_output
     assert "build-sp" in normalized_output
-    assert "take over service principal 'build-sp'" in normalized_output
+    assert "control application 'build-app'" in normalized_output
+    assert "already has federated trust into service principal 'build-sp'" in normalized_output
     assert "Owner-level Azure control" in normalized_output
     assert "including role" in normalized_output
     assert "assignment on resource groups" in normalized_output
