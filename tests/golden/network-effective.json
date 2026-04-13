@@ -26,11 +26,27 @@
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Network/networkSecurityGroups/nsg-vnet-app"
       ],
       "summary": "Asset 'vm-web-01' endpoint 52.160.10.20 has internet-facing allow evidence on TCP/22 and narrower allow evidence on TCP/443, TCP/8080. Treat this as visible Azure network triage signal, not proof of full effective reachability."
+    },
+    {
+      "asset_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-apps/providers/Microsoft.ContainerInstance/containerGroups/aci-public-api",
+      "asset_name": "aci-public-api",
+      "constrained_ports": [],
+      "effective_exposure": "low",
+      "endpoint": "52.160.10.30",
+      "endpoint_type": "ip",
+      "internet_exposed_ports": [],
+      "observed_paths": [],
+      "related_ids": [
+        "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-apps/providers/Microsoft.ContainerInstance/containerGroups/aci-public-api",
+        "acac1111-1111-1111-1111-111111111111"
+      ],
+      "summary": "Asset 'aci-public-api' endpoint 52.160.10.30 is visible as a public IP path, but no inbound-rule evidence was surfaced from the current read path. Treat this as a low-confidence triage clue rather than proof of exposure."
     }
   ],
   "findings": [],
   "issues": [],
   "metadata": {
+    "auth_mode": null,
     "command": "network-effective",
     "devops_organization": null,
     "generated_at": "<generated_at>",

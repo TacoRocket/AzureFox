@@ -1601,12 +1601,14 @@ def test_collect_application_gateway_keeps_command_level_issue_explicit(
 
 def test_collect_network_effective(fixture_provider, options) -> None:
     output = collect_network_effective(fixture_provider, options)
-    assert len(output.effective_exposures) == 1
+    assert len(output.effective_exposures) == 2
     assert len(output.findings) == 0
     assert output.effective_exposures[0].asset_name == "vm-web-01"
     assert output.effective_exposures[0].effective_exposure == "high"
     assert output.effective_exposures[0].internet_exposed_ports == ["TCP/22"]
     assert output.effective_exposures[0].constrained_ports == ["TCP/443", "TCP/8080"]
+    assert output.effective_exposures[1].asset_name == "aci-public-api"
+    assert output.effective_exposures[1].effective_exposure == "low"
 
 
 def test_collect_network_effective_reuses_one_endpoint_snapshot_and_keeps_issues(

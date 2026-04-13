@@ -1,6 +1,20 @@
 {
   "endpoints": [
     {
+      "endpoint": "52.160.10.30",
+      "endpoint_type": "ip",
+      "exposure_family": "public-ip",
+      "ingress_path": "azure-container-instances-public-ip",
+      "related_ids": [
+        "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-apps/providers/Microsoft.ContainerInstance/containerGroups/aci-public-api",
+        "acac1111-1111-1111-1111-111111111111"
+      ],
+      "source_asset_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-apps/providers/Microsoft.ContainerInstance/containerGroups/aci-public-api",
+      "source_asset_kind": "ContainerInstance",
+      "source_asset_name": "aci-public-api",
+      "summary": "ContainerInstance 'aci-public-api' exposes public IP 52.160.10.30. Review the visible ingress path, ports, and runtime posture together."
+    },
+    {
       "endpoint": "52.160.10.20",
       "endpoint_type": "ip",
       "exposure_family": "public-ip",
@@ -14,6 +28,34 @@
       "source_asset_kind": "VM",
       "source_asset_name": "vm-web-01",
       "summary": "VM 'vm-web-01' exposes public IP 52.160.10.20. Review direct ingress path alongside NIC and NSG context."
+    },
+    {
+      "endpoint": "aca-orders.wittyfield.eastus.azurecontainerapps.io",
+      "endpoint_type": "hostname",
+      "exposure_family": "managed-web-hostname",
+      "ingress_path": "azure-container-apps-default-hostname",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.App/containerApps/aca-orders",
+        "abab1111-1111-1111-1111-111111111111"
+      ],
+      "source_asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.App/containerApps/aca-orders",
+      "source_asset_kind": "ContainerApp",
+      "source_asset_name": "aca-orders",
+      "summary": "ContainerApp 'aca-orders' publishes Azure-managed hostname 'aca-orders.wittyfield.eastus.azurecontainerapps.io'. Validate whether that ingress path is intended and how it is constrained."
+    },
+    {
+      "endpoint": "aci-public-api.eastus.azurecontainer.io",
+      "endpoint_type": "hostname",
+      "exposure_family": "managed-container-fqdn",
+      "ingress_path": "azure-container-instances-fqdn",
+      "related_ids": [
+        "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-apps/providers/Microsoft.ContainerInstance/containerGroups/aci-public-api",
+        "acac1111-1111-1111-1111-111111111111"
+      ],
+      "source_asset_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-apps/providers/Microsoft.ContainerInstance/containerGroups/aci-public-api",
+      "source_asset_kind": "ContainerInstance",
+      "source_asset_name": "aci-public-api",
+      "summary": "ContainerInstance 'aci-public-api' publishes hostname 'aci-public-api.eastus.azurecontainer.io'. Validate whether that ingress path is intended and how it is constrained."
     },
     {
       "endpoint": "app-empty-mi.azurewebsites.net",
@@ -62,7 +104,9 @@
   "findings": [],
   "issues": [],
   "metadata": {
+    "auth_mode": null,
     "command": "endpoints",
+    "devops_organization": null,
     "generated_at": "<generated_at>",
     "schema_version": "1.3.0",
     "subscription_id": "22222222-2222-2222-2222-222222222222",

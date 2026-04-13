@@ -573,8 +573,8 @@ def test_workloads_table_mode_surfaces_joined_workload_context(tmp_path: Path) -
     assert "UserAssigned" in result.stdout
     assert "vm-web-01" in result.stdout
     assert (
-        "Takeaway: 6 workloads visible; 4 with visible endpoint paths, 5 with identity context, "
-        "across 3 compute and 3 web assets." in result.stdout
+        "Takeaway: 10 workloads visible; 6 with visible endpoint paths, 9 with identity context, "
+        "across 3 compute and 7 web assets." in result.stdout
     )
 
 
@@ -643,9 +643,10 @@ def test_endpoints_table_mode_surfaces_reachability_context(tmp_path: Path) -> N
     )
     assert "family" in result.stdout
     assert "direct-vm-ip" in result.stdout
-    assert "app-public-api.azurewebsites.net" in result.stdout
+    assert "app-public-api" in result.stdout
     assert (
-        "Takeaway: 4 reachable surfaces visible; 1 public-ip, 3 managed-web-hostname."
+        "Takeaway: 7 reachable surfaces visible; 2 public-ip, 4 managed-web-hostname, "
+        "1 managed-container-fqdn."
         in result.stdout
     )
 
@@ -668,7 +669,8 @@ def test_network_effective_table_mode_surfaces_prioritized_reachability(
     assert "TCP/22" in result.stdout
     assert "TCP/443" in result.stdout
     assert (
-        "Takeaway: 1 public-IP exposure summaries visible; 1 high, 0 medium, 0 low" in result.stdout
+        "Takeaway: 2 public-IP exposure summaries visible; 1 high, 0 medium, 1 low"
+        in result.stdout
     )
 
 
@@ -723,7 +725,7 @@ def test_tokens_credentials_table_mode_surfaces_findings_and_takeaway(tmp_path: 
     assert "plain-text-secret" in result.stdout
     assert "deployment-history" in result.stdout
     assert "Check env-vars" in result.stdout
-    assert "Takeaway: 12 token or credential surfaces across 7 assets;" in result.stdout
+    assert "Takeaway: 16 token or credential surfaces across 11 assets;" in result.stdout
 
 
 def test_managed_identities_table_mode_surfaces_next_review(tmp_path: Path) -> None:

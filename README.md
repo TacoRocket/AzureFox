@@ -97,6 +97,14 @@ azurefox permissions
 
 ## Currently Supported Azure Commands
 
+### Orchestration
+
+| Grouped Command | Live Families |
+| --- | --- |
+| [`chains`](https://github.com/TacoRocket/AzureFox/wiki/Chains) | [`credential-path`](https://github.com/TacoRocket/AzureFox/wiki/Chains-Credential-Path), [`deployment-path`](https://github.com/TacoRocket/AzureFox/wiki/Chains-Deployment-Path), [`escalation-path`](https://github.com/TacoRocket/AzureFox/wiki/Chains-Escalation-Path), [`compute-control`](https://github.com/TacoRocket/AzureFox/wiki/Chains-Compute-Control) |
+
+### Flat Commands
+
 | Section | Commands |
 | --- | --- |
 | `core` | [`inventory`](https://github.com/TacoRocket/AzureFox/wiki/Inventory) |
@@ -106,8 +114,7 @@ azurefox permissions
 | `resource` | [`automation`](https://github.com/TacoRocket/AzureFox/wiki/Automation), [`devops`](https://github.com/TacoRocket/AzureFox/wiki/Devops), [`acr`](https://github.com/TacoRocket/AzureFox/wiki/ACR), [`api-mgmt`](https://github.com/TacoRocket/AzureFox/wiki/API-Mgmt), [`databases`](https://github.com/TacoRocket/AzureFox/wiki/Databases), [`resource-trusts`](https://github.com/TacoRocket/AzureFox/wiki/Resource-Trusts) |
 | `storage` | [`storage`](https://github.com/TacoRocket/AzureFox/wiki/Storage) |
 | `network` | [`nics`](https://github.com/TacoRocket/AzureFox/wiki/Nics), [`dns`](https://github.com/TacoRocket/AzureFox/wiki/DNS), [`endpoints`](https://github.com/TacoRocket/AzureFox/wiki/Endpoints), [`network-effective`](https://github.com/TacoRocket/AzureFox/wiki/Network-Effective), [`network-ports`](https://github.com/TacoRocket/AzureFox/wiki/Network-Ports) |
-| `compute` | [`workloads`](https://github.com/TacoRocket/AzureFox/wiki/Workloads), [`app-services`](https://github.com/TacoRocket/AzureFox/wiki/App-Services), [`functions`](https://github.com/TacoRocket/AzureFox/wiki/Functions), `container-apps`, `container-instances`, [`aks`](https://github.com/TacoRocket/AzureFox/wiki/AKS), [`vms`](https://github.com/TacoRocket/AzureFox/wiki/VMs), [`vmss`](https://github.com/TacoRocket/AzureFox/wiki/VMSS), [`snapshots-disks`](https://github.com/TacoRocket/AzureFox/wiki/Snapshots-Disks) |
-| orchestration | [`chains`](https://github.com/TacoRocket/AzureFox/wiki/Chains), `credential-path`, `deployment-path`, `escalation-path`, `compute-control` |
+| `compute` | [`workloads`](https://github.com/TacoRocket/AzureFox/wiki/Workloads), [`app-services`](https://github.com/TacoRocket/AzureFox/wiki/App-Services), [`functions`](https://github.com/TacoRocket/AzureFox/wiki/Functions), [`container-apps`](https://github.com/TacoRocket/AzureFox/wiki/Container-Apps), [`container-instances`](https://github.com/TacoRocket/AzureFox/wiki/Container-Instances), [`aks`](https://github.com/TacoRocket/AzureFox/wiki/AKS), [`vms`](https://github.com/TacoRocket/AzureFox/wiki/VMs), [`vmss`](https://github.com/TacoRocket/AzureFox/wiki/VMSS), [`snapshots-disks`](https://github.com/TacoRocket/AzureFox/wiki/Snapshots-Disks) |
 
 ## Need A Test Lab?
 

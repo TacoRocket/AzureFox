@@ -2,6 +2,7 @@
   "findings": [],
   "issues": [],
   "metadata": {
+    "auth_mode": null,
     "command": "workloads",
     "devops_organization": null,
     "generated_at": "<generated_at>",
@@ -116,6 +117,104 @@
       ],
       "resource_group": "rg-apps",
       "summary": "FunctionApp 'func-orders' publishes visible endpoint hostname 'func-orders.azurewebsites.net' and carries managed identity context (SystemAssigned, UserAssigned). Visible signals: default-hostname, user-assigned=1. Use this as a quick workload census pivot before deeper service-specific review."
+    },
+    {
+      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.App/containerApps/aca-orders",
+      "asset_kind": "ContainerApp",
+      "asset_name": "aca-orders",
+      "endpoints": [
+        "aca-orders.wittyfield.eastus.azurecontainerapps.io"
+      ],
+      "exposure_families": [
+        "managed-web-hostname"
+      ],
+      "identity_client_id": "cdcd1111-1111-1111-1111-111111111111",
+      "identity_ids": [],
+      "identity_principal_id": "abab1111-1111-1111-1111-111111111111",
+      "identity_type": "SystemAssigned",
+      "ingress_paths": [
+        "azure-container-apps-default-hostname"
+      ],
+      "location": "eastus",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.App/containerApps/aca-orders",
+        "abab1111-1111-1111-1111-111111111111"
+      ],
+      "resource_group": "rg-containers",
+      "summary": "ContainerApp 'aca-orders' publishes visible endpoint hostname 'aca-orders.wittyfield.eastus.azurecontainerapps.io' and carries managed identity context (SystemAssigned). Visible signals: default-hostname, external-ingress. Use this as a quick workload census pivot before deeper service-specific review."
+    },
+    {
+      "asset_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-apps/providers/Microsoft.ContainerInstance/containerGroups/aci-public-api",
+      "asset_kind": "ContainerInstance",
+      "asset_name": "aci-public-api",
+      "endpoints": [
+        "52.160.10.30",
+        "aci-public-api.eastus.azurecontainer.io"
+      ],
+      "exposure_families": [
+        "public-ip",
+        "managed-container-fqdn"
+      ],
+      "identity_client_id": "acacaaaa-1111-1111-1111-111111111111",
+      "identity_ids": [],
+      "identity_principal_id": "acac1111-1111-1111-1111-111111111111",
+      "identity_type": "SystemAssigned",
+      "ingress_paths": [
+        "azure-container-instances-public-ip",
+        "azure-container-instances-fqdn"
+      ],
+      "location": "eastus",
+      "related_ids": [
+        "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-apps/providers/Microsoft.ContainerInstance/containerGroups/aci-public-api",
+        "acac1111-1111-1111-1111-111111111111"
+      ],
+      "resource_group": "rg-apps",
+      "summary": "ContainerInstance 'aci-public-api' publishes 2 visible endpoint paths (52.160.10.30, aci-public-api.eastus.azurecontainer.io) and carries managed identity context (SystemAssigned). Visible signals: public-ip, fqdn, ports=2, containers=2. Use this as a quick workload census pivot before deeper service-specific review."
+    },
+    {
+      "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.App/containerApps/aca-internal-jobs",
+      "asset_kind": "ContainerApp",
+      "asset_name": "aca-internal-jobs",
+      "endpoints": [],
+      "exposure_families": [],
+      "identity_client_id": "cdcd2222-2222-2222-2222-222222222222",
+      "identity_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-container-jobs"
+      ],
+      "identity_principal_id": "abab2222-2222-2222-2222-222222222222",
+      "identity_type": "SystemAssigned, UserAssigned",
+      "ingress_paths": [],
+      "location": "eastus",
+      "related_ids": [
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-containers/providers/Microsoft.App/containerApps/aca-internal-jobs",
+        "abab2222-2222-2222-2222-222222222222",
+        "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-container-jobs"
+      ],
+      "resource_group": "rg-containers",
+      "summary": "ContainerApp 'aca-internal-jobs' has no visible endpoint path from the current read path and carries managed identity context (SystemAssigned, UserAssigned). Visible signals: internal-only, user-assigned=1. Use this as a quick workload census pivot before deeper service-specific review."
+    },
+    {
+      "asset_id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-jobs/providers/Microsoft.ContainerInstance/containerGroups/aci-internal-worker",
+      "asset_kind": "ContainerInstance",
+      "asset_name": "aci-internal-worker",
+      "endpoints": [],
+      "exposure_families": [],
+      "identity_client_id": "acacbbbb-2222-2222-2222-222222222222",
+      "identity_ids": [
+        "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-aci-jobs"
+      ],
+      "identity_principal_id": "acac2222-2222-2222-2222-222222222222",
+      "identity_type": "SystemAssigned, UserAssigned",
+      "ingress_paths": [],
+      "location": "eastus",
+      "related_ids": [
+        "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-jobs/providers/Microsoft.ContainerInstance/containerGroups/aci-internal-worker",
+        "acac2222-2222-2222-2222-222222222222",
+        "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-identities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ua-aci-jobs",
+        "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-net/providers/Microsoft.Network/virtualNetworks/vnet-shared/subnets/jobs"
+      ],
+      "resource_group": "rg-jobs",
+      "summary": "ContainerInstance 'aci-internal-worker' has no visible endpoint path from the current read path and carries managed identity context (SystemAssigned, UserAssigned). Visible signals: subnets=1, containers=1, user-assigned=1. Use this as a quick workload census pivot before deeper service-specific review."
     },
     {
       "asset_id": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-workload/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-edge-01",

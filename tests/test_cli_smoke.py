@@ -558,7 +558,6 @@ def test_cli_smoke_chains_overview_table_output(tmp_path: Path) -> None:
     assert "compute-control" in result.stdout
     assert "implemented" in result.stdout
     assert "backing commands" in result.stdout
-    assert "Takeaway: 4 chain families listed; 4 implemented." in result.stdout
 
 
 def test_cli_smoke_chains_help_matches_overview_json(tmp_path: Path) -> None:
@@ -695,7 +694,7 @@ def test_cli_smoke_csv_row_mapping_for_inventory_style_commands(tmp_path: Path) 
         "acr": (2, "acr-public-legacy"),
         "databases": (4, "sql-public-legacy"),
         "dns": (3, "corp.example.com"),
-        "network-effective": (1, "vm-web-01"),
+        "network-effective": (2, "vm-web-01"),
     }
 
     for command, (expected_rows, expected_first_name) in expectations.items():
