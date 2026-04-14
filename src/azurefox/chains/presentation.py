@@ -90,7 +90,9 @@ def normalize_chain_path_row(family: str, row: dict) -> dict:
         return normalized_row
 
     if family == "deployment-path":
-        normalized_row["source"] = str(row.get("source") or stack_chain_source(row.get("asset_name")))
+        normalized_row["source"] = str(
+            row.get("source") or stack_chain_source(row.get("asset_name"))
+        )
         normalized_row["actionability"] = str(
             row.get("actionability") or deployment_actionability_label(row)
         )
@@ -111,7 +113,9 @@ def normalize_chain_path_row(family: str, row: dict) -> dict:
         normalized_row["whats_missing"] = str(
             row.get("whats_missing") or normalized_row["confidence_boundary"]
         )
-        normalized_row["note"] = str(row.get("note") or row.get("why_care") or row.get("asset_kind") or "")
+        normalized_row["note"] = str(
+            row.get("note") or row.get("why_care") or row.get("asset_kind") or ""
+        )
         return normalized_row
 
     if family == "escalation-path":
