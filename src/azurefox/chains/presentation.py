@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 
 def compute_control_when_label(urgency: str) -> str:
     labels = {
@@ -60,7 +62,7 @@ def normalize_chain_payload_for_output(command: str, payload: dict) -> dict:
     if command != "chains":
         return payload
     family = str(payload.get("family") or "")
-    if family not in {"compute-control", "escalation-path"}:
+    if family not in {"credential-path", "deployment-path", "compute-control", "escalation-path"}:
         return payload
     paths = payload.get("paths")
     if not isinstance(paths, list):
@@ -75,6 +77,43 @@ def normalize_chain_payload_for_output(command: str, payload: dict) -> dict:
 
 def normalize_chain_path_row(family: str, row: dict) -> dict:
     normalized_row = dict(row)
+    if family == "credential-path":
+        normalized_row["asset"] = str(row.get("asset") or row.get("asset_name") or "")
+        normalized_row["setting"] = str(row.get("setting") or row.get("setting_name") or "")
+        normalized_row["target"] = str(row.get("target") or row.get("target_service") or "")
+        normalized_row["visible_targets"] = str(
+            row.get("visible_targets") or credential_path_visible_targets(row)
+        )
+        normalized_row["confidence_boundary"] = str(
+            row.get("confidence_boundary") or credential_path_note(row)
+        )
+        return normalized_row
+
+    if family == "deployment-path":
+        normalized_row["source"] = str(row.get("source") or stack_chain_source(row.get("asset_name")))
+        normalized_row["actionability"] = str(
+            row.get("actionability") or deployment_actionability_label(row)
+        )
+        normalized_row["insertion_point_display"] = str(
+            row.get("insertion_point_display")
+            or stack_chain_insertion_point(
+                row.get("insertion_point") or deployment_path_type_label(row)
+            )
+        )
+        normalized_row["likely_azure_impact"] = str(
+            row.get("likely_azure_impact")
+            or row.get("likely_impact")
+            or chain_target_context(row)
+        )
+        normalized_row["confidence_boundary"] = str(
+            row.get("confidence_boundary") or deployment_path_note(row)
+        )
+        normalized_row["whats_missing"] = str(
+            row.get("whats_missing") or normalized_row["confidence_boundary"]
+        )
+        normalized_row["note"] = str(row.get("note") or row.get("why_care") or row.get("asset_kind") or "")
+        return normalized_row
+
     if family == "escalation-path":
         normalized_row["starting_foothold"] = str(
             row.get("starting_foothold") or row.get("asset_name") or ""
@@ -114,3 +153,113 @@ def normalize_chain_path_row(family: str, row: dict) -> dict:
     )
     normalized_row["note"] = str(row.get("why_care") or row.get("note") or "")
     return normalized_row
+
+
+def credential_path_visible_targets(row: dict) -> str:
+    return chain_target_context(row)
+
+
+def credential_path_note(row: dict) -> str:
+    resolution = str(row.get("target_resolution") or "")
+    target_service = str(row.get("target_service") or row.get("target") or "target")
+    confidence_boundary = str(row.get("confidence_boundary") or "").strip()
+
+    if confidence_boundary and resolution != "named target not visible":
+        return confidence_boundary
+    if resolution == "named match":
+        return "Named target matched visible inventory."
+    if resolution == "visibility blocked":
+        return f"{target_service} visibility is blocked; do not infer a target."
+    if resolution == "narrowed candidates":
+        return (
+            f"This app exposes a secret-shaped setting that may reach {target_service}; "
+            "exact target still unconfirmed."
+        )
+    if resolution == "tenant-wide candidates":
+        return f"This app likely reaches {target_service}, but the target set is still broad."
+    if resolution == "service hint only":
+        return f"AzureFox sees a likely {target_service} path, but no target inventory yet."
+    if resolution == "named target not visible":
+        return f"This app names a {target_service} target AzureFox cannot see in current inventory."
+    return str(row.get("summary") or "-")
+
+
+def deployment_path_type_label(row: dict) -> str:
+    concept = str(row.get("path_concept") or "")
+    labels = {
+        "controllable-change-path": "controllable change path",
+        "execution-hub": "execution hub",
+        "secret-escalation-support": "secret-backed support",
+    }
+    return labels.get(concept, concept or "-")
+
+
+def deployment_actionability_label(row: dict) -> str:
+    state = str(row.get("actionability_state") or "")
+    labels = {
+        "currently actionable": "currently actionable",
+        "conditionally actionable": "conditionally actionable",
+        "consequence-grounded but insertion point unproven": "grounded, insertion unproven",
+        "visibility-bounded": "visibility-bounded",
+        "support-only": "support-only",
+    }
+    return labels.get(state, state or "-")
+
+
+def stack_chain_source(value: object) -> str:
+    text = str(value or "").strip()
+    if not text or len(text) <= 18 or "-" not in text:
+        return text
+    return text.replace("-", "-\n")
+
+
+def stack_chain_insertion_point(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return text
+    text = re.sub(r";\s+", ";\n", text)
+    text = re.sub(r",\s+", ",\n", text)
+    text = text.replace(" through ", "\nthrough ")
+    text = text.replace(" under ", "\nunder ")
+    text = text.replace(" at ", "\nat ")
+    return text
+
+
+def chain_target_context(row: dict) -> str:
+    target_visibility_issue = row.get("target_visibility_issue")
+    if target_visibility_issue:
+        return str(target_visibility_issue)
+
+    target_names = row.get("target_names") or []
+    if target_names:
+        names = [str(value) for value in target_names[:3]]
+        if len(names) == 1:
+            return names[0]
+        return "\n".join(names)
+
+    target_count = row.get("target_count") or 0
+    if target_count:
+        return f"{target_count} visible target(s)"
+    return "none visible"
+
+
+def deployment_path_note(row: dict) -> str:
+    resolution = str(row.get("target_resolution") or "")
+    target_service = str(row.get("target_service") or "target")
+    confidence_boundary = str(row.get("confidence_boundary") or "").strip()
+
+    if confidence_boundary:
+        return confidence_boundary
+    if resolution == "named match":
+        return "Named target matched visible inventory."
+    if resolution == "visibility blocked":
+        return f"{target_service} visibility is blocked; do not infer a target."
+    if resolution == "narrowed candidates":
+        return "Change-capable source narrows the next review set; exact target unconfirmed."
+    if resolution == "tenant-wide candidates":
+        return f"{target_service} family is visible, but narrowing is still broad."
+    if resolution == "service hint only":
+        return f"{target_service} path is suggested, but no target inventory is visible."
+    if resolution == "named target not visible":
+        return "The named target is not visible in current inventory."
+    return str(row.get("summary") or "-")
