@@ -294,6 +294,8 @@ def test_help_command_chains_topic_sets_planned_runtime_expectations() -> None:
     )
     assert "escalation-path" in result.stdout
     assert "compute-control currently ships a narrow direct-token-opportunity v1" in result.stdout
+    assert "does not prove SSRF" in result.stdout
+    assert "web-app exploitation" in result.stdout
     assert "compute-control" in result.stdout
     assert "credential-path" in result.stdout
     assert "claim_boundary" in result.stdout

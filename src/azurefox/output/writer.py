@@ -7,6 +7,7 @@ from pathlib import Path
 import typer
 
 from azurefox.chains.presentation import normalize_chain_payload_for_output
+from azurefox.chains.registry import SEMANTIC_LOOT_CHAIN_FAMILIES
 from azurefox.config import GlobalOptions
 from azurefox.models.common import OutputMode
 from azurefox.render.table import render_table
@@ -130,7 +131,7 @@ def _build_loot_payload(command: str, payload: dict) -> dict:
             loot_payload[key] = _build_loot_metadata(value)
             continue
         if key == primary_key and isinstance(value, list):
-            selected_rows, loot_scope = _select_loot_rows(command, value)
+            selected_rows, loot_scope = _select_loot_rows(command, payload, value)
             loot_payload[key] = selected_rows
             continue
         if key in {"findings", "issues"} and not value:
@@ -152,8 +153,14 @@ def _build_loot_metadata(metadata: object) -> object:
     }
 
 
-def _select_loot_rows(command: str, rows: list[object]) -> tuple[list[object], dict | None]:
-    if command in SEMANTIC_LOOT_BAND_COMMANDS:
+def _select_loot_rows(
+    command: str,
+    payload: dict,
+    rows: list[object],
+) -> tuple[list[object], dict | None]:
+    use_semantic_high_band = _uses_semantic_high_band(command, payload)
+
+    if use_semantic_high_band:
         high_priority_rows = [
             row
             for row in rows
@@ -180,6 +187,17 @@ def _select_loot_rows(command: str, rows: list[object]) -> tuple[list[object], d
             "limit": LOOT_TARGET_LIMIT,
         }
     return selected_rows, None
+
+
+def _uses_semantic_high_band(command: str, payload: dict) -> bool:
+    if command in SEMANTIC_LOOT_BAND_COMMANDS:
+        return True
+
+    family = str(payload.get("family") or "").strip()
+    if command == "chains" and family in SEMANTIC_LOOT_CHAIN_FAMILIES:
+        return True
+
+    return False
 
 
 def _write_json(command: str, payload: dict, outdir: Path) -> Path:

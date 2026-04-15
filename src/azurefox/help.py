@@ -1179,7 +1179,9 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
             "app-permission reach. Within admitted escalation rows, AzureFox ranks bigger "
             "control gain first and uses path ease as a follow-on tiebreaker. "
             "compute-control currently ships a narrow direct-token-opportunity v1 where the "
-            "compute foothold and stronger Azure control are both already visible."
+            "compute foothold and stronger Azure control are both already visible. It does not "
+            "prove SSRF, web-app exploitation, metadata abuse, or successful token minting just "
+            "because a workload is reachable or token-capable."
         ),
         output_highlights=(
             "family selectors",

@@ -5,6 +5,12 @@ from dataclasses import dataclass
 GROUPED_COMMAND_NAME = "chains"
 GROUPED_COMMAND_INPUT_MODES = ("live", "artifacts")
 PREFERRED_ARTIFACT_ORDER = ("loot", "json")
+SEMANTIC_LOOT_CHAIN_FAMILIES = (
+    "credential-path",
+    "deployment-path",
+    "escalation-path",
+    "compute-control",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -376,14 +382,16 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
         allowed_claim=(
             "Can claim a direct token opportunity only when AzureFox can show the compute-side "
             "token path, the attached identity, and the stronger Azure control behind that "
-            "identity. Cannot claim token minting success or broaden the family to generic "
-            "credential, deployment, or trust stories without a clearer compute-side transform."
+            "identity. Cannot claim SSRF, runtime compromise, metadata abuse, token minting "
+            "success, or broader credential, deployment, or trust stories without a clearer "
+            "compute-side transform."
         ),
         current_gap=(
             "The live family is intentionally narrow in v1: direct token-opportunity rows only. "
             "Broader trust expansion and secret-bearing config starts still sit outside this "
-            "family, and mixed-identity workloads still need explicit corroboration before "
-            "default admission."
+            "family, mixed-identity workloads still need explicit corroboration before default "
+            "admission, and AzureFox stays on the recon side of the boundary rather than trying "
+            "to verify web-app exploitation or other runtime execution paths."
         ),
         best_current_examples=(
             "tokens-credentials -> managed-identities -> permissions",

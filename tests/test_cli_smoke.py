@@ -851,6 +851,8 @@ def test_cli_smoke_chains_overview_table_output(tmp_path: Path) -> None:
     assert "deployment-path" in result.stdout
     assert "escalation-path" in result.stdout
     assert "compute-control" in result.stdout
+    assert "Cannot claim SSRF" in result.stdout
+    assert "web-app exploitation" in result.stdout
     assert "implemented" in result.stdout
     assert "backing commands" in result.stdout
 
@@ -957,6 +959,73 @@ def test_cli_smoke_loot_artifact_written_end_to_end(tmp_path: Path) -> None:
         "source_count": len(json_payload["surfaces"]),
         "returned_count": 3,
     }
+
+
+def test_cli_smoke_chains_deployment_path_loot_artifact_uses_semantic_high_band(
+    tmp_path: Path,
+) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "json", "chains", "deployment-path"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    json_payload = json.loads(result.stdout)
+    loot_payload = json.loads((tmp_path / "loot" / "chains.json").read_text(encoding="utf-8"))
+
+    assert loot_payload["metadata"] == {
+        "schema_version": json_payload["metadata"]["schema_version"],
+        "command": "chains",
+    }
+    assert loot_payload["family"] == "deployment-path"
+    assert "generated_at" not in loot_payload["metadata"]
+    assert {row["priority"] for row in loot_payload["paths"]} == {"high"}
+    assert len(loot_payload["paths"]) == 2
+    assert len(loot_payload["paths"]) < len(json_payload["paths"])
+    assert {row["asset_name"] for row in loot_payload["paths"]} == {
+        "deploy-appservice-prod",
+        "aa-hybrid-prod",
+    }
+    assert loot_payload["loot_scope"] == {
+        "selection": "semantic-high-priority",
+        "priority_band": "high",
+        "source_count": len(json_payload["paths"]),
+        "returned_count": 2,
+    }
+
+
+def test_cli_smoke_supported_chains_families_use_semantic_high_band_loot(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    for family in ("credential-path", "deployment-path", "compute-control", "escalation-path"):
+        family_dir = tmp_path / family
+        result = runner.invoke(
+            app,
+            ["--outdir", str(family_dir), "--output", "json", "chains", family],
+            env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+        )
+
+        assert result.exit_code == 0
+        json_payload = json.loads(result.stdout)
+        loot_payload = json.loads((family_dir / "loot" / "chains.json").read_text(encoding="utf-8"))
+        high_priority_rows = [
+            row for row in json_payload["paths"] if str(row.get("priority") or "").lower() == "high"
+        ]
+
+        assert loot_payload["family"] == family
+        assert high_priority_rows
+        assert loot_payload["paths"] == high_priority_rows[:10]
+        assert {row["priority"] for row in loot_payload["paths"]} == {"high"}
+        assert loot_payload["loot_scope"] == {
+            "selection": "semantic-high-priority",
+            "priority_band": "high",
+            "source_count": len(json_payload["paths"]),
+            "returned_count": len(high_priority_rows[:10]),
+            **({"limit": 10} if len(high_priority_rows) > 10 else {}),
+        }
 
 
 def test_cli_smoke_devops_accepts_organization_after_command(tmp_path: Path) -> None:
