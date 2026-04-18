@@ -491,6 +491,120 @@ def test_cli_smoke_chains_live_only_bypasses_matching_source_artifacts(
     assert {item["scope"] for item in payload["issues"]} == set(commands)
 
 
+def test_cli_smoke_chains_compute_control_reuses_matching_source_artifacts_by_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+    commands = [
+        "tokens-credentials",
+        "env-vars",
+        "workloads",
+        "managed-identities",
+        "permissions",
+    ]
+    _seed_command_json_artifacts(tmp_path, fixture_dir, commands)
+    _patch_failing_collectors(monkeypatch, set(commands))
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "json", "chains", "compute-control"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["family"] == "compute-control"
+    assert payload["input_mode"] == "artifacts"
+    assert payload["reused_sources"] == commands
+    assert payload["live_sources"] == []
+    assert [item["command"] for item in payload["source_artifacts"]] == commands
+    assert len(payload["paths"]) == 6
+    assert (tmp_path / "json" / "chains.json").exists()
+
+
+def test_cli_smoke_chains_compute_control_live_only_bypasses_cached_artifacts(
+    tmp_path: Path,
+) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+    commands = [
+        "tokens-credentials",
+        "env-vars",
+        "workloads",
+        "managed-identities",
+        "permissions",
+    ]
+    _seed_command_json_artifacts(tmp_path, fixture_dir, commands)
+
+    result = runner.invoke(
+        app,
+        [
+            "--outdir",
+            str(tmp_path),
+            "--output",
+            "json",
+            "chains",
+            "--live-only",
+            "compute-control",
+        ],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["family"] == "compute-control"
+    assert payload["input_mode"] == "live"
+    assert payload["reused_sources"] == []
+    assert payload["live_sources"] == commands
+    assert payload["source_artifacts"] == []
+    assert len(payload["paths"]) == 6
+
+
+def test_cli_smoke_chains_compute_control_falls_back_live_on_artifact_mismatch(
+    tmp_path: Path,
+) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+    commands = [
+        "tokens-credentials",
+        "env-vars",
+        "workloads",
+        "managed-identities",
+        "permissions",
+    ]
+    _seed_command_json_artifacts(tmp_path, fixture_dir, commands)
+
+    workloads_path = tmp_path / "json" / "workloads.json"
+    workloads_payload = _read_fixture_json(workloads_path)
+    workloads_payload["metadata"]["schema_version"] = "0.0.0"
+    _write_fixture_json(workloads_path, workloads_payload)
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "json", "chains", "compute-control"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["family"] == "compute-control"
+    assert payload["input_mode"] == "mixed"
+    assert payload["reused_sources"] == [
+        "tokens-credentials",
+        "env-vars",
+        "managed-identities",
+        "permissions",
+    ]
+    assert payload["live_sources"] == ["workloads"]
+    assert len(payload["paths"]) == 6
+    skipped_issue = next(
+        item
+        for item in payload["issues"]
+        if item["scope"] == "workloads" and item["kind"] == "artifact_reuse_skipped"
+    )
+    assert "schema_version mismatch" in skipped_issue["message"]
+    assert any(issue["scope"] == "workloads" for issue in payload["issues"])
+
+
 def test_cli_smoke_chains_falls_back_live_when_source_artifact_mismatches(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

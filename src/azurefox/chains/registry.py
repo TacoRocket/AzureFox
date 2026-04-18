@@ -13,11 +13,13 @@ from azurefox.models.commands import (
     EnvVarsOutput,
     FunctionsOutput,
     KeyVaultOutput,
+    ManagedIdentitiesOutput,
     PermissionsOutput,
     RbacOutput,
     RoleTrustsOutput,
     StorageOutput,
     TokensCredentialsOutput,
+    WorkloadsOutput,
 )
 
 GROUPED_COMMAND_NAME = "chains"
@@ -63,6 +65,8 @@ _CHAIN_SOURCE_MODELS = {
     "aks": AksOutput,
     "env-vars": EnvVarsOutput,
     "tokens-credentials": TokensCredentialsOutput,
+    "workloads": WorkloadsOutput,
+    "managed-identities": ManagedIdentitiesOutput,
     "databases": DatabasesOutput,
     "storage": StorageOutput,
 }
@@ -561,6 +565,8 @@ def empty_chain_source_fields(
         "aks": {"aks_clusters": [], "issues": [issue]},
         "env-vars": {"env_vars": [], "issues": [issue]},
         "tokens-credentials": {"surfaces": [], "issues": [issue]},
+        "workloads": {"workloads": [], "issues": [issue]},
+        "managed-identities": {"identities": [], "role_assignments": [], "issues": [issue]},
         "databases": {"database_servers": [], "issues": [issue]},
         "storage": {"storage_assets": [], "issues": [issue]},
     }
