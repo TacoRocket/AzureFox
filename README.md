@@ -1,7 +1,7 @@
 # AzureFox
 
 <p align="center">
-  <img src="docs/branding/azurefox-logo.png" alt="AzureFox logo" height="240" />
+  <img src="docs/branding/azurefox-logo.png" alt="AzureFox logo" height="280" />
 </p>
 
 Find attack paths, pivot opportunities, and movement across Azure before you drown in inventory.
