@@ -3881,9 +3881,11 @@ def test_permissions_current_identity_uses_assignment_scopes_not_whoami_scope() 
     }
     provider.managed_identities = lambda: {"identities": [], "issues": []}
 
+    principals = AzureProvider.principals(provider)
     permissions = AzureProvider.permissions(provider)
     current_row = permissions["permissions"][0]
 
+    assert "assignment_scope_ids" not in principals["principals"][0]
     assert current_row["is_current_identity"] is True
     assert current_row["role_assignment_count"] == 1
     assert current_row["scope_count"] == 1

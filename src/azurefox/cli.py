@@ -277,11 +277,18 @@ def vmss(ctx: typer.Context) -> None:
 @app.command("chains")
 def chains(
     ctx: typer.Context,
+    live_only: bool = typer.Option(
+        False,
+        "--live-only",
+        help="Collect grouped chain sources live only and skip local artifact reuse.",
+    ),
     family: str | None = typer.Argument(
         None, help="Chain family name, or 'help' to list the available chain families."
     ),
 ) -> None:
     options: GlobalOptions = ctx.obj
+    if live_only:
+        options = replace(options, live_only=True)
     if family in {None, "help"}:
         try:
             if options.output != OutputMode.JSON:

@@ -142,54 +142,48 @@ class GraphClient:
         self,
         requests: list[GraphBatchRequest],
     ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, AzureFoxError]]:
-        pending = list(requests)
         partial: dict[str, list[dict[str, Any]]] = {}
-        results: dict[str, list[dict[str, Any]]] = {}
-        errors: dict[str, AzureFoxError] = {}
 
-        while pending:
-            chunk = pending[:GRAPH_BATCH_MAX_REQUESTS]
-            pending = pending[GRAPH_BATCH_MAX_REQUESTS:]
+        def _consume_list_body(
+            request: GraphBatchRequest,
+            body: dict[str, Any],
+        ) -> tuple[bool, list[dict[str, Any]] | None]:
+            values = body.get("value", [])
+            if isinstance(values, list):
+                partial.setdefault(request.key, []).extend(
+                    item for item in values if isinstance(item, dict)
+                )
 
-            bodies, body_errors = self._batch_execute(chunk)
-            for request in chunk:
-                if request.key in body_errors:
-                    errors[request.key] = body_errors[request.key]
-                    partial.pop(request.key, None)
-                    continue
+            next_url = body.get("@odata.nextLink")
+            if isinstance(next_url, str) and next_url:
+                return False, None
 
-                body = bodies.get(request.key)
-                if body is None:
-                    errors[request.key] = AzureFoxError(
-                        ErrorKind.UNKNOWN,
-                        f"Graph batch request missing response for {request.path}",
-                    )
-                    partial.pop(request.key, None)
-                    continue
+            final_items = list(partial.get(request.key, []))
+            partial.pop(request.key, None)
+            return True, final_items
 
-                values = body.get("value", [])
-                if isinstance(values, list):
-                    partial.setdefault(request.key, []).extend(
-                        item for item in values if isinstance(item, dict)
-                    )
-
-                next_url = body.get("@odata.nextLink")
-                if isinstance(next_url, str) and next_url:
-                    pending.append(GraphBatchRequest(key=request.key, path=next_url))
-                    continue
-
-                results[request.key] = list(partial.get(request.key, []))
-                partial.pop(request.key, None)
-
-        return results, errors
+        return self._batch_collect_by_key(requests, _consume_list_body)
 
     def batch_get_objects_by_key(
         self,
         requests: list[GraphBatchRequest],
     ) -> tuple[dict[str, dict[str, Any]], dict[str, AzureFoxError]]:
-        results: dict[str, dict[str, Any]] = {}
-        errors: dict[str, AzureFoxError] = {}
+        def _consume_get_body(
+            _request: GraphBatchRequest,
+            body: dict[str, Any],
+        ) -> tuple[bool, dict[str, Any] | None]:
+            return True, body
+
+        return self._batch_collect_by_key(requests, _consume_get_body)
+
+    def _batch_collect_by_key(
+        self,
+        requests: list[GraphBatchRequest],
+        consume_body,
+    ) -> tuple[dict[str, Any], dict[str, AzureFoxError]]:
         pending = list(requests)
+        results: dict[str, Any] = {}
+        errors: dict[str, AzureFoxError] = {}
 
         while pending:
             chunk = pending[:GRAPH_BATCH_MAX_REQUESTS]
@@ -209,7 +203,16 @@ class GraphClient:
                     )
                     continue
 
-                results[request.key] = body
+                completed, final_value = consume_body(request, body)
+                if not completed:
+                    pending.append(
+                        GraphBatchRequest(
+                            key=request.key,
+                            path=str(body["@odata.nextLink"]),
+                        )
+                    )
+                    continue
+                results[request.key] = final_value
 
         return results, errors
 
@@ -369,11 +372,22 @@ def _graph_batch_request_error(
     if message:
         pieces.append(message)
     formatted = " ".join(pieces)
+    kind = _graph_batch_error_kind(status=status, code=code, message=message)
     return AzureFoxError(
-        classify_exception(Exception(formatted)),
+        kind,
         formatted,
         details={"body": json.dumps(body)[:500]},
     )
+
+
+def _graph_batch_error_kind(*, status: int, code: str, message: str) -> ErrorKind:
+    if status == 401:
+        return ErrorKind.AUTH_FAILURE
+    if status == 403:
+        return ErrorKind.PERMISSION_DENIED
+    if status == 429:
+        return ErrorKind.THROTTLING
+    return classify_exception(Exception(" ".join(part for part in (code, message) if part)))
 
 
 def _graph_ssl_context() -> ssl.SSLContext:

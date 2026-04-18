@@ -31,6 +31,43 @@ def _write_fixture_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
+def _seed_command_json_artifacts(tmp_path: Path, fixture_dir: Path, commands: list[str]) -> None:
+    for command in commands:
+        argv = ["--outdir", str(tmp_path), "--output", "json", command]
+        if command == "role-trusts":
+            argv.append("--mode")
+            argv.append("fast")
+        result = runner.invoke(
+            app,
+            argv,
+            env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+        )
+        assert result.exit_code == 0, result.stdout
+
+
+def _patch_failing_collectors(
+    monkeypatch: pytest.MonkeyPatch,
+    failing_commands: set[str],
+) -> None:
+    def _collector_for(command: str):
+        def _failing_collector(_provider, _options):
+            raise AzureFoxError(
+                kind=ErrorKind.PERMISSION_DENIED,
+                message="collector should not have run",
+                command=command,
+            )
+
+        return _failing_collector
+
+    patched_specs = tuple(
+        CommandSpec(spec.name, spec.section, _collector_for(spec.name))
+        if spec.name in failing_commands
+        else spec
+        for spec in get_command_specs()
+    )
+    monkeypatch.setattr("azurefox.chains.runner.get_command_specs", lambda: patched_specs)
+
+
 def _contributor_app_permission_trust() -> dict:
     return {
         "trust_type": "app-to-service-principal",
@@ -350,7 +387,15 @@ def test_cli_smoke_chains_credential_path_json(tmp_path: Path) -> None:
     assert payload["command_state"] == "extraction-only"
     assert payload["claim_boundary"].startswith("Can claim that the visible evidence suggests")
     assert payload["current_gap"].startswith("The live family now joins backing evidence")
-    assert payload["artifact_preference_order"] == []
+    assert payload["artifact_preference_order"] == ["json"]
+    assert payload["reused_sources"] == []
+    assert payload["live_sources"] == [
+        "env-vars",
+        "tokens-credentials",
+        "databases",
+        "storage",
+        "keyvault",
+    ]
     assert payload["source_artifacts"] == []
     assert payload["backing_commands"] == [
         "env-vars",
@@ -385,6 +430,147 @@ def test_cli_smoke_chains_credential_path_json(tmp_path: Path) -> None:
         for item in payload["paths"]
         if item["target_service"] in {"database", "storage"}
     } == {"narrowed candidates"}
+
+
+def test_cli_smoke_chains_reuses_matching_source_artifacts_by_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+    commands = ["env-vars", "tokens-credentials", "databases", "storage", "keyvault"]
+    _seed_command_json_artifacts(tmp_path, fixture_dir, commands)
+    _patch_failing_collectors(monkeypatch, set(commands))
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "json", "chains", "credential-path"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["family"] == "credential-path"
+    assert payload["input_mode"] == "artifacts"
+    assert payload["reused_sources"] == commands
+    assert payload["live_sources"] == []
+    assert [item["command"] for item in payload["source_artifacts"]] == commands
+    assert len(payload["paths"]) == 3
+    assert payload["issues"] == []
+
+
+def test_cli_smoke_chains_live_only_bypasses_matching_source_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+    commands = ["env-vars", "tokens-credentials", "databases", "storage", "keyvault"]
+    _seed_command_json_artifacts(tmp_path, fixture_dir, commands)
+    _patch_failing_collectors(monkeypatch, set(commands))
+
+    result = runner.invoke(
+        app,
+        [
+            "--outdir",
+            str(tmp_path),
+            "--output",
+            "json",
+            "chains",
+            "--live-only",
+            "credential-path",
+        ],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["family"] == "credential-path"
+    assert payload["input_mode"] == "live"
+    assert payload["reused_sources"] == []
+    assert payload["source_artifacts"] == []
+    assert payload["paths"] == []
+    assert {item["scope"] for item in payload["issues"]} == set(commands)
+
+
+def test_cli_smoke_chains_falls_back_live_when_source_artifact_mismatches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+    commands = ["env-vars", "tokens-credentials", "databases", "storage", "keyvault"]
+    _seed_command_json_artifacts(tmp_path, fixture_dir, commands)
+
+    storage_path = tmp_path / "json" / "storage.json"
+    storage_payload = _read_fixture_json(storage_path)
+    storage_payload["metadata"]["schema_version"] = "0.0.0"
+    _write_fixture_json(storage_path, storage_payload)
+
+    _patch_failing_collectors(monkeypatch, {"storage"})
+
+    result = runner.invoke(
+        app,
+        [
+            "--outdir",
+            str(tmp_path),
+            "--output",
+            "json",
+            "chains",
+            "credential-path",
+        ],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["family"] == "credential-path"
+    assert payload["input_mode"] == "mixed"
+    assert payload["reused_sources"] == [
+        "env-vars",
+        "tokens-credentials",
+        "databases",
+        "keyvault",
+    ]
+    assert payload["live_sources"] == ["storage"]
+    assert [item["command"] for item in payload["source_artifacts"]] == [
+        "env-vars",
+        "tokens-credentials",
+        "databases",
+        "keyvault",
+    ]
+    skipped_issue = next(
+        item
+        for item in payload["issues"]
+        if item["scope"] == "storage" and item["kind"] == "artifact_reuse_skipped"
+    )
+    assert "schema_version mismatch" in skipped_issue["message"]
+    assert any(issue["scope"] == "storage" for issue in payload["issues"])
+
+
+def test_cli_smoke_chains_reports_invalid_artifact_reuse_rejection_reason(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+    commands = ["env-vars", "tokens-credentials", "databases", "storage", "keyvault"]
+    _seed_command_json_artifacts(tmp_path, fixture_dir, commands)
+
+    storage_path = tmp_path / "json" / "storage.json"
+    storage_path.write_text("{not valid json", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "json", "chains", "credential-path"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["family"] == "credential-path"
+    assert payload["input_mode"] == "mixed"
+    skipped_issue = next(
+        item
+        for item in payload["issues"]
+        if item["scope"] == "storage" and item["kind"] == "artifact_reuse_skipped"
+    )
+    assert "invalid json artifact" in skipped_issue["message"].lower()
+    assert skipped_issue["context"]["artifact_type"] == "json"
+    assert skipped_issue["context"]["reason"] == "invalid_json"
 
 
 def test_cli_smoke_chains_credential_path_table_output(tmp_path: Path) -> None:
@@ -470,7 +656,20 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
     assert payload["metadata"]["command"] == "chains"
     assert payload["family"] == "deployment-path"
     assert payload["command_state"] == "extraction-only"
-    assert payload["artifact_preference_order"] == []
+    assert payload["artifact_preference_order"] == ["json"]
+    assert payload["reused_sources"] == []
+    assert payload["live_sources"] == [
+        "devops",
+        "automation",
+        "permissions",
+        "rbac",
+        "role-trusts",
+        "keyvault",
+        "arm-deployments",
+        "aks",
+        "functions",
+        "app-services",
+    ]
     assert payload["source_artifacts"] == []
     assert payload["backing_commands"] == [
         "devops",
@@ -608,7 +807,15 @@ def test_cli_smoke_chains_compute_control_json(tmp_path: Path) -> None:
     assert payload["metadata"]["command"] == "chains"
     assert payload["family"] == "compute-control"
     assert payload["command_state"] == "extraction-only"
-    assert payload["artifact_preference_order"] == []
+    assert payload["artifact_preference_order"] == ["json"]
+    assert payload["reused_sources"] == []
+    assert payload["live_sources"] == [
+        "tokens-credentials",
+        "env-vars",
+        "workloads",
+        "managed-identities",
+        "permissions",
+    ]
     assert payload["source_artifacts"] == []
     assert payload["backing_commands"] == [
         "tokens-credentials",
@@ -759,7 +966,9 @@ def test_cli_smoke_chains_escalation_path_json(tmp_path: Path) -> None:
     assert payload["metadata"]["command"] == "chains"
     assert payload["family"] == "escalation-path"
     assert payload["command_state"] == "extraction-only"
-    assert payload["artifact_preference_order"] == []
+    assert payload["artifact_preference_order"] == ["json"]
+    assert payload["reused_sources"] == []
+    assert payload["live_sources"] == ["permissions", "role-trusts"]
     assert payload["source_artifacts"] == []
     assert payload["backing_commands"] == [
         "permissions",

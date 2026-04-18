@@ -11,6 +11,8 @@
     "current_gap",
     "artifact_preference_order",
     "backing_commands",
+    "reused_sources",
+    "live_sources",
     "source_artifacts",
     "paths",
     "issues"

@@ -1858,102 +1858,32 @@ class AzureProvider(BaseProvider):
         rbac_data = self.rbac()
         whoami_data = self.whoami()
         identity_data = self.managed_identities()
-
-        records: dict[str, dict] = {}
-        issues = [
-            *rbac_data.get("issues", []),
-            *whoami_data.get("issues", []),
-            *identity_data.get("issues", []),
-        ]
-
-        def ensure_record(principal_id: str) -> dict:
-            if principal_id not in records:
-                records[principal_id] = {
-                    "id": principal_id,
-                    "principal_type": "unknown",
-                    "display_name": None,
-                    "tenant_id": None,
-                    "sources": [],
-                    "scope_ids": [],
-                    "assignment_scope_ids": [],
-                    "role_names": [],
-                    "role_assignment_count": 0,
-                    "identity_names": [],
-                    "identity_types": [],
-                    "attached_to": [],
-                    "is_current_identity": False,
-                }
-            return records[principal_id]
-
-        for principal in rbac_data.get("principals", []):
-            principal_id = principal.get("id")
-            if not principal_id:
-                continue
-            record = ensure_record(principal_id)
-            _merge_principal_attributes(record, principal)
-            _append_unique(record["sources"], "rbac")
-
-        for assignment in rbac_data.get("role_assignments", []):
-            principal_id = assignment.get("principal_id")
-            if not principal_id:
-                continue
-            record = ensure_record(principal_id)
-            role_name = assignment.get("role_name")
-            scope_id = assignment.get("scope_id")
-            if role_name:
-                _append_unique(record["role_names"], role_name)
-            if scope_id:
-                _append_unique(record["scope_ids"], scope_id)
-                _append_unique(record["assignment_scope_ids"], scope_id)
-            record["role_assignment_count"] += 1
-            principal_type = assignment.get("principal_type")
-            if principal_type:
-                record["principal_type"] = _normalize_principal_type(
-                    record["principal_type"],
-                    principal_type,
-                )
-            _append_unique(record["sources"], "rbac")
-
-        principal = whoami_data.get("principal")
-        if principal and principal.get("id"):
-            record = ensure_record(principal["id"])
-            _merge_principal_attributes(record, principal)
-            record["is_current_identity"] = True
-            for scope in whoami_data.get("effective_scopes", []):
-                scope_id = scope.get("id")
-                if scope_id:
-                    _append_unique(record["scope_ids"], scope_id)
-            _append_unique(record["sources"], "whoami")
-
-        for identity in identity_data.get("identities", []):
-            principal_id = identity.get("principal_id")
-            if not principal_id:
-                continue
-            record = ensure_record(principal_id)
-            if record["principal_type"] == "unknown":
-                record["principal_type"] = "ServicePrincipal"
-            _append_unique(record["identity_names"], identity.get("name"))
-            _append_unique(record["identity_types"], identity.get("identity_type"))
-            for scope_id in identity.get("scope_ids", []):
-                _append_unique(record["scope_ids"], scope_id)
-            for attachment in identity.get("attached_to", []):
-                _append_unique(record["attached_to"], attachment)
-            _append_unique(record["sources"], "managed-identities")
-
-        principals = sorted(
-            records.values(),
-            key=_principal_sort_key,
+        principals, issues, _assignment_scope_ids_by_principal = _principal_records_from_sources(
+            rbac_data=rbac_data,
+            whoami_data=whoami_data,
+            identity_data=identity_data,
         )
         return {"principals": principals, "issues": issues}
 
     def permissions(self) -> dict:
-        principal_data = self.principals()
+        rbac_data = self.rbac()
+        whoami_data = self.whoami()
+        identity_data = self.managed_identities()
+        principals, issues, assignment_scope_ids_by_principal = _principal_records_from_sources(
+            rbac_data=rbac_data,
+            whoami_data=whoami_data,
+            identity_data=identity_data,
+        )
         permission_rows: list[dict] = []
 
-        for principal in principal_data.get("principals", []):
+        for principal in principals:
             role_names = sorted(set(principal.get("role_names", [])))
+            principal_id = str(principal.get("id") or "")
             scope_ids = sorted(
-                set(principal.get("assignment_scope_ids") or principal.get("scope_ids", []))
+                set(
+                    assignment_scope_ids_by_principal.get(principal_id)
+                    or principal.get("scope_ids", [])
+                )
             )
             high_impact_roles = sorted(
                 {
@@ -1986,7 +1916,7 @@ class AzureProvider(BaseProvider):
                 item["principal_id"] or "",
             )
         )
-        return {"permissions": permission_rows, "issues": principal_data.get("issues", [])}
+        return {"permissions": permission_rows, "issues": issues}
 
     def privesc(self) -> dict:
         permissions_data = self.permissions()
@@ -4458,6 +4388,98 @@ def _append_unique(items: list[str], value: str | None) -> None:
         items.append(value)
 
 
+def _principal_records_from_sources(
+    *,
+    rbac_data: dict,
+    whoami_data: dict,
+    identity_data: dict,
+) -> tuple[list[dict], list[dict], dict[str, list[str]]]:
+    records: dict[str, dict] = {}
+    assignment_scope_ids_by_principal: dict[str, list[str]] = {}
+    issues = [
+        *rbac_data.get("issues", []),
+        *whoami_data.get("issues", []),
+        *identity_data.get("issues", []),
+    ]
+
+    def ensure_record(principal_id: str) -> dict:
+        if principal_id not in records:
+            records[principal_id] = {
+                "id": principal_id,
+                "principal_type": "unknown",
+                "display_name": None,
+                "tenant_id": None,
+                "sources": [],
+                "scope_ids": [],
+                "role_names": [],
+                "role_assignment_count": 0,
+                "identity_names": [],
+                "identity_types": [],
+                "attached_to": [],
+                "is_current_identity": False,
+            }
+        return records[principal_id]
+
+    for principal in rbac_data.get("principals", []):
+        principal_id = principal.get("id")
+        if not principal_id:
+            continue
+        record = ensure_record(principal_id)
+        _merge_principal_attributes(record, principal)
+        _append_unique(record["sources"], "rbac")
+
+    for assignment in rbac_data.get("role_assignments", []):
+        principal_id = assignment.get("principal_id")
+        if not principal_id:
+            continue
+        record = ensure_record(principal_id)
+        role_name = assignment.get("role_name")
+        scope_id = assignment.get("scope_id")
+        if role_name:
+            _append_unique(record["role_names"], role_name)
+        if scope_id:
+            _append_unique(record["scope_ids"], scope_id)
+            assignment_scope_ids_by_principal.setdefault(principal_id, [])
+            _append_unique(assignment_scope_ids_by_principal[principal_id], scope_id)
+        record["role_assignment_count"] += 1
+        principal_type = assignment.get("principal_type")
+        if principal_type:
+            record["principal_type"] = _normalize_principal_type(
+                record["principal_type"],
+                principal_type,
+            )
+        _append_unique(record["sources"], "rbac")
+
+    principal = whoami_data.get("principal")
+    if principal and principal.get("id"):
+        record = ensure_record(principal["id"])
+        _merge_principal_attributes(record, principal)
+        record["is_current_identity"] = True
+        for scope in whoami_data.get("effective_scopes", []):
+            scope_id = scope.get("id")
+            if scope_id:
+                _append_unique(record["scope_ids"], scope_id)
+        _append_unique(record["sources"], "whoami")
+
+    for identity in identity_data.get("identities", []):
+        principal_id = identity.get("principal_id")
+        if not principal_id:
+            continue
+        record = ensure_record(principal_id)
+        if record["principal_type"] == "unknown":
+            record["principal_type"] = "ServicePrincipal"
+        _append_unique(record["identity_names"], identity.get("name"))
+        _append_unique(record["identity_types"], identity.get("identity_type"))
+        for scope_id in identity.get("scope_ids", []):
+            _append_unique(record["scope_ids"], scope_id)
+        for attachment in identity.get("attached_to", []):
+            _append_unique(record["attached_to"], attachment)
+        _append_unique(record["sources"], "managed-identities")
+
+    principals = sorted(records.values(), key=_principal_sort_key)
+    return principals, issues, assignment_scope_ids_by_principal
+
+
 def _normalize_principal_type(existing: str | None, candidate: str | None) -> str:
     normalized_existing = existing or "unknown"
     if not candidate:
@@ -4509,21 +4531,12 @@ def _graph_batch_list_with_fallback(
     requests: list[GraphBatchRequest],
     serial_fetch,
 ) -> tuple[dict[str, list[dict]], dict[str, Exception]]:
-    if not requests:
-        return {}, {}
-
-    batch_fetch = getattr(graph, "batch_list_objects_by_key", None)
-    if callable(batch_fetch):
-        return batch_fetch(requests)
-
-    results: dict[str, list[dict]] = {}
-    errors: dict[str, Exception] = {}
-    for request in requests:
-        try:
-            results[request.key] = serial_fetch(request)
-        except Exception as exc:
-            errors[request.key] = exc
-    return results, errors
+    return _graph_batch_with_fallback(
+        graph=graph,
+        requests=requests,
+        batch_method_name="batch_list_objects_by_key",
+        serial_fetch=serial_fetch,
+    )
 
 
 def _graph_batch_get_with_fallback(
@@ -4531,14 +4544,29 @@ def _graph_batch_get_with_fallback(
     requests: list[GraphBatchRequest],
     serial_fetch,
 ) -> tuple[dict[str, dict], dict[str, Exception]]:
+    return _graph_batch_with_fallback(
+        graph=graph,
+        requests=requests,
+        batch_method_name="batch_get_objects_by_key",
+        serial_fetch=serial_fetch,
+    )
+
+
+def _graph_batch_with_fallback(
+    *,
+    graph: object,
+    requests: list[GraphBatchRequest],
+    batch_method_name: str,
+    serial_fetch,
+) -> tuple[dict, dict[str, Exception]]:
     if not requests:
         return {}, {}
 
-    batch_fetch = getattr(graph, "batch_get_objects_by_key", None)
+    batch_fetch = getattr(graph, batch_method_name, None)
     if callable(batch_fetch):
         return batch_fetch(requests)
 
-    results: dict[str, dict] = {}
+    results: dict = {}
     errors: dict[str, Exception] = {}
     for request in requests:
         try:

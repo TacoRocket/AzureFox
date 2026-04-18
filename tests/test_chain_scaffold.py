@@ -53,8 +53,8 @@ COMMAND_MODEL_FIELDS = {
 
 def test_chain_registry_uses_expected_grouped_command_shape() -> None:
     assert GROUPED_COMMAND_NAME == "chains"
-    assert GROUPED_COMMAND_INPUT_MODES == ("live", "artifacts")
-    assert PREFERRED_ARTIFACT_ORDER == ("loot", "json")
+    assert GROUPED_COMMAND_INPUT_MODES == ("live", "artifacts", "mixed")
+    assert PREFERRED_ARTIFACT_ORDER == ("json",)
 
 
 def test_chain_registry_keeps_first_family_order() -> None:
