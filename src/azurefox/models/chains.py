@@ -91,6 +91,8 @@ class ChainsOutput(BaseModel):
     current_gap: str | None = None
     artifact_preference_order: list[str] = Field(default_factory=list)
     backing_commands: list[str] = Field(default_factory=list)
+    reused_sources: list[str] = Field(default_factory=list)
+    live_sources: list[str] = Field(default_factory=list)
     source_artifacts: list[ChainSourceArtifact] = Field(default_factory=list)
     paths: list[ChainPathRecord] = Field(default_factory=list)
     issues: list[CollectionIssue] = Field(default_factory=list)

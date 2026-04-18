@@ -13,6 +13,7 @@ class GlobalOptions:
     output: OutputMode
     outdir: Path
     debug: bool
+    live_only: bool = False
     devops_organization: str | None = None
     role_trusts_mode: RoleTrustsMode = RoleTrustsMode.FAST
 

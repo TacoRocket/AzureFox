@@ -2,9 +2,27 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from azurefox.config import GlobalOptions
+from azurefox.models.commands import (
+    AksOutput,
+    AppServicesOutput,
+    ArmDeploymentsOutput,
+    AutomationOutput,
+    DatabasesOutput,
+    DevopsOutput,
+    EnvVarsOutput,
+    FunctionsOutput,
+    KeyVaultOutput,
+    PermissionsOutput,
+    RbacOutput,
+    RoleTrustsOutput,
+    StorageOutput,
+    TokensCredentialsOutput,
+)
+
 GROUPED_COMMAND_NAME = "chains"
-GROUPED_COMMAND_INPUT_MODES = ("live", "artifacts")
-PREFERRED_ARTIFACT_ORDER = ("loot", "json")
+GROUPED_COMMAND_INPUT_MODES = ("live", "artifacts", "mixed")
+PREFERRED_ARTIFACT_ORDER = ("json",)
 SEMANTIC_LOOT_CHAIN_FAMILIES = (
     "credential-path",
     "deployment-path",
@@ -30,6 +48,24 @@ class ChainFamilySpec:
     current_gap: str
     best_current_examples: tuple[str, ...]
     source_commands: tuple[ChainSourceSpec, ...]
+
+
+_CHAIN_SOURCE_MODELS = {
+    "devops": DevopsOutput,
+    "automation": AutomationOutput,
+    "permissions": PermissionsOutput,
+    "rbac": RbacOutput,
+    "role-trusts": RoleTrustsOutput,
+    "keyvault": KeyVaultOutput,
+    "arm-deployments": ArmDeploymentsOutput,
+    "app-services": AppServicesOutput,
+    "functions": FunctionsOutput,
+    "aks": AksOutput,
+    "env-vars": EnvVarsOutput,
+    "tokens-credentials": TokensCredentialsOutput,
+    "databases": DatabasesOutput,
+    "storage": StorageOutput,
+}
 
 
 CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
@@ -498,3 +534,37 @@ def get_chain_family_spec(name: str) -> ChainFamilySpec | None:
         if spec.name == name:
             return spec
     return None
+
+
+def chain_source_model(command: str):
+    try:
+        return _CHAIN_SOURCE_MODELS[command]
+    except KeyError as exc:
+        raise ValueError(f"Missing empty grouped-source model for '{command}'") from exc
+
+
+def empty_chain_source_fields(
+    command: str,
+    issue: dict[str, object],
+    options: GlobalOptions,
+) -> dict[str, object]:
+    fields_by_command: dict[str, dict[str, object]] = {
+        "devops": {"pipelines": [], "issues": [issue]},
+        "automation": {"automation_accounts": [], "issues": [issue]},
+        "permissions": {"permissions": [], "issues": [issue]},
+        "rbac": {"principals": [], "scopes": [], "role_assignments": [], "issues": [issue]},
+        "role-trusts": {"mode": options.role_trusts_mode, "trusts": [], "issues": [issue]},
+        "keyvault": {"key_vaults": [], "issues": [issue]},
+        "arm-deployments": {"deployments": [], "issues": [issue]},
+        "app-services": {"app_services": [], "issues": [issue]},
+        "functions": {"function_apps": [], "issues": [issue]},
+        "aks": {"aks_clusters": [], "issues": [issue]},
+        "env-vars": {"env_vars": [], "issues": [issue]},
+        "tokens-credentials": {"surfaces": [], "issues": [issue]},
+        "databases": {"database_servers": [], "issues": [issue]},
+        "storage": {"storage_assets": [], "issues": [issue]},
+    }
+    try:
+        return fields_by_command[command]
+    except KeyError as exc:
+        raise ValueError(f"Missing empty grouped-source shape for '{command}'") from exc

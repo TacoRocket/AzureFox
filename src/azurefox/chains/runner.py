@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import re
 from collections import defaultdict
-from dataclasses import replace
+from dataclasses import dataclass, replace
+from pathlib import Path
 
 from azurefox.chains.compute_control import collect_compute_control_records
 from azurefox.chains.credential_path import collect_credential_path_records
@@ -14,7 +16,10 @@ from azurefox.chains.deployment_path import (
 )
 from azurefox.chains.registry import (
     GROUPED_COMMAND_NAME,
+    PREFERRED_ARTIFACT_ORDER,
     ChainFamilySpec,
+    chain_source_model,
+    empty_chain_source_fields,
     get_chain_family_spec,
     implemented_chain_family_names,
     is_implemented_chain_family,
@@ -34,26 +39,16 @@ from azurefox.escalation_hints import (
 )
 from azurefox.models.chains import (
     ChainPathRecord,
+    ChainSourceArtifact,
     ChainsOutput,
 )
-from azurefox.models.commands import (
-    AksOutput,
-    AppServicesOutput,
-    ArmDeploymentsOutput,
-    AutomationOutput,
-    ChainsCommandOutput,
-    DatabasesOutput,
-    DevopsOutput,
-    EnvVarsOutput,
-    FunctionsOutput,
-    KeyVaultOutput,
-    PermissionsOutput,
-    RbacOutput,
-    RoleTrustsOutput,
-    StorageOutput,
-    TokensCredentialsOutput,
+from azurefox.models.commands import ChainsCommandOutput
+from azurefox.models.common import (
+    SCHEMA_VERSION,
+    ArmDeploymentSummary,
+    CollectionIssue,
+    CommandMetadata,
 )
-from azurefox.models.common import ArmDeploymentSummary, CollectionIssue, CommandMetadata
 from azurefox.registry import get_command_specs
 from azurefox.scope_hints import permission_scope_description, permission_scope_phrase
 from azurefox.target_matching import (
@@ -140,6 +135,41 @@ _AUTOMATION_NAME_TOKEN_STOPWORDS = {
 }
 
 
+@dataclass(slots=True)
+class ChainSourceLoadState:
+    command: str
+    output: object
+    mode: str
+    reuse_issue: CollectionIssue | None = None
+    source_artifact: ChainSourceArtifact | None = None
+
+
+@dataclass(slots=True)
+class ChainFamilyLoadResult:
+    outputs: dict[str, object]
+    source_states: list[ChainSourceLoadState]
+
+    @property
+    def reused_sources(self) -> list[str]:
+        return [state.command for state in self.source_states if state.mode == "artifacts"]
+
+    @property
+    def live_sources(self) -> list[str]:
+        return [state.command for state in self.source_states if state.mode == "live"]
+
+    @property
+    def source_artifacts(self) -> list[ChainSourceArtifact]:
+        return [
+            state.source_artifact
+            for state in self.source_states
+            if state.source_artifact is not None
+        ]
+
+    @property
+    def reuse_issues(self) -> list[CollectionIssue]:
+        return [state.reuse_issue for state in self.source_states if state.reuse_issue is not None]
+
+
 def implemented_chain_families() -> tuple[str, ...]:
     return implemented_chain_family_names()
 
@@ -155,15 +185,15 @@ def run_chain_family(
     if not is_implemented_chain_family(family_name):
         raise ValueError(f"Chain family '{family_name}' is not implemented yet")
 
-    loaded = _collect_family_outputs(provider, options, family_name)
+    load_result = _collect_family_outputs(provider, options, family_name)
     if family_name == "credential-path":
-        return _build_credential_path_output(provider, options, family_name, loaded)
+        return _build_credential_path_output(provider, options, family_name, load_result)
     if family_name == "deployment-path":
-        return _build_deployment_path_output(options, family_name, loaded)
+        return _build_deployment_path_output(options, family_name, load_result)
     if family_name == "escalation-path":
-        return _build_escalation_path_output(options, family_name, loaded)
+        return _build_escalation_path_output(options, family_name, load_result)
     if family_name == "compute-control":
-        return _build_compute_control_output(options, family_name, loaded)
+        return _build_compute_control_output(options, family_name, load_result)
 
     raise ValueError(f"Unsupported chain family '{family_name}'")
 
@@ -172,27 +202,293 @@ def _collect_family_outputs(
     provider: BaseProvider,
     options: GlobalOptions,
     family_name: str,
-) -> dict[str, object]:
+) -> ChainFamilyLoadResult:
     family = get_chain_family_spec(family_name)
     if family is None:
         raise ValueError(f"Unknown chain family '{family_name}'")
 
     collector_by_name = {spec.name: spec.collector for spec in get_command_specs()}
-    loaded: dict[str, object] = {}
+    outputs: dict[str, object] = {}
+    source_states: list[ChainSourceLoadState] = []
 
     for source in family.source_commands:
+        reused_output, source_artifact, reuse_issue = _load_reusable_chain_source_output(
+            provider,
+            options,
+            source.command,
+        )
+        if reused_output is not None and source_artifact is not None:
+            outputs[source.command] = reused_output
+            source_states.append(
+                ChainSourceLoadState(
+                    command=source.command,
+                    output=reused_output,
+                    mode="artifacts",
+                    reuse_issue=reuse_issue,
+                    source_artifact=source_artifact,
+                )
+            )
+            continue
+
         collector = collector_by_name[source.command]
         try:
-            loaded[source.command] = collector(provider, options)
+            outputs[source.command] = collector(provider, options)
         except Exception as exc:
-            loaded[source.command] = _empty_chain_source_output(
+            outputs[source.command] = _empty_chain_source_output(
                 command=source.command,
                 provider=provider,
                 options=options,
                 exc=exc,
             )
+        source_states.append(
+            ChainSourceLoadState(
+                command=source.command,
+                output=outputs[source.command],
+                mode="live",
+                reuse_issue=reuse_issue,
+            )
+        )
 
-    return loaded
+    return ChainFamilyLoadResult(
+        outputs=outputs,
+        source_states=source_states,
+    )
+
+
+def _load_reusable_chain_source_output(
+    provider: BaseProvider,
+    options: GlobalOptions,
+    command: str,
+) -> tuple[object | None, ChainSourceArtifact | None, CollectionIssue | None]:
+    if options.live_only:
+        return None, None, None
+
+    for artifact_type in PREFERRED_ARTIFACT_ORDER:
+        artifact_path = _chain_source_artifact_path(options, command, artifact_type)
+        if artifact_path is None or not artifact_path.exists():
+            continue
+
+        try:
+            payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+        except OSError as exc:
+            return None, None, _artifact_reuse_issue(
+                command=command,
+                artifact_type=artifact_type,
+                artifact_path=artifact_path,
+                reason="read_error",
+                detail=str(exc),
+            )
+        except json.JSONDecodeError as exc:
+            return None, None, _artifact_reuse_issue(
+                command=command,
+                artifact_type=artifact_type,
+                artifact_path=artifact_path,
+                reason="invalid_json",
+                detail=str(exc),
+            )
+
+        mismatch_reason = _chain_source_artifact_mismatch_reason(
+            payload,
+            provider,
+            options,
+            command,
+        )
+        if mismatch_reason is not None:
+            return None, None, _artifact_reuse_issue(
+                command=command,
+                artifact_type=artifact_type,
+                artifact_path=artifact_path,
+                reason="metadata_mismatch",
+                detail=mismatch_reason,
+            )
+
+        model_class = chain_source_model(command)
+        try:
+            output = model_class.model_validate(payload)
+        except Exception as exc:
+            return None, None, _artifact_reuse_issue(
+                command=command,
+                artifact_type=artifact_type,
+                artifact_path=artifact_path,
+                reason="model_validation_failed",
+                detail=str(exc),
+            )
+
+        return (
+            output,
+            ChainSourceArtifact(
+                command=command,
+                artifact_type=artifact_type,
+                path=str(artifact_path),
+            ),
+            None,
+        )
+
+    return None, None, None
+
+
+def _chain_source_artifact_path(
+    options: GlobalOptions,
+    command: str,
+    artifact_type: str,
+) -> Path | None:
+    directories = {
+        "json": options.json_dir,
+    }
+    directory = directories.get(artifact_type)
+    if directory is None:
+        return None
+    extension = "json" if artifact_type == "json" else artifact_type
+    return directory / f"{command}.{extension}"
+
+
+def _chain_source_artifact_mismatch_reason(
+    payload: dict[str, object],
+    provider: BaseProvider,
+    options: GlobalOptions,
+    command: str,
+) -> str | None:
+    metadata = payload.get("metadata")
+    if not isinstance(metadata, dict):
+        return "metadata is missing or not an object"
+    if metadata.get("command") != command:
+        return f"command mismatch: expected {command}, got {metadata.get('command')}"
+    if metadata.get("schema_version") != SCHEMA_VERSION:
+        return (
+            "schema_version mismatch: "
+            f"expected {SCHEMA_VERSION}, got {metadata.get('schema_version')}"
+        )
+
+    context = provider.metadata_context()
+    current_subscription = options.subscription or context.get("subscription_id")
+    current_tenant = options.tenant or context.get("tenant_id")
+    current_token_source = context.get("token_source")
+    current_auth_mode = context.get("auth_mode")
+
+    mismatch = _metadata_value_mismatch(
+        field_name="subscription_id",
+        artifact_value=metadata.get("subscription_id"),
+        current_value=current_subscription,
+    )
+    if mismatch is not None:
+        return mismatch
+    mismatch = _metadata_value_mismatch(
+        field_name="tenant_id",
+        artifact_value=metadata.get("tenant_id"),
+        current_value=current_tenant,
+    )
+    if mismatch is not None:
+        return mismatch
+    mismatch = _metadata_value_mismatch(
+        field_name="token_source",
+        artifact_value=metadata.get("token_source"),
+        current_value=current_token_source,
+    )
+    if mismatch is not None:
+        return mismatch
+    mismatch = _metadata_value_mismatch(
+        field_name="auth_mode",
+        artifact_value=metadata.get("auth_mode"),
+        current_value=current_auth_mode,
+    )
+    if mismatch is not None:
+        return mismatch
+
+    if command == "devops":
+        mismatch = _metadata_value_mismatch(
+            field_name="devops_organization",
+            artifact_value=metadata.get("devops_organization"),
+            current_value=options.devops_organization,
+        )
+        if mismatch is not None:
+            return mismatch
+
+    if command == "role-trusts" and payload.get("mode") != options.role_trusts_mode:
+        return (
+            "role-trusts mode mismatch: "
+            f"expected {options.role_trusts_mode}, got {payload.get('mode')}"
+        )
+
+    if command == "permissions":
+        current_principal_id = _current_principal_id(provider)
+        if current_principal_id is None:
+            return "current principal id could not be determined"
+        artifact_current_ids = sorted(
+            {
+                str(item.get("principal_id"))
+                for item in payload.get("permissions", [])
+                if isinstance(item, dict)
+                and item.get("is_current_identity")
+                and item.get("principal_id")
+            }
+        )
+        if artifact_current_ids != [current_principal_id]:
+            return (
+                "current principal mismatch: "
+                f"expected [{current_principal_id}], got {artifact_current_ids}"
+            )
+
+    return None
+
+
+def _metadata_value_mismatch(
+    *,
+    field_name: str,
+    artifact_value: object,
+    current_value: str | None,
+) -> str | None:
+    if current_value is None:
+        return None
+    if artifact_value == current_value:
+        return None
+    return f"{field_name} mismatch: expected {current_value}, got {artifact_value}"
+
+
+def _artifact_reuse_issue(
+    *,
+    command: str,
+    artifact_type: str,
+    artifact_path: str,
+    reason: str,
+    detail: str,
+) -> CollectionIssue:
+    reason_labels = {
+        "read_error": "artifact read error",
+        "invalid_json": "invalid JSON artifact",
+        "metadata_mismatch": "artifact metadata mismatch",
+        "model_validation_failed": "artifact model validation failed",
+    }
+    reason_label = reason_labels.get(reason, reason.replace("_", " "))
+    return CollectionIssue(
+        kind="artifact_reuse_skipped",
+        message=(
+            f"Skipped local {artifact_type} artifact reuse for {command}: "
+            f"{reason_label}: {detail}"
+        ),
+        scope=command,
+        context={
+            "collector": command,
+            "artifact_type": artifact_type,
+            "artifact_path": str(artifact_path),
+            "reason": reason,
+        },
+    )
+
+
+def _current_principal_id(provider: BaseProvider) -> str | None:
+    try:
+        whoami = provider.whoami()
+    except Exception:
+        return None
+
+    principal = whoami.get("principal")
+    if not isinstance(principal, dict):
+        return None
+
+    principal_id = principal.get("id")
+    if not principal_id:
+        return None
+    return str(principal_id)
 
 
 def _empty_chain_source_output(
@@ -204,7 +500,7 @@ def _empty_chain_source_output(
 ):
     issue = _chain_source_issue(command, exc)
     context = provider.metadata_context()
-    model_class = _empty_chain_source_model(command)
+    model_class = chain_source_model(command)
     payload = {
         "metadata": CommandMetadata(
             command=command,
@@ -214,59 +510,9 @@ def _empty_chain_source_output(
             token_source=context.get("token_source"),
             auth_mode=context.get("auth_mode"),
         ),
-        **_empty_chain_source_fields(command, issue, options),
+        **empty_chain_source_fields(command, issue, options),
     }
     return model_class.model_validate(payload)
-
-
-def _empty_chain_source_fields(
-    command: str,
-    issue: dict[str, object],
-    options: GlobalOptions,
-) -> dict[str, object]:
-    fields_by_command: dict[str, dict[str, object]] = {
-        "devops": {"pipelines": [], "issues": [issue]},
-        "automation": {"automation_accounts": [], "issues": [issue]},
-        "permissions": {"permissions": [], "issues": [issue]},
-        "rbac": {"principals": [], "scopes": [], "role_assignments": [], "issues": [issue]},
-        "role-trusts": {"mode": options.role_trusts_mode, "trusts": [], "issues": [issue]},
-        "keyvault": {"key_vaults": [], "issues": [issue]},
-        "arm-deployments": {"deployments": [], "issues": [issue]},
-        "app-services": {"app_services": [], "issues": [issue]},
-        "functions": {"function_apps": [], "issues": [issue]},
-        "aks": {"aks_clusters": [], "issues": [issue]},
-        "env-vars": {"env_vars": [], "issues": [issue]},
-        "tokens-credentials": {"surfaces": [], "issues": [issue]},
-        "databases": {"database_servers": [], "issues": [issue]},
-        "storage": {"storage_assets": [], "issues": [issue]},
-    }
-    try:
-        return fields_by_command[command]
-    except KeyError as exc:
-        raise ValueError(f"Missing empty grouped-source shape for '{command}'") from exc
-
-
-def _empty_chain_source_model(command: str):
-    models_by_command = {
-        "devops": DevopsOutput,
-        "automation": AutomationOutput,
-        "permissions": PermissionsOutput,
-        "rbac": RbacOutput,
-        "role-trusts": RoleTrustsOutput,
-        "keyvault": KeyVaultOutput,
-        "arm-deployments": ArmDeploymentsOutput,
-        "app-services": AppServicesOutput,
-        "functions": FunctionsOutput,
-        "aks": AksOutput,
-        "env-vars": EnvVarsOutput,
-        "tokens-credentials": TokensCredentialsOutput,
-        "databases": DatabasesOutput,
-        "storage": StorageOutput,
-    }
-    try:
-        return models_by_command[command]
-    except KeyError as exc:
-        raise ValueError(f"Missing empty grouped-source model for '{command}'") from exc
 
 
 def _chain_source_issue(command: str, exc: Exception) -> dict[str, object]:
@@ -282,12 +528,12 @@ def _build_credential_path_output(
     provider: BaseProvider,
     options: GlobalOptions,
     family_name: str,
-    loaded: dict[str, object],
+    load_result: ChainFamilyLoadResult,
 ) -> ChainsCommandOutput:
     family = get_chain_family_spec(family_name)
     assert family is not None  # pragma: no cover - guarded above
 
-    paths, issues = collect_credential_path_records(provider, family_name, loaded)
+    paths, issues = collect_credential_path_records(provider, family_name, load_result.outputs)
 
     paths.sort(
         key=lambda item: (
@@ -303,6 +549,7 @@ def _build_credential_path_output(
         options=options,
         family=family,
         family_name=family_name,
+        load_result=load_result,
         paths=paths,
         issues=issues,
     )
@@ -311,10 +558,12 @@ def _build_credential_path_output(
 def _build_deployment_path_output(
     options: GlobalOptions,
     family_name: str,
-    loaded: dict[str, object],
+    load_result: ChainFamilyLoadResult,
 ) -> ChainsCommandOutput:
     family = get_chain_family_spec(family_name)
     assert family is not None  # pragma: no cover - guarded above
+
+    loaded = load_result.outputs
 
     devops_output = loaded["devops"]
     automation_output = loaded["automation"]
@@ -523,6 +772,7 @@ def _build_deployment_path_output(
         options=options,
         family=family,
         family_name=family_name,
+        load_result=load_result,
         paths=paths,
         issues=issues,
     )
@@ -531,10 +781,12 @@ def _build_deployment_path_output(
 def _build_escalation_path_output(
     options: GlobalOptions,
     family_name: str,
-    loaded: dict[str, object],
+    load_result: ChainFamilyLoadResult,
 ) -> ChainsCommandOutput:
     family = get_chain_family_spec(family_name)
     assert family is not None  # pragma: no cover - guarded above
+
+    loaded = load_result.outputs
 
     permissions_output = loaded["permissions"]
     role_trusts_output = loaded["role-trusts"]
@@ -583,6 +835,7 @@ def _build_escalation_path_output(
         options=options,
         family=family,
         family_name=family_name,
+        load_result=load_result,
         paths=paths,
         issues=issues,
     )
@@ -628,17 +881,18 @@ def _current_foothold_contexts_from_permissions(permissions: list[object]) -> li
 def _build_compute_control_output(
     options: GlobalOptions,
     family_name: str,
-    loaded: dict[str, object],
+    load_result: ChainFamilyLoadResult,
 ) -> ChainsCommandOutput:
     family = get_chain_family_spec(family_name)
     assert family is not None  # pragma: no cover - guarded above
 
-    paths, issues = collect_compute_control_records(family_name, loaded)
+    paths, issues = collect_compute_control_records(family_name, load_result.outputs)
 
     return _build_chains_command_output(
         options=options,
         family=family,
         family_name=family_name,
+        load_result=load_result,
         paths=paths,
         issues=issues,
     )
@@ -649,9 +903,11 @@ def _build_chains_command_output(
     options: GlobalOptions,
     family: ChainFamilySpec,
     family_name: str,
+    load_result: ChainFamilyLoadResult,
     paths: list[ChainPathRecord],
     issues: list[CollectionIssue],
 ) -> ChainsCommandOutput:
+    all_issues = [*load_result.reuse_issues, *issues]
     return ChainsCommandOutput(
         metadata=CommandMetadata(
             command=GROUPED_COMMAND_NAME,
@@ -662,17 +918,27 @@ def _build_chains_command_output(
         ),
         grouped_command_name=GROUPED_COMMAND_NAME,
         family=family_name,
-        input_mode="live",
+        input_mode=_chain_input_mode(load_result),
         command_state="extraction-only",
         summary=family.summary,
         claim_boundary=family.allowed_claim,
         current_gap=family.current_gap,
-        artifact_preference_order=[],
+        artifact_preference_order=[] if options.live_only else list(PREFERRED_ARTIFACT_ORDER),
         backing_commands=[source.command for source in family.source_commands],
-        source_artifacts=[],
+        reused_sources=list(load_result.reused_sources),
+        live_sources=list(load_result.live_sources),
+        source_artifacts=list(load_result.source_artifacts),
         paths=paths,
-        issues=issues,
+        issues=all_issues,
     )
+
+
+def _chain_input_mode(load_result: ChainFamilyLoadResult) -> str:
+    if load_result.reused_sources and load_result.live_sources:
+        return "mixed"
+    if load_result.reused_sources:
+        return "artifacts"
+    return "live"
 
 
 def _build_deployment_source_record(
