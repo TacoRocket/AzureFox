@@ -781,12 +781,22 @@ def _build_deployment_path_output(
 def _build_escalation_path_output(
     options: GlobalOptions,
     family_name: str,
-    load_result: ChainFamilyLoadResult,
+    load_result: ChainFamilyLoadResult | dict[str, object],
 ) -> ChainsCommandOutput:
     family = get_chain_family_spec(family_name)
     assert family is not None  # pragma: no cover - guarded above
 
-    loaded = load_result.outputs
+    if isinstance(load_result, ChainFamilyLoadResult):
+        loaded = load_result.outputs
+    else:
+        loaded = load_result
+        load_result = ChainFamilyLoadResult(
+            outputs=loaded,
+            source_states=[
+                ChainSourceLoadState(command=command, output=output, mode="live")
+                for command, output in loaded.items()
+            ],
+        )
 
     permissions_output = loaded["permissions"]
     role_trusts_output = loaded["role-trusts"]
