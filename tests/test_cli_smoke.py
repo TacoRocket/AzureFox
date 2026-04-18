@@ -9,7 +9,9 @@ import pytest
 from typer.testing import CliRunner
 
 from azurefox.cli import app
+from azurefox.collectors.provider import AzureProvider, FixtureProvider
 from azurefox.errors import AzureFoxError, ErrorKind
+from azurefox.models.common import RoleTrustsMode
 from azurefox.registry import CommandSpec, get_command_specs
 
 runner = CliRunner()
@@ -117,6 +119,158 @@ def _contributor_view_fixture_dir(tmp_path: Path) -> Path:
     _write_fixture_json(role_trusts_path, role_trusts_payload)
 
     return fixture_dir
+
+
+class BatchOnlyRoleTrustsGraph:
+    def __init__(self) -> None:
+        self.batch_list_calls = 0
+
+    def list_service_principals(self) -> list[dict]:
+        return [
+            {
+                "id": "66666666-6666-6666-6666-666666666666",
+                "appId": "55555555-5555-5555-5555-555555555550",
+                "displayName": "build-sp",
+                "servicePrincipalType": "Application",
+            },
+            {
+                "id": "99999999-9999-9999-9999-999999999999",
+                "appId": "99999999-9999-9999-9999-999999999990",
+                "displayName": "reporting-sp",
+                "servicePrincipalType": "Application",
+            },
+            {
+                "id": "00000003-0000-0000-c000-000000000000",
+                "appId": "00000003-0000-0000-c000-000000000000",
+                "displayName": "Microsoft Graph",
+                "servicePrincipalType": "Application",
+            },
+        ]
+
+    def batch_list_objects_by_key(
+        self,
+        requests,
+    ) -> tuple[dict[str, list[dict]], dict[str, Exception]]:
+        self.batch_list_calls += 1
+        results: dict[str, list[dict]] = {}
+        for request in requests:
+            path = str(getattr(request, "path", ""))
+            key = str(getattr(request, "key", ""))
+            if path == "/applications":
+                if key == "55555555-5555-5555-5555-555555555550":
+                    results[key] = [
+                        {
+                            "id": "55555555-5555-5555-5555-555555555555",
+                            "appId": key,
+                            "displayName": "build-app",
+                        }
+                    ]
+                else:
+                    results[key] = []
+            elif path.endswith("/federatedIdentityCredentials"):
+                results[key] = (
+                    [
+                        {
+                            "id": "fic-build-main",
+                            "issuer": "https://token.actions.githubusercontent.com",
+                            "subject": "repo:TacoRocket/AzureFox:ref:refs/heads/main",
+                        }
+                    ]
+                    if key == "55555555-5555-5555-5555-555555555555"
+                    else []
+                )
+            elif path.startswith("/applications/") and path.endswith("/owners"):
+                results[key] = (
+                    [
+                        {
+                            "id": "77777777-7777-7777-7777-777777777777",
+                            "userPrincipalName": "ci-admin@lab.local",
+                            "@odata.type": "#microsoft.graph.user",
+                        }
+                    ]
+                    if key == "55555555-5555-5555-5555-555555555555"
+                    else []
+                )
+            elif path.startswith("/servicePrincipals/") and path.endswith("/owners"):
+                results[key] = (
+                    [
+                        {
+                            "id": "88888888-8888-8888-8888-888888888888",
+                            "displayName": "automation-runner",
+                            "appId": "88888888-8888-8888-8888-888888888880",
+                        }
+                    ]
+                    if key == "66666666-6666-6666-6666-666666666666"
+                    else []
+                )
+            elif path.endswith("/appRoleAssignments"):
+                results[key] = (
+                    [
+                        {
+                            "id": "app-role-graph-1",
+                            "resourceId": "00000003-0000-0000-c000-000000000000",
+                        }
+                    ]
+                    if key == "99999999-9999-9999-9999-999999999999"
+                    else []
+                )
+            else:  # pragma: no cover - guardrail for unexpected batch routes
+                raise AssertionError(f"unexpected batch list request: {path}")
+        return results, {}
+
+    def batch_get_objects_by_key(self, requests) -> tuple[dict[str, dict], dict[str, Exception]]:
+        return (
+            {
+                str(getattr(request, "key", "")): {
+                    "id": str(getattr(request, "key", "")),
+                    "appId": str(getattr(request, "key", "")),
+                    "displayName": "resolved-sp",
+                    "servicePrincipalType": "Application",
+                }
+                for request in requests
+            },
+            {},
+        )
+
+    def list_applications(self) -> list[dict]:
+        raise AssertionError("list_applications should not be used in the batch smoke")
+
+    def get_application_by_app_id(self, app_id: str) -> dict | None:
+        raise AssertionError(
+            f"get_application_by_app_id should not be used in the batch smoke: {app_id}"
+        )
+
+    def list_application_federated_credentials(self, application_id: str) -> list[dict]:
+        raise AssertionError(
+            "list_application_federated_credentials should not be used in the batch smoke"
+        )
+
+    def list_application_owners(self, application_id: str) -> list[dict]:
+        raise AssertionError("list_application_owners should not be used in the batch smoke")
+
+    def list_service_principal_owners(self, service_principal_id: str) -> list[dict]:
+        raise AssertionError(
+            "list_service_principal_owners should not be used in the batch smoke"
+        )
+
+    def list_app_role_assignments(self, service_principal_id: str) -> list[dict]:
+        raise AssertionError(
+            "list_app_role_assignments should not be used in the batch smoke"
+        )
+
+    def get_service_principal(self, service_principal_id: str) -> dict:
+        raise AssertionError(
+            f"get_service_principal should not be used in the batch smoke: {service_principal_id}"
+        )
+
+
+class LiveRoleTrustFixtureProvider(FixtureProvider):
+    def __init__(self, fixture_dir: Path) -> None:
+        super().__init__(fixture_dir)
+        self.graph = BatchOnlyRoleTrustsGraph()
+
+    def role_trusts(self, mode: RoleTrustsMode = RoleTrustsMode.FAST) -> dict:
+        return AzureProvider.role_trusts(self, mode)
 
 
 def test_cli_smoke_all_commands(tmp_path: Path) -> None:
@@ -806,6 +960,34 @@ def test_cli_smoke_chains_family_keeps_emitting_when_supporting_collector_fails(
     assert any(issue["scope"] == expected_issue_scope for issue in payload["issues"])
     assert (tmp_path / "json" / "chains.json").exists()
     assert (tmp_path / "loot" / "chains.json").exists()
+
+
+@pytest.mark.parametrize("family", ("deployment-path", "escalation-path"))
+def test_cli_smoke_chains_family_live_provider_writes_outputs_with_batched_role_trusts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    family: str,
+) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+    provider = LiveRoleTrustFixtureProvider(fixture_dir)
+    outdir = tmp_path / family
+
+    monkeypatch.setattr("azurefox.cli.get_provider", lambda _options: provider)
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(outdir), "--output", "json", "chains", family],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["family"] == family
+    assert payload["input_mode"] == "live"
+    assert payload["source_artifacts"] == []
+    assert payload["paths"], f"{family} did not produce any grouped paths"
+    assert provider.graph.batch_list_calls >= 4
+    assert (outdir / "json" / "chains.json").exists()
+    assert (outdir / "loot" / "chains.json").exists()
 
 
 def test_cli_smoke_chains_compute_control_table_output(tmp_path: Path) -> None:
