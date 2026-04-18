@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from azurefox.scope_hints import permission_scope_phrase
+
 
 def permissions_operator_signal(
     *,
@@ -66,6 +68,7 @@ def permissions_summary(
     principal_name: str,
     principal_type: str,
     high_impact_roles: list[str],
+    scope_ids: list[str],
     scope_count: int,
     privileged: bool,
     is_current_identity: bool,
@@ -81,36 +84,36 @@ def permissions_summary(
         )
 
     role_text = ", ".join(high_impact_roles) or "high-impact roles"
-    scope_text = "subscription-wide" if scope_count <= 1 else f"{scope_count} visible scopes"
+    scope_text = permission_scope_phrase(scope_ids, scope_count=scope_count)
 
     if is_current_identity:
         return (
             f"Current identity '{principal_name}' already has direct control visible through "
-            f"{role_text} across {scope_text}. {next_review}"
+            f"{role_text} {scope_text}. {next_review}"
         )
 
     if has_workload_pivot:
         return (
             f"{principal_type} '{principal_name}' already has direct control visible through "
-            f"{role_text} across {scope_text}, and current scope also shows a workload pivot. "
+            f"{role_text} {scope_text}, and current scope also shows a workload pivot. "
             f"{next_review}"
         )
 
     if workload_visibility_blocked:
         return (
             f"{principal_type} '{principal_name}' already has direct control visible through "
-            f"{role_text} across {scope_text}, but the backing workload pivot stays visibility "
+            f"{role_text} {scope_text}, but the backing workload pivot stays visibility "
             f"blocked from current scope. {next_review}"
         )
 
     if trust_expansion_follow_on:
         return (
             f"{principal_type} '{principal_name}' already has direct control visible through "
-            f"{role_text} across {scope_text}. The next useful question is trust expansion, not "
+            f"{role_text} {scope_text}. The next useful question is trust expansion, not "
             f"more privilege ranking. {next_review}"
         )
 
     return (
         f"{principal_type} '{principal_name}' already has direct control visible through "
-        f"{role_text} across {scope_text}. {next_review}"
+        f"{role_text} {scope_text}. {next_review}"
     )

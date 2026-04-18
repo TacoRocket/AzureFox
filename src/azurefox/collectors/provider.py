@@ -1875,6 +1875,7 @@ class AzureProvider(BaseProvider):
                     "tenant_id": None,
                     "sources": [],
                     "scope_ids": [],
+                    "assignment_scope_ids": [],
                     "role_names": [],
                     "role_assignment_count": 0,
                     "identity_names": [],
@@ -1903,6 +1904,7 @@ class AzureProvider(BaseProvider):
                 _append_unique(record["role_names"], role_name)
             if scope_id:
                 _append_unique(record["scope_ids"], scope_id)
+                _append_unique(record["assignment_scope_ids"], scope_id)
             record["role_assignment_count"] += 1
             principal_type = assignment.get("principal_type")
             if principal_type:
@@ -1950,7 +1952,9 @@ class AzureProvider(BaseProvider):
 
         for principal in principal_data.get("principals", []):
             role_names = sorted(set(principal.get("role_names", [])))
-            scope_ids = sorted(set(principal.get("scope_ids", [])))
+            scope_ids = sorted(
+                set(principal.get("assignment_scope_ids") or principal.get("scope_ids", []))
+            )
             high_impact_roles = sorted(
                 {
                     role_name

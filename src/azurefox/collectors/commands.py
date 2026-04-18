@@ -1335,6 +1335,7 @@ def _enrich_permission_rows(permissions: list[dict], principals: list[dict]) -> 
             principal_name=item.get("display_name") or item.get("principal_id") or "unknown",
             principal_type=item.get("principal_type", "unknown"),
             high_impact_roles=[str(value) for value in item.get("high_impact_roles") or []],
+            scope_ids=[str(value) for value in item.get("scope_ids") or [] if value],
             scope_count=_int_or_zero(item.get("scope_count")) or len(item.get("scope_ids") or []),
             privileged=privileged,
             is_current_identity=is_current_identity,

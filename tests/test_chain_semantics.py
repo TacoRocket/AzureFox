@@ -25,7 +25,8 @@ from azurefox.chains.semantics import (
     semantic_urgency_sort_value,
 )
 from azurefox.config import GlobalOptions
-from azurefox.models.common import OutputMode, PermissionSummary, RoleTrustSummary
+from azurefox.models.commands import PermissionsOutput, RoleTrustsOutput
+from azurefox.models.common import CommandMetadata, OutputMode, PermissionSummary, RoleTrustSummary
 
 
 def test_credential_path_semantics_promote_named_match() -> None:
@@ -84,6 +85,52 @@ def test_chain_semantics_have_default_path_for_other_families() -> None:
     assert decision.priority == "high"
     assert decision.urgency == "review-soon"
     assert "deployment evidence" in decision.next_review
+
+
+def test_escalation_direct_control_uses_single_rg_scope_text() -> None:
+    options = GlobalOptions(
+        tenant=None,
+        subscription="sub-test",
+        output=OutputMode.JSON,
+        outdir=Path("/tmp/azurefox-escalation-scope-text"),
+        debug=False,
+    )
+    output = _build_escalation_path_output(
+        options,
+        "escalation-path",
+        {
+            "permissions": PermissionsOutput(
+                metadata=CommandMetadata(command="permissions", subscription_id="sub-test"),
+                permissions=[
+                    PermissionSummary(
+                        principal_id="current-sp",
+                        display_name="current-sp",
+                        principal_type="ServicePrincipal",
+                        priority="high",
+                        high_impact_roles=["Contributor"],
+                        all_role_names=["Contributor"],
+                        role_assignment_count=1,
+                        scope_count=1,
+                        scope_ids=["/subscriptions/sub-test/resourceGroups/rg-workload"],
+                        privileged=True,
+                        is_current_identity=True,
+                    )
+                ],
+            ),
+            "role-trusts": RoleTrustsOutput(
+                metadata=CommandMetadata(command="role-trusts", subscription_id="sub-test"),
+                trusts=[],
+                issues=[],
+            ),
+        },
+    )
+
+    direct_row = next(
+        row for row in output.paths if row.path_concept == "current-foothold-direct-control"
+    )
+
+    assert direct_row.stronger_outcome == "Contributor on resource group 'rg-workload'"
+    assert "Contributor on resource group 'rg-workload'" in (direct_row.why_care or "")
 
 
 def test_compute_control_semantics_promote_direct_token_opportunity() -> None:
