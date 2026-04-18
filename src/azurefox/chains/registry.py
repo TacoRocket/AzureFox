@@ -86,8 +86,9 @@ CHAIN_FAMILIES: tuple[ChainFamilySpec, ...] = (
         ),
         allowed_claim=(
             "Can claim that the visible evidence suggests a likely credential path and name the "
-            "most plausible downstream service. Cannot claim the exact downstream target or that "
-            "the setting is confirmed to reach it."
+            "most plausible downstream service when the clue supports it, or say when the "
+            "current clue does not identify one. Cannot claim the exact downstream target or "
+            "that the setting is confirmed to reach it."
         ),
         current_gap=(
             "The live family now joins backing evidence in one run, but it still needs periodic "

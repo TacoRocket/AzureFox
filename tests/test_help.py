@@ -82,7 +82,7 @@ HELP_TOPICS_IDENTITY = (
 )
 
 HELP_TOPICS_INFRA = (
-    ("arm-deployments", ("linked templates", "outputs_count")),
+    ("arm-deployments", ("visible ARM deployment history", "linked templates", "outputs_count")),
     (
         "automation",
         (
@@ -193,12 +193,20 @@ HELP_TOPICS_INFRA = (
         ),
     ),
     ("keyvault", ("secret-management surface", "purge_protection_enabled")),
-    ("resource-trusts", ("public network paths", "resource_type")),
+    ("resource-trusts", ("visible Storage and Key Vault trust surfaces", "resource_type")),
 )
 
 HELP_TOPICS_WORKLOADS = (
     ("app-services", ("runtime stack", "workload_identity_type", "public_network_access")),
-    ("functions", ("Functions runtime", "azure_webjobs_storage_value_type", "run_from_package")),
+    (
+        "functions",
+        (
+            "readable Function App runtime",
+            "Functions runtime",
+            "azure_webjobs_storage_value_type",
+            "run_from_package",
+        ),
+    ),
     (
         "container-apps",
         ("external_ingress_enabled", "revision_mode", "workload_identity_type"),

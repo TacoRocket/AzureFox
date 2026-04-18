@@ -339,5 +339,7 @@ def _target_family_hints_from_devops(target_clues: list[str]) -> tuple[str, ...]
     families: list[str] = []
     for clue in target_clues:
         normalized = str(clue).strip().lower()
+        prefixed_normalized = normalized.split(":", 1)[0].strip()
         families.extend(_DEVOPS_TARGET_HINTS.get(normalized, ()))
+        families.extend(_DEVOPS_TARGET_HINTS.get(prefixed_normalized, ()))
     return tuple(sorted(dict.fromkeys(families)))

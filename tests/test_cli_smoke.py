@@ -432,6 +432,40 @@ def test_cli_smoke_chains_credential_path_json(tmp_path: Path) -> None:
     } == {"narrowed candidates"}
 
 
+def test_cli_smoke_chains_credential_path_keeps_secret_clue_when_service_is_not_identified(
+    tmp_path: Path,
+) -> None:
+    fixture_dir = tmp_path / "credential-path-generic-secret"
+    shutil.copytree(Path(__file__).resolve().parent / "fixtures" / "lab_tenant", fixture_dir)
+    env_payload = _read_fixture_json(fixture_dir / "env_vars.json")
+    for env_var in env_payload["env_vars"]:
+        if env_var["setting_name"] == "PAYMENT_API_KEY":
+            env_var["value_type"] = "plain-text"
+            env_var["reference_target"] = None
+            env_var["key_vault_reference_identity"] = None
+            env_var["summary"] = (
+                "FunctionApp 'func-orders' exposes setting 'PAYMENT_API_KEY' as plain-text "
+                "configuration."
+            )
+    _write_fixture_json(fixture_dir / "env_vars.json", env_payload)
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "json", "chains", "credential-path"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    row = next(item for item in payload["paths"] if item["setting_name"] == "PAYMENT_API_KEY")
+    assert row["target_service"] == "downstream service"
+    assert row["target_resolution"] == "service hint only"
+    assert row["target_names"] == []
+    assert "does not identify the downstream service" in row["summary"]
+    assert "does not identify the downstream service" in row["confidence_boundary"]
+    assert row["evidence_commands"] == ["env-vars", "tokens-credentials"]
+
+
 def test_cli_smoke_chains_reuses_matching_source_artifacts_by_default(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -905,6 +939,62 @@ def test_cli_smoke_chains_deployment_path_json(tmp_path: Path) -> None:
     plan_row = next(item for item in payload["paths"] if item["asset_name"] == "plan-infra-prod")
     assert "kv-platform-shared" in plan_row["why_care"]
     assert "Key Vault support" in plan_row["why_care"]
+
+
+def test_cli_smoke_deployment_path_keeps_bounded_devops_row_without_target_hints(
+    tmp_path: Path,
+) -> None:
+    fixture_dir = tmp_path / "deployment-path-no-hints"
+    shutil.copytree(Path(__file__).resolve().parent / "fixtures" / "lab_tenant", fixture_dir)
+    devops_payload = _read_fixture_json(fixture_dir / "devops.json")
+    for pipeline in devops_payload["pipelines"]:
+        if pipeline["name"] == "deploy-appservice-prod":
+            pipeline["target_clues"] = []
+            pipeline["missing_target_mapping"] = False
+    _write_fixture_json(fixture_dir / "devops.json", devops_payload)
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "json", "chains", "deployment-path"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    row = next(item for item in payload["paths"] if item["asset_name"] == "deploy-appservice-prod")
+    assert row["target_service"] == "arm-deployment"
+    assert row["target_resolution"] == "visibility blocked"
+    assert row["target_names"] == []
+    assert row["confirmation_basis"] is None
+    assert (
+        row["target_visibility_issue"]
+        == "current pipeline surface does not name downstream Azure targets"
+    )
+    assert "has not yet mapped the downstream Azure footprint" in row["confidence_boundary"]
+
+
+def test_cli_smoke_deployment_path_keeps_visibility_blocked_row_for_named_target_not_visible(
+    tmp_path: Path,
+) -> None:
+    fixture_dir = tmp_path / "deployment-path-hidden-target"
+    shutil.copytree(Path(__file__).resolve().parent / "fixtures" / "lab_tenant", fixture_dir)
+    apps_payload = _read_fixture_json(fixture_dir / "app_services.json")
+    apps_payload["app_services"] = []
+    _write_fixture_json(fixture_dir / "app_services.json", apps_payload)
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "json", "chains", "deployment-path"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    row = next(item for item in payload["paths"] if item["asset_name"] == "deploy-appservice-prod")
+    assert row["target_resolution"] == "visibility blocked"
+    assert row["confirmation_basis"] == "parsed-config-target"
+    assert row["target_names"] == []
+    assert "cannot see a matching inventory record" in (row["target_visibility_issue"] or "")
 
 
 def test_cli_smoke_chains_compute_control_json(tmp_path: Path) -> None:

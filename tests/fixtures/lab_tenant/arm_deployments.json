@@ -18,7 +18,7 @@
       ],
       "template_link": "https://example.blob.core.windows.net/templates/sub-foundation.json",
       "parameters_link": null,
-      "summary": "subscription deployment 'sub-foundation' is Succeeded with 2 outputs; 2 providers.",
+      "summary": "Visible subscription deployment history entry 'sub-foundation' is Succeeded with 2 outputs; 2 providers.",
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/providers/Microsoft.Resources/deployments/sub-foundation"
       ]
@@ -40,7 +40,7 @@
       ],
       "template_link": null,
       "parameters_link": "https://example.blob.core.windows.net/parameters/kv-secrets.parameters.json",
-      "summary": "resource group deployment 'kv-secrets' is Succeeded with 1 outputs; 1 providers.",
+      "summary": "Visible resource group deployment history entry 'kv-secrets' is Succeeded with 1 outputs; 1 providers.",
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets/providers/Microsoft.Resources/deployments/kv-secrets"
       ]
@@ -62,7 +62,7 @@
       ],
       "template_link": null,
       "parameters_link": null,
-      "summary": "resource group deployment 'app-failed' is Failed with no outputs recorded; 1 providers.",
+      "summary": "Visible resource group deployment history entry 'app-failed' is Failed with no outputs recorded; 1 providers.",
       "related_ids": [
         "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-app/providers/Microsoft.Resources/deployments/app-failed"
       ]
