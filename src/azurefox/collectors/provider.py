@@ -123,6 +123,12 @@ class BaseProvider(ABC):
         env_var_data = self.env_vars()
         arm_data = self.arm_deployments()
         vm_data = self.vms()
+        network_effective_data = self.network_effective()
+        effective_exposures_by_asset = {
+            str(item.get("asset_id") or ""): item
+            for item in network_effective_data.get("effective_exposures", [])
+            if item.get("asset_id")
+        }
 
         surfaces = [
             *_token_credential_surfaces_from_web_workloads(workload_data.get("workloads", [])),
@@ -131,7 +137,10 @@ class BaseProvider(ABC):
             ),
             *_tokens_credentials_surfaces_from_env_vars(env_var_data.get("env_vars", [])),
             *_token_credential_surfaces_from_arm_deployments(arm_data.get("deployments", [])),
-            *_token_credential_surfaces_from_vms(vm_data.get("vm_assets", [])),
+            *_token_credential_surfaces_from_vms(
+                vm_data.get("vm_assets", []),
+                effective_exposures_by_asset=effective_exposures_by_asset,
+            ),
         ]
         surfaces.sort(key=_token_credential_surface_sort_key)
 
@@ -143,6 +152,7 @@ class BaseProvider(ABC):
                 *env_var_data.get("issues", []),
                 *arm_data.get("issues", []),
                 *vm_data.get("issues", []),
+                *network_effective_data.get("issues", []),
             ],
         }
 
@@ -469,7 +479,7 @@ class FixtureProvider(BaseProvider):
         return self._read("nics")
 
     def network_ports(self, endpoint_data: dict | None = None) -> dict:
-        data = self._read("network_ports")
+        data = self._read_optional("network_ports", empty_key="network_ports")
         if endpoint_data is None:
             return data
         return {
@@ -5417,7 +5427,7 @@ def _deployment_summary(
     provider_summary = f"{len(providers)} providers" if providers else "no providers recorded"
     output_summary = f"{output_count} outputs" if output_count else "no outputs recorded"
     summary = (
-        f"{scope_type.replace('_', ' ')} deployment '{name}' is "
+        f"Visible {scope_type.replace('_', ' ')} deployment history entry '{name}' is "
         f"{state or 'unknown'} with {output_summary}; {provider_summary}."
     )
 
@@ -8343,8 +8353,13 @@ def _token_credential_surfaces_from_arm_deployments(deployments: list[dict]) -> 
     return surfaces
 
 
-def _token_credential_surfaces_from_vms(vm_assets: list[dict]) -> list[dict]:
+def _token_credential_surfaces_from_vms(
+    vm_assets: list[dict],
+    *,
+    effective_exposures_by_asset: dict[str, dict] | None = None,
+) -> list[dict]:
     surfaces: list[dict] = []
+    effective_exposures_by_asset = effective_exposures_by_asset or {}
 
     for item in vm_assets:
         identity_ids = [str(identity_id) for identity_id in item.get("identity_ids", [])]
@@ -8362,6 +8377,7 @@ def _token_credential_surfaces_from_vms(vm_assets: list[dict]) -> list[dict]:
             access_path="imds",
             operator_signal=f"{public_signal}; identities={len(identity_ids)}",
         )
+        exposure = effective_exposures_by_asset.get(str(asset_id or ""))
         surfaces.append(
             {
                 "asset_id": asset_id or f"/unknown/{asset_name}",
@@ -8373,21 +8389,54 @@ def _token_credential_surfaces_from_vms(vm_assets: list[dict]) -> list[dict]:
                 "access_path": "imds",
                 "priority": priority,
                 "operator_signal": f"{public_signal}; identities={len(identity_ids)}",
-                "summary": (
-                    f"{str(item.get('vm_type') or 'vm').upper()} '{asset_name}' is publicly "
-                    "reachable and exposes a token minting path through IMDS for its attached "
-                    "managed identity. "
-                    f"{next_review_hint}"
-                    if public_ips
-                    else f"{str(item.get('vm_type') or 'vm').upper()} '{asset_name}' exposes a "
-                    "token minting path through IMDS for its attached managed identity. "
-                    f"{next_review_hint}"
+                "summary": _vm_token_surface_summary(
+                    asset_kind=str(item.get("vm_type") or "vm").upper(),
+                    asset_name=asset_name,
+                    has_public_ip=bool(public_ips),
+                    next_review_hint=next_review_hint,
+                    effective_exposure=exposure,
                 ),
                 "related_ids": _dedupe_strings([*([asset_id] if asset_id else []), *identity_ids]),
             }
         )
 
     return surfaces
+
+
+def _vm_token_surface_summary(
+    *,
+    asset_kind: str,
+    asset_name: str,
+    has_public_ip: bool,
+    next_review_hint: str,
+    effective_exposure: dict | None,
+) -> str:
+    if not has_public_ip:
+        return (
+            f"{asset_kind} '{asset_name}' exposes a token minting path through IMDS for its "
+            f"attached managed identity. {next_review_hint}"
+        )
+
+    exposure_summary = str((effective_exposure or {}).get("summary") or "")
+    if (
+        "no Azure NSG was visible on the NIC or subnet from the current read path"
+        in exposure_summary
+    ):
+        return (
+            f"{asset_kind} '{asset_name}' has a public IP, but current credentials cannot read "
+            "enough NIC/subnet network controls to prove inbound reachability. It still exposes "
+            "a token minting path through IMDS for its attached managed identity. "
+            f"{next_review_hint}"
+        )
+    if str((effective_exposure or {}).get("effective_exposure") or "") == "high":
+        return (
+            f"{asset_kind} '{asset_name}' is publicly reachable and exposes a token minting "
+            f"path through IMDS for its attached managed identity. {next_review_hint}"
+        )
+    return (
+        f"{asset_kind} '{asset_name}' has a visible public IP path and exposes a token minting "
+        f"path through IMDS for its attached managed identity. {next_review_hint}"
+    )
 
 
 def _compose_resource_trusts(storage_assets: list[dict], key_vaults: list[dict]) -> list[dict]:

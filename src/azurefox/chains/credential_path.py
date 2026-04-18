@@ -100,12 +100,40 @@ class CandidateCredentialPathHandler:
         ]
 
 
+@dataclass(frozen=True, slots=True)
+class GenericCredentialPathHandler:
+    name: str = "generic-secret-clue"
+
+    def build_records(
+        self,
+        state: CredentialPathState,
+        source: CredentialPathSource,
+    ) -> list[ChainPathRecord]:
+        if source.env.get("value_type") == "keyvault-ref":
+            return []
+        if not _is_credential_like_env_var(source.env, source.joined_surfaces):
+            return []
+        if env_var_target_services(str(source.env.get("setting_name") or "")):
+            return []
+
+        return [
+            _build_candidate_record(
+                state.family_name,
+                source.env,
+                source.joined_surfaces,
+                "downstream service",
+                [],
+            )
+        ]
+
+
 CREDENTIAL_PATH_HANDLERS: tuple[
     ChainFamilyHandler[CredentialPathState, CredentialPathSource], ...
 ] = (
     KeyVaultCredentialPathHandler(),
     CandidateCredentialPathHandler(name="database", target_service="database"),
     CandidateCredentialPathHandler(name="storage", target_service="storage"),
+    GenericCredentialPathHandler(),
 )
 
 
@@ -334,17 +362,15 @@ def _build_candidate_record(
         location=env.get("location"),
         setting_name=env["setting_name"],
         clue_type="plain-text-secret",
-        confirmation_basis="name-only-inference",
+        confirmation_basis=(
+            None if _generic_service_clue(target_service=target_service) else "name-only-inference"
+        ),
         priority=semantic.priority,
         urgency=semantic.urgency,
-        visible_path=f"Credential-like setting -> likely {target_service} path",
+        visible_path=_candidate_visible_path(target_service=target_service),
         target_service=target_service,
         target_resolution=target_resolution,
-        evidence_commands=[
-            "env-vars",
-            "tokens-credentials",
-            target_service + "s" if target_service == "database" else target_service,
-        ],
+        evidence_commands=_candidate_evidence_commands(target_service=target_service),
         joined_surface_types=_joined_surface_types(joined_surfaces, fallback="plain-text-secret"),
         target_count=len(target_ids),
         target_ids=target_ids,
@@ -409,6 +435,12 @@ def _candidate_summary(
         "plain-text secret-shaped setting. "
     )
 
+    if _generic_service_clue(target_service=target_service):
+        return (
+            f"{prefix}Current evidence shows a real secret clue, but the setting name does not "
+            "identify the downstream service."
+        )
+
     if target_resolution == "visibility blocked":
         summary = (
             f"{prefix}AzureFox cannot tell which {target_service} it reaches because current "
@@ -451,6 +483,12 @@ def _candidate_confidence_boundary(
     target_resolution: str,
     target_names: list[str],
 ) -> str:
+    if _generic_service_clue(target_service=target_service):
+        return (
+            "Current evidence shows a secret-shaped setting, but it does not identify the "
+            "downstream service."
+        )
+
     if target_resolution == "visibility blocked":
         return (
             f"Current scope does not confirm which downstream {target_service} target this "
@@ -493,6 +531,11 @@ def _candidate_missing_confirmation(
     target_count: int,
     visibility_issue: str | None,
 ) -> str:
+    if _generic_service_clue(target_service=target_service):
+        return (
+            "Current evidence shows a secret-shaped setting, but it does not identify the "
+            "downstream service and AzureFox has not proved a working credential."
+        )
     if target_resolution == "visibility blocked" or visibility_issue:
         return (
             f"Current scope does not confirm which {target_service} target this setting reaches. "
@@ -526,6 +569,26 @@ def _candidate_missing_confirmation(
         f"AzureFox has not yet proved the exact downstream {target_service} target or a working "
         "credential."
     )
+
+
+def _candidate_visible_path(*, target_service: str) -> str:
+    if _generic_service_clue(target_service=target_service):
+        return "Credential-like setting -> downstream service not identified"
+    return f"Credential-like setting -> likely {target_service} path"
+
+
+def _candidate_evidence_commands(*, target_service: str) -> list[str]:
+    if _generic_service_clue(target_service=target_service):
+        return ["env-vars", "tokens-credentials"]
+    return [
+        "env-vars",
+        "tokens-credentials",
+        target_service + "s" if target_service == "database" else target_service,
+    ]
+
+
+def _generic_service_clue(*, target_service: str) -> bool:
+    return target_service == "downstream service"
 
 
 def _target_visibility_note(target_label: str, issues: list[CollectionIssue]) -> str | None:

@@ -133,6 +133,15 @@ def _credential_path_semantics(context: ChainSemanticContext) -> ChainSemanticDe
         )
 
     if context.target_resolution == "service hint only":
+        if context.target_service == "downstream service":
+            return ChainSemanticDecision(
+                priority="low",
+                urgency="bookmark",
+                next_review=(
+                    "Current evidence shows a secret-shaped setting, but it does not identify "
+                    "the downstream service."
+                ),
+            )
         return ChainSemanticDecision(
             priority="low",
             urgency="bookmark",

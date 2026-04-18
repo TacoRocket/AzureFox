@@ -71,6 +71,22 @@ def test_credential_path_semantics_distinguish_single_vs_broad_candidates() -> N
     assert low.urgency == "bookmark"
 
 
+def test_credential_path_semantics_handle_secret_clue_without_service_bucket() -> None:
+    decision = evaluate_chain_semantics(
+        ChainSemanticContext(
+            family="credential-path",
+            clue_type="plain-text-secret",
+            target_service="downstream service",
+            target_resolution="service hint only",
+            target_count=0,
+        )
+    )
+
+    assert decision.priority == "low"
+    assert decision.urgency == "bookmark"
+    assert "does not identify the downstream service" in decision.next_review
+
+
 def test_chain_semantics_have_default_path_for_other_families() -> None:
     decision = evaluate_chain_semantics(
         ChainSemanticContext(

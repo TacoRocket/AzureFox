@@ -18,7 +18,7 @@
       "resource_group": "rg-app",
       "scope": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-app",
       "scope_type": "resource_group",
-      "summary": "resource group deployment 'app-failed' is Failed with no outputs recorded; 1 providers.",
+      "summary": "Visible resource group deployment history entry 'app-failed' is Failed with no outputs recorded; 1 providers.",
       "template_link": null,
       "timestamp": "2026-03-30T19:03:00Z"
     },
@@ -41,7 +41,7 @@
       "resource_group": null,
       "scope": "/subscriptions/22222222-2222-2222-2222-222222222222",
       "scope_type": "subscription",
-      "summary": "subscription deployment 'sub-foundation' is Succeeded with 2 outputs; 2 providers.",
+      "summary": "Visible subscription deployment history entry 'sub-foundation' is Succeeded with 2 outputs; 2 providers.",
       "template_link": "https://example.blob.core.windows.net/templates/sub-foundation.json",
       "timestamp": "2026-03-30T18:42:00Z"
     },
@@ -63,7 +63,7 @@
       "resource_group": "rg-secrets",
       "scope": "/subscriptions/22222222-2222-2222-2222-222222222222/resourceGroups/rg-secrets",
       "scope_type": "resource_group",
-      "summary": "resource group deployment 'kv-secrets' is Succeeded with 1 outputs; 1 providers.",
+      "summary": "Visible resource group deployment history entry 'kv-secrets' is Succeeded with 1 outputs; 1 providers.",
       "template_link": null,
       "timestamp": "2026-03-30T18:50:00Z"
     }

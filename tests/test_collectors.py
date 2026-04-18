@@ -46,6 +46,7 @@ from azurefox.collectors.commands import (
 )
 from azurefox.collectors.provider import (
     AzureProvider,
+    BaseProvider,
     FixtureProvider,
     _acr_registry_summary,
     _aks_cluster_summary,
@@ -2304,6 +2305,7 @@ def test_collect_arm_deployments(fixture_provider, options) -> None:
     assert output.deployments[0].name == "app-failed"
     assert output.deployments[1].name == "sub-foundation"
     assert output.deployments[2].name == "kv-secrets"
+    assert "Visible resource group deployment history entry" in output.deployments[0].summary
 
 
 def test_collect_arm_deployments_uses_split_deployments_client(options) -> None:
@@ -2446,6 +2448,68 @@ def test_collect_tokens_credentials(fixture_provider, options) -> None:
         item.surface_type == "managed-identity-token" and item.access_path == "imds"
         for item in output.surfaces
     )
+
+
+def test_tokens_credentials_vm_wording_stays_permission_shaped_under_reduced_network_reads(
+) -> None:
+    class StubProvider:
+        def web_workloads(self) -> dict:
+            return {"workloads": [], "issues": []}
+
+        def container_instances(self) -> dict:
+            return {"container_instances": [], "issues": []}
+
+        def env_vars(self) -> dict:
+            return {"env_vars": [], "issues": []}
+
+        def arm_deployments(self) -> dict:
+            return {"deployments": [], "issues": []}
+
+        def vms(self) -> dict:
+            return {
+                "vm_assets": [
+                    {
+                        "id": "vm-1",
+                        "name": "vm-web-01",
+                        "vm_type": "vm",
+                        "public_ips": ["52.0.0.10"],
+                        "identity_ids": ["mi-1"],
+                        "resource_group": "rg-workload",
+                        "location": "eastus",
+                    }
+                ],
+                "issues": [],
+            }
+
+        def network_effective(self) -> dict:
+            return {
+                "effective_exposures": [
+                    {
+                        "asset_id": "vm-1",
+                        "effective_exposure": "low",
+                        "summary": (
+                            "Asset 'vm-web-01' endpoint 52.0.0.10 is visible as a public IP "
+                            "path, but no Azure NSG was visible on the NIC or subnet from the "
+                            "current read path. Treat this as a low-confidence triage clue "
+                            "rather than proof of exposure."
+                        ),
+                    }
+                ],
+                "issues": [
+                    {
+                        "kind": "permission_denied",
+                        "message": "subnet read denied",
+                        "context": {"collector": "network-effective"},
+                    }
+                ],
+            }
+
+    output = BaseProvider.tokens_credentials(StubProvider())
+
+    summary = output["surfaces"][0]["summary"]
+    assert "has a public IP, but current credentials cannot read enough NIC/subnet" in summary
+    assert "publicly reachable" not in summary
+    assert output["issues"][0]["kind"] == "permission_denied"
 
 
 def test_web_asset_kind_filters_out_of_scope_site_kinds() -> None:

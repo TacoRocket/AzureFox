@@ -326,17 +326,17 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="functions",
         section="compute",
         summary=(
-            "Deepen Function App runtime, storage binding, identity, and deployment-posture "
-            "visibility."
+            "Review readable Function App runtime, storage binding, identity, and deployment "
+            "posture."
         ),
         offensive_question=(
-            "Which Function Apps expose the most interesting runtime, identity, storage, and "
-            "ingress posture for operator follow-up?"
+            "Which Function Apps still expose readable runtime, identity, storage, and ingress "
+            "posture for operator follow-up?"
         ),
         cloudfox_frame=(
-            "Azure-native Function App review that goes deeper than workload census by surfacing "
-            "Functions runtime, storage binding, package-deployment signals, hostname, and "
-            "identity posture without duplicating raw app-setting output."
+            "Azure-native Function App review of the readable service shell: Functions runtime, "
+            "storage binding, package-deployment signals, hostname, and identity posture without "
+            "duplicating raw app-setting output."
         ),
         output_highlights=(
             "default_hostname",
@@ -498,14 +498,16 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="arm-deployments",
         section="config",
         summary=(
-            "Review ARM deployment history for output exposure, linked content, and failed runs."
+            "Review visible ARM deployment history for output exposure, linked content, and "
+            "failed runs."
         ),
         offensive_question=(
-            "Which ARM deployments reveal useful config context, linked templates, or output "
-            "values worth operator review?"
+            "Which visible ARM deployments reveal useful config context, linked templates, or "
+            "output values worth operator review?"
         ),
         cloudfox_frame=(
-            "Azure-native deployment-history triage focused on management-plane config exposure."
+            "Azure-native deployment-history triage focused on readable management-plane config "
+            "exposure."
         ),
         output_highlights=(
             "scope_type",
@@ -968,15 +970,16 @@ COMMAND_HELP: dict[str, CommandHelpTopic] = {
         name="resource-trusts",
         section="resource",
         summary=(
-            "Correlate Storage and Key Vault trust surfaces into operator-first resource paths."
+            "Correlate visible Storage and Key Vault trust surfaces into operator-first resource "
+            "paths."
         ),
         offensive_question=(
-            "Which resources still trust public network paths, and which ones are constrained to "
-            "private-link style access?"
+            "Which visible resources still trust public network paths, and which ones are "
+            "constrained to private-link style access?"
         ),
         cloudfox_frame=(
-            "Azure-native resource trust review centered on management-plane network posture and "
-            "private endpoint surfaces."
+            "Azure-native resource trust review centered on visible management-plane network "
+            "posture and private endpoint surfaces."
         ),
         output_highlights=(
             "resource_type",

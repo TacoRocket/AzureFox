@@ -34,6 +34,23 @@ def test_devops_pipeline_with_service_connection_is_change_capable() -> None:
     assert assessment.target_family_hints == ("aks",)
 
 
+def test_devops_pipeline_with_structured_target_clue_keeps_family_hint() -> None:
+    pipeline = DevopsPipelineAsset(
+        id="devops/pipeline/release-appservice-prod",
+        definition_id="88",
+        name="release-appservice-prod",
+        project_name="prod-platform",
+        azure_service_connection_names=["prod-appsvc-wif"],
+        target_clues=["App Service: app-public-api"],
+        consequence_types=["redeploy-workload"],
+        summary="Structured target clue should still drive family hints.",
+    )
+
+    assessment = assess_deployment_source(pipeline)
+
+    assert assessment.target_family_hints == ("app-services",)
+
+
 def test_devops_pipeline_with_only_secret_support_is_not_change_capable() -> None:
     pipeline = DevopsPipelineAsset(
         id="devops/pipeline/release-secrets-only",

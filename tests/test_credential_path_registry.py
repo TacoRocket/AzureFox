@@ -18,6 +18,7 @@ def test_credential_path_handler_registry_names() -> None:
         "keyvault",
         "database",
         "storage",
+        "generic-secret-clue",
     ]
 
 

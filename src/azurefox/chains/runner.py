@@ -657,6 +657,7 @@ def _build_deployment_path_output(
             key_vaults_by_name,
         )
         assessment = assess_deployment_source(pipeline)
+        emitted_record = False
         for target_family in assessment.target_family_hints:
             target_spec = _DEPLOYMENT_TARGET_SPECS.get(target_family)
             if target_spec is None:
@@ -666,6 +667,16 @@ def _build_deployment_path_output(
                 target_family,
                 target_candidates[target_family],
             )
+            target_visibility_issue = target_visibility_issues[target_family]
+            if (
+                confirmation_basis == "parsed-config-target"
+                and not exact_targets
+                and not target_candidates[target_family]
+                and target_visibility_issue is None
+            ):
+                target_visibility_issue = _deployment_named_target_visibility_issue(
+                    target_spec["label"]
+                )
             record = _build_deployment_source_record(
                 family_name,
                 source=pipeline_dict,
@@ -678,11 +689,32 @@ def _build_deployment_path_output(
                 exact_targets=exact_targets,
                 confirmation_basis=confirmation_basis,
                 target_visibility_note=target_visibility_notes[target_family],
-                target_visibility_issue=target_visibility_issues[target_family],
+                target_visibility_issue=target_visibility_issue,
                 supporting_deployments=arm_correlations.get(target_family, []),
             )
             if record is not None:
                 paths.append(record)
+                emitted_record = True
+        if not emitted_record and assessment.posture != "insufficient evidence":
+            fallback_record = _build_deployment_source_record(
+                family_name,
+                source=pipeline_dict,
+                source_command="devops",
+                source_context=pipeline.project_name,
+                asset_kind="DevOpsPipeline",
+                assessment=replace(assessment, missing_target_mapping=True),
+                target_family="arm-deployments",
+                target_candidates=[],
+                exact_targets=[],
+                confirmation_basis=None,
+                target_visibility_note=target_visibility_notes["arm-deployments"],
+                target_visibility_issue=(
+                    "current pipeline surface does not name downstream Azure targets"
+                ),
+                supporting_deployments=[],
+            )
+            if fallback_record is not None:
+                paths.append(fallback_record)
 
     for account in automation_output.automation_accounts:
         account_dict = account.model_dump(mode="json")
@@ -3205,6 +3237,13 @@ def _structured_deployment_target_matches(
     if signals["resource_ids"] or signals["hosts"]:
         return [], "parsed-config-target"
     return [], None
+
+
+def _deployment_named_target_visibility_issue(target_label: str) -> str:
+    return (
+        f"parsed source clues name a downstream {target_label} target, but current scope "
+        "cannot see a matching inventory record"
+    )
 
 
 def _structured_target_signals(source: dict, target_family: str) -> dict[str, set[str]]:
