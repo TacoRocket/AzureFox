@@ -896,17 +896,13 @@ def _permission_control_summary(permission_row: dict | None) -> str | None:
 
     roles = [str(role) for role in permission_row.get("high_impact_roles") or [] if role]
     role_text = ", ".join(roles) or "high-impact roles"
-    return (
-        f"{role_text} "
-        f"{permission_scope_phrase(
-            list(permission_row.get('scope_ids') or []),
-            scope_count=int(
-                permission_row.get('scope_count')
-                or len(permission_row.get('scope_ids') or [])
-                or 0
-            ),
-        )}"
+    scope_phrase = permission_scope_phrase(
+        list(permission_row.get("scope_ids") or []),
+        scope_count=int(
+            permission_row.get("scope_count") or len(permission_row.get("scope_ids") or []) or 0
+        ),
     )
+    return f"{role_text} {scope_phrase}"
 
 
 def _has_public_compute_signal(workload_row: dict) -> bool:
