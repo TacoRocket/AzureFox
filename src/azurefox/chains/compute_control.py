@@ -6,6 +6,7 @@ from collections import defaultdict
 from azurefox.chains.semantics import semantic_priority_sort_value, semantic_urgency_sort_value
 from azurefox.models.chains import ChainPathRecord
 from azurefox.models.common import CollectionIssue
+from azurefox.scope_hints import permission_scope_phrase
 
 _HIGH_IMPACT_ROLE_NAMES = {
     "owner",
@@ -478,10 +479,13 @@ def _assignment_control_summary(
     if not high_impact_roles:
         return None
 
-    scopes = {str(item.get("scope_id") or "") for item in assignments if item.get("scope_id")}
-    scope_count = len(scopes)
-    scope_text = "subscription-wide scope" if scope_count <= 1 else f"{scope_count} visible scopes"
-    return f"{', '.join(high_impact_roles)} across {scope_text}"
+    scopes = sorted(
+        {str(item.get("scope_id") or "") for item in assignments if item.get("scope_id")}
+    )
+    return (
+        f"{', '.join(high_impact_roles)} "
+        f"{permission_scope_phrase(scopes, scope_count=len(scopes))}"
+    )
 
 
 def _build_compute_control_record(
@@ -892,11 +896,13 @@ def _permission_control_summary(permission_row: dict | None) -> str | None:
 
     roles = [str(role) for role in permission_row.get("high_impact_roles") or [] if role]
     role_text = ", ".join(roles) or "high-impact roles"
-    scope_count = int(
-        permission_row.get("scope_count") or len(permission_row.get("scope_ids") or []) or 0
+    scope_phrase = permission_scope_phrase(
+        list(permission_row.get("scope_ids") or []),
+        scope_count=int(
+            permission_row.get("scope_count") or len(permission_row.get("scope_ids") or []) or 0
+        ),
     )
-    scope_text = "subscription-wide scope" if scope_count <= 1 else f"{scope_count} visible scopes"
-    return f"{role_text} across {scope_text}"
+    return f"{role_text} {scope_phrase}"
 
 
 def _has_public_compute_signal(workload_row: dict) -> bool:

@@ -36,9 +36,26 @@ from azurefox.models.chains import (
     ChainPathRecord,
     ChainsOutput,
 )
-from azurefox.models.commands import ChainsCommandOutput
+from azurefox.models.commands import (
+    AksOutput,
+    AppServicesOutput,
+    ArmDeploymentsOutput,
+    AutomationOutput,
+    ChainsCommandOutput,
+    DatabasesOutput,
+    DevopsOutput,
+    EnvVarsOutput,
+    FunctionsOutput,
+    KeyVaultOutput,
+    PermissionsOutput,
+    RbacOutput,
+    RoleTrustsOutput,
+    StorageOutput,
+    TokensCredentialsOutput,
+)
 from azurefox.models.common import ArmDeploymentSummary, CollectionIssue, CommandMetadata
 from azurefox.registry import get_command_specs
+from azurefox.scope_hints import permission_scope_description, permission_scope_phrase
 from azurefox.target_matching import (
     normalize_exact_target_host,
     normalize_exact_target_resource_id,
@@ -165,9 +182,100 @@ def _collect_family_outputs(
 
     for source in family.source_commands:
         collector = collector_by_name[source.command]
-        loaded[source.command] = collector(provider, options)
+        try:
+            loaded[source.command] = collector(provider, options)
+        except Exception as exc:
+            loaded[source.command] = _empty_chain_source_output(
+                command=source.command,
+                provider=provider,
+                options=options,
+                exc=exc,
+            )
 
     return loaded
+
+
+def _empty_chain_source_output(
+    *,
+    command: str,
+    provider: BaseProvider,
+    options: GlobalOptions,
+    exc: Exception,
+):
+    issue = _chain_source_issue(command, exc)
+    context = provider.metadata_context()
+    model_class = _empty_chain_source_model(command)
+    payload = {
+        "metadata": CommandMetadata(
+            command=command,
+            tenant_id=options.tenant or context.get("tenant_id"),
+            subscription_id=options.subscription or context.get("subscription_id"),
+            devops_organization=options.devops_organization,
+            token_source=context.get("token_source"),
+            auth_mode=context.get("auth_mode"),
+        ),
+        **_empty_chain_source_fields(command, issue, options),
+    }
+    return model_class.model_validate(payload)
+
+
+def _empty_chain_source_fields(
+    command: str,
+    issue: dict[str, object],
+    options: GlobalOptions,
+) -> dict[str, object]:
+    fields_by_command: dict[str, dict[str, object]] = {
+        "devops": {"pipelines": [], "issues": [issue]},
+        "automation": {"automation_accounts": [], "issues": [issue]},
+        "permissions": {"permissions": [], "issues": [issue]},
+        "rbac": {"principals": [], "scopes": [], "role_assignments": [], "issues": [issue]},
+        "role-trusts": {"mode": options.role_trusts_mode, "trusts": [], "issues": [issue]},
+        "keyvault": {"key_vaults": [], "issues": [issue]},
+        "arm-deployments": {"deployments": [], "issues": [issue]},
+        "app-services": {"app_services": [], "issues": [issue]},
+        "functions": {"function_apps": [], "issues": [issue]},
+        "aks": {"aks_clusters": [], "issues": [issue]},
+        "env-vars": {"env_vars": [], "issues": [issue]},
+        "tokens-credentials": {"surfaces": [], "issues": [issue]},
+        "databases": {"database_servers": [], "issues": [issue]},
+        "storage": {"storage_assets": [], "issues": [issue]},
+    }
+    try:
+        return fields_by_command[command]
+    except KeyError as exc:
+        raise ValueError(f"Missing empty grouped-source shape for '{command}'") from exc
+
+
+def _empty_chain_source_model(command: str):
+    models_by_command = {
+        "devops": DevopsOutput,
+        "automation": AutomationOutput,
+        "permissions": PermissionsOutput,
+        "rbac": RbacOutput,
+        "role-trusts": RoleTrustsOutput,
+        "keyvault": KeyVaultOutput,
+        "arm-deployments": ArmDeploymentsOutput,
+        "app-services": AppServicesOutput,
+        "functions": FunctionsOutput,
+        "aks": AksOutput,
+        "env-vars": EnvVarsOutput,
+        "tokens-credentials": TokensCredentialsOutput,
+        "databases": DatabasesOutput,
+        "storage": StorageOutput,
+    }
+    try:
+        return models_by_command[command]
+    except KeyError as exc:
+        raise ValueError(f"Missing empty grouped-source model for '{command}'") from exc
+
+
+def _chain_source_issue(command: str, exc: Exception) -> dict[str, object]:
+    return {
+        "kind": str(getattr(exc, "kind", "unknown")),
+        "message": str(exc),
+        "scope": str(getattr(exc, "command", None) or command),
+        "context": {"collector": command},
+    }
 
 
 def _build_credential_path_output(
@@ -1565,15 +1673,17 @@ def _automation_permission_clause(source: dict) -> str | None:
         return None
     roles = [str(role) for role in permission.get("high_impact_roles") or [] if role]
     role_text = ", ".join(roles) or "high-impact RBAC"
-    scope_count = int(permission.get("scope_count") or 0)
-    scope_text = "subscription-wide scope" if scope_count <= 1 else f"{scope_count} visible scopes"
+    scope_text = permission_scope_phrase(
+        list(permission.get("scope_ids") or []),
+        scope_count=int(permission.get("scope_count") or 0),
+    )
     principal_name = str(
         permission.get("display_name")
         or source.get("name")
         or permission.get("principal_id")
         or "automation identity"
     )
-    return f"Azure identity '{principal_name}' already has {role_text} across {scope_text}"
+    return f"Azure identity '{principal_name}' already has {role_text} {scope_text}"
 
 
 def _automation_role_trust_clause(source: dict) -> str | None:
@@ -1618,8 +1728,10 @@ def _devops_permission_clause(source: dict) -> str | None:
         return None
     roles = [str(role) for role in permission.get("high_impact_roles") or [] if role]
     role_text = ", ".join(roles) or "high-impact RBAC"
-    scope_count = int(permission.get("scope_count") or 0)
-    scope_text = "subscription-wide scope" if scope_count <= 1 else f"{scope_count} visible scopes"
+    scope_text = permission_scope_phrase(
+        list(permission.get("scope_ids") or []),
+        scope_count=int(permission.get("scope_count") or 0),
+    )
     principal_name = str(
         permission.get("display_name")
         or permission.get("principal_id")
@@ -1627,7 +1739,7 @@ def _devops_permission_clause(source: dict) -> str | None:
     )
     return (
         f"This pipeline runs as Azure identity '{principal_name}', which already has "
-        f"{role_text} across {scope_text}"
+        f"{role_text} {scope_text}"
     )
 
 
@@ -3666,12 +3778,12 @@ def _merge_related_ids(*groups: list[str]) -> list[str]:
 def _permission_scope_text(permission_row: dict | None) -> str:
     if not permission_row:
         return "visible scope"
-    scope_count = int(
-        permission_row.get("scope_count") or len(permission_row.get("scope_ids") or []) or 0
+    return permission_scope_description(
+        list(permission_row.get("scope_ids") or []),
+        scope_count=int(
+            permission_row.get("scope_count") or len(permission_row.get("scope_ids") or []) or 0
+        ),
     )
-    if scope_count <= 1:
-        return "subscription-wide scope"
-    return f"{scope_count} visible scopes"
 
 
 def _permission_control_summary(permission_row: dict | None) -> str:
@@ -3679,8 +3791,13 @@ def _permission_control_summary(permission_row: dict | None) -> str:
         return "Potential stronger Azure control; exact privilege not yet confirmed"
     roles = [str(role) for role in permission_row.get("high_impact_roles") or [] if role]
     role_text = ", ".join(roles) or "high-impact roles"
-    scope_text = _permission_scope_text(permission_row)
-    return f"{role_text} across {scope_text}"
+    scope_text = permission_scope_phrase(
+        list(permission_row.get("scope_ids") or []),
+        scope_count=int(
+            permission_row.get("scope_count") or len(permission_row.get("scope_ids") or []) or 0
+        ),
+    )
+    return f"{role_text} {scope_text}"
 
 
 def _permission_adds_net_value(

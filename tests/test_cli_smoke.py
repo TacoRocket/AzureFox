@@ -5,9 +5,12 @@ import json
 import shutil
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from azurefox.cli import app
+from azurefox.errors import AzureFoxError, ErrorKind
+from azurefox.registry import CommandSpec, get_command_specs
 
 runner = CliRunner()
 
@@ -485,9 +488,9 @@ def test_cli_smoke_chains_compute_control_json(tmp_path: Path) -> None:
     assert aca_row["compute_foothold"] == "aca-orders"
     assert aca_row["token_path"] == "service token request"
     assert aca_row["identity"] == "aca-orders system identity"
-    assert aca_row["azure_access"] == "Contributor across subscription-wide scope"
+    assert aca_row["azure_access"] == "Contributor on resource group 'rg-containers'"
     assert aca_row["proof_status"] == "confirmed"
-    assert aca_row["stronger_outcome"] == "Contributor across subscription-wide scope"
+    assert aca_row["stronger_outcome"] == "Contributor on resource group 'rg-containers'"
     assert "ContainerApp 'aca-orders' can request tokens as aca-orders system identity" in aca_row[
         "note"
     ]
@@ -504,9 +507,9 @@ def test_cli_smoke_chains_compute_control_json(tmp_path: Path) -> None:
     assert aci_row["compute_foothold"] == "aci-public-api"
     assert aci_row["token_path"] == "service token request"
     assert aci_row["identity"] == "aci-public-api system identity"
-    assert aci_row["azure_access"] == "Contributor across subscription-wide scope"
+    assert aci_row["azure_access"] == "Contributor on resource group 'rg-apps'"
     assert aci_row["proof_status"] == "confirmed"
-    assert aci_row["stronger_outcome"] == "Contributor across subscription-wide scope"
+    assert aci_row["stronger_outcome"] == "Contributor on resource group 'rg-apps'"
     assert (
         "ContainerInstance 'aci-public-api' can request tokens as aci-public-api system identity"
         in aci_row["note"]
@@ -524,9 +527,9 @@ def test_cli_smoke_chains_compute_control_json(tmp_path: Path) -> None:
     assert app_row["compute_foothold"] == "app-empty-mi"
     assert app_row["token_path"] == "service token request"
     assert app_row["identity"] == "app-empty-mi-system"
-    assert app_row["azure_access"] == "Contributor across subscription-wide scope"
+    assert app_row["azure_access"] == "Contributor on resource group 'rg-apps'"
     assert app_row["proof_status"] == "confirmed"
-    assert app_row["stronger_outcome"] == "Contributor across subscription-wide scope"
+    assert app_row["stronger_outcome"] == "Contributor on resource group 'rg-apps'"
     assert "can request tokens as app-empty-mi-system" in app_row["note"]
     assert "Check app-services for the running service foothold" in app_row["next_review"]
 
@@ -540,7 +543,7 @@ def test_cli_smoke_chains_compute_control_json(tmp_path: Path) -> None:
     assert func_row["compute_foothold"] == "func-orders"
     assert func_row["token_path"] == "service token request"
     assert func_row["identity"] == "func-orders-system"
-    assert func_row["azure_access"] == "Contributor across subscription-wide scope"
+    assert func_row["azure_access"] == "Contributor on resource group 'rg-apps'"
     assert func_row["proof_status"] == "best current match"
     assert func_row["target_names"] == ["func-orders-system"]
     assert func_row["target_resolution"] == "identity-choice-corroborated"
@@ -581,9 +584,9 @@ def test_cli_smoke_chains_compute_control_json(tmp_path: Path) -> None:
     assert vmss_row["compute_foothold"] == "vmss-edge-01"
     assert vmss_row["token_path"] == "VM metadata token"
     assert vmss_row["identity"] == "vmss-edge-01-system"
-    assert vmss_row["azure_access"] == "Contributor across subscription-wide scope"
+    assert vmss_row["azure_access"] == "Contributor on resource group 'rg-workload'"
     assert vmss_row["proof_status"] == "confirmed"
-    assert vmss_row["stronger_outcome"] == "Contributor across subscription-wide scope"
+    assert vmss_row["stronger_outcome"] == "Contributor on resource group 'rg-workload'"
     assert "host-level execution or admin access" in vmss_row["note"]
     assert "Check vmss for the fleet foothold" in vmss_row["next_review"]
 
@@ -758,6 +761,51 @@ def test_cli_smoke_chains_escalation_path_contributor_view_table_output(tmp_path
     assert "trust expansion" in normalized_output
     assert "build-sp" in normalized_output
     assert "That would add Owner-level Azure control" in normalized_output
+
+
+@pytest.mark.parametrize(
+    ("family", "failing_command", "expected_issue_scope"),
+    (
+        ("deployment-path", "devops", "devops"),
+        ("escalation-path", "role-trusts", "role-trusts"),
+    ),
+)
+def test_cli_smoke_chains_family_keeps_emitting_when_supporting_collector_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    family: str,
+    failing_command: str,
+    expected_issue_scope: str,
+) -> None:
+    fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
+
+    def _failing_collector(*_args, **_kwargs):
+        raise AzureFoxError(
+            ErrorKind.PERMISSION_DENIED,
+            f"{failing_command}: synthetic failure for grouped-family regression",
+            command=failing_command,
+        )
+
+    patched_specs = tuple(
+        CommandSpec(spec.name, spec.section, _failing_collector)
+        if spec.name == failing_command
+        else spec
+        for spec in get_command_specs()
+    )
+    monkeypatch.setattr("azurefox.chains.runner.get_command_specs", lambda: patched_specs)
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "json", "chains", family],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["family"] == family
+    assert any(issue["scope"] == expected_issue_scope for issue in payload["issues"])
+    assert (tmp_path / "json" / "chains.json").exists()
+    assert (tmp_path / "loot" / "chains.json").exists()
 
 
 def test_cli_smoke_chains_compute_control_table_output(tmp_path: Path) -> None:

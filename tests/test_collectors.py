@@ -3828,6 +3828,68 @@ def test_collect_permissions(fixture_provider, options) -> None:
     )
 
 
+def test_permissions_current_identity_uses_assignment_scopes_not_whoami_scope() -> None:
+    options = GlobalOptions(
+        tenant=None,
+        subscription="sub-test",
+        output=OutputMode.JSON,
+        outdir=Path("/tmp"),
+        debug=False,
+        role_trusts_mode=RoleTrustsMode.FAST,
+    )
+    provider = object.__new__(AzureProvider)
+    provider.options = options
+    provider.whoami = lambda: {
+        "tenant_id": "tenant-test",
+        "subscription": {"id": "sub-test", "display_name": "Test Sub", "state": "Enabled"},
+        "principal": {
+            "id": "current-sp-object",
+            "principal_type": "ServicePrincipal",
+            "display_name": "current-sp",
+            "tenant_id": "tenant-test",
+        },
+        "effective_scopes": [
+            {
+                "id": "/subscriptions/sub-test",
+                "scope_type": "subscription",
+                "display_name": "Test Sub",
+            }
+        ],
+        "issues": [],
+    }
+    provider.rbac = lambda: {
+        "principals": [
+            {
+                "id": "current-sp-object",
+                "principal_type": "ServicePrincipal",
+                "display_name": "current-sp",
+                "tenant_id": "tenant-test",
+            }
+        ],
+        "role_assignments": [
+            {
+                "id": "ra-current-rg",
+                "scope_id": "/subscriptions/sub-test/resourceGroups/rg-workload",
+                "principal_id": "current-sp-object",
+                "principal_type": "ServicePrincipal",
+                "role_definition_id": "b24988ac-6180-42a0-ab88-20f7382dd24c",
+                "role_name": "Contributor",
+            }
+        ],
+        "scopes": [],
+        "issues": [],
+    }
+    provider.managed_identities = lambda: {"identities": [], "issues": []}
+
+    permissions = AzureProvider.permissions(provider)
+    current_row = permissions["permissions"][0]
+
+    assert current_row["is_current_identity"] is True
+    assert current_row["role_assignment_count"] == 1
+    assert current_row["scope_count"] == 1
+    assert current_row["scope_ids"] == ["/subscriptions/sub-test/resourceGroups/rg-workload"]
+
+
 def test_collect_permissions_prefers_workload_pivot_then_trust_expansion() -> None:
     class StubProvider:
         def permissions(self) -> dict:
