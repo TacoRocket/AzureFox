@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import base64
 import json
+import posixpath
 import re
 import ssl
 from abc import ABC, abstractmethod
@@ -11,6 +13,7 @@ from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
 import certifi
+import yaml
 
 from azurefox.auth.session import (
     DEVOPS_SCOPE,
@@ -1048,6 +1051,8 @@ class AzureProvider(BaseProvider):
         repositories_by_id, repositories_by_name = _devops_repository_maps(all_repositories)
         pipeline_issues_by_key: dict[str, list[dict[str, object]]] = {}
         collected_pipelines: list[dict[str, object]] = []
+        yaml_candidate_definitions_by_project: Counter[str] = Counter()
+        admitted_definitions_by_project: Counter[str] = Counter()
 
         for context in project_contexts:
             project = context["project"]
@@ -1066,21 +1071,51 @@ class AzureProvider(BaseProvider):
                     if isinstance(group, dict)
                 ]
             )
+            variable_groups_by_name = _devops_variable_group_name_map(
+                [
+                    group
+                    for group in (context.get("variable_groups") or [])
+                    if isinstance(group, dict)
+                ]
+            )
 
             for definition in context.get("definitions") or []:
                 if not isinstance(definition, dict):
                     continue
+                definition_for_analysis = definition
+                yaml_documents, yaml_issues = self._devops_repository_yaml_documents(
+                    organization=organization,
+                    project_name=project_name,
+                    repository_id=(
+                        str(definition.get("repository", {}).get("id") or "")
+                        if isinstance(definition.get("repository"), dict)
+                        else ""
+                    ),
+                    yaml_path=_devops_definition_yaml_path(definition),
+                    default_branch=(
+                        str(definition.get("repository", {}).get("defaultBranch") or "")
+                        if isinstance(definition.get("repository"), dict)
+                        else ""
+                    ),
+                )
+                if yaml_documents:
+                    definition_for_analysis = _devops_attach_yaml_documents(
+                        definition,
+                        yaml_documents,
+                    )
                 try:
                     pipeline, definition_issues = _devops_pipeline_summary(
                         organization=organization,
                         project=project,
-                        definition=definition,
+                        definition=definition_for_analysis,
                         service_endpoints_by_id=service_endpoints_by_id,
                         service_endpoints_by_name=service_endpoints_by_name,
                         repositories_by_id=repositories_by_id,
                         repositories_by_name=repositories_by_name,
                         variable_groups_by_id=variable_groups_by_id,
+                        variable_groups_by_name=variable_groups_by_name,
                     )
+                    definition_issues = [*yaml_issues, *definition_issues]
                 except Exception as exc:
                     definition_label = str(definition.get("id") or "") or str(
                         definition.get("name") or "unknown"
@@ -1184,6 +1219,8 @@ class AzureProvider(BaseProvider):
                 definition_key = _devops_pipeline_key(pipeline)
                 pipeline_issues_by_key[definition_key] = definition_issues
                 collected_pipelines.append(pipeline)
+                if _devops_definition_repo_content_candidate(definition_for_analysis):
+                    yaml_candidate_definitions_by_project[project_name] += 1
 
         pipeline_lookup = _devops_pipeline_lookup(collected_pipelines)
         for pipeline in collected_pipelines:
@@ -1215,7 +1252,25 @@ class AzureProvider(BaseProvider):
             )
             issues.extend(definition_issues)
             if _devops_pipeline_is_interesting(pipeline):
+                admitted_definitions_by_project[project_name] += 1
                 pipelines.append(pipeline)
+
+        for project_name, visible_count in yaml_candidate_definitions_by_project.items():
+            omitted_count = visible_count - admitted_definitions_by_project.get(project_name, 0)
+            if omitted_count <= 0:
+                continue
+            definition_label = "definition" if omitted_count == 1 else "definitions"
+            issues.append(
+                _partial_collection_issue(
+                    f"devops[{project_name}].definitions",
+                    (
+                        f"{omitted_count} visible build {definition_label} omitted because "
+                        "current Azure DevOps evidence did not prove a controllable Azure "
+                        "change path without reading repo content or pipeline logs."
+                    ),
+                    asset_name=project_name,
+                )
+            )
 
         return {"pipelines": pipelines, "issues": issues}
 
@@ -3268,23 +3323,20 @@ class AzureProvider(BaseProvider):
 
     def _devops_get(self, url: str) -> tuple[dict[str, object], dict[str, str]]:
         token = self.session.credential.get_token(DEVOPS_SCOPE).token
+        auth_hint = _devops_bearer_identity_hint(token)
         request = Request(
             url,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Accept": "application/json",
-            },
+            headers=_devops_request_headers(token),
         )
         try:
             with urlopen(request, context=_arm_ssl_context(), timeout=30) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-                headers = {key.lower(): value for key, value in response.headers.items()}
+                payload, headers = _devops_parse_json_response(url, response)
                 return payload, headers
         except HTTPError as exc:
             body = exc.read().decode("utf-8", errors="ignore")
             raise AzureFoxError(
                 classify_exception(exc),
-                f"Azure DevOps request failed for {url}: {exc.code} {exc.reason}",
+                _devops_http_error_message(url, exc.code, exc.reason, auth_hint=auth_hint),
                 details={"body": body[:500]},
             ) from exc
         except URLError as exc:
@@ -3299,27 +3351,22 @@ class AzureProvider(BaseProvider):
         payload: dict[str, object],
     ) -> tuple[dict[str, object], dict[str, str]]:
         token = self.session.credential.get_token(DEVOPS_SCOPE).token
+        auth_hint = _devops_bearer_identity_hint(token)
         request = Request(
             url,
             data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            },
+            headers=_devops_request_headers(token, content_type="application/json"),
             method="POST",
         )
         try:
             with urlopen(request, context=_arm_ssl_context(), timeout=30) as response:
-                body = response.read()
-                parsed = json.loads(body.decode("utf-8")) if body else {}
-                headers = {key.lower(): value for key, value in response.headers.items()}
+                parsed, headers = _devops_parse_json_response(url, response)
                 return parsed, headers
         except HTTPError as exc:
             body = exc.read().decode("utf-8", errors="ignore")
             raise AzureFoxError(
                 classify_exception(exc),
-                f"Azure DevOps request failed for {url}: {exc.code} {exc.reason}",
+                _devops_http_error_message(url, exc.code, exc.reason, auth_hint=auth_hint),
                 details={"body": body[:500]},
             ) from exc
         except URLError as exc:
@@ -3521,6 +3568,91 @@ class AzureProvider(BaseProvider):
         }
         self._devops_current_operator_cache[organization] = dict(result)
         return result
+
+    def _devops_repository_yaml_documents(
+        self,
+        *,
+        organization: str,
+        project_name: str,
+        repository_id: str,
+        yaml_path: str | None,
+        default_branch: str | None,
+    ) -> tuple[list[dict[str, object] | list[object]], list[dict[str, object]]]:
+        if not organization or not project_name or not repository_id or not yaml_path:
+            return [], []
+
+        branch_name = _devops_branch_name(default_branch)
+        if not branch_name:
+            return [], []
+
+        issues: list[dict[str, object]] = []
+        documents: list[dict[str, object] | list[object]] = []
+        pending_paths = [_devops_normalize_repo_yaml_path(yaml_path)]
+        seen_paths: set[str] = set()
+
+        while pending_paths:
+            current_path = pending_paths.pop(0)
+            if not current_path or current_path in seen_paths:
+                continue
+            seen_paths.add(current_path)
+
+            try:
+                payload, _headers = self._devops_get(
+                    _devops_repository_item_url(
+                        organization=organization,
+                        project_name=project_name,
+                        repository_id=repository_id,
+                        item_path=current_path,
+                        branch_name=branch_name,
+                    )
+                )
+            except Exception as exc:
+                issues.append(
+                    _partial_collection_issue(
+                        "devops.repo_yaml",
+                        f"repo-backed YAML read failed for {current_path}: {exc}",
+                        asset_name=current_path,
+                    )
+                )
+                continue
+
+            content = str(payload.get("content") or "")
+            if not content.strip():
+                issues.append(
+                    _partial_collection_issue(
+                        "devops.repo_yaml",
+                        f"repo-backed YAML read returned no content for {current_path}",
+                        asset_name=current_path,
+                    )
+                )
+                continue
+
+            try:
+                parsed = yaml.safe_load(content)
+            except yaml.YAMLError as exc:
+                issues.append(
+                    _partial_collection_issue(
+                        "devops.repo_yaml",
+                        f"repo-backed YAML parse failed for {current_path}: {exc}",
+                        asset_name=current_path,
+                    )
+                )
+                continue
+
+            if not isinstance(parsed, (dict, list)):
+                continue
+
+            documents.append(parsed)
+            current_dir = posixpath.dirname(current_path) or "/"
+            for template_path in _devops_local_template_paths(parsed):
+                resolved_path = _devops_resolve_repo_yaml_path(
+                    template_path,
+                    current_dir=current_dir,
+                )
+                if resolved_path and resolved_path not in seen_paths:
+                    pending_paths.append(resolved_path)
+
+        return documents, issues
 
     def _devops_secure_files(
         self,
@@ -3838,6 +3970,92 @@ def _issue_from_exception(area: str, exc: Exception) -> dict:
         "scope": area,
         "context": {"collector": area},
     }
+
+
+def _devops_request_headers(token: str, *, content_type: str | None = None) -> dict[str, str]:
+    basic_token = base64.b64encode(f":{token}".encode()).decode("ascii")
+    headers = {
+        "Authorization": f"Basic {basic_token}",
+        "Accept": "application/json",
+        "X-TFS-FedAuthRedirect": "Suppress",
+        "X-VSS-ForceMsaPassThrough": "true",
+    }
+    if content_type:
+        headers["Content-Type"] = content_type
+    return headers
+
+
+def _devops_parse_json_response(
+    url: str,
+    response,
+) -> tuple[dict[str, object], dict[str, str]]:
+    headers = {key.lower(): value for key, value in response.headers.items()}
+    body = response.read()
+    if not body:
+        return {}, headers
+
+    body_text = body.decode("utf-8", errors="replace")
+    try:
+        payload = json.loads(body_text)
+    except json.JSONDecodeError as exc:
+        content_type = str(headers.get("content-type") or "unknown")
+        response_kind = (
+            "non-JSON response" if "json" not in content_type.lower() else "invalid JSON"
+        )
+        raise AzureFoxError(
+            ErrorKind.UNKNOWN,
+            f"Azure DevOps returned {response_kind} for {url} (content-type {content_type}).",
+            details={
+                "body": body_text[:500],
+                "content_type": content_type,
+            },
+        ) from exc
+
+    if not isinstance(payload, dict):
+        raise AzureFoxError(
+            ErrorKind.UNKNOWN,
+            f"Azure DevOps returned a non-object JSON payload for {url}.",
+            details={
+                "body": body_text[:500],
+                "content_type": str(headers.get('content-type') or 'unknown'),
+            },
+        )
+
+    return payload, headers
+
+
+def _devops_bearer_identity_hint(token: str) -> str | None:
+    claims = decode_jwt_payload(token)
+    principal = (
+        claims.get("preferred_username")
+        or claims.get("upn")
+        or claims.get("unique_name")
+        or claims.get("email")
+        or claims.get("oid")
+        or claims.get("appid")
+    )
+    if not principal:
+        return None
+    idp = claims.get("idp")
+    if idp:
+        return f"{principal} via {idp}"
+    return principal
+
+
+def _devops_http_error_message(
+    url: str,
+    code: object,
+    reason: object,
+    *,
+    auth_hint: str | None,
+) -> str:
+    message = f"Azure DevOps request failed for {url}: {code} {reason}"
+    if auth_hint and str(code) == "401":
+        message += (
+            f". Current Azure login presented identity '{auth_hint}'; verify that this "
+            "matches the Azure DevOps org-mapped identity."
+        )
+    return message
 
 
 def _collect_resource_type_summaries(
@@ -9124,6 +9342,121 @@ def _set_query_param(url: str, key: str, value: str) -> str:
     return urlunparse(parsed._replace(query=urlencode(query)))
 
 
+def _devops_definition_yaml_path(definition: dict[str, object]) -> str | None:
+    process = definition.get("process")
+    if not isinstance(process, dict):
+        return None
+    yaml_filename = str(process.get("yamlFilename") or "").strip()
+    if not yaml_filename:
+        return None
+    return _devops_normalize_repo_yaml_path(yaml_filename)
+
+
+def _devops_branch_name(default_branch: str | None) -> str | None:
+    branch = str(default_branch or "").strip()
+    if not branch:
+        return None
+    if branch.startswith("refs/heads/"):
+        return branch.split("refs/heads/", 1)[1] or None
+    return branch or None
+
+
+def _devops_normalize_repo_yaml_path(path: str | None) -> str:
+    cleaned = str(path or "").strip()
+    if not cleaned:
+        return ""
+    normalized = posixpath.normpath(cleaned if cleaned.startswith("/") else f"/{cleaned}")
+    if normalized == ".":
+        return ""
+    return normalized if normalized.startswith("/") else f"/{normalized}"
+
+
+def _devops_resolve_repo_yaml_path(path: str, *, current_dir: str) -> str | None:
+    cleaned = str(path or "").strip()
+    if (
+        not cleaned
+        or "@" in cleaned
+        or _looks_like_expression(cleaned)
+        or _looks_like_http_url(cleaned)
+    ):
+        return None
+    if not _looks_like_yaml_file_path(cleaned):
+        return None
+    if cleaned.startswith("/"):
+        return _devops_normalize_repo_yaml_path(cleaned)
+    return _devops_normalize_repo_yaml_path(posixpath.join(current_dir, cleaned))
+
+
+def _looks_like_yaml_file_path(value: str) -> bool:
+    lowered = value.lower().strip()
+    return lowered.endswith((".yml", ".yaml"))
+
+
+def _devops_repository_item_url(
+    *,
+    organization: str,
+    project_name: str,
+    repository_id: str,
+    item_path: str,
+    branch_name: str,
+) -> str:
+    return (
+        "https://dev.azure.com/"
+        f"{organization}/{quote(project_name, safe='')}/_apis/git/repositories/"
+        f"{quote(repository_id, safe='')}/items?"
+        + urlencode(
+            {
+                "path": item_path,
+                "versionDescriptor.version": branch_name,
+                "versionDescriptor.versionType": "branch",
+                "includeContent": "true",
+                "resolveLfs": "true",
+                "api-version": "7.1",
+            }
+        )
+    )
+
+
+def _devops_attach_yaml_documents(
+    definition: dict[str, object],
+    yaml_documents: list[dict[str, object] | list[object]],
+) -> dict[str, object]:
+    if not yaml_documents:
+        return dict(definition)
+    attached = dict(definition)
+    existing_documents = attached.get("yaml_documents")
+    if isinstance(existing_documents, list):
+        attached["yaml_documents"] = [*existing_documents, *yaml_documents]
+    else:
+        attached["yaml_documents"] = list(yaml_documents)
+    return attached
+
+
+def _devops_definition_repo_content_candidate(definition: dict[str, object]) -> bool:
+    if _devops_definition_yaml_path(definition):
+        return True
+    yaml_documents = definition.get("yaml_documents")
+    return isinstance(yaml_documents, list) and bool(yaml_documents)
+
+
+def _devops_local_template_paths(node: object) -> list[str]:
+    paths: list[str] = []
+    for _path, current in _recursive_nodes(node):
+        if not isinstance(current, dict):
+            continue
+        template_value = _string_value(current.get("template"))
+        if (
+            not template_value
+            or "@" in template_value
+            or _looks_like_expression(template_value)
+            or _looks_like_http_url(template_value)
+            or not _looks_like_yaml_file_path(template_value)
+        ):
+            continue
+        paths.append(template_value)
+    return _dedupe_strings(paths)
+
+
 def _devops_service_endpoint_maps(
     endpoints: list[dict[str, object]],
 ) -> tuple[dict[str, dict[str, object]], dict[str, dict[str, object]]]:
@@ -9241,6 +9574,17 @@ def _devops_variable_group_map(
     return result
 
 
+def _devops_variable_group_name_map(
+    variable_groups: list[dict[str, object]],
+) -> dict[str, dict[str, object]]:
+    result: dict[str, dict[str, object]] = {}
+    for group in variable_groups:
+        group_name = str(group.get("name") or "").strip().lower()
+        if group_name:
+            result[group_name] = group
+    return result
+
+
 def _devops_pipeline_is_interesting(item: dict[str, object]) -> bool:
     return any(
         (
@@ -9261,11 +9605,13 @@ def _devops_pipeline_summary(
     service_endpoints_by_id: dict[str, dict[str, object]],
     service_endpoints_by_name: dict[str, dict[str, object]],
     variable_groups_by_id: dict[int, dict[str, object]],
+    variable_groups_by_name: dict[str, dict[str, object]] | None = None,
     repositories_by_id: dict[str, dict[str, object]] | None = None,
     repositories_by_name: dict[str, dict[str, object]] | None = None,
 ) -> tuple[dict[str, object], list[dict[str, object]]]:
     repositories_by_id = repositories_by_id or {}
     repositories_by_name = repositories_by_name or {}
+    variable_groups_by_name = variable_groups_by_name or {}
     definition_project = definition.get("project")
     if not isinstance(definition_project, dict):
         definition_project = {}
@@ -9326,17 +9672,28 @@ def _devops_pipeline_summary(
 
     inline_secret_count, inline_secret_names = _devops_secret_details(definition.get("variables"))
 
-    referenced_group_ids = _devops_definition_variable_group_ids(definition)
+    referenced_group_ids, referenced_group_names = _devops_definition_variable_group_refs(
+        definition
+    )
     referenced_groups: list[dict[str, object]] = []
-    unresolved_group_ids: list[str] = []
+    unresolved_group_refs: list[str] = []
     for group_id in referenced_group_ids:
         group = variable_groups_by_id.get(group_id)
         if group is None:
-            unresolved_group_ids.append(str(group_id))
+            unresolved_group_refs.append(str(group_id))
             continue
         referenced_groups.append(group)
+    for group_name in referenced_group_names:
+        group = variable_groups_by_name.get(group_name.strip().lower())
+        if group is None:
+            unresolved_group_refs.append(group_name)
+            continue
+        if group not in referenced_groups:
+            referenced_groups.append(group)
 
-    variable_group_names = _dedupe_strings(group.get("name") for group in referenced_groups)
+    variable_group_names = _dedupe_strings(
+        [*referenced_group_names, *[group.get("name") for group in referenced_groups]]
+    )
     group_secret_count = 0
     group_secret_names: list[str] = []
     key_vault_group_names: list[str] = []
@@ -9436,13 +9793,13 @@ def _devops_pipeline_summary(
         azure_service_connection_names=azure_service_connection_names,
         secret_variable_count=secret_variable_count,
         key_vault_group_names=key_vault_group_names,
-        unresolved_group_count=len(unresolved_group_ids),
+        unresolved_group_count=len(unresolved_group_refs),
         unresolved_service_connection_count=(
             len(unresolved_endpoint_refs) + len(unresolved_provider_endpoint_ids)
         ),
     )
     partial_read_reasons = _devops_partial_read_reasons(
-        unresolved_group_ids=unresolved_group_ids,
+        unresolved_group_refs=unresolved_group_refs,
         unresolved_endpoint_refs=unresolved_endpoint_refs,
         unresolved_provider_endpoint_ids=unresolved_provider_endpoint_ids,
     )
@@ -9760,24 +10117,35 @@ def _devops_secret_details(variables: object) -> tuple[int, list[str]]:
     return count, _dedupe_strings(names)
 
 
-def _devops_definition_variable_group_ids(definition: dict[str, object]) -> list[int]:
+def _devops_definition_variable_group_refs(
+    definition: dict[str, object],
+) -> tuple[list[int], list[str]]:
     raw_value = definition.get("variableGroups")
-    if not isinstance(raw_value, list):
-        return []
-
     group_ids: list[int] = []
-    for item in raw_value:
-        if isinstance(item, int):
-            group_ids.append(item)
-        elif isinstance(item, str) and item.isdigit():
-            group_ids.append(int(item))
-        elif isinstance(item, dict):
-            group_id = item.get("id")
-            if isinstance(group_id, int):
-                group_ids.append(group_id)
-            elif isinstance(group_id, str) and group_id.isdigit():
-                group_ids.append(int(group_id))
-    return group_ids
+    if isinstance(raw_value, list):
+        for item in raw_value:
+            if isinstance(item, int):
+                group_ids.append(item)
+            elif isinstance(item, str) and item.isdigit():
+                group_ids.append(int(item))
+            elif isinstance(item, dict):
+                group_id = item.get("id")
+                if isinstance(group_id, int):
+                    group_ids.append(group_id)
+                elif isinstance(group_id, str) and group_id.isdigit():
+                    group_ids.append(int(group_id))
+
+    group_names: list[str] = []
+    for path, node in _recursive_nodes(definition):
+        if not isinstance(node, dict):
+            continue
+        if "variables" not in set(_devops_path_tokens(path)):
+            continue
+        group_name = _devops_first_value_for_tokens(node, (("group",),))
+        if group_name and not _looks_like_expression(group_name):
+            group_names.append(group_name)
+
+    return group_ids, _dedupe_strings(group_names)
 
 
 def _devops_variable_group_is_key_vault_backed(group: dict[str, object]) -> bool:
@@ -11803,13 +12171,13 @@ def _devops_missing_trusted_input_proof(input_type: str | None) -> str | None:
 
 def _devops_partial_read_reasons(
     *,
-    unresolved_group_ids: list[str],
+    unresolved_group_refs: list[str],
     unresolved_endpoint_refs: list[str],
     unresolved_provider_endpoint_ids: list[str],
 ) -> list[str]:
     reasons: list[str] = []
-    if unresolved_group_ids:
-        reasons.append("unresolved variable group refs: " + ", ".join(unresolved_group_ids))
+    if unresolved_group_refs:
+        reasons.append("unresolved variable group refs: " + ", ".join(unresolved_group_refs))
     if unresolved_endpoint_refs:
         reasons.append("unresolved service connection refs: " + ", ".join(unresolved_endpoint_refs))
     if unresolved_provider_endpoint_ids:

@@ -34,6 +34,7 @@ dependencies = [
   "azure-mgmt-containerregistry>=13.0,<14",
   "azure-mgmt-containerservice>=31.0,<32",
   "certifi>=2024.2,<2027",
+  "PyYAML>=6.0,<7",
   "six>=1.16,<2",
 ]
 

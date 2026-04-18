@@ -29,6 +29,8 @@ class AzureFoxError(Exception):
 
 def classify_exception(exc: Exception) -> ErrorKind:
     message = str(exc).lower()
+    if "unauthorized" in message or "authentication" in message or "auth failure" in message:
+        return ErrorKind.AUTH_FAILURE
     if "forbidden" in message or "permission" in message:
         return ErrorKind.PERMISSION_DENIED
     if "thrott" in message or "rate" in message:

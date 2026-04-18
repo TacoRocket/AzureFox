@@ -997,6 +997,42 @@ def test_cli_smoke_deployment_path_keeps_visibility_blocked_row_for_named_target
     assert "cannot see a matching inventory record" in (row["target_visibility_issue"] or "")
 
 
+def test_cli_smoke_deployment_path_stays_honest_when_devops_is_unavailable(tmp_path: Path) -> None:
+    fixture_dir = tmp_path / "deployment-path-devops-unavailable"
+    shutil.copytree(Path(__file__).resolve().parent / "fixtures" / "lab_tenant", fixture_dir)
+    _write_fixture_json(
+        fixture_dir / "devops.json",
+        {
+            "pipelines": [],
+            "issues": [
+                {
+                    "kind": "auth_failure",
+                    "message": (
+                        "devops.projects: Azure DevOps request failed for "
+                        "https://dev.azure.com/contoso/_apis/projects?api-version=7.1&$top=200: "
+                        "401 Unauthorized"
+                    ),
+                    "scope": "devops.projects",
+                    "context": {"collector": "devops.projects"},
+                }
+            ],
+        },
+    )
+
+    result = runner.invoke(
+        app,
+        ["--outdir", str(tmp_path), "--output", "json", "chains", "deployment-path"],
+        env={"AZUREFOX_FIXTURE_DIR": str(fixture_dir)},
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert any(issue["scope"] == "devops.projects" for issue in payload["issues"])
+    assert "deploy-appservice-prod" not in {item["asset_name"] for item in payload["paths"]}
+    assert "deploy-aks-prod" not in {item["asset_name"] for item in payload["paths"]}
+    assert "aa-hybrid-prod" in {item["asset_name"] for item in payload["paths"]}
+
+
 def test_cli_smoke_chains_compute_control_json(tmp_path: Path) -> None:
     fixture_dir = Path(__file__).resolve().parent / "fixtures" / "lab_tenant"
 
