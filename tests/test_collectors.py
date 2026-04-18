@@ -75,6 +75,7 @@ from azurefox.collectors.provider import (
 from azurefox.config import GlobalOptions
 from azurefox.devops_hints import devops_next_review_hint
 from azurefox.env_var_hints import env_var_next_review_hint
+from azurefox.errors import AzureFoxError, ErrorKind
 from azurefox.models.common import OutputMode, RoleTrustsMode
 
 
@@ -3463,6 +3464,243 @@ def test_devops_cross_project_artifact_producer_control_flows_into_deploy_pipeli
     assert artifact_input["current_operator_access_state"] == "write"
     assert artifact_input["current_operator_can_poison"] is True
     assert artifact_input["trusted_input_evidence_basis"] == "artifact-producer-input-control"
+
+
+class _StubDevopsResponse:
+    def __init__(
+        self,
+        body: str,
+        *,
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        self._body = body.encode("utf-8")
+        self.headers = headers or {"Content-Type": "application/json; charset=utf-8"}
+
+    def read(self) -> bytes:
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        return None
+
+
+def test_devops_get_sends_redirect_suppress_header_and_parses_projects(monkeypatch) -> None:
+    provider = AzureProvider.__new__(AzureProvider)
+    provider.session = SimpleNamespace(
+        credential=SimpleNamespace(get_token=lambda _scope: SimpleNamespace(token="devops-token"))
+    )
+
+    captured: dict[str, object] = {}
+
+    def _fake_urlopen(request, **_kwargs):
+        captured["url"] = request.full_url
+        captured["headers"] = dict(request.header_items())
+        return _StubDevopsResponse('{"value":[{"name":"prod-platform","id":"project-1"}]}')
+
+    monkeypatch.setattr("azurefox.collectors.provider.urlopen", _fake_urlopen)
+
+    payload, _headers = AzureProvider._devops_get(
+        provider,
+        "https://dev.azure.com/contoso/_apis/projects?api-version=7.1&$top=200",
+    )
+
+    assert payload["value"][0]["name"] == "prod-platform"
+    assert captured["url"] == "https://dev.azure.com/contoso/_apis/projects?api-version=7.1&$top=200"
+    assert captured["headers"]["X-tfs-fedauthredirect"] == "Suppress"
+    assert captured["headers"]["X-vss-forcemsapassthrough"] == "true"
+    assert captured["headers"]["Authorization"] == "Basic OmRldm9wcy10b2tlbg=="
+    assert captured["headers"]["Accept"] == "application/json"
+
+
+def test_devops_get_surfaces_non_json_response_truthfully(monkeypatch) -> None:
+    provider = AzureProvider.__new__(AzureProvider)
+    provider.session = SimpleNamespace(
+        credential=SimpleNamespace(get_token=lambda _scope: SimpleNamespace(token="devops-token"))
+    )
+
+    def _fake_urlopen(_request, **_kwargs):
+        return _StubDevopsResponse(
+            "<html><body>signin</body></html>",
+            headers={"Content-Type": "text/html; charset=utf-8"},
+        )
+
+    monkeypatch.setattr("azurefox.collectors.provider.urlopen", _fake_urlopen)
+
+    try:
+        AzureProvider._devops_get(
+            provider,
+            "https://dev.azure.com/contoso/_apis/projects?api-version=7.1&$top=200",
+        )
+    except AzureFoxError as exc:
+        assert exc.kind == ErrorKind.UNKNOWN
+        assert "non-JSON response" in str(exc)
+        assert "content-type text/html; charset=utf-8" in str(exc)
+        assert exc.details["body"].startswith("<html>")
+    else:  # pragma: no cover - guardrail for the regression
+        raise AssertionError("expected AzureFoxError for non-JSON Azure DevOps response")
+
+
+def test_devops_surfaces_visible_but_unadmitted_definitions_truthfully(monkeypatch) -> None:
+    provider = AzureProvider.__new__(AzureProvider)
+    provider.options = SimpleNamespace(devops_organization="contoso")
+
+    definition = {
+        "id": 1,
+        "name": "lab-proof",
+        "process": {"type": 2, "yamlFilename": "azure-pipelines.yml"},
+        "project": {"id": "project-1", "name": "Proof Lab"},
+        "queueStatus": "enabled",
+        "repository": {
+            "id": "repo-1",
+            "name": "lab-proof",
+            "type": "TfsGit",
+            "defaultBranch": "refs/heads/main",
+            "url": "https://dev.azure.com/contoso/Proof%20Lab/_git/lab-proof",
+        },
+        "triggers": [{"triggerType": "continuousIntegration"}],
+    }
+
+    repository = {
+        "id": "repo-1",
+        "name": "lab-proof",
+        "project": {"id": "project-1", "name": "Proof Lab"},
+        "url": "https://dev.azure.com/contoso/Proof%20Lab/_git/lab-proof",
+        "defaultBranch": "refs/heads/main",
+    }
+
+    def _fake_list_values(url: str) -> list[dict[str, object]]:
+        if "/_apis/projects" in url:
+            return [{"id": "project-1", "name": "Proof Lab"}]
+        if "/_apis/serviceendpoint/endpoints" in url:
+            return []
+        if "/_apis/distributedtask/variablegroups" in url:
+            return []
+        if "/_apis/git/repositories" in url:
+            return [repository]
+        if "/_apis/build/definitions" in url:
+            return [definition]
+        raise AssertionError(f"unexpected url: {url}")
+
+    provider._devops_list_values = _fake_list_values  # type: ignore[attr-defined]
+    provider._devops_current_operator_identity = lambda **_kwargs: {}  # type: ignore[attr-defined]
+    provider._devops_build_definition_permissions = lambda **_kwargs: {  # type: ignore[attr-defined]
+        "current_operator_can_view_definition": None,
+        "current_operator_can_queue": None,
+        "current_operator_can_edit": None,
+    }
+    provider._devops_git_repository_permissions = lambda **_kwargs: {  # type: ignore[attr-defined]
+        "current_operator_can_view_source": None,
+        "current_operator_can_contribute_source": None,
+    }
+    provider._devops_repository_yaml_documents = lambda **_kwargs: ([], [])  # type: ignore[attr-defined]
+    provider._devops_enrich_non_artifact_trusted_inputs = (  # type: ignore[attr-defined]
+        lambda **kwargs: kwargs["trusted_inputs"]
+    )
+
+    payload = AzureProvider.devops(provider)
+
+    assert payload["pipelines"] == []
+    assert payload["issues"] == [
+        {
+            "kind": ErrorKind.PARTIAL_COLLECTION.value,
+            "message": (
+                "devops[Proof Lab].definitions: 1 visible build definition omitted because "
+                "current Azure DevOps evidence did not prove a controllable Azure change "
+                "path without reading repo content or pipeline logs."
+            ),
+            "scope": "devops[Proof Lab].definitions",
+            "context": {
+                "collector": "devops[Proof Lab].definitions",
+                "asset_name": "Proof Lab",
+            },
+        }
+    ]
+
+
+def test_devops_admits_repo_backed_yaml_pipeline_with_visible_azure_clues(monkeypatch) -> None:
+    provider = AzureProvider.__new__(AzureProvider)
+    provider.options = SimpleNamespace(devops_organization="contoso")
+
+    definition = {
+        "id": 1,
+        "name": "lab-proof",
+        "process": {"type": 2, "yamlFilename": "azure-pipelines.yml"},
+        "project": {"id": "project-1", "name": "Proof Lab"},
+        "queueStatus": "enabled",
+        "repository": {
+            "id": "repo-1",
+            "name": "lab-proof",
+            "type": "TfsGit",
+            "defaultBranch": "refs/heads/main",
+            "url": "https://dev.azure.com/contoso/Proof%20Lab/_git/lab-proof",
+        },
+        "triggers": [{"triggerType": "continuousIntegration"}],
+    }
+
+    repository = {
+        "id": "repo-1",
+        "name": "lab-proof",
+        "project": {"id": "project-1", "name": "Proof Lab"},
+        "url": "https://dev.azure.com/contoso/Proof%20Lab/_git/lab-proof",
+        "defaultBranch": "refs/heads/main",
+    }
+    service_endpoint = {
+        "id": "endpoint-1",
+        "name": "af-rg-reader",
+        "type": "azurerm",
+        "authorization": {"scheme": "WorkloadIdentityFederation"},
+        "data": {"subscriptionId": "sub-1", "tenantId": "tenant-1"},
+    }
+    variable_group = {"id": 17, "name": "af-proof-lab-vars", "type": "Vsts"}
+    yaml_document = {
+        "variables": [{"group": "af-proof-lab-vars"}],
+        "steps": [
+            {
+                "task": "AzureCLI@2",
+                "inputs": {"azureSubscription": "af-rg-reader"},
+            }
+        ],
+    }
+
+    def _fake_list_values(url: str) -> list[dict[str, object]]:
+        if "/_apis/projects" in url:
+            return [{"id": "project-1", "name": "Proof Lab"}]
+        if "/_apis/serviceendpoint/endpoints" in url:
+            return [service_endpoint]
+        if "/_apis/distributedtask/variablegroups" in url:
+            return [variable_group]
+        if "/_apis/git/repositories" in url:
+            return [repository]
+        if "/_apis/build/definitions" in url:
+            return [definition]
+        raise AssertionError(f"unexpected url: {url}")
+
+    provider._devops_list_values = _fake_list_values  # type: ignore[attr-defined]
+    provider._devops_current_operator_identity = lambda **_kwargs: {}  # type: ignore[attr-defined]
+    provider._devops_build_definition_permissions = lambda **_kwargs: {  # type: ignore[attr-defined]
+        "current_operator_can_view_definition": True,
+        "current_operator_can_queue": True,
+        "current_operator_can_edit": False,
+    }
+    provider._devops_git_repository_permissions = lambda **_kwargs: {  # type: ignore[attr-defined]
+        "current_operator_can_view_source": True,
+        "current_operator_can_contribute_source": False,
+    }
+    provider._devops_repository_yaml_documents = lambda **_kwargs: ([yaml_document], [])  # type: ignore[attr-defined]
+    provider._devops_enrich_non_artifact_trusted_inputs = (  # type: ignore[attr-defined]
+        lambda **kwargs: kwargs["trusted_inputs"]
+    )
+
+    payload = AzureProvider.devops(provider)
+
+    assert payload["issues"] == []
+    assert len(payload["pipelines"]) == 1
+    pipeline = payload["pipelines"][0]
+    assert pipeline["name"] == "lab-proof"
+    assert pipeline["azure_service_connection_names"] == ["af-rg-reader"]
+    assert pipeline["variable_group_names"] == ["af-proof-lab-vars"]
 
 
 def test_devops_missing_execution_path_clears_for_queue_or_edit() -> None:
