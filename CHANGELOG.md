@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.5.0] - 2026-04-18
+
+### Added
+- Added strict grouped `chains` artifact reuse for compatible local source JSON so repeated family
+  reruns can reuse already-produced evidence truthfully instead of recollecting every backing
+  command.
+- Added YAML-backed Azure DevOps pipeline evidence so `devops` and `chains deployment-path` can
+  admit repo-backed Azure service connections and variable groups from real Azure Repos pipeline
+  definitions and same-repo local templates.
+
+### Changed
+- Batched the expensive Graph fanout behind `role-trusts`, which keeps live grouped `chains`
+  families responsive on fresh runs instead of stalling on serial trust-edge collection.
+- Tightened reduced-view and maintenance-mode truthfulness across `permissions`,
+  `tokens-credentials`, `credential-path`, `deployment-path`, `functions`, `arm-deployments`, and
+  `resource-trusts` so reduced or partial visibility reads as exactly that instead of broader proof.
+- Bumped the published package and output schema version to `1.5.0` for the completed minor
+  release boundary.
+
 ## [1.4.0] - 2026-04-12
 
 ### Added
