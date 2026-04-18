@@ -19,7 +19,7 @@ from azurefox.auth.session import (
     decode_jwt_payload,
 )
 from azurefox.clients.factory import build_clients
-from azurefox.clients.graph import GraphClient
+from azurefox.clients.graph import GraphBatchRequest, GraphClient
 from azurefox.config import GlobalOptions
 from azurefox.correlation.findings import build_keyvault_findings, build_storage_findings
 from azurefox.devops_hints import describe_trusted_input, devops_next_review_hint
@@ -2191,21 +2191,70 @@ class AzureProvider(BaseProvider):
             for app_id in service_principal_by_app_id
             if app_id and app_id not in application_by_app_id
         )
+        seeded_applications, seeded_application_errors = _graph_batch_list_with_fallback(
+            self.graph,
+            [
+                GraphBatchRequest(
+                    key=app_id,
+                    path="/applications",
+                    params={
+                        "$filter": "appId eq '{}'".format(str(app_id).replace("'", "''")),
+                        "$select": "id,appId,displayName,signInAudience",
+                    },
+                )
+                for app_id in seeded_app_ids
+            ],
+            lambda request: _graph_optional_list(
+                self.graph.get_application_by_app_id(str(request.key))
+            ),
+        )
         for app_id in seeded_app_ids:
-            try:
-                application = self.graph.get_application_by_app_id(app_id)
-            except Exception as exc:
+            exc = seeded_application_errors.get(app_id)
+            if exc is not None:
                 issues.append(
                     _issue_from_exception(
                         f"role_trusts.applications.by_app_id[{app_id}]",
                         exc,
                     )
                 )
-                application = None
-            if application is None:
                 continue
+            application_items = seeded_applications.get(app_id, [])
+            if not application_items:
+                continue
+            application = application_items[0]
             application_by_app_id[app_id] = application
             applications.append(application)
+
+        federated_credentials_by_application, federated_credential_errors = (
+            _graph_batch_list_with_fallback(
+                self.graph,
+                [
+                    GraphBatchRequest(
+                        key=app_object_id,
+                        path=f"/applications/{app_object_id}/federatedIdentityCredentials",
+                        params={"$select": "id,name,issuer,subject,audiences"},
+                    )
+                    for application in applications
+                    if (app_object_id := application.get("id"))
+                ],
+                lambda request: self.graph.list_application_federated_credentials(str(request.key)),
+            )
+        )
+        application_owners_by_id, application_owner_errors = _graph_batch_list_with_fallback(
+            self.graph,
+            [
+                GraphBatchRequest(
+                    key=app_object_id,
+                    path=f"/applications/{app_object_id}/owners",
+                    params={
+                        "$select": "id,displayName,userPrincipalName,appId,servicePrincipalType"
+                    },
+                )
+                for application in applications
+                if (app_object_id := application.get("id"))
+            ],
+            lambda request: self.graph.list_application_owners(str(request.key)),
+        )
 
         for application in applications:
             app_object_id = application.get("id")
@@ -2215,11 +2264,8 @@ class AzureProvider(BaseProvider):
 
             backing_sp = service_principal_by_app_id.get(application.get("appId"))
 
-            try:
-                federated_credentials = self.graph.list_application_federated_credentials(
-                    app_object_id
-                )
-            except Exception as exc:
+            exc = federated_credential_errors.get(app_object_id)
+            if exc is not None:
                 issues.append(
                     _issue_from_exception(
                         f"role_trusts.applications[{app_object_id}].federated_credentials",
@@ -2227,6 +2273,8 @@ class AzureProvider(BaseProvider):
                     )
                 )
                 federated_credentials = []
+            else:
+                federated_credentials = federated_credentials_by_application.get(app_object_id, [])
 
             for credential in federated_credentials:
                 related_ids = [app_object_id]
@@ -2263,9 +2311,8 @@ class AzureProvider(BaseProvider):
                     }
                 )
 
-            try:
-                owners = self.graph.list_application_owners(app_object_id)
-            except Exception as exc:
+            exc = application_owner_errors.get(app_object_id)
+            if exc is not None:
                 issues.append(
                     _issue_from_exception(
                         f"role_trusts.applications[{app_object_id}].owners",
@@ -2273,6 +2320,8 @@ class AzureProvider(BaseProvider):
                     )
                 )
                 owners = []
+            else:
+                owners = application_owners_by_id.get(app_object_id, [])
 
             for owner in owners:
                 owner_id = owner.get("id")
@@ -2297,14 +2346,73 @@ class AzureProvider(BaseProvider):
                     }
                 )
 
+        service_principal_owners_by_id, service_principal_owner_errors = (
+            _graph_batch_list_with_fallback(
+                self.graph,
+                [
+                    GraphBatchRequest(
+                        key=sp_id,
+                        path=f"/servicePrincipals/{sp_id}/owners",
+                        params={
+                            "$select": "id,displayName,userPrincipalName,appId,servicePrincipalType"
+                        },
+                    )
+                    for service_principal in service_principals
+                    if (sp_id := service_principal.get("id"))
+                ],
+                lambda request: self.graph.list_service_principal_owners(str(request.key)),
+            )
+        )
+        assignments_by_service_principal_id, assignment_errors = _graph_batch_list_with_fallback(
+            self.graph,
+            [
+                GraphBatchRequest(
+                    key=sp_id,
+                    path=f"/servicePrincipals/{sp_id}/appRoleAssignments",
+                    params={"$select": "id,appRoleId,principalId,resourceId"},
+                )
+                for service_principal in service_principals
+                if (sp_id := service_principal.get("id"))
+            ],
+            lambda request: self.graph.list_app_role_assignments(str(request.key)),
+        )
+        missing_resource_ids = sorted(
+            {
+                str(assignment.get("resourceId"))
+                for assignments in assignments_by_service_principal_id.values()
+                for assignment in assignments
+                if assignment.get("resourceId")
+                and assignment.get("resourceId") not in service_principal_by_id
+            }
+        )
+        resources_by_id, resource_errors = _graph_batch_get_with_fallback(
+            self.graph,
+            [
+                GraphBatchRequest(
+                    key=resource_id,
+                    path=f"/servicePrincipals/{resource_id}",
+                    params={
+                        "$select": (
+                            "id,appId,displayName,servicePrincipalType,appOwnerOrganizationId"
+                        )
+                    },
+                )
+                for resource_id in missing_resource_ids
+            ],
+            lambda request: self.graph.get_service_principal(str(request.key)),
+        )
+        for resource_id in missing_resource_ids:
+            resource = resources_by_id.get(resource_id, {})
+            if resource.get("id"):
+                service_principal_by_id[resource["id"]] = resource
+
         for service_principal in service_principals:
             sp_id = service_principal.get("id")
             if not sp_id:
                 continue
 
-            try:
-                owners = self.graph.list_service_principal_owners(sp_id)
-            except Exception as exc:
+            exc = service_principal_owner_errors.get(sp_id)
+            if exc is not None:
                 issues.append(
                     _issue_from_exception(
                         f"role_trusts.service_principals[{sp_id}].owners",
@@ -2312,6 +2420,8 @@ class AzureProvider(BaseProvider):
                     )
                 )
                 owners = []
+            else:
+                owners = service_principal_owners_by_id.get(sp_id, [])
 
             for owner in owners:
                 owner_id = owner.get("id")
@@ -2336,9 +2446,8 @@ class AzureProvider(BaseProvider):
                     }
                 )
 
-            try:
-                assignments = self.graph.list_app_role_assignments(sp_id)
-            except Exception as exc:
+            exc = assignment_errors.get(sp_id)
+            if exc is not None:
                 issues.append(
                     _issue_from_exception(
                         f"role_trusts.service_principals[{sp_id}].app_role_assignments",
@@ -2346,14 +2455,15 @@ class AzureProvider(BaseProvider):
                     )
                 )
                 assignments = []
+            else:
+                assignments = assignments_by_service_principal_id.get(sp_id, [])
 
             for assignment in assignments:
                 resource_id = assignment.get("resourceId")
                 resource = service_principal_by_id.get(resource_id)
                 if resource is None and resource_id:
-                    try:
-                        resource = self.graph.get_service_principal(str(resource_id))
-                    except Exception as exc:
+                    exc = resource_errors.get(str(resource_id))
+                    if exc is not None:
                         issues.append(
                             _issue_from_exception(
                                 f"role_trusts.service_principals[{sp_id}].resource[{resource_id}]",
@@ -2362,6 +2472,7 @@ class AzureProvider(BaseProvider):
                         )
                         resource = {}
                     else:
+                        resource = resources_by_id.get(str(resource_id), {})
                         if resource.get("id"):
                             service_principal_by_id[resource["id"]] = resource
                 resource_name = resource.get("displayName") or resource_id or "unknown"
@@ -4385,6 +4496,56 @@ def _graph_object_type(item: dict) -> str:
     if item.get("userPrincipalName") is not None:
         return "User"
     return "DirectoryObject"
+
+
+def _graph_optional_list(item: dict | None) -> list[dict]:
+    if item is None:
+        return []
+    return [item]
+
+
+def _graph_batch_list_with_fallback(
+    graph: object,
+    requests: list[GraphBatchRequest],
+    serial_fetch,
+) -> tuple[dict[str, list[dict]], dict[str, Exception]]:
+    if not requests:
+        return {}, {}
+
+    batch_fetch = getattr(graph, "batch_list_objects_by_key", None)
+    if callable(batch_fetch):
+        return batch_fetch(requests)
+
+    results: dict[str, list[dict]] = {}
+    errors: dict[str, Exception] = {}
+    for request in requests:
+        try:
+            results[request.key] = serial_fetch(request)
+        except Exception as exc:
+            errors[request.key] = exc
+    return results, errors
+
+
+def _graph_batch_get_with_fallback(
+    graph: object,
+    requests: list[GraphBatchRequest],
+    serial_fetch,
+) -> tuple[dict[str, dict], dict[str, Exception]]:
+    if not requests:
+        return {}, {}
+
+    batch_fetch = getattr(graph, "batch_get_objects_by_key", None)
+    if callable(batch_fetch):
+        return batch_fetch(requests)
+
+    results: dict[str, dict] = {}
+    errors: dict[str, Exception] = {}
+    for request in requests:
+        try:
+            results[request.key] = serial_fetch(request)
+        except Exception as exc:
+            errors[request.key] = exc
+    return results, errors
 
 
 def _dedupe_role_trusts(items: list[dict]) -> list[dict]:

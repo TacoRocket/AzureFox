@@ -316,10 +316,10 @@ def chains(
         raise typer.Exit(code=2)
 
     try:
-        provider = get_provider(options)
         if options.output != OutputMode.JSON:
             emit_context_banner(options)
             typer.echo(family_spec.summary)
+        provider = get_provider(options)
         model = run_chain_family(provider, options, family)
         artifact_paths = emit_output("chains", model, options)
         if options.output == OutputMode.JSON:

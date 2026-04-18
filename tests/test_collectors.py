@@ -4318,6 +4318,78 @@ class FakeRoleTrustsFullGraph(FakeRoleTrustsGraph):
         return super().list_application_owners(application_id)
 
 
+class BatchOnlyRoleTrustsGraph(FakeRoleTrustsGraph):
+    def __init__(self) -> None:
+        self.batch_list_calls = 0
+        self.batch_get_calls = 0
+
+    def batch_list_objects_by_key(
+        self,
+        requests,
+    ) -> tuple[dict[str, list[dict]], dict[str, Exception]]:
+        self.batch_list_calls += 1
+        results: dict[str, list[dict]] = {}
+        for request in requests:
+            path = str(getattr(request, "path", ""))
+            key = str(getattr(request, "key", ""))
+            if path == "/applications":
+                application = FakeRoleTrustsGraph.get_application_by_app_id(self, key)
+                results[key] = [application] if application else []
+            elif path.endswith("/federatedIdentityCredentials"):
+                results[key] = FakeRoleTrustsGraph.list_application_federated_credentials(self, key)
+            elif path.startswith("/applications/") and path.endswith("/owners"):
+                results[key] = FakeRoleTrustsGraph.list_application_owners(self, key)
+            elif path.startswith("/servicePrincipals/") and path.endswith("/owners"):
+                results[key] = FakeRoleTrustsGraph.list_service_principal_owners(self, key)
+            elif path.endswith("/appRoleAssignments"):
+                results[key] = FakeRoleTrustsGraph.list_app_role_assignments(self, key)
+            else:  # pragma: no cover - guardrail for unexpected batch routes
+                raise AssertionError(f"unexpected batch list request: {path}")
+        return results, {}
+
+    def batch_get_objects_by_key(self, requests) -> tuple[dict[str, dict], dict[str, Exception]]:
+        self.batch_get_calls += 1
+        results: dict[str, dict] = {}
+        for request in requests:
+            key = str(getattr(request, "key", ""))
+            results[key] = FakeRoleTrustsGraph.get_service_principal(self, key)
+        return results, {}
+
+    def list_applications(self) -> list[dict]:
+        raise AssertionError("list_applications should not be called when batch helpers exist")
+
+    def get_application_by_app_id(self, app_id: str) -> dict | None:
+        raise AssertionError(
+            f"get_application_by_app_id should not be called when batch helpers exist: {app_id}"
+        )
+
+    def list_application_federated_credentials(self, application_id: str) -> list[dict]:
+        raise AssertionError(
+            "list_application_federated_credentials should not be called when batch helpers exist"
+        )
+
+    def list_application_owners(self, application_id: str) -> list[dict]:
+        raise AssertionError(
+            "list_application_owners should not be called when batch helpers exist"
+        )
+
+    def list_service_principal_owners(self, service_principal_id: str) -> list[dict]:
+        raise AssertionError(
+            "list_service_principal_owners should not be called when batch helpers exist"
+        )
+
+    def list_app_role_assignments(self, service_principal_id: str) -> list[dict]:
+        raise AssertionError(
+            "list_app_role_assignments should not be called when batch helpers exist"
+        )
+
+    def get_service_principal(self, service_principal_id: str) -> dict:
+        raise AssertionError(
+            "get_service_principal should not be called when batch helpers exist: "
+            f"{service_principal_id}"
+        )
+
+
 def test_collect_role_trusts_full_mode_surfaces_extra_application_edges(options) -> None:
     provider = object.__new__(AzureProvider)
     provider.graph = FakeRoleTrustsFullGraph()
@@ -4362,6 +4434,23 @@ def test_collect_role_trusts_full_mode_surfaces_extra_application_edges(options)
     assert orphan_owner.controlled_object_type == "Application"
     assert orphan_owner.controlled_object_name == "orphan-build-app"
     assert orphan_owner.usable_identity_result is None
+
+
+def test_collect_role_trusts_uses_graph_batch_helpers_when_available(options) -> None:
+    provider = object.__new__(AzureProvider)
+    provider.graph = BatchOnlyRoleTrustsGraph()
+    provider.metadata_context = lambda: {
+        "tenant_id": "tenant-from-provider",
+        "subscription_id": "subscription-from-provider",
+        "token_source": "azure_cli",
+    }
+
+    output = collect_role_trusts(provider, options)
+
+    assert len(output.trusts) == 4
+    assert provider.graph.batch_list_calls >= 4
+    assert provider.graph.batch_get_calls == 0
+    assert any(item.trust_type == "federated-credential" for item in output.trusts)
 
 
 def test_collect_managed_identities(fixture_provider, options) -> None:
