@@ -1,15 +1,21 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from azurefox.chains.registry import (
     GROUPED_COMMAND_INPUT_MODES,
     GROUPED_COMMAND_NAME,
     PREFERRED_ARTIFACT_ORDER,
     chain_family_names,
+    chain_source_model,
+    empty_chain_source_fields,
     get_chain_family_spec,
     implemented_chain_family_names,
     is_implemented_chain_family,
 )
 from azurefox.chains.scaffold import build_chains_scaffold_output
+from azurefox.config import GlobalOptions
+from azurefox.models.commands import ManagedIdentitiesOutput, WorkloadsOutput
 from azurefox.models.common import (
     AksClusterAsset,
     AppServiceAsset,
@@ -21,9 +27,11 @@ from azurefox.models.common import (
     FunctionAppAsset,
     KeyVaultAsset,
     ManagedIdentity,
+    OutputMode,
     PermissionSummary,
     PrivescPathSummary,
     RoleAssignment,
+    RoleTrustsMode,
     RoleTrustSummary,
     StorageAsset,
     TokenCredentialSurfaceSummary,
@@ -85,6 +93,30 @@ def test_chain_registry_scaffold_fields_exist_on_backing_models() -> None:
             model_fields = COMMAND_MODEL_FIELDS[source.command]
             for field_name in source.minimum_fields:
                 assert field_name in model_fields
+
+
+def test_chain_registry_compute_control_sources_support_reuse_and_empty_fallbacks() -> None:
+    options = GlobalOptions(
+        tenant=None,
+        subscription=None,
+        output=OutputMode.JSON,
+        outdir=Path("/tmp"),
+        debug=False,
+        role_trusts_mode=RoleTrustsMode.FAST,
+    )
+    issue = {"kind": "test"}
+
+    assert chain_source_model("workloads") is WorkloadsOutput
+    assert chain_source_model("managed-identities") is ManagedIdentitiesOutput
+    assert empty_chain_source_fields("workloads", issue, options) == {
+        "workloads": [],
+        "issues": [issue],
+    }
+    assert empty_chain_source_fields("managed-identities", issue, options) == {
+        "identities": [],
+        "role_assignments": [],
+        "issues": [issue],
+    }
 
 
 def test_build_chains_scaffold_output_returns_selected_family_only() -> None:
