@@ -39,7 +39,8 @@ def build_clients(session: AuthSession, requested_subscription: str | None) -> A
         from azure.mgmt.mysqlflexibleservers import MySQLManagementClient
         from azure.mgmt.network import NetworkManagementClient
         from azure.mgmt.postgresqlflexibleservers import PostgreSQLManagementClient
-        from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient
+        from azure.mgmt.resource import ResourceManagementClient
+        from azure.mgmt.resource.subscriptions import SubscriptionClient
         from azure.mgmt.sql import SqlManagementClient
         from azure.mgmt.storage import StorageManagementClient
         from azure.mgmt.web import WebSiteManagementClient
