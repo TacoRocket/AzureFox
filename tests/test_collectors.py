@@ -2306,6 +2306,87 @@ def test_collect_arm_deployments(fixture_provider, options) -> None:
     assert output.deployments[2].name == "kv-secrets"
 
 
+def test_collect_arm_deployments_uses_split_deployments_client(options) -> None:
+    def deployment(
+        name: str,
+        deployment_id: str,
+        *,
+        providers: list[str],
+        outputs_count: int = 0,
+        output_resource_count: int = 0,
+    ) -> SimpleNamespace:
+        return SimpleNamespace(
+            id=deployment_id,
+            name=name,
+            properties=SimpleNamespace(
+                provisioning_state="Succeeded",
+                outputs={f"output-{index}": {} for index in range(outputs_count)},
+                output_resources=[object() for _ in range(output_resource_count)],
+                providers=[SimpleNamespace(namespace=namespace) for namespace in providers],
+                template_link=None,
+                parameters_link=None,
+                mode="Incremental",
+                timestamp="2026-04-18T00:00:00Z",
+                duration="PT1M",
+            ),
+        )
+
+    provider = AzureProvider.__new__(AzureProvider)
+    provider.session = SimpleNamespace(
+        tenant_id="tenant-id",
+        token_source="fixture",
+        auth_mode="fixture",
+    )
+    provider.clients = SimpleNamespace(
+        subscription_id="subscription-id",
+        resource=SimpleNamespace(
+            resource_groups=SimpleNamespace(
+                list=lambda: [SimpleNamespace(name="rg-apps")],
+            )
+        ),
+        resource_deployments=SimpleNamespace(
+            deployments=SimpleNamespace(
+                list_at_subscription_scope=lambda: [
+                    deployment(
+                        "sub-foundation",
+                        (
+                            "/subscriptions/subscription-id/providers/Microsoft.Resources/"
+                            "deployments/sub-foundation"
+                        ),
+                        providers=["Microsoft.Resources"],
+                        outputs_count=2,
+                    )
+                ],
+                list_by_resource_group=lambda resource_group: [
+                    deployment(
+                        "rg-apps-deploy",
+                        (
+                            "/subscriptions/subscription-id/resourceGroups/rg-apps/providers/"
+                            "Microsoft.Resources/deployments/rg-apps-deploy"
+                        ),
+                        providers=["Microsoft.Web"],
+                        output_resource_count=1,
+                    )
+                ]
+                if resource_group == "rg-apps"
+                else [],
+            )
+        ),
+    )
+
+    output = collect_arm_deployments(provider, options)
+
+    assert [item.name for item in output.deployments] == [
+        "sub-foundation",
+        "rg-apps-deploy",
+    ]
+    assert [item.scope_type for item in output.deployments] == [
+        "subscription",
+        "resource_group",
+    ]
+    assert output.issues == []
+
+
 def test_collect_arm_deployments_sorts_failures_and_linked_rows_first(options) -> None:
     output = collect_arm_deployments(DriftOrderingFixtureProvider(Path(".")), options)
 

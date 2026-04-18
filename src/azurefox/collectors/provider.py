@@ -748,7 +748,8 @@ class AzureProvider(BaseProvider):
         deployments: list[dict] = []
 
         try:
-            for deployment in self.clients.resource.deployments.list_at_subscription_scope():
+            iterator = self.clients.resource_deployments.deployments.list_at_subscription_scope()
+            for deployment in iterator:
                 deployments.append(
                     _deployment_summary(
                         deployment,
@@ -767,7 +768,9 @@ class AzureProvider(BaseProvider):
 
         for resource_group in resource_groups:
             try:
-                iterator = self.clients.resource.deployments.list_by_resource_group(resource_group)
+                iterator = self.clients.resource_deployments.deployments.list_by_resource_group(
+                    resource_group
+                )
                 for deployment in iterator:
                     deployments.append(
                         _deployment_summary(
