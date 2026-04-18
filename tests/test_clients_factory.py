@@ -56,6 +56,7 @@ def _install_fake_management_modules(
         "azure.mgmt.mysqlflexibleservers": ("MySQLManagementClient",),
         "azure.mgmt.network": ("NetworkManagementClient",),
         "azure.mgmt.postgresqlflexibleservers": ("PostgreSQLManagementClient",),
+        "azure.mgmt.resource.deployments": ("DeploymentsMgmtClient",),
         "azure.mgmt.sql": ("SqlManagementClient",),
         "azure.mgmt.storage": ("StorageManagementClient",),
         "azure.mgmt.web": ("WebSiteManagementClient",),
@@ -96,3 +97,4 @@ def test_build_clients_supports_split_subscription_package(monkeypatch) -> None:
     assert clients.subscription_id == "sub-b"
     assert clients.subscription.display_name == "Beta"
     assert clients.resource.subscription_id == "sub-b"
+    assert clients.resource_deployments.subscription_id == "sub-b"

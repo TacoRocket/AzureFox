@@ -12,6 +12,7 @@ class AzureClients:
     subscription_id: str
     subscription: SubscriptionRef
     resource: object
+    resource_deployments: object
     authorization: object
     automation: object
     web: object
@@ -40,6 +41,7 @@ def build_clients(session: AuthSession, requested_subscription: str | None) -> A
         from azure.mgmt.network import NetworkManagementClient
         from azure.mgmt.postgresqlflexibleservers import PostgreSQLManagementClient
         from azure.mgmt.resource import ResourceManagementClient
+        from azure.mgmt.resource.deployments import DeploymentsMgmtClient
         from azure.mgmt.resource.subscriptions import SubscriptionClient
         from azure.mgmt.sql import SqlManagementClient
         from azure.mgmt.storage import StorageManagementClient
@@ -89,6 +91,7 @@ def build_clients(session: AuthSession, requested_subscription: str | None) -> A
         subscription_id=subscription_id,
         subscription=subscription_ref,
         resource=ResourceManagementClient(session.credential, subscription_id),
+        resource_deployments=DeploymentsMgmtClient(session.credential, subscription_id),
         authorization=AuthorizationManagementClient(session.credential, subscription_id),
         automation=AutomationClient(session.credential, subscription_id),
         web=WebSiteManagementClient(session.credential, subscription_id),
